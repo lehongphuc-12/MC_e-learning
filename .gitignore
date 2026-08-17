@@ -1,0 +1,79 @@
+# ==========================================
+# 1. GENERAL / SYSTEM
+# ==========================================
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Environment variables (chứa secret key, connection string)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+
+# ==========================================
+# 2. BACKEND: .NET CORE API
+# ==========================================
+# Build / Output directories
+bin/
+obj/
+out/
+
+# User-specific files & Visual Studio
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+.vs/
+
+# NuGet Packages
+*.nupkg
+packages/
+
+# Entity Framework Core Tooling
+appsettings.Development.json
+appsettings.json
+
+# Crash dumps
+*.dmp
+*.dump
+
+# ==========================================
+# 3. FRONTEND: REACT TYPESCRIPT (Vite / CRA / Next.js)
+# ==========================================
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build / Output directories
+dist/
+build/
+.next/
+out/
+
+# Testing & Coverage
+coverage/
+.nyc_output/
+
+# Linter & Cache
+.eslintcache
+.stylelintcache
+.vite/
+.turbo/
+*.tsbuildinfo
+
+# Package locks local log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
