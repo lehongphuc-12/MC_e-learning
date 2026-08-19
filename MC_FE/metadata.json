@@ -1,0 +1,6 @@
+{
+  "name": "MSEEK Communication Platform",
+  "description": "A world-class masterclass platform for public speaking, MCing, presentation mastery, and executive communication with interactive course catalog, video previews, and learner dashboard.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
