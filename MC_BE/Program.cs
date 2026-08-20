@@ -55,6 +55,9 @@ using (var scope = app.Services.CreateScope())
     var context = scope.ServiceProvider.GetRequiredService<SmartMcDbContext>();
     try
     {
+        // Automatically apply any pending migrations
+        context.Database.Migrate();
+
         if (!context.Roles.Any())
         {
             context.Roles.AddRange(
