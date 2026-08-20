@@ -70,21 +70,51 @@ export default function App() {
     fetchMe();
   }, []);
 
+  // Listen to hash change to set active screen
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash || '#/';
+      if (hash.startsWith('#/courses')) {
+        setCurrentScreen('courses');
+      } else if (hash.startsWith('#/course-detail')) {
+        // Parse course ID from hash query parameter
+        const match = hash.match(/\?id=([^&]+)/);
+        const courseId = match ? match[1] : null;
+        if (courseId) {
+          const found = mockCourses.find(c => c.id === courseId);
+          if (found) {
+            setSelectedCourse(found);
+          }
+        }
+        setCurrentScreen('course-detail');
+      } else if (hash === '#/login') {
+        setCurrentScreen('login');
+      } else if (hash === '#/register') {
+        setCurrentScreen('register');
+      } else {
+        setCurrentScreen('home');
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    handleHashChange(); // Run once on startup
+
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
   const handleNavigate = (screen: ScreenType) => {
-    setCurrentScreen(screen);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.location.hash = `/${screen === 'home' ? '' : screen}`;
   };
 
   const handleSelectCourse = (course: Course) => {
-    setSelectedCourse(course);
-    setCurrentScreen('course-detail');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.location.hash = `/course-detail?id=${course.id}`;
   };
 
   const handleCheckoutSuccess = (course: Course) => {
     store.handleRemoveFromCart(course.id);
     store.showToast('Enrollment Confirmed!', `Welcome to ${course.title}. Lifetime access unlocked.`);
-    handleNavigate('course-detail');
+    handleSelectCourse(course);
   };
 
   const handleLoginSuccess = (userObj: any, token: string) => {
