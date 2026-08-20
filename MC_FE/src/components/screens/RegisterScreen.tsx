@@ -4,7 +4,7 @@ import { ScreenType } from '../../types';
 
 interface RegisterScreenProps {
   onNavigate: (screen: ScreenType) => void;
-  onRegisterSuccess: (name: string, email: string) => void;
+  onRegisterSuccess: (userObj: any) => void;
 }
 
 export const RegisterScreen: React.FC<RegisterScreenProps> = ({
@@ -17,6 +17,7 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
   const [confirmPassword, setConfirmPassword] = useState('');
   const [agreedTerms, setAgreedTerms] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const getPasswordStrength = () => {
     if (!password) return 0;
@@ -30,17 +31,40 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
 
   const strength = getPasswordStrength();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password !== confirmPassword) {
-      alert('Passwords do not match. Please re-enter.');
+      setError('Passwords do not match. Please re-enter.');
       return;
     }
     setIsLoading(true);
-    setTimeout(() => {
+    setError(null);
+
+    try {
+      const response = await fetch('http://localhost:5239/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ fullName: name, email, password }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        if (result.errors && result.errors.length > 0) {
+          setError(result.errors.join(', '));
+        } else {
+          setError(result.message || 'Registration failed.');
+        }
+      } else {
+        onRegisterSuccess(result.data);
+      }
+    } catch (err) {
+      setError('Cannot connect to the server. Please check if backend is running.');
+    } finally {
       setIsLoading(false);
-      onRegisterSuccess(name || 'Alex Rivera', email || 'new.learner@mseek.edu');
-    }, 600);
+    }
   };
 
   return (
@@ -228,7 +252,7 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
 
           {/* Social Sign Up */}
           <button
-            onClick={() => onRegisterSuccess('Google Learner', 'google.user@gmail.com')}
+            onClick={() => onRegisterSuccess({ userId: 999, fullName: 'Google Learner', email: 'google.user@gmail.com', roleName: 'Learner' })}
             className="w-full py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-xl transition-all flex items-center justify-center gap-2.5 cursor-pointer shadow-xs"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24">

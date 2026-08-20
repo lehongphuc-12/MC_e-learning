@@ -144,4 +144,31 @@ public class AuthService : IAuthService
 
         return ApiResponse<LoginResponse>.SuccessResponse(loginResponse, "Login successful.");
     }
+
+    public async Task<ApiResponse<UserDto>> GetMeAsync(int userId)
+    {
+        var usersFound = await _userRepository.FindAsync(u => u.UserId == userId, u => u.Role);
+        var user = usersFound.FirstOrDefault();
+
+        if (user == null)
+        {
+            return ApiResponse<UserDto>.FailureResponse("User not found.");
+        }
+
+        if (user.Status != "ACTIVE")
+        {
+            return ApiResponse<UserDto>.FailureResponse("User is not active.");
+        }
+
+        var userDto = new UserDto
+        {
+            UserId = user.UserId,
+            FullName = user.FullName,
+            Email = user.Email,
+            RoleName = user.Role.RoleName,
+            AvatarUrl = user.AvatarUrl
+        };
+
+        return ApiResponse<UserDto>.SuccessResponse(userDto, "User details retrieved successfully.");
+    }
 }

@@ -4,7 +4,7 @@ import { ScreenType } from '../../types';
 
 interface LoginScreenProps {
   onNavigate: (screen: ScreenType) => void;
-  onLoginSuccess: (email: string) => void;
+  onLoginSuccess: (userObj: any, token: string) => void;
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({
@@ -16,19 +16,39 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    setTimeout(() => {
+    setError(null);
+
+    try {
+      const response = await fetch('http://localhost:5239/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        setError(result.message || 'Login failed. Please check your credentials.');
+      } else {
+        onLoginSuccess(result.data.user, result.data.token);
+      }
+    } catch (err) {
+      setError('Cannot connect to the server. Please check if backend is running.');
+    } finally {
       setIsLoading(false);
-      onLoginSuccess(email);
-    }, 600);
+    }
   };
 
   const handleDemoFill = () => {
     setEmail('alex.rivera@mseek.edu');
-    setPassword('masterstage2026');
+    setPassword('password123');
   };
 
   return (
@@ -85,6 +105,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {error && (
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-600 rounded-xl text-xs font-semibold">
+                {error}
+              </div>
+            )}
+
             {/* Email Field */}
             <div className="space-y-1.5">
               <label className="block text-xs font-bold text-slate-700">Email Address</label>
@@ -172,7 +198,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           </div>
 
           <button
-            onClick={() => onLoginSuccess('google.user@gmail.com')}
+            onClick={() => onLoginSuccess({ userId: 999, fullName: 'Google Learner', email: 'google.user@gmail.com', roleName: 'Learner' }, 'mock-google-token')}
             className="w-full py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-xl transition-all flex items-center justify-center gap-2.5 cursor-pointer shadow-xs"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24">

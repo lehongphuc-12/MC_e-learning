@@ -59,4 +59,23 @@ public class AuthController : ControllerBase
         // This endpoint serves to confirm successful user intent of logging out.
         return Ok(ApiResponse<string>.SuccessResponse("Logged out successfully. Please discard the token on the client side."));
     }
+
+    [Authorize]
+    [HttpGet("me")]
+    public async Task<ActionResult<ApiResponse<UserDto>>> GetMe()
+    {
+        var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized(ApiResponse<UserDto>.FailureResponse("Unauthorized access. Invalid user token."));
+        }
+
+        var result = await _authService.GetMeAsync(userId);
+        if (!result.Success)
+        {
+            return BadRequest(result);
+        }
+
+        return Ok(result);
+    }
 }

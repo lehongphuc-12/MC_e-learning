@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ScreenType, Course, User } from './types';
 import { mockCourses, mockCurrentUser } from './data/mockData';
 import { Header } from './components/Header';
@@ -16,7 +16,8 @@ import { CheckCircle2, Heart, ShoppingBag, X } from 'lucide-react';
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<ScreenType>('home');
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(mockCourses[0]);
-  const [user, setUser] = useState<User | null>(mockCurrentUser);
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoadingUser, setIsLoadingUser] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Cart & Wishlist state
@@ -37,6 +38,58 @@ export default function App() {
       setToastMessage(null);
     }, 3500);
   };
+
+  useEffect(() => {
+    const fetchMe = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setIsLoadingUser(false);
+        setUser(null);
+        return;
+      }
+
+      try {
+        const response = await fetch('http://localhost:5239/api/auth/me', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        const result = await response.json();
+        if (response.ok && result.success) {
+          const userObj = result.data;
+          const mappedRole = 
+            userObj.roleName === 'Learner' ? 'student' :
+            userObj.roleName === 'Instructor' ? 'instructor' :
+            userObj.roleName === 'Admin' ? 'admin' : 'student';
+
+          setUser({
+            id: userObj.userId.toString(),
+            name: userObj.fullName,
+            email: userObj.email,
+            avatar: userObj.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+            role: mappedRole,
+            membershipTier: 'Pro Learner',
+            enrolledCourseIds: [],
+            wishlistCourseIds: [],
+            completedCourseIds: [],
+            certificatesEarned: 0,
+            hoursLearned: 0
+          });
+        } else {
+          localStorage.removeItem('token');
+          setUser(null);
+        }
+      } catch (err) {
+        setUser(null);
+      } finally {
+        setIsLoadingUser(false);
+      }
+    };
+
+    fetchMe();
+  }, []);
 
   // Screen navigation with smooth scroll to top
   const handleNavigate = (screen: ScreenType) => {
@@ -98,30 +151,57 @@ export default function App() {
     handleNavigate('course-detail');
   };
 
-  const handleLoginSuccess = (email: string) => {
+  const handleLoginSuccess = (userObj: any, token: string) => {
+    const mappedRole = 
+      userObj.roleName === 'Learner' ? 'student' :
+      userObj.roleName === 'Instructor' ? 'instructor' :
+      userObj.roleName === 'Admin' ? 'admin' : 'student';
+
     setUser({
-      ...mockCurrentUser,
-      email: email,
+      id: userObj.userId.toString(),
+      name: userObj.fullName,
+      email: userObj.email,
+      avatar: userObj.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+      role: mappedRole,
+      membershipTier: 'Pro Learner',
+      enrolledCourseIds: [],
+      wishlistCourseIds: [],
+      completedCourseIds: [],
+      certificatesEarned: 0,
+      hoursLearned: 0
     });
-    showToast('Welcome Back!', `Logged in successfully as ${email}`);
+    localStorage.setItem('token', token);
+    showToast('Welcome Back!', `Logged in successfully as ${userObj.email}`);
     handleNavigate('courses');
   };
 
-  const handleRegisterSuccess = (name: string, email: string) => {
-    setUser({
-      ...mockCurrentUser,
-      name: name,
-      email: email,
-    });
-    showToast('Account Created!', `Welcome to MSEEK Academy, ${name}!`);
-    handleNavigate('courses');
+  const handleRegisterSuccess = (userObj: any) => {
+    showToast('Account Created!', `Welcome to MSEEK Academy, ${userObj.fullName}! Please login.`);
+    handleNavigate('login');
   };
 
   const handleLogout = () => {
     setUser(null);
+    localStorage.removeItem('token');
     showToast('Signed Out', 'You have been logged out securely.', 'info');
     handleNavigate('home');
   };
+
+  if (isLoadingUser) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 text-white">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-blue-600 flex items-center justify-center animate-pulse">
+            <svg className="w-6 h-6 text-white animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+            </svg>
+          </div>
+          <p className="text-sm font-bold text-slate-400 tracking-wider">Verifying Session...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div id="mseek-app-root" className="min-h-screen flex flex-col bg-slate-50 text-slate-900 selection:bg-blue-600 selection:text-white">
