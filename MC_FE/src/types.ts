@@ -107,12 +107,6 @@ export interface User {
   email: string;
   avatar: string;
   role: 'student' | 'instructor' | 'admin';
-  membershipTier: 'Free' | 'Pro Learner' | 'Enterprise';
-  enrolledCourseIds: string[];
-  wishlistCourseIds: string[];
-  completedCourseIds: string[];
-  certificatesEarned: number;
-  hoursLearned: number;
 }
 
 export interface EnrolledCourseProgress {

@@ -578,13 +578,7 @@ export const mockCurrentUser: User = {
   name: 'Alex Rivera',
   email: 'alex.rivera@mseek.edu',
   avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=300&q=80',
-  role: 'student',
-  membershipTier: 'Pro Learner',
-  enrolledCourseIds: ['course-wedding-mc', 'course-public-speaking', 'course-voice-diction', 'course-storytelling'],
-  wishlistCourseIds: ['course-corporate-hosting', 'course-presentation-design'],
-  completedCourseIds: ['course-free-intro'],
-  certificatesEarned: 8,
-  hoursLearned: 124
+  role: 'student'
 };
 
 export const mockRecentActivities: ActivityLog[] = [

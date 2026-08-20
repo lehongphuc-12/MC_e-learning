@@ -236,7 +236,7 @@ export const Header: React.FC<HeaderProps> = ({
                     />
                     <div className="hidden sm:block text-left">
                       <div className="text-xs font-bold text-slate-900 leading-tight">{user.name}</div>
-                      <div className="text-[10px] text-blue-600 font-semibold">{user.membershipTier}</div>
+                      <div className="text-[10px] text-blue-600 font-semibold uppercase">{user.role}</div>
                     </div>
                     <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
                   </button>

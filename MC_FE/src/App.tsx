@@ -1,17 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { ScreenType, Course, User } from './types';
-import { mockCourses, mockCurrentUser } from './data/mockData';
+import { mockCourses } from './data/mockData';
 import { Header } from './components/Header';
 import { Footer } from './components/Footer';
-import { HomeScreen } from './components/screens/HomeScreen';
-import { CourseCatalogScreen } from './components/screens/CourseCatalogScreen';
-import { CourseDetailScreen } from './components/screens/CourseDetailScreen';
-import { LoginScreen } from './components/screens/LoginScreen';
-import { RegisterScreen } from './components/screens/RegisterScreen';
 import { VideoPreviewModal } from './components/modals/VideoPreviewModal';
 import { CheckoutModal } from './components/modals/CheckoutModal';
 import { CartDrawer } from './components/modals/CartDrawer';
-import { CheckCircle2, Heart, ShoppingBag, X } from 'lucide-react';
+import { CheckCircle2, X } from 'lucide-react';
+import { authService } from './services/authService';
+import { useAppStore } from './hooks/useAppStore';
+import { AppRouter } from './components/AppRouter';
+
+const getDefaultAvatar = (name: string) => {
+  const parts = name.trim().split(/\s+/);
+  let initials = '';
+  if (parts.length > 1) {
+    initials = (parts[0][0] || '') + (parts[parts.length - 1][0] || '');
+  } else if (parts.length === 1 && parts[0]) {
+    initials = parts[0].slice(0, 2);
+  }
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(initials.toUpperCase())}&background=2563eb&color=fff&bold=true`;
+};
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<ScreenType>('home');
@@ -20,24 +29,7 @@ export default function App() {
   const [isLoadingUser, setIsLoadingUser] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Cart & Wishlist state
-  const [cartItems, setCartItems] = useState<Course[]>([mockCourses[1]]);
-  const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
-  const [wishlistCourseIds, setWishlistCourseIds] = useState<string[]>(['course-corporate-hosting']);
-
-  // Modals state
-  const [previewModalCourse, setPreviewModalCourse] = useState<Course | null>(null);
-  const [checkoutModalCourse, setCheckoutModalCourse] = useState<Course | null>(null);
-
-  // Toast Notification state
-  const [toastMessage, setToastMessage] = useState<{ title: string; desc?: string; type?: 'success' | 'info' } | null>(null);
-
-  const showToast = (title: string, desc?: string, type: 'success' | 'info' = 'success') => {
-    setToastMessage({ title, desc, type });
-    setTimeout(() => {
-      setToastMessage(null);
-    }, 3500);
-  };
+  const store = useAppStore();
 
   useEffect(() => {
     const fetchMe = async () => {
@@ -49,15 +41,8 @@ export default function App() {
       }
 
       try {
-        const response = await fetch('http://localhost:5239/api/auth/me', {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        });
-
-        const result = await response.json();
-        if (response.ok && result.success) {
+        const result = await authService.getMe(token);
+        if (result.success) {
           const userObj = result.data;
           const mappedRole = 
             userObj.roleName === 'Learner' ? 'student' :
@@ -68,14 +53,8 @@ export default function App() {
             id: userObj.userId.toString(),
             name: userObj.fullName,
             email: userObj.email,
-            avatar: userObj.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
-            role: mappedRole,
-            membershipTier: 'Pro Learner',
-            enrolledCourseIds: [],
-            wishlistCourseIds: [],
-            completedCourseIds: [],
-            certificatesEarned: 0,
-            hoursLearned: 0
+            avatar: userObj.avatarUrl || getDefaultAvatar(userObj.fullName),
+            role: mappedRole
           });
         } else {
           localStorage.removeItem('token');
@@ -91,7 +70,6 @@ export default function App() {
     fetchMe();
   }, []);
 
-  // Screen navigation with smooth scroll to top
   const handleNavigate = (screen: ScreenType) => {
     setCurrentScreen(screen);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -103,51 +81,9 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handlePreviewVideo = (course: Course) => {
-    setPreviewModalCourse(course);
-  };
-
-  const handleAddToCart = (course: Course) => {
-    if (!cartItems.some(item => item.id === course.id)) {
-      setCartItems(prev => [...prev, course]);
-      showToast('Added to Cart', `${course.title} is now in your cart.`);
-    } else {
-      showToast('Already in Cart', `${course.title} is already added.`, 'info');
-    }
-    setIsCartOpen(true);
-  };
-
-  const handleRemoveFromCart = (courseId: string) => {
-    setCartItems(prev => prev.filter(item => item.id !== courseId));
-    showToast('Item Removed', 'Course removed from your shopping cart.', 'info');
-  };
-
-  const handleToggleWishlist = (courseId: string) => {
-    if (wishlistCourseIds.includes(courseId)) {
-      setWishlistCourseIds(prev => prev.filter(id => id !== courseId));
-      showToast('Removed from Wishlist', 'Course removed from your saved list.', 'info');
-    } else {
-      setWishlistCourseIds(prev => [...prev, courseId]);
-      showToast('Saved to Wishlist', 'Course added to your saved wishlist.');
-    }
-  };
-
-  const handleEnrollDirectly = (course: Course) => {
-    setCheckoutModalCourse(course);
-  };
-
   const handleCheckoutSuccess = (course: Course) => {
-    if (user) {
-      if (!user.enrolledCourseIds.includes(course.id)) {
-        setUser({
-          ...user,
-          enrolledCourseIds: [...user.enrolledCourseIds, course.id]
-        });
-      }
-    }
-    // Remove from cart if it was there
-    setCartItems(prev => prev.filter(c => c.id !== course.id));
-    showToast('Enrollment Confirmed!', `Welcome to ${course.title}. Lifetime access unlocked.`);
+    store.handleRemoveFromCart(course.id);
+    store.showToast('Enrollment Confirmed!', `Welcome to ${course.title}. Lifetime access unlocked.`);
     handleNavigate('course-detail');
   };
 
@@ -161,29 +97,23 @@ export default function App() {
       id: userObj.userId.toString(),
       name: userObj.fullName,
       email: userObj.email,
-      avatar: userObj.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
-      role: mappedRole,
-      membershipTier: 'Pro Learner',
-      enrolledCourseIds: [],
-      wishlistCourseIds: [],
-      completedCourseIds: [],
-      certificatesEarned: 0,
-      hoursLearned: 0
+      avatar: userObj.avatarUrl || getDefaultAvatar(userObj.fullName),
+      role: mappedRole
     });
     localStorage.setItem('token', token);
-    showToast('Welcome Back!', `Logged in successfully as ${userObj.email}`);
+    store.showToast('Welcome Back!', `Logged in successfully as ${userObj.email}`);
     handleNavigate('courses');
   };
 
   const handleRegisterSuccess = (userObj: any) => {
-    showToast('Account Created!', `Welcome to MSEEK Academy, ${userObj.fullName}! Please login.`);
+    store.showToast('Account Created!', `Welcome to MSEEK Academy, ${userObj.fullName}! Please login.`);
     handleNavigate('login');
   };
 
   const handleLogout = () => {
     setUser(null);
     localStorage.removeItem('token');
-    showToast('Signed Out', 'You have been logged out securely.', 'info');
+    store.showToast('Signed Out', 'You have been logged out securely.', 'info');
     handleNavigate('home');
   };
 
@@ -206,7 +136,7 @@ export default function App() {
   return (
     <div id="mseek-app-root" className="min-h-screen flex flex-col bg-slate-50 text-slate-900 selection:bg-blue-600 selection:text-white">
       {/* Toast Notification Alert */}
-      {toastMessage && (
+      {store.toastMessage && (
         <div 
           id="global-toast-notification"
           className="fixed bottom-6 right-6 z-50 flex items-start gap-3 p-4 bg-slate-950 text-white rounded-2xl shadow-2xl border border-slate-800 max-w-sm animate-bounce"
@@ -215,13 +145,13 @@ export default function App() {
             <CheckCircle2 className="w-5 h-5 text-blue-400" />
           </div>
           <div className="flex-1 min-w-0">
-            <h4 className="text-xs font-bold text-white">{toastMessage.title}</h4>
-            {toastMessage.desc && (
-              <p className="text-[11px] text-slate-300 mt-0.5">{toastMessage.desc}</p>
+            <h4 className="text-xs font-bold text-white">{store.toastMessage.title}</h4>
+            {store.toastMessage.desc && (
+              <p className="text-[11px] text-slate-300 mt-0.5">{store.toastMessage.desc}</p>
             )}
           </div>
           <button
-            onClick={() => setToastMessage(null)}
+            onClick={() => store.setToastMessage(null)}
             className="text-slate-400 hover:text-white p-1 rounded-md"
           >
             <X className="w-4 h-4" />
@@ -235,9 +165,9 @@ export default function App() {
         onNavigate={handleNavigate}
         user={user}
         onLogout={handleLogout}
-        cartCount={cartItems.length}
-        wishlistCount={wishlistCourseIds.length}
-        onOpenCart={() => setIsCartOpen(true)}
+        cartCount={store.cartItems.length}
+        wishlistCount={store.wishlistCourseIds.length}
+        onOpenCart={() => store.setIsCartOpen(true)}
         onSelectCourse={handleSelectCourse}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
@@ -245,55 +175,21 @@ export default function App() {
 
       {/* Screen Routing */}
       <main className="flex-1">
-        {currentScreen === 'home' && (
-          <HomeScreen
-            onNavigate={handleNavigate}
-            onSelectCourse={handleSelectCourse}
-            onPreviewVideo={handlePreviewVideo}
-            onAddToCart={handleAddToCart}
-            onToggleWishlist={handleToggleWishlist}
-            wishlistCourseIds={wishlistCourseIds}
-          />
-        )}
-
-        {currentScreen === 'courses' && (
-          <CourseCatalogScreen
-            onNavigate={handleNavigate}
-            onSelectCourse={handleSelectCourse}
-            onPreviewVideo={handlePreviewVideo}
-            onAddToCart={handleAddToCart}
-            onToggleWishlist={handleToggleWishlist}
-            wishlistCourseIds={wishlistCourseIds}
-            searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
-          />
-        )}
-
-        {currentScreen === 'course-detail' && (
-          <CourseDetailScreen
-            course={selectedCourse}
-            onNavigate={handleNavigate}
-            onEnroll={handleEnrollDirectly}
-            onAddToCart={handleAddToCart}
-            onToggleWishlist={handleToggleWishlist}
-            isWishlisted={selectedCourse ? wishlistCourseIds.includes(selectedCourse.id) : false}
-            onPreviewVideo={handlePreviewVideo}
-          />
-        )}
-
-        {currentScreen === 'login' && (
-          <LoginScreen
-            onNavigate={handleNavigate}
-            onLoginSuccess={handleLoginSuccess}
-          />
-        )}
-
-        {currentScreen === 'register' && (
-          <RegisterScreen
-            onNavigate={handleNavigate}
-            onRegisterSuccess={handleRegisterSuccess}
-          />
-        )}
+        <AppRouter
+          currentScreen={currentScreen}
+          selectedCourse={selectedCourse}
+          wishlistCourseIds={store.wishlistCourseIds}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          onNavigate={handleNavigate}
+          onSelectCourse={handleSelectCourse}
+          onPreviewVideo={store.setPreviewModalCourse}
+          onAddToCart={store.handleAddToCart}
+          onToggleWishlist={store.handleToggleWishlist}
+          onEnrollDirectly={store.setCheckoutModalCourse}
+          onLoginSuccess={handleLoginSuccess}
+          onRegisterSuccess={handleRegisterSuccess}
+        />
       </main>
 
       {/* Global Footer (shown on home, catalog, and detail screens) */}
@@ -303,13 +199,13 @@ export default function App() {
 
       {/* Slide-over Cart Drawer */}
       <CartDrawer
-        isOpen={isCartOpen}
-        onClose={() => setIsCartOpen(false)}
-        cartItems={cartItems}
-        onRemoveItem={handleRemoveFromCart}
+        isOpen={store.isCartOpen}
+        onClose={() => store.setIsCartOpen(false)}
+        cartItems={store.cartItems}
+        onRemoveItem={store.handleRemoveFromCart}
         onCheckout={() => {
-          if (cartItems.length > 0) {
-            handleEnrollDirectly(cartItems[0]);
+          if (store.cartItems.length > 0) {
+            store.setCheckoutModalCourse(store.cartItems[0]);
           }
         }}
         onNavigateToCourse={handleSelectCourse}
@@ -317,17 +213,17 @@ export default function App() {
 
       {/* Video Preview Modal */}
       <VideoPreviewModal
-        course={previewModalCourse}
-        isOpen={!!previewModalCourse}
-        onClose={() => setPreviewModalCourse(null)}
-        onEnroll={handleEnrollDirectly}
+        course={store.previewModalCourse}
+        isOpen={!!store.previewModalCourse}
+        onClose={() => store.setPreviewModalCourse(null)}
+        onEnroll={store.setCheckoutModalCourse}
       />
 
       {/* Instant Checkout / Enrollment Modal */}
       <CheckoutModal
-        course={checkoutModalCourse}
-        isOpen={!!checkoutModalCourse}
-        onClose={() => setCheckoutModalCourse(null)}
+        course={store.checkoutModalCourse}
+        isOpen={!!store.checkoutModalCourse}
+        onClose={() => store.setCheckoutModalCourse(null)}
         onSuccess={handleCheckoutSuccess}
       />
     </div>

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Mic2, Lock, Mail, Eye, EyeOff, ArrowRight, ShieldCheck, Sparkles, CheckCircle2 } from 'lucide-react';
+import { authService } from '../../services/authService';
 import { ScreenType } from '../../types';
 
 interface LoginScreenProps {
@@ -24,23 +25,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     setError(null);
 
     try {
-      const response = await fetch('http://localhost:5239/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
-        setError(result.message || 'Login failed. Please check your credentials.');
-      } else {
+      const result = await authService.login(email, password);
+      if (result.success) {
         onLoginSuccess(result.data.user, result.data.token);
+      } else {
+        setError(result.message || 'Login failed. Please check your credentials.');
       }
-    } catch (err) {
-      setError('Cannot connect to the server. Please check if backend is running.');
+    } catch (err: any) {
+      setError(err.message || 'Cannot connect to the server. Please check if backend is running.');
     } finally {
       setIsLoading(false);
     }
