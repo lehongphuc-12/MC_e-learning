@@ -1,16 +1,18 @@
 import React from 'react';
-import { ScreenType, Course } from '../types';
+import { ScreenType, Course, User } from '../types';
 import { HomeScreen } from './screens/HomeScreen';
 import { CourseCatalogScreen } from './screens/CourseCatalogScreen';
 import { CourseDetailScreen } from './screens/CourseDetailScreen';
 import { LoginScreen } from './screens/LoginScreen';
 import { RegisterScreen } from './screens/RegisterScreen';
+import { ProfileScreen } from './screens/ProfileScreen';
 
 interface AppRouterProps {
   currentScreen: ScreenType;
   selectedCourse: Course | null;
   wishlistCourseIds: string[];
   searchQuery: string;
+  user: User | null;
   onSearchChange: (query: string) => void;
   onNavigate: (screen: ScreenType) => void;
   onSelectCourse: (course: Course) => void;
@@ -27,6 +29,7 @@ export const AppRouter: React.FC<AppRouterProps> = ({
   selectedCourse,
   wishlistCourseIds,
   searchQuery,
+  user,
   onSearchChange,
   onNavigate,
   onSelectCourse,
@@ -88,6 +91,13 @@ export const AppRouter: React.FC<AppRouterProps> = ({
           onRegisterSuccess={onRegisterSuccess}
         />
       );
+    case 'profile':
+      return user ? (
+        <ProfileScreen
+          user={user}
+          onNavigate={onNavigate}
+        />
+      ) : null;
     default:
       return null;
   }

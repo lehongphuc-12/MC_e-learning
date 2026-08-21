@@ -8,6 +8,7 @@ import {
   Search,
   ShoppingBag,
   Sparkles,
+  UserCircle,
   UserPlus,
   X
 } from 'lucide-react';
@@ -277,6 +278,16 @@ export const Header: React.FC<HeaderProps> = ({
                         <p className="text-xs font-bold text-slate-900">{user.name}</p>
                         <p className="text-[11px] text-slate-500">{user.email}</p>
                       </div>
+                      <button
+                        onClick={() => {
+                          onNavigate('profile');
+                          setIsUserMenuOpen(false);
+                        }}
+                        className="w-full text-left px-4 py-2 text-xs font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-600 flex items-center gap-2 cursor-pointer"
+                      >
+                        <UserCircle className="w-4 h-4" />
+                        <span>My Profile</span>
+                      </button>
                       <button
                         onClick={() => {
                           onNavigate('courses');

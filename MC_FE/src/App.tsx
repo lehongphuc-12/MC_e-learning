@@ -87,6 +87,8 @@ export default function App() {
           }
         }
         setCurrentScreen('course-detail');
+      } else if (hash === '#/profile') {
+        setCurrentScreen('profile');
       } else if (hash === '#/login') {
         setCurrentScreen('login');
       } else if (hash === '#/register') {
@@ -210,6 +212,7 @@ export default function App() {
           selectedCourse={selectedCourse}
           wishlistCourseIds={store.wishlistCourseIds}
           searchQuery={searchQuery}
+          user={user}
           onSearchChange={setSearchQuery}
           onNavigate={handleNavigate}
           onSelectCourse={handleSelectCourse}

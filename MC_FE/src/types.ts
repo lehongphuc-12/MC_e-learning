@@ -1,4 +1,4 @@
-export type ScreenType = 'home' | 'courses' | 'course-detail' | 'login' | 'register';
+export type ScreenType = 'home' | 'courses' | 'course-detail' | 'login' | 'register' | 'profile';
 
 export interface Instructor {
   id: string;
