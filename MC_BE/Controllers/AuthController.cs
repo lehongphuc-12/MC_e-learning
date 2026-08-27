@@ -1,4 +1,5 @@
 using MC_BE.DTOs;
+using MC_BE.DTOs.auth;
 using MC_BE.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -71,6 +72,25 @@ public class AuthController : ControllerBase
         }
 
         var result = await _authService.GetMeAsync(userId);
+        if (!result.Success)
+        {
+            return BadRequest(result);
+        }
+
+        return Ok(result);
+    }
+
+    [Authorize]
+    [HttpGet("profile")]
+    public async Task<ActionResult<ApiResponse<UserProfileDto>>> GetProfile([FromQuery] GetProfileRequestDto request)
+    {
+        var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var currentUserId))
+        {
+            return Unauthorized(ApiResponse<UserProfileDto>.FailureResponse("Unauthorized access. Invalid user token."));
+        }
+
+        var result = await _authService.GetProfileAsync(request, currentUserId);
         if (!result.Success)
         {
             return BadRequest(result);

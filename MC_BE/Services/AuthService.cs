@@ -1,5 +1,6 @@
 using MC_BE.Data;
 using MC_BE.DTOs;
+using MC_BE.DTOs.auth;
 using MC_BE.Models.Entities;
 using MC_BE.Models.Enums;
 using MC_BE.Repositories;
@@ -170,5 +171,45 @@ public class AuthService : IAuthService
         };
 
         return ApiResponse<UserDto>.SuccessResponse(userDto, "User details retrieved successfully.");
+    }
+
+    public async Task<ApiResponse<UserProfileDto>> GetProfileAsync(GetProfileRequestDto request, int currentUserId)
+    {
+        var targetUserId = request.UserId ?? currentUserId;
+        var usersFound = await _userRepository.FindAsync(
+            u => u.UserId == targetUserId,
+            u => u.Role,
+            u => u.UserProfile
+        );
+        var user = usersFound.FirstOrDefault();
+
+        if (user == null)
+        {
+            return ApiResponse<UserProfileDto>.FailureResponse("User not found.");
+        }
+
+        if (user.Status != "ACTIVE")
+        {
+            return ApiResponse<UserProfileDto>.FailureResponse("User is not active.");
+        }
+
+        var profile = user.UserProfile;
+        var dto = new UserProfileDto
+        {
+            UserId = user.UserId,
+            FullName = user.FullName,
+            Email = user.Email,
+            PhoneNumber = user.PhoneNumber,
+            AvatarUrl = user.AvatarUrl,
+            RoleName = user.Role.RoleName,
+            Bio = profile?.Bio,
+            Gender = profile?.Gender,
+            DateOfBirth = profile?.DateOfBirth,
+            ExperienceLevel = profile?.ExperienceLevel,
+            LearningGoal = profile?.LearningGoal,
+            PreferredLanguage = profile?.PreferredLanguage ?? "en"
+        };
+
+        return ApiResponse<UserProfileDto>.SuccessResponse(dto, "User profile retrieved successfully.");
     }
 }
