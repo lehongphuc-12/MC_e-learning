@@ -174,19 +174,21 @@ export default function App() {
       {/* Toast Notification Alert */}
       <Toast toast={store.toastMessage} onClose={() => store.setToastMessage(null)} />
 
-      {/* Global Header */}
-      <Header
-        currentScreen={currentScreen}
-        onNavigate={handleNavigate}
-        user={user}
-        onLogout={handleLogout}
-        cartCount={store.cartItems.length}
-        wishlistCount={store.wishlistCourseIds.length}
-        onOpenCart={() => store.setIsCartOpen(true)}
-        onSelectCourse={handleSelectCourse}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-      />
+      {/* Global Header (hidden on login and register screens) */}
+      {currentScreen !== 'login' && currentScreen !== 'register' && (
+        <Header
+          currentScreen={currentScreen}
+          onNavigate={handleNavigate}
+          user={user}
+          onLogout={handleLogout}
+          cartCount={store.cartItems.length}
+          wishlistCount={store.wishlistCourseIds.length}
+          onOpenCart={() => store.setIsCartOpen(true)}
+          onSelectCourse={handleSelectCourse}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+        />
+      )}
 
       {/* Screen Routing */}
       <main className="flex-1">

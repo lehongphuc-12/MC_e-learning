@@ -1,5 +1,5 @@
+import { ArrowLeft, ArrowRight, Award, Lock, Mail, Mic2, Sparkles, TrendingUp, User, Eye, EyeOff } from 'lucide-react';
 import React, { useState } from 'react';
-import { Mic2, Lock, Mail, User, CheckCircle2, ArrowRight, ShieldCheck, Award, Sparkles, TrendingUp } from 'lucide-react';
 import { authService } from '../../services/authService';
 import { ScreenType } from '../../types';
 
@@ -20,6 +20,8 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [agreedTerms, setAgreedTerms] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -66,36 +68,53 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
   };
 
   return (
-    <div id="register-screen" className="min-h-[calc(100vh-140px)] flex items-center justify-center p-4 sm:p-6 lg:p-8 bg-slate-100 animate-fadeIn">
-      <div className="w-full max-w-5xl bg-white rounded-3xl shadow-2xl overflow-hidden grid grid-cols-1 lg:grid-cols-12 border border-slate-200">
+    <div id="register-screen" className="min-h-screen flex items-center justify-center p-4 sm:p-6 lg:p-10 bg-slate-50 text-slate-900 animate-fadeIn">
+
+      <div className="w-full max-w-5xl bg-white rounded-3xl shadow-2xl overflow-hidden grid grid-cols-1 lg:grid-cols-12 border border-slate-200/80">
+        
         {/* Left Visual Column */}
-        <div className="lg:col-span-6 relative bg-slate-950 p-8 sm:p-12 flex flex-col justify-between overflow-hidden text-white min-h-[440px] lg:min-h-[620px]">
+        <div className="lg:col-span-6 relative bg-slate-950 p-8 sm:p-10 flex flex-col justify-between overflow-hidden text-white min-h-[380px] lg:min-h-[660px]">
           {/* Background Stage Image */}
           <img
             src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=1000&q=80"
             alt="Modern Collaborative Masterclass"
-            className="absolute inset-0 w-full h-full object-cover opacity-40 filter brightness-90"
+            className="absolute inset-0 w-full h-full object-cover opacity-40 filter brightness-95 saturate-125"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/70 to-blue-950/50" />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/70 to-blue-950/40" />
 
-          {/* Top Logo */}
-          <div className="relative z-10 flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-lg">
-              <Mic2 className="w-5 h-5" />
-            </div>
-            <span className="text-2xl font-black tracking-tight text-white">MSEEK</span>
+          {/* Top Header Bar */}
+          <div className="relative z-10 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => onNavigate('home')}
+              className="flex items-center gap-3 group focus:outline-none text-left cursor-pointer"
+            >
+              <div className="w-10 h-10 rounded-xl bg-blue-600 group-hover:bg-blue-500 flex items-center justify-center text-white shadow-lg shadow-blue-600/30 transition-all duration-300 transform group-hover:scale-105">
+                <Mic2 className="w-5 h-5" />
+              </div>
+              <span className="text-2xl font-black tracking-tight text-white">MSEEK</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onNavigate('home')}
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 text-slate-100 hover:text-white text-xs font-semibold transition-all cursor-pointer shadow-sm"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Back to Home</span>
+            </button>
           </div>
 
           {/* Center Content */}
           <div className="relative z-10 space-y-4 my-auto py-6">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-600/30 backdrop-blur-md rounded-full border border-blue-400/40 text-blue-300 text-xs font-semibold">
-              <Sparkles className="w-3.5 h-3.5" />
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/20 backdrop-blur-md rounded-full border border-blue-400/30 text-blue-300 text-xs font-medium">
+              <Sparkles className="w-3.5 h-3.5 text-blue-400" />
               <span>Shape Your Future with Precision</span>
             </div>
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-white leading-tight">
+            <h2 className="text-3xl sm:text-4xl font-extrabold text-white leading-tight tracking-tight">
               Begin Your Journey to Stage Mastery
             </h2>
-            <p className="text-xs sm:text-sm text-slate-300">
+            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-md">
               Join over 50,000 ambitious speakers, event hosts, and executives mastering high-impact communication.
             </p>
 
@@ -120,21 +139,28 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
           </div>
 
           {/* Bottom Trust Badge */}
-          <div className="relative z-10 flex items-center justify-between text-xs text-slate-300 pt-2 border-t border-white/10">
-            <span>✓ Instant Course Access</span>
-            <span>✓ 30-Day Guarantee</span>
-            <span>✓ Lifetime Updates</span>
+          <div className="relative z-10 flex items-center justify-between text-xs text-slate-300 pt-3 border-t border-white/15">
+            <span className="flex items-center gap-1"><span className="text-emerald-400 font-bold">✓</span> Instant Access</span>
+            <span className="flex items-center gap-1"><span className="text-emerald-400 font-bold">✓</span> 30-Day Guarantee</span>
+            <span className="flex items-center gap-1"><span className="text-emerald-400 font-bold">✓</span> Lifetime Updates</span>
           </div>
         </div>
 
-        {/* Right Registration Form */}
-        <div className="lg:col-span-6 p-8 sm:p-12 flex flex-col justify-center space-y-5">
+        {/* Right Registration Form Column - White Light Theme */}
+        <div className="lg:col-span-6 p-8 sm:p-10 flex flex-col justify-center space-y-5 bg-white text-slate-900">
           <div className="space-y-1">
-            <h2 className="text-2xl font-black text-slate-900">Create an Account</h2>
-            <p className="text-xs text-slate-500">Sign up in 30 seconds to start learning from elite mentors.</p>
+            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">Create an Account</h2>
+            <p className="text-xs sm:text-sm text-slate-500">Sign up in 30 seconds to start learning from elite mentors.</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-3.5">
+            {error && (
+              <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-600 rounded-xl text-xs font-semibold flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+
             {/* Full Name */}
             <div className="space-y-1">
               <label className="block text-xs font-bold text-slate-700">Full Name</label>
@@ -145,9 +171,9 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
                   onChange={(e) => setName(e.target.value)}
                   placeholder="e.g. Alex Rivera"
                   required
-                  className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white font-medium"
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white focus:border-transparent transition-all font-medium"
                 />
-                <User className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
               </div>
             </div>
 
@@ -161,9 +187,9 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="alex.rivera@example.com"
                   required
-                  className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white font-medium"
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white focus:border-transparent transition-all font-medium"
                 />
-                <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
               </div>
             </div>
 
@@ -172,14 +198,21 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
               <label className="block text-xs font-bold text-slate-700">Password</label>
               <div className="relative">
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Minimum 8 characters"
                   required
-                  className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white font-medium"
+                  className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white focus:border-transparent transition-all font-medium"
                 />
-                <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3.5 top-3 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
               {/* Password Strength Meter */}
               {password && (
@@ -194,7 +227,7 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
                   </div>
                   <div className="flex justify-between text-[10px] text-slate-500">
                     <span>Password strength</span>
-                    <span className="font-semibold">{strength < 40 ? 'Weak' : strength < 80 ? 'Good' : 'Strong'}</span>
+                    <span className="font-semibold text-slate-700">{strength < 40 ? 'Weak' : strength < 80 ? 'Good' : 'Strong'}</span>
                   </div>
                 </div>
               )}
@@ -205,20 +238,27 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
               <label className="block text-xs font-bold text-slate-700">Confirm Password</label>
               <div className="relative">
                 <input
-                  type="password"
+                  type={showConfirmPassword ? 'text' : 'password'}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Re-enter your password"
                   required
-                  className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white font-medium"
+                  className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white focus:border-transparent transition-all font-medium"
                 />
-                <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3.5 top-3 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                >
+                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
             </div>
 
             {/* Terms Agreement */}
             <div className="pt-1">
-              <label className="flex items-start gap-2 text-xs text-slate-600 cursor-pointer">
+              <label className="flex items-start gap-2 text-xs text-slate-600 cursor-pointer hover:text-slate-900 transition-colors">
                 <input
                   type="checkbox"
                   checked={agreedTerms}
@@ -226,7 +266,7 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
                   required
                   className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
                 />
-                <span>I agree to the <a href="#terms" className="text-blue-600 underline">Terms of Service</a> & <a href="#privacy" className="text-blue-600 underline">Privacy Policy</a></span>
+                <span>I agree to the <a href="#terms" className="text-blue-600 underline hover:text-blue-700 font-medium">Terms of Service</a> & <a href="#privacy" className="text-blue-600 underline hover:text-blue-700 font-medium">Privacy Policy</a></span>
               </label>
             </div>
 
@@ -235,7 +275,7 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
               id="register-submit-btn"
               type="submit"
               disabled={isLoading}
-              className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-lg shadow-blue-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white font-bold text-xs rounded-xl shadow-lg shadow-blue-600/25 hover:shadow-blue-600/35 transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
               {isLoading ? (
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -248,10 +288,17 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
             </button>
           </form>
 
-          {/* Social Sign Up */}
+          {/* Social Sign Up Divider */}
+          <div className="relative flex py-0.5 items-center">
+            <div className="flex-grow border-t border-slate-200" />
+            <span className="flex-shrink mx-4 text-[11px] text-slate-400 uppercase font-bold tracking-wider">Or continue with</span>
+            <div className="flex-grow border-t border-slate-200" />
+          </div>
+
           <button
+            type="button"
             onClick={() => onRegisterSuccess({ userId: 999, fullName: 'Google Learner', email: 'google.user@gmail.com', roleName: 'Learner' })}
-            className="w-full py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-xl transition-all flex items-center justify-center gap-2.5 cursor-pointer shadow-xs"
+            className="w-full py-2.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition-all flex items-center justify-center gap-2.5 cursor-pointer shadow-xs"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -266,8 +313,9 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
           <div className="text-center text-xs text-slate-500">
             Already have an account?{' '}
             <button
+              type="button"
               onClick={() => onNavigate('login')}
-              className="font-bold text-blue-600 hover:text-blue-700 cursor-pointer"
+              className="font-bold text-blue-600 hover:text-blue-700 transition-colors cursor-pointer"
             >
               Sign in
             </button>
@@ -277,3 +325,5 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
     </div>
   );
 };
+
+
