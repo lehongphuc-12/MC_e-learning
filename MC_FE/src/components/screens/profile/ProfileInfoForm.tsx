@@ -1,6 +1,7 @@
-import React, { useState, useRef } from 'react';
-import { Save, Camera, Upload, Link, RotateCcw, Check, Image as ImageIcon } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Save, Camera, Upload, Link, RotateCcw, Check, Image as ImageIcon, Loader2, X, AlertCircle } from 'lucide-react';
 import { User as UserType } from '../../../types';
+import { authService } from '../../../services/authService';
 
 interface ProfileInfoFormProps {
   user: UserType | { name: string; email: string; avatar?: string };
@@ -41,21 +42,69 @@ export const ProfileInfoForm: React.FC<ProfileInfoFormProps> = ({
 
   const initialAvatar = ('avatar' in user && user.avatar) ? user.avatar : getDefaultAvatarUrl(user.name);
 
+  // Saved Avatar State (from Backend)
+  const [savedAvatar, setSavedAvatar] = useState<string>(initialAvatar);
+  
+  // Pending Preview Avatar State
+  const [previewAvatar, setPreviewAvatar] = useState<string>(initialAvatar);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+
   const [profileForm, setProfileForm] = useState({
     name: user.name,
     email: user.email,
-    avatar: initialAvatar,
-    phone: '+84 901 234 567',
+    phone: '',
     location: 'Ho Chi Minh City, Vietnam',
-    bio: 'Passionate learner dedicated to mastering professional hosting, public speaking, and live event management. Currently building skills in Wedding MCing and Keynote Delivery.',
+    bio: '',
+    gender: '',
+    dateOfBirth: '',
+    experienceLevel: '',
+    learningGoal: '',
+    preferredLanguage: 'en',
     skills: 'Wedding MC, Public Speaking, Vocal Training',
   });
 
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [customUrl, setCustomUrl] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const hasPendingAvatarChange = pendingFile !== null || previewAvatar !== savedAvatar;
+
+  // Fetch full profile from backend on component mount
+  useEffect(() => {
+    const fetchBackendProfile = async () => {
+      try {
+        const res = await authService.getProfile();
+        if (res.success && res.data) {
+          const p = res.data;
+          setProfileForm((prev) => ({
+            ...prev,
+            name: p.fullName || prev.name,
+            email: p.email || prev.email,
+            phone: p.phoneNumber || '',
+            bio: p.bio || '',
+            gender: p.gender || '',
+            dateOfBirth: p.dateOfBirth || '',
+            experienceLevel: p.experienceLevel || '',
+            learningGoal: p.learningGoal || '',
+            preferredLanguage: p.preferredLanguage || 'en',
+          }));
+          if (p.avatarUrl) {
+            setSavedAvatar(p.avatarUrl);
+            setPreviewAvatar(p.avatarUrl);
+            onUpdateUser?.({ avatar: p.avatarUrl });
+          }
+        }
+      } catch (err) {
+        // Fallback to local user prop if endpoint fails
+      }
+    };
+
+    fetchBackendProfile();
+  }, []);
+
+  // Mode 1: Select File for Preview
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -69,56 +118,114 @@ export const ProfileInfoForm: React.FC<ProfileInfoFormProps> = ({
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      if (event.target?.result) {
-        const newAvatar = event.target.result as string;
-        setProfileForm((prev) => ({ ...prev, avatar: newAvatar }));
-        onUpdateUser?.({ avatar: newAvatar });
-      }
-    };
-    reader.readAsDataURL(file);
+    setPendingFile(file);
+    setPreviewAvatar(URL.createObjectURL(file));
   };
 
+  // Mode 2: Apply Custom URL for Preview
   const handleApplyCustomUrl = (e: React.FormEvent) => {
     e.preventDefault();
     if (!customUrl.trim()) return;
-    setProfileForm((prev) => ({ ...prev, avatar: customUrl.trim() }));
-    onUpdateUser?.({ avatar: customUrl.trim() });
+    setPendingFile(null);
+    setPreviewAvatar(customUrl.trim());
     setShowUrlInput(false);
     setCustomUrl('');
   };
 
+  // Mode 3: Pick Preset Avatar for Preview
   const handleSelectPreset = (url: string) => {
-    setProfileForm((prev) => ({ ...prev, avatar: url }));
-    onUpdateUser?.({ avatar: url });
+    setPendingFile(null);
+    setPreviewAvatar(url);
   };
 
+  // Reset Avatar Preview to Initial Initials
   const handleResetAvatar = () => {
     const def = getDefaultAvatarUrl(profileForm.name);
-    setProfileForm((prev) => ({ ...prev, avatar: def }));
-    onUpdateUser?.({ avatar: def });
+    setPendingFile(null);
+    setPreviewAvatar(def);
   };
 
-  const handleProfileSave = (e: React.FormEvent) => {
+  // Cancel Pending Avatar Preview
+  const handleCancelAvatarPreview = () => {
+    setPendingFile(null);
+    setPreviewAvatar(savedAvatar);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // Save Avatar (Triggers Backend API Call)
+  const handleSaveAvatar = async () => {
+    setIsUploadingAvatar(true);
+    try {
+      let res;
+      if (pendingFile) {
+        // Local File Upload Mode -> Cloudinary
+        res = await authService.updateAvatar({ file: pendingFile });
+      } else {
+        // Direct URL / Preset Mode
+        res = await authService.updateAvatar({ avatarUrl: previewAvatar });
+      }
+
+      if (res.success && res.data) {
+        const newAvatarUrl = res.data.avatarUrl;
+        setSavedAvatar(newAvatarUrl);
+        setPreviewAvatar(newAvatarUrl);
+        setPendingFile(null);
+        onUpdateUser?.({ avatar: newAvatarUrl });
+        onSaveSuccess('Avatar updated successfully!');
+      } else {
+        onSaveError(res.message || 'Failed to update avatar.');
+      }
+    } catch (err: any) {
+      onSaveError(err.message || 'Error saving avatar.');
+    } finally {
+      setIsUploadingAvatar(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  // Handle saving profile info via backend API
+  const handleProfileSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSaving(true);
-    setTimeout(() => {
-      setIsSaving(false);
-      onUpdateUser?.({
-        name: profileForm.name,
-        email: profileForm.email,
-        avatar: profileForm.avatar,
+    setIsSavingProfile(true);
+    try {
+      const res = await authService.updateProfile({
+        fullName: profileForm.name,
+        phoneNumber: profileForm.phone,
+        bio: profileForm.bio,
+        gender: profileForm.gender,
+        dateOfBirth: profileForm.dateOfBirth || undefined,
+        experienceLevel: profileForm.experienceLevel,
+        learningGoal: profileForm.learningGoal,
+        preferredLanguage: profileForm.preferredLanguage,
       });
-      onSaveSuccess('Profile info & avatar updated successfully!');
-    }, 1000);
+
+      if (res.success && res.data) {
+        const p = res.data;
+        onUpdateUser?.({
+          name: p.fullName,
+          email: p.email,
+          avatar: p.avatarUrl || savedAvatar,
+        });
+        onSaveSuccess('Profile information updated successfully!');
+      } else {
+        onSaveError(res.message || 'Failed to update profile.');
+      }
+    } catch (err: any) {
+      onSaveError(err.message || 'Error saving profile information.');
+    } finally {
+      setIsSavingProfile(false);
+    }
   };
 
   return (
     <form onSubmit={handleProfileSave} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-8">
       <div>
         <h3 className="text-lg font-bold text-slate-900">Profile Information</h3>
-        <p className="text-xs text-slate-500 mt-1">Update your personal information, contact address, and avatar photo.</p>
+        <p className="text-xs text-slate-500 mt-1">Update your personal information, contact details, and avatar photo.</p>
       </div>
 
       {/* ─── AVATAR SECTION ─────────────────────────────────── */}
@@ -128,52 +235,59 @@ export const ProfileInfoForm: React.FC<ProfileInfoFormProps> = ({
             <Camera className="w-4 h-4 text-blue-600" />
             <h4 className="text-sm font-bold text-slate-800">Avatar / Profile Picture</h4>
           </div>
-          <span className="text-[11px] text-slate-400 font-medium">Recommended 400x400 (PNG/JPG)</span>
+          <span className="text-[11px] text-slate-400 font-medium">Modes: Local File (Cloudinary) • Image URL • Preset</span>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-center gap-6 pt-1">
-          {/* Avatar Preview */}
-          <div className="relative group shrink-0">
+        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 pt-1">
+          {/* Avatar Preview Box */}
+          <div className="relative group shrink-0 flex flex-col items-center">
             <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full ring-4 ring-white shadow-xl overflow-hidden bg-slate-200 relative">
               <img
-                src={profileForm.avatar}
+                src={previewAvatar}
                 alt={profileForm.name}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                 onError={(e) => {
                   (e.target as HTMLImageElement).src = getDefaultAvatarUrl(profileForm.name);
                 }}
               />
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-white transition-opacity cursor-pointer"
-                title="Change Avatar"
-              >
-                <Camera className="w-6 h-6 mb-1" />
-                <span className="text-[10px] font-bold">Change</span>
-              </button>
+              {isUploadingAvatar ? (
+                <div className="absolute inset-0 bg-slate-900/60 flex flex-col items-center justify-center text-white">
+                  <Loader2 className="w-6 h-6 animate-spin mb-1 text-blue-400" />
+                  <span className="text-[10px] font-bold">Uploading...</span>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center text-white transition-opacity cursor-pointer"
+                  title="Change Avatar Preview"
+                >
+                  <Camera className="w-6 h-6 mb-1" />
+                  <span className="text-[10px] font-bold">Preview Image</span>
+                </button>
+              )}
             </div>
             <span className="absolute bottom-1 right-1 w-4 h-4 bg-emerald-500 border-2 border-white rounded-full shadow-sm" title="Active" />
           </div>
 
-          {/* Action Buttons & Presets */}
+          {/* Action Buttons & Modes */}
           <div className="flex-1 space-y-3.5 w-full">
             <div className="flex flex-wrap items-center gap-2.5">
               <input
                 ref={fileInputRef}
                 type="file"
                 accept="image/*"
-                onChange={handleFileUpload}
+                onChange={handleFileSelect}
                 className="hidden"
               />
 
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm transition-all cursor-pointer"
+                className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm transition-all cursor-pointer"
               >
                 <Upload className="w-3.5 h-3.5" />
-                <span>Upload Photo</span>
+                <span>Select File</span>
               </button>
 
               <button
@@ -182,7 +296,7 @@ export const ProfileInfoForm: React.FC<ProfileInfoFormProps> = ({
                 className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all cursor-pointer"
               >
                 <Link className="w-3.5 h-3.5 text-slate-500" />
-                <span>Image URL</span>
+                <span>Custom URL</span>
               </button>
 
               <button
@@ -209,22 +323,22 @@ export const ProfileInfoForm: React.FC<ProfileInfoFormProps> = ({
                 <button
                   type="button"
                   onClick={handleApplyCustomUrl}
-                  className="px-3 py-1.5 bg-slate-900 text-white text-xs font-bold rounded-lg hover:bg-slate-800 transition-all cursor-pointer"
+                  className="px-3 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-500 transition-all cursor-pointer"
                 >
-                  Apply
+                  Preview URL
                 </button>
               </div>
             )}
 
-            {/* Preset Avatars */}
+            {/* Preset Avatars Selection */}
             <div>
               <div className="flex items-center gap-1.5 mb-1.5 text-[11px] font-semibold text-slate-500">
                 <ImageIcon className="w-3 h-3 text-slate-400" />
-                <span>Or pick a preset avatar:</span>
+                <span>Or select a preset avatar:</span>
               </div>
               <div className="flex items-center gap-2 overflow-x-auto pb-1">
                 {PRESET_AVATARS.map((url, idx) => {
-                  const isSelected = profileForm.avatar === url;
+                  const isSelected = previewAvatar === url;
                   return (
                     <button
                       key={idx}
@@ -247,6 +361,44 @@ export const ProfileInfoForm: React.FC<ProfileInfoFormProps> = ({
                 })}
               </div>
             </div>
+
+            {/* PENDING AVATAR SAVE / CONFIRMATION BAR */}
+            {hasPendingAvatarChange && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex flex-wrap items-center justify-between gap-3 animate-fade-in">
+                <div className="flex items-center gap-2 text-amber-800 text-xs font-medium">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>Previewing new avatar. Click <strong>Save Avatar</strong> to apply changes to your profile.</span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleCancelAvatarPreview}
+                    disabled={isUploadingAvatar}
+                    className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-lg transition-all cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveAvatar}
+                    disabled={isUploadingAvatar}
+                    className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-lg shadow-sm flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {isUploadingAvatar ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Saving...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-3.5 h-3.5" />
+                        <span>Save Avatar</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -269,9 +421,8 @@ export const ProfileInfoForm: React.FC<ProfileInfoFormProps> = ({
           <input
             type="email"
             value={profileForm.email}
-            onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
-            className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm transition-all bg-slate-50/50"
-            required
+            disabled
+            className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-slate-500 text-sm bg-slate-100/70 cursor-not-allowed"
           />
         </div>
 
@@ -280,6 +431,7 @@ export const ProfileInfoForm: React.FC<ProfileInfoFormProps> = ({
           <input
             type="text"
             value={profileForm.phone}
+            placeholder="e.g. +84 901 234 567"
             onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
             className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm transition-all bg-slate-50/50"
           />
@@ -301,6 +453,7 @@ export const ProfileInfoForm: React.FC<ProfileInfoFormProps> = ({
         <textarea
           rows={4}
           value={profileForm.bio}
+          placeholder="Tell us about your background, interests, or teaching goals..."
           onChange={(e) => setProfileForm({ ...profileForm, bio: e.target.value })}
           className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm transition-all bg-slate-50/50 resize-none"
         />
@@ -327,10 +480,10 @@ export const ProfileInfoForm: React.FC<ProfileInfoFormProps> = ({
       <div className="pt-4 border-t border-slate-100 flex justify-end">
         <button
           type="submit"
-          disabled={isSaving}
+          disabled={isSavingProfile}
           className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg shadow-blue-500/10 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 cursor-pointer"
         >
-          {isSaving ? (
+          {isSavingProfile ? (
             <>
               <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               Saving Changes...
@@ -346,4 +499,3 @@ export const ProfileInfoForm: React.FC<ProfileInfoFormProps> = ({
     </form>
   );
 };
-

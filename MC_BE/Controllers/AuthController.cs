@@ -126,7 +126,6 @@ public class AuthController : ControllerBase
 
     [Authorize]
     [HttpPut("avatar")]
-    [Consumes("multipart/form-data")]
     public async Task<ActionResult<ApiResponse<UserProfileDto>>> UpdateAvatar([FromForm] UpdateAvatarRequestDto request)
     {
         if (!ModelState.IsValid)

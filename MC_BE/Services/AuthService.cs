@@ -297,35 +297,47 @@ public class AuthService : IAuthService
             return ApiResponse<UserProfileDto>.FailureResponse("User is not active.");
         }
 
-        if (request.File == null || request.File.Length == 0)
+        string newAvatarUrl;
+
+        // Mode 1: Local File Upload to Cloudinary
+        if (request.File != null && request.File.Length > 0)
         {
-            return ApiResponse<UserProfileDto>.FailureResponse("Avatar file is required.");
+            // Validate image file extension
+            var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
+            var extension = Path.GetExtension(request.File.FileName).ToLowerInvariant();
+            if (string.IsNullOrEmpty(extension) || !allowedExtensions.Contains(extension))
+            {
+                return ApiResponse<UserProfileDto>.FailureResponse("Invalid file format. Only JPG, JPEG, PNG, GIF, and WEBP image files are allowed.");
+            }
+
+            // Upload avatar to Cloudinary in folder 'mc_elearning/avatars'
+            var uploadResult = await _cloudinaryService.UploadImageAsync(request.File, "mc_elearning/avatars");
+
+            if (uploadResult.Error != null)
+            {
+                return ApiResponse<UserProfileDto>.FailureResponse($"Cloudinary upload failed: {uploadResult.Error.Message}");
+            }
+
+            var uploadedUrl = uploadResult.SecureUrl?.AbsoluteUri ?? uploadResult.Url?.AbsoluteUri;
+            if (string.IsNullOrEmpty(uploadedUrl))
+            {
+                return ApiResponse<UserProfileDto>.FailureResponse("Failed to retrieve uploaded image URL from Cloudinary.");
+            }
+
+            newAvatarUrl = uploadedUrl;
         }
-
-        // Validate image file extension
-        var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
-        var extension = Path.GetExtension(request.File.FileName).ToLowerInvariant();
-        if (string.IsNullOrEmpty(extension) || !allowedExtensions.Contains(extension))
+        // Mode 2: Direct Image URL or Preset Avatar
+        else if (!string.IsNullOrWhiteSpace(request.AvatarUrl))
         {
-            return ApiResponse<UserProfileDto>.FailureResponse("Invalid file format. Only JPG, JPEG, PNG, GIF, and WEBP image files are allowed.");
+            newAvatarUrl = request.AvatarUrl.Trim();
         }
-
-        // Upload avatar to Cloudinary in folder 'mc_elearning/avatars'
-        var uploadResult = await _cloudinaryService.UploadImageAsync(request.File, "mc_elearning/avatars");
-
-        if (uploadResult.Error != null)
+        else
         {
-            return ApiResponse<UserProfileDto>.FailureResponse($"Cloudinary upload failed: {uploadResult.Error.Message}");
-        }
-
-        var avatarUrl = uploadResult.SecureUrl?.AbsoluteUri ?? uploadResult.Url?.AbsoluteUri;
-        if (string.IsNullOrEmpty(avatarUrl))
-        {
-            return ApiResponse<UserProfileDto>.FailureResponse("Failed to retrieve uploaded image URL from Cloudinary.");
+            return ApiResponse<UserProfileDto>.FailureResponse("Please select an avatar image file or provide an avatar URL.");
         }
 
         // Update User avatar URL
-        user.AvatarUrl = avatarUrl;
+        user.AvatarUrl = newAvatarUrl;
         user.UpdatedAt = DateTime.UtcNow;
 
         _userRepository.Update(user);
