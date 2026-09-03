@@ -3,14 +3,18 @@ import { Mic2, Lock, Mail, User, CheckCircle2, ArrowRight, ShieldCheck, Award, S
 import { authService } from '../../services/authService';
 import { ScreenType } from '../../types';
 
+import { ToastType } from '../common/Toast';
+
 interface RegisterScreenProps {
   onNavigate: (screen: ScreenType) => void;
   onRegisterSuccess: (userObj: any) => void;
+  onToast?: (title: string, desc?: string, type?: ToastType) => void;
 }
 
 export const RegisterScreen: React.FC<RegisterScreenProps> = ({
   onNavigate,
   onRegisterSuccess,
+  onToast,
 }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -35,7 +39,9 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password !== confirmPassword) {
-      setError('Passwords do not match. Please re-enter.');
+      const msg = 'Passwords do not match. Please re-enter.';
+      setError(msg);
+      onToast?.('Validation Error', msg, 'warning');
       return;
     }
     setIsLoading(true);
@@ -46,18 +52,14 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
       if (result.success) {
         onRegisterSuccess(result.data);
       } else {
-        if (result.errors && result.errors.length > 0) {
-          setError(result.errors.join(', '));
-        } else {
-          setError(result.message || 'Registration failed.');
-        }
+        const msg = (result.errors && result.errors.length > 0) ? result.errors.join(', ') : (result.message || 'Registration failed.');
+        setError(msg);
+        onToast?.('Registration Failed', msg, 'error');
       }
     } catch (err: any) {
-      if (err.errors && err.errors.length > 0) {
-        setError(err.errors.join(', '));
-      } else {
-        setError(err.message || 'Cannot connect to the server. Please check if backend is running.');
-      }
+      const msg = (err.errors && err.errors.length > 0) ? err.errors.join(', ') : (err.message || 'Cannot connect to the server. Please check if backend is running.');
+      setError(msg);
+      onToast?.('Connection Error', msg, 'error');
     } finally {
       setIsLoading(false);
     }

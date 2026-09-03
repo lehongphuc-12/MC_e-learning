@@ -206,6 +206,7 @@ export default function App() {
           onLoginSuccess={handleLoginSuccess}
           onRegisterSuccess={handleRegisterSuccess}
           onUpdateUser={handleUpdateUser}
+          onToast={store.showToast}
         />
       </main>
 

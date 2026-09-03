@@ -7,6 +7,8 @@ import { LoginScreen } from './screens/LoginScreen';
 import { RegisterScreen } from './screens/RegisterScreen';
 import { ProfileScreen } from './screens/ProfileScreen';
 
+import { ToastType } from './common/Toast';
+
 interface AppRouterProps {
   currentScreen: ScreenType;
   selectedCourse: Course | null;
@@ -23,6 +25,7 @@ interface AppRouterProps {
   onLoginSuccess: (userObj: any, token: string) => void;
   onRegisterSuccess: (userObj: any) => void;
   onUpdateUser?: (updatedUser: Partial<User>) => void;
+  onToast?: (title: string, desc?: string, type?: ToastType) => void;
 }
 
 export const AppRouter: React.FC<AppRouterProps> = ({
@@ -41,6 +44,7 @@ export const AppRouter: React.FC<AppRouterProps> = ({
   onLoginSuccess,
   onRegisterSuccess,
   onUpdateUser,
+  onToast,
 }) => {
   switch (currentScreen) {
     case 'home':
@@ -84,6 +88,7 @@ export const AppRouter: React.FC<AppRouterProps> = ({
         <LoginScreen
           onNavigate={onNavigate}
           onLoginSuccess={onLoginSuccess}
+          onToast={onToast}
         />
       );
     case 'register':
@@ -91,6 +96,7 @@ export const AppRouter: React.FC<AppRouterProps> = ({
         <RegisterScreen
           onNavigate={onNavigate}
           onRegisterSuccess={onRegisterSuccess}
+          onToast={onToast}
         />
       );
     case 'profile':
@@ -99,6 +105,7 @@ export const AppRouter: React.FC<AppRouterProps> = ({
           user={user}
           onNavigate={onNavigate}
           onUpdateUser={onUpdateUser}
+          onToast={onToast}
         />
       ) : null;
     default:

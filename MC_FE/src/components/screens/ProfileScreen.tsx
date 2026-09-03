@@ -15,10 +15,13 @@ import { PreferencesForm } from './profile/PreferencesForm';
 import { ProfileInfoForm } from './profile/ProfileInfoForm';
 import { ProfileOverview } from './profile/ProfileOverview';
 
+import { ToastType } from '../common/Toast';
+
 interface ProfileScreenProps {
   user: UserType;
   onNavigate: (screen: any) => void;
   onUpdateUser?: (updatedUser: Partial<UserType>) => void;
+  onToast?: (title: string, desc?: string, type?: ToastType) => void;
 }
 
 const roleColor: Record<string, string> = {
@@ -27,7 +30,7 @@ const roleColor: Record<string, string> = {
   student: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
 };
 
-export const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onNavigate, onUpdateUser }) => {
+export const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onNavigate, onUpdateUser, onToast }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'profile' | 'password' | 'settings'>('overview');
   
   // Save Notification States
@@ -37,6 +40,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onNavigate, 
   const triggerAlert = (status: 'success' | 'error', message: string) => {
     setSaveStatus(status);
     setSaveMessage(message);
+    onToast?.(status === 'success' ? 'Profile Updated' : 'Update Failed', message, status === 'success' ? 'success' : 'error');
     window.scrollTo({ top: 0, behavior: 'smooth' });
     setTimeout(() => {
       setSaveStatus('idle');

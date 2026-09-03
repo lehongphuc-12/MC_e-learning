@@ -3,14 +3,18 @@ import { Mic2, Lock, Mail, Eye, EyeOff, ArrowRight, ShieldCheck, Sparkles, Check
 import { authService } from '../../services/authService';
 import { ScreenType } from '../../types';
 
+import { ToastType } from '../common/Toast';
+
 interface LoginScreenProps {
   onNavigate: (screen: ScreenType) => void;
   onLoginSuccess: (userObj: any, token: string) => void;
+  onToast?: (title: string, desc?: string, type?: ToastType) => void;
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({
   onNavigate,
   onLoginSuccess,
+  onToast,
 }) => {
   const [email, setEmail] = useState('alex.rivera@mseek.edu');
   const [password, setPassword] = useState('password123');
@@ -29,10 +33,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       if (result.success) {
         onLoginSuccess(result.data.user, result.data.token);
       } else {
-        setError(result.message || 'Login failed. Please check your credentials.');
+        const msg = result.message || 'Login failed. Please check your credentials.';
+        setError(msg);
+        onToast?.('Login Failed', msg, 'error');
       }
     } catch (err: any) {
-      setError(err.message || 'Cannot connect to the server. Please check if backend is running.');
+      const msg = err.message || 'Cannot connect to the server. Please check if backend is running.';
+      setError(msg);
+      onToast?.('Connection Error', msg, 'error');
     } finally {
       setIsLoading(false);
     }
