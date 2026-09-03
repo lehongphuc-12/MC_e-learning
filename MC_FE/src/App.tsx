@@ -149,6 +149,10 @@ export default function App() {
     handleNavigate('home');
   };
 
+  const handleUpdateUser = (updatedUser: Partial<User>) => {
+    setUser((prev) => (prev ? { ...prev, ...updatedUser } : null));
+  };
+
   if (isLoadingUser) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 text-white">
@@ -222,6 +226,7 @@ export default function App() {
           onEnrollDirectly={store.setCheckoutModalCourse}
           onLoginSuccess={handleLoginSuccess}
           onRegisterSuccess={handleRegisterSuccess}
+          onUpdateUser={handleUpdateUser}
         />
       </main>
 

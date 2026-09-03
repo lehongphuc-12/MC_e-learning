@@ -1,26 +1,33 @@
+import {
+  ArrowLeft,
+  BarChart2,
+  CheckCircle2,
+  ChevronRight,
+  Lock,
+  Settings,
+  Shield,
+  User
+} from 'lucide-react';
 import React, { useState } from 'react';
 import { User as UserType } from '../../types';
-import {
-  Mail, Edit3, Globe, TrendingUp, BarChart2, User, Lock, 
-  Settings, ChevronRight, CheckCircle2, Shield, ArrowLeft
-} from 'lucide-react';
-import { ProfileOverview } from './profile/ProfileOverview';
-import { ProfileInfoForm } from './profile/ProfileInfoForm';
 import { PasswordForm } from './profile/PasswordForm';
 import { PreferencesForm } from './profile/PreferencesForm';
+import { ProfileInfoForm } from './profile/ProfileInfoForm';
+import { ProfileOverview } from './profile/ProfileOverview';
 
 interface ProfileScreenProps {
   user: UserType;
   onNavigate: (screen: any) => void;
+  onUpdateUser?: (updatedUser: Partial<UserType>) => void;
 }
 
 const roleColor: Record<string, string> = {
-  admin: 'bg-red-500/10 text-red-500 border-red-500/20',
-  instructor: 'bg-violet-500/10 text-violet-500 border-violet-500/20',
-  student: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
+  admin: 'bg-red-500/10 text-red-400 border-red-500/20',
+  instructor: 'bg-violet-500/10 text-violet-400 border-violet-500/20',
+  student: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
 };
 
-export const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onNavigate }) => {
+export const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onNavigate, onUpdateUser }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'profile' | 'password' | 'settings'>('overview');
   
   // Save Notification States
@@ -41,64 +48,75 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onNavigate }
 
   return (
     <div className="min-h-screen bg-slate-50/50">
-      {/* ─── Elegant Hero ─────────────────────────────────────── */}
-      <div className="relative bg-gradient-to-br from-slate-900 via-slate-950 to-blue-950 pt-8 pb-12 overflow-hidden border-b border-slate-800">
-        <div className="absolute inset-0 opacity-[0.03]"
-          style={{ backgroundImage: 'radial-gradient(circle, white 1.5px, transparent 1.5px)', backgroundSize: '24px 24px' }} />
-        <div className="absolute -top-40 -right-40 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl" />
-
-        {/* Back navigation action */}
-        <div className="relative max-w-6xl mx-auto px-4 sm:px-6 mb-6">
+      {/* ─── Content Section ─────────────────────────────────── */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 mt-8 pb-24">
+        <div className="relative max-w-6xl mx-auto mb-6 flex items-center justify-between">
           <button
             type="button"
             onClick={() => onNavigate('home')}
-            className="inline-flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-white transition-colors cursor-pointer group"
+            className="inline-flex items-center gap-2 text-xs font-semibold text-slate-500 hover:text-slate-900 transition-colors cursor-pointer group"
           >
             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
             Back to Home
           </button>
         </div>
 
-        <div className="relative max-w-6xl mx-auto px-4 sm:px-6 flex flex-col md:flex-row items-center md:items-end gap-6 text-center md:text-left">
-          {/* Avatar Area */}
-          <div className="relative group shrink-0">
-            <div className="absolute -inset-0.5 bg-gradient-to-tr from-blue-600 to-violet-600 rounded-2xl blur opacity-30 group-hover:opacity-60 transition duration-500" />
-            <div className="relative">
-              <img
-                src={user.avatar}
-                alt={user.name}
-                className="w-24 h-24 md:w-28 md:h-28 rounded-2xl object-cover border-2 border-slate-800 shadow-2xl"
-              />
-              <label className="absolute -bottom-2 -right-2 w-8 h-8 bg-blue-600 hover:bg-blue-500 text-white rounded-xl flex items-center justify-center shadow-lg transition-all cursor-pointer border border-blue-500/30 hover:scale-105 active:scale-95">
-                <Edit3 className="w-3.5 h-3.5" />
-                <input type="file" className="hidden" accept="image/*" />
-              </label>
+        {/* ─── TOP PROFILE BANNER WITH AVATAR ──────────────────── */}
+        <div className="mb-8 rounded-3xl bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 p-6 sm:p-8 text-white shadow-xl relative overflow-hidden border border-slate-800">
+          <div className="absolute right-0 top-0 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="relative z-10 flex flex-col sm:flex-row items-center sm:items-start gap-6">
+            
+            {/* User Avatar */}
+            <div className="relative group shrink-0">
+              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl ring-4 ring-white/10 overflow-hidden shadow-2xl bg-slate-800">
+                <img
+                  src={user.avatar}
+                  alt={user.name}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveTab('profile')}
+                className="absolute -bottom-2 -right-2 p-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl shadow-lg transition-transform hover:scale-110 cursor-pointer"
+                title="Edit Avatar in Profile Info"
+              >
+                <User className="w-3.5 h-3.5" />
+              </button>
             </div>
-          </div>
 
-          {/* User Details */}
-          <div className="flex-1 pb-1">
-            <div className="flex flex-col md:flex-row md:items-center justify-center md:justify-start gap-3 mb-2">
-              <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight">{user.name}</h1>
-              <span className={`inline-flex self-center text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-md border ${roleBadge}`}>
-                {user.role}
-              </span>
+            {/* Profile Info Summary */}
+            <div className="flex-1 text-center sm:text-left space-y-1.5">
+              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2.5">
+                <h1 className="text-xl sm:text-2xl font-black tracking-tight">{user.name}</h1>
+                <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${roleBadge}`}>
+                  {user.role}
+                </span>
+              </div>
+              <p className="text-xs text-slate-400">{user.email}</p>
+              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-4 pt-2 text-[11px] text-slate-300 font-medium">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
+                  Account Verified
+                </span>
+                <span className="text-slate-600">•</span>
+                <span>MSEEK Member since 2026</span>
+              </div>
             </div>
-            <div className="flex items-center justify-center md:justify-start gap-2 text-slate-400 text-sm">
-              <Mail className="w-4 h-4 text-slate-500" />
-              <span>{user.email}</span>
-            </div>
-            <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 mt-3 text-xs text-slate-500">
-              <span className="flex items-center gap-1.5"><Globe className="w-3.5 h-3.5 text-slate-600" /> Ho Chi Minh City, Vietnam</span>
-              <span className="flex items-center gap-1.5"><TrendingUp className="w-3.5 h-3.5 text-slate-600" /> Joined August 2025</span>
+
+            {/* Quick Action Button */}
+            <div className="sm:self-center">
+              <button
+                type="button"
+                onClick={() => setActiveTab('profile')}
+                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white border border-white/15 rounded-xl text-xs font-bold transition-all cursor-pointer"
+              >
+                Edit Avatar & Info
+              </button>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* ─── Content Section ─────────────────────────────────── */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 mt-8 pb-24">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           
           {/* SIDEBAR NAVIGATION CARD */}
@@ -194,7 +212,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onNavigate }
               <ProfileInfoForm 
                 user={user} 
                 onSaveSuccess={(msg) => triggerAlert('success', msg)} 
-                onSaveError={(msg) => triggerAlert('error', msg)} 
+                onSaveError={(msg) => triggerAlert('error', msg)}
+                onUpdateUser={onUpdateUser}
               />
             )}
 

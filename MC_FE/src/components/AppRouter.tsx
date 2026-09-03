@@ -22,6 +22,7 @@ interface AppRouterProps {
   onEnrollDirectly: (course: Course) => void;
   onLoginSuccess: (userObj: any, token: string) => void;
   onRegisterSuccess: (userObj: any) => void;
+  onUpdateUser?: (updatedUser: Partial<User>) => void;
 }
 
 export const AppRouter: React.FC<AppRouterProps> = ({
@@ -39,6 +40,7 @@ export const AppRouter: React.FC<AppRouterProps> = ({
   onEnrollDirectly,
   onLoginSuccess,
   onRegisterSuccess,
+  onUpdateUser,
 }) => {
   switch (currentScreen) {
     case 'home':
@@ -96,6 +98,7 @@ export const AppRouter: React.FC<AppRouterProps> = ({
         <ProfileScreen
           user={user}
           onNavigate={onNavigate}
+          onUpdateUser={onUpdateUser}
         />
       ) : null;
     default:
