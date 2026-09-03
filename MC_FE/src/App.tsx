@@ -6,7 +6,7 @@ import { Footer } from './components/Footer';
 import { VideoPreviewModal } from './components/modals/VideoPreviewModal';
 import { CheckoutModal } from './components/modals/CheckoutModal';
 import { CartDrawer } from './components/modals/CartDrawer';
-import { CheckCircle2, X } from 'lucide-react';
+import { Toast } from './components/common/Toast';
 import { authService } from './services/authService';
 import { useAppStore } from './hooks/useAppStore';
 import { AppRouter } from './components/AppRouter';
@@ -172,28 +172,7 @@ export default function App() {
   return (
     <div id="mseek-app-root" className="min-h-screen flex flex-col bg-slate-50 text-slate-900 selection:bg-blue-600 selection:text-white">
       {/* Toast Notification Alert */}
-      {store.toastMessage && (
-        <div 
-          id="global-toast-notification"
-          className="fixed bottom-6 right-6 z-50 flex items-start gap-3 p-4 bg-slate-950 text-white rounded-2xl shadow-2xl border border-slate-800 max-w-sm animate-bounce"
-        >
-          <div className="w-8 h-8 rounded-lg bg-blue-600/30 text-blue-400 flex items-center justify-center shrink-0 mt-0.5">
-            <CheckCircle2 className="w-5 h-5 text-blue-400" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <h4 className="text-xs font-bold text-white">{store.toastMessage.title}</h4>
-            {store.toastMessage.desc && (
-              <p className="text-[11px] text-slate-300 mt-0.5">{store.toastMessage.desc}</p>
-            )}
-          </div>
-          <button
-            onClick={() => store.setToastMessage(null)}
-            className="text-slate-400 hover:text-white p-1 rounded-md"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
+      <Toast toast={store.toastMessage} onClose={() => store.setToastMessage(null)} />
 
       {/* Global Header */}
       <Header

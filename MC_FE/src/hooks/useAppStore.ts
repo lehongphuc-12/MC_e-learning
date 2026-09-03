@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Course } from '../types';
 import { mockCourses } from '../data/mockData';
 
+import { ToastMessage, ToastType } from '../components/common/Toast';
+
 export function useAppStore() {
   // Cart & Wishlist state
   const [cartItems, setCartItems] = useState<Course[]>([mockCourses[1]]);
@@ -13,9 +15,9 @@ export function useAppStore() {
   const [checkoutModalCourse, setCheckoutModalCourse] = useState<Course | null>(null);
 
   // Toast Notification state
-  const [toastMessage, setToastMessage] = useState<{ title: string; desc?: string; type?: 'success' | 'info' } | null>(null);
+  const [toastMessage, setToastMessage] = useState<ToastMessage | null>(null);
 
-  const showToast = (title: string, desc?: string, type: 'success' | 'info' = 'success') => {
+  const showToast = (title: string, desc?: string, type: ToastType = 'success') => {
     setToastMessage({ title, desc, type });
     setTimeout(() => {
       setToastMessage(null);
