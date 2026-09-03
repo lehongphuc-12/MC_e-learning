@@ -53,6 +53,24 @@ public class AuthController : ControllerBase
         return Ok(result);
     }
 
+    [HttpPost("google-login")]
+    public async Task<ActionResult<ApiResponse<LoginResponse>>> GoogleLogin([FromBody] GoogleLoginRequest request)
+    {
+        if (!ModelState.IsValid)
+        {
+            var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToList();
+            return BadRequest(ApiResponse<LoginResponse>.FailureResponse("Validation failed.", errors));
+        }
+
+        var result = await _authService.GoogleLoginAsync(request);
+        if (!result.Success)
+        {
+            return BadRequest(result);
+        }
+
+        return Ok(result);
+    }
+
     [HttpPost("logout")]
     public IActionResult Logout()
     {

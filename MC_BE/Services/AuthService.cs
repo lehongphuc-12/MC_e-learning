@@ -19,6 +19,7 @@ public class AuthService : IAuthService
     private readonly IPasswordHasher _passwordHasher;
     private readonly ITokenService _tokenService;
     private readonly ICloudinaryService _cloudinaryService;
+    private readonly Microsoft.Extensions.Configuration.IConfiguration _configuration;
 
     public AuthService(
         IGenericRepository<User> userRepository,
@@ -27,7 +28,8 @@ public class AuthService : IAuthService
         IUnitOfWork unitOfWork,
         IPasswordHasher passwordHasher,
         ITokenService tokenService,
-        ICloudinaryService cloudinaryService)
+        ICloudinaryService cloudinaryService,
+        Microsoft.Extensions.Configuration.IConfiguration configuration)
     {
         _userRepository = userRepository;
         _roleRepository = roleRepository;
@@ -36,6 +38,123 @@ public class AuthService : IAuthService
         _passwordHasher = passwordHasher;
         _tokenService = tokenService;
         _cloudinaryService = cloudinaryService;
+        _configuration = configuration;
+    }
+
+    public async Task<ApiResponse<LoginResponse>> GoogleLoginAsync(GoogleLoginRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.IdToken))
+        {
+            return ApiResponse<LoginResponse>.FailureResponse("Google ID Token is required.");
+        }
+
+        Google.Apis.Auth.GoogleJsonWebSignature.Payload payload;
+        try
+        {
+            var googleClientId = _configuration["Authentication:Google:ClientId"];
+            var settings = new Google.Apis.Auth.GoogleJsonWebSignature.ValidationSettings();
+            if (!string.IsNullOrEmpty(googleClientId))
+            {
+                settings.Audience = new[] { googleClientId };
+            }
+
+            payload = await Google.Apis.Auth.GoogleJsonWebSignature.ValidateAsync(request.IdToken, settings);
+        }
+        catch (Exception ex)
+        {
+            return ApiResponse<LoginResponse>.FailureResponse($"Invalid Google token: {ex.Message}");
+        }
+
+        if (string.IsNullOrEmpty(payload.Email))
+        {
+            return ApiResponse<LoginResponse>.FailureResponse("Google account email not found.");
+        }
+
+        var emailNormalized = payload.Email.Trim().ToLower();
+        var usersFoundWithRole = await _userRepository.FindAsync(u => u.Email.ToLower() == emailNormalized, u => u.Role);
+        var user = usersFoundWithRole.FirstOrDefault();
+
+        if (user == null)
+        {
+            // 1. Get default role 'Learner'
+            var rolesFoundByName = await _roleRepository.FindAsync(r => r.RoleName == "Learner");
+            var defaultRole = rolesFoundByName.FirstOrDefault();
+
+            if (defaultRole == null)
+            {
+                var rolesFoundById = await _roleRepository.FindAsync(r => r.RoleId == (int)UserRole.Learner);
+                defaultRole = rolesFoundById.FirstOrDefault();
+            }
+
+            if (defaultRole == null)
+            {
+                return ApiResponse<LoginResponse>.FailureResponse("System error: Default role 'Learner' could not be found.");
+            }
+
+            // 2. Create new user from Google payload
+            user = new User
+            {
+                FullName = payload.Name ?? payload.Email,
+                Email = payload.Email,
+                PasswordHash = _passwordHasher.HashPassword(Guid.NewGuid().ToString("N")),
+                AvatarUrl = payload.Picture,
+                RoleId = defaultRole.RoleId,
+                Status = "ACTIVE",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                LastLoginAt = DateTime.UtcNow
+            };
+
+            var userProfile = new UserProfile
+            {
+                User = user,
+                PreferredLanguage = "en"
+            };
+
+            await _userRepository.AddAsync(user);
+            await _userProfileRepository.AddAsync(userProfile);
+            await _unitOfWork.SaveChangesAsync();
+
+            // Re-fetch user with Role reference loaded
+            var createdUsers = await _userRepository.FindAsync(u => u.UserId == user.UserId, u => u.Role);
+            user = createdUsers.FirstOrDefault() ?? user;
+        }
+        else
+        {
+            if (user.Status != "ACTIVE")
+            {
+                return ApiResponse<LoginResponse>.FailureResponse("This account has been deactivated.");
+            }
+
+            // Update Avatar if empty and available from Google
+            if (string.IsNullOrEmpty(user.AvatarUrl) && !string.IsNullOrEmpty(payload.Picture))
+            {
+                user.AvatarUrl = payload.Picture;
+            }
+
+            user.LastLoginAt = DateTime.UtcNow;
+            _userRepository.Update(user);
+            await _unitOfWork.SaveChangesAsync();
+        }
+
+        // Generate JWT token
+        var (token, expiresAt) = _tokenService.GenerateJwtToken(user);
+
+        var loginResponse = new LoginResponse
+        {
+            User = new UserDto
+            {
+                UserId = user.UserId,
+                FullName = user.FullName,
+                Email = user.Email,
+                RoleName = user.Role?.RoleName ?? "Learner",
+                AvatarUrl = user.AvatarUrl
+            },
+            Token = token,
+            ExpiresAt = expiresAt
+        };
+
+        return ApiResponse<LoginResponse>.SuccessResponse(loginResponse, "Google login successful.");
     }
 
     public async Task<ApiResponse<UserDto>> RegisterAsync(RegisterRequest request)
