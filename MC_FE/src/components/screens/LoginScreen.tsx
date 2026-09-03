@@ -214,8 +214,59 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           {/* Google Sign In */}
           <button
             type="button"
-            onClick={() => onLoginSuccess({ userId: 999, fullName: 'Google Learner', email: 'google.user@gmail.com', roleName: 'Learner' }, 'mock-google-token')}
-            className="w-full py-3 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition-all flex items-center justify-center gap-2.5 cursor-pointer shadow-xs"
+            disabled={isLoading}
+            onClick={() => {
+              setIsLoading(true);
+              const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || "50611504022-71qcadap5m0g6gi669p3nqr5nqliu8o1.apps.googleusercontent.com";
+              
+              const handleCredentialResponse = async (response: any) => {
+                try {
+                  const idToken = response.credential;
+                  const res = await authService.googleLogin(idToken);
+                  if (res.success) {
+                    onToast?.('Login Success', 'Logged in with Google successfully!', 'success');
+                    onLoginSuccess(res.data.user, res.data.token);
+                  } else {
+                    const msg = res.message || 'Google Login failed.';
+                    setError(msg);
+                    onToast?.('Google Login Failed', msg, 'error');
+                  }
+                } catch (err: any) {
+                  const msg = err.message || 'Cannot connect to backend server.';
+                  setError(msg);
+                  onToast?.('Connection Error', msg, 'error');
+                } finally {
+                  setIsLoading(false);
+                }
+              };
+
+              // Load Google Identity Services script dynamically if not available
+              const initGoogle = () => {
+                if ((window as any).google?.accounts?.id) {
+                  (window as any).google.accounts.id.initialize({
+                    client_id: googleClientId,
+                    callback: handleCredentialResponse
+                  });
+                  (window as any).google.accounts.id.prompt((notification: any) => {
+                    if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+                      // Fallback to one-tap button or prompt
+                    }
+                  });
+                }
+              };
+
+              if (!(window as any).google?.accounts?.id) {
+                const script = document.createElement('script');
+                script.src = 'https://accounts.google.com/gsi/client';
+                script.async = true;
+                script.defer = true;
+                script.onload = () => initGoogle();
+                document.body.appendChild(script);
+              } else {
+                initGoogle();
+              }
+            }}
+            className="w-full py-3 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition-all flex items-center justify-center gap-2.5 cursor-pointer shadow-xs active:scale-[0.99]"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />

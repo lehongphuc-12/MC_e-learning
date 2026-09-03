@@ -15,6 +15,13 @@ export const authService = {
     });
   },
 
+  async googleLogin(idToken: string): Promise<any> {
+    return request('/auth/google-login', {
+      method: 'POST',
+      body: JSON.stringify({ idToken }),
+    });
+  },
+
   async getMe(token?: string): Promise<any> {
     const authToken = token || localStorage.getItem('token');
     return request('/auth/me', {
