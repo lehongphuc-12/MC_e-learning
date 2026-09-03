@@ -1,5 +1,6 @@
 using System.Text;
 using MC_BE.Data;
+using MC_BE.Helpers;
 using MC_BE.Models.Entities;
 using MC_BE.Repositories;
 using MC_BE.Services;
@@ -14,6 +15,9 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddDbContext<SmartMcDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// Configure Cloudinary Settings
+builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection("Cloudinary"));
 
 builder.Services.AddCors(options =>
 {
@@ -32,6 +36,9 @@ builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+
+// Register Cloudinary Service
+builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
 
 // Configure JWT Authentication
 var secretKey = builder.Configuration["Jwt:Secret"] ?? throw new InvalidOperationException("JWT Secret not found.");

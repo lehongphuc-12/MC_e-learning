@@ -5,6 +5,7 @@ using MC_BE.Models.Entities;
 using MC_BE.Models.Enums;
 using MC_BE.Repositories;
 using MC_BE.Services.Interfaces;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 
 namespace MC_BE.Services;
@@ -17,6 +18,7 @@ public class AuthService : IAuthService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPasswordHasher _passwordHasher;
     private readonly ITokenService _tokenService;
+    private readonly ICloudinaryService _cloudinaryService;
 
     public AuthService(
         IGenericRepository<User> userRepository,
@@ -24,7 +26,8 @@ public class AuthService : IAuthService
         IGenericRepository<UserProfile> userProfileRepository,
         IUnitOfWork unitOfWork,
         IPasswordHasher passwordHasher,
-        ITokenService tokenService)
+        ITokenService tokenService,
+        ICloudinaryService cloudinaryService)
     {
         _userRepository = userRepository;
         _roleRepository = roleRepository;
@@ -32,6 +35,7 @@ public class AuthService : IAuthService
         _unitOfWork = unitOfWork;
         _passwordHasher = passwordHasher;
         _tokenService = tokenService;
+        _cloudinaryService = cloudinaryService;
     }
 
     public async Task<ApiResponse<UserDto>> RegisterAsync(RegisterRequest request)
@@ -136,7 +140,7 @@ public class AuthService : IAuthService
                 UserId = user.UserId,
                 FullName = user.FullName,
                 Email = user.Email,
-                RoleName = user.Role.RoleName,
+                RoleName = user.Role?.RoleName ?? "Learner",
                 AvatarUrl = user.AvatarUrl
             },
             Token = token,
@@ -166,7 +170,7 @@ public class AuthService : IAuthService
             UserId = user.UserId,
             FullName = user.FullName,
             Email = user.Email,
-            RoleName = user.Role.RoleName,
+            RoleName = user.Role?.RoleName ?? "Learner",
             AvatarUrl = user.AvatarUrl
         };
 
@@ -193,15 +197,154 @@ public class AuthService : IAuthService
             return ApiResponse<UserProfileDto>.FailureResponse("User is not active.");
         }
 
+        return ApiResponse<UserProfileDto>.SuccessResponse(MapToUserProfileDto(user), "User profile retrieved successfully.");
+    }
+
+    public async Task<ApiResponse<UserProfileDto>> UpdateProfileAsync(int userId, UpdateProfileRequestDto request)
+    {
+        var usersFound = await _userRepository.FindAsync(
+            u => u.UserId == userId,
+            u => u.Role,
+            u => u.UserProfile
+        );
+        var user = usersFound.FirstOrDefault();
+
+        if (user == null)
+        {
+            return ApiResponse<UserProfileDto>.FailureResponse("User not found.");
+        }
+
+        if (user.Status != "ACTIVE")
+        {
+            return ApiResponse<UserProfileDto>.FailureResponse("User is not active.");
+        }
+
+        // Update User entity basic fields
+        if (request.FullName != null)
+        {
+            user.FullName = request.FullName.Trim();
+        }
+
+        if (request.PhoneNumber != null)
+        {
+            user.PhoneNumber = request.PhoneNumber.Trim();
+        }
+
+        user.UpdatedAt = DateTime.UtcNow;
+
+        // Update or create UserProfile entity
+        if (user.UserProfile == null)
+        {
+            user.UserProfile = new UserProfile
+            {
+                UserId = user.UserId
+            };
+            await _userProfileRepository.AddAsync(user.UserProfile);
+        }
+
+        if (request.Bio != null)
+        {
+            user.UserProfile.Bio = request.Bio;
+        }
+
+        if (request.Gender != null)
+        {
+            user.UserProfile.Gender = request.Gender;
+        }
+
+        if (request.DateOfBirth.HasValue)
+        {
+            user.UserProfile.DateOfBirth = request.DateOfBirth.Value;
+        }
+
+        if (request.ExperienceLevel != null)
+        {
+            user.UserProfile.ExperienceLevel = request.ExperienceLevel;
+        }
+
+        if (request.LearningGoal != null)
+        {
+            user.UserProfile.LearningGoal = request.LearningGoal;
+        }
+
+        if (request.PreferredLanguage != null)
+        {
+            user.UserProfile.PreferredLanguage = request.PreferredLanguage;
+        }
+
+        _userRepository.Update(user);
+        await _unitOfWork.SaveChangesAsync();
+
+        return ApiResponse<UserProfileDto>.SuccessResponse(MapToUserProfileDto(user), "Profile updated successfully.");
+    }
+
+    public async Task<ApiResponse<UserProfileDto>> UpdateAvatarAsync(int userId, UpdateAvatarRequestDto request)
+    {
+        var usersFound = await _userRepository.FindAsync(
+            u => u.UserId == userId,
+            u => u.Role,
+            u => u.UserProfile
+        );
+        var user = usersFound.FirstOrDefault();
+
+        if (user == null)
+        {
+            return ApiResponse<UserProfileDto>.FailureResponse("User not found.");
+        }
+
+        if (user.Status != "ACTIVE")
+        {
+            return ApiResponse<UserProfileDto>.FailureResponse("User is not active.");
+        }
+
+        if (request.File == null || request.File.Length == 0)
+        {
+            return ApiResponse<UserProfileDto>.FailureResponse("Avatar file is required.");
+        }
+
+        // Validate image file extension
+        var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
+        var extension = Path.GetExtension(request.File.FileName).ToLowerInvariant();
+        if (string.IsNullOrEmpty(extension) || !allowedExtensions.Contains(extension))
+        {
+            return ApiResponse<UserProfileDto>.FailureResponse("Invalid file format. Only JPG, JPEG, PNG, GIF, and WEBP image files are allowed.");
+        }
+
+        // Upload avatar to Cloudinary in folder 'mc_elearning/avatars'
+        var uploadResult = await _cloudinaryService.UploadImageAsync(request.File, "mc_elearning/avatars");
+
+        if (uploadResult.Error != null)
+        {
+            return ApiResponse<UserProfileDto>.FailureResponse($"Cloudinary upload failed: {uploadResult.Error.Message}");
+        }
+
+        var avatarUrl = uploadResult.SecureUrl?.AbsoluteUri ?? uploadResult.Url?.AbsoluteUri;
+        if (string.IsNullOrEmpty(avatarUrl))
+        {
+            return ApiResponse<UserProfileDto>.FailureResponse("Failed to retrieve uploaded image URL from Cloudinary.");
+        }
+
+        // Update User avatar URL
+        user.AvatarUrl = avatarUrl;
+        user.UpdatedAt = DateTime.UtcNow;
+
+        _userRepository.Update(user);
+        await _unitOfWork.SaveChangesAsync();
+
+        return ApiResponse<UserProfileDto>.SuccessResponse(MapToUserProfileDto(user), "Avatar updated successfully.");
+    }
+
+    private static UserProfileDto MapToUserProfileDto(User user)
+    {
         var profile = user.UserProfile;
-        var dto = new UserProfileDto
+        return new UserProfileDto
         {
             UserId = user.UserId,
             FullName = user.FullName,
             Email = user.Email,
             PhoneNumber = user.PhoneNumber,
             AvatarUrl = user.AvatarUrl,
-            RoleName = user.Role.RoleName,
+            RoleName = user.Role?.RoleName ?? "Learner",
             Bio = profile?.Bio,
             Gender = profile?.Gender,
             DateOfBirth = profile?.DateOfBirth,
@@ -209,7 +352,5 @@ public class AuthService : IAuthService
             LearningGoal = profile?.LearningGoal,
             PreferredLanguage = profile?.PreferredLanguage ?? "en"
         };
-
-        return ApiResponse<UserProfileDto>.SuccessResponse(dto, "User profile retrieved successfully.");
     }
 }
