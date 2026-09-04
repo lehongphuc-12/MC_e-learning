@@ -15,29 +15,35 @@ public class AuthService : IAuthService
     private readonly IGenericRepository<User> _userRepository;
     private readonly IGenericRepository<Role> _roleRepository;
     private readonly IGenericRepository<UserProfile> _userProfileRepository;
+    private readonly IGenericRepository<PasswordResetToken> _resetTokenRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPasswordHasher _passwordHasher;
     private readonly ITokenService _tokenService;
     private readonly ICloudinaryService _cloudinaryService;
+    private readonly IEmailService _emailService;
     private readonly Microsoft.Extensions.Configuration.IConfiguration _configuration;
 
     public AuthService(
         IGenericRepository<User> userRepository,
         IGenericRepository<Role> roleRepository,
         IGenericRepository<UserProfile> userProfileRepository,
+        IGenericRepository<PasswordResetToken> resetTokenRepository,
         IUnitOfWork unitOfWork,
         IPasswordHasher passwordHasher,
         ITokenService tokenService,
         ICloudinaryService cloudinaryService,
+        IEmailService emailService,
         Microsoft.Extensions.Configuration.IConfiguration configuration)
     {
         _userRepository = userRepository;
         _roleRepository = roleRepository;
         _userProfileRepository = userProfileRepository;
+        _resetTokenRepository = resetTokenRepository;
         _unitOfWork = unitOfWork;
         _passwordHasher = passwordHasher;
         _tokenService = tokenService;
         _cloudinaryService = cloudinaryService;
+        _emailService = emailService;
         _configuration = configuration;
     }
 
@@ -463,6 +469,112 @@ public class AuthService : IAuthService
         await _unitOfWork.SaveChangesAsync();
 
         return ApiResponse<UserProfileDto>.SuccessResponse(MapToUserProfileDto(user), "Avatar updated successfully.");
+    }
+
+    public async Task<ApiResponse<string>> ForgotPasswordAsync(ForgotPasswordRequestDto request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email))
+        {
+            return ApiResponse<string>.FailureResponse("Email is required.");
+        }
+
+        var emailNormalized = request.Email.Trim().ToLower();
+        var usersFound = await _userRepository.FindAsync(u => u.Email.ToLower() == emailNormalized);
+        var user = usersFound.FirstOrDefault();
+
+        if (user == null)
+        {
+            // Security best practice: return success even if user not found to prevent email enumeration
+            return ApiResponse<string>.SuccessResponse("If an account exists for this email, a password reset link has been sent.");
+        }
+
+        // Generate a secure random token (Single-use token)
+        var resetTokenString = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
+
+        // Save token to DB (valid for 15 minutes)
+        var resetTokenEntity = new PasswordResetToken
+        {
+            UserId = user.UserId,
+            Token = resetTokenString,
+            ExpiresAt = DateTime.UtcNow.AddMinutes(15),
+            IsUsed = false,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        await _resetTokenRepository.AddAsync(resetTokenEntity);
+        await _unitOfWork.SaveChangesAsync();
+        
+        var clientBaseUrl = _configuration["ClientUrl"] ?? "http://localhost:5173";
+        var resetLink = $"{clientBaseUrl}/reset-password?token={Uri.EscapeDataString(resetTokenString)}&email={Uri.EscapeDataString(user.Email)}";
+
+        var emailSubject = "Reset Your Password - MSEEK";
+        var emailBody = $@"
+            <div style=""font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;"">
+                <h2 style=""color: #4F46E5; text-align: center;"">Reset Your Password</h2>
+                <p>Hello <strong>{user.FullName}</strong>,</p>
+                <p>We received a request to reset your password for your MSEEK account. Click the button below to reset it (link expires in 15 minutes):</p>
+                <div style=""text-align: center; margin: 30px 0;"">
+                    <a href=""{resetLink}"" style=""background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;"">Reset Password</a>
+                </div>
+                <p>Or copy and paste this link into your browser:</p>
+                <p style=""word-break: break-all; color: #6B7280;"">{resetLink}</p>
+                <p>If you did not request a password reset, you can safely ignore this email.</p>
+                <hr style=""border: none; border-top: 1px solid #eeeeee; margin: 20px 0;"" />
+                <p style=""font-size: 12px; color: #9CA3AF; text-align: center;"">&copy; 2026 MSEEK E-Learning. All rights reserved.</p>
+            </div>";
+
+        await _emailService.SendEmailAsync(user.Email, emailSubject, emailBody, isHtml: true);
+
+        return ApiResponse<string>.SuccessResponse("If an account exists for this email, a password reset link has been sent.");
+    }
+
+    public async Task<ApiResponse<string>> ResetPasswordAsync(ResetPasswordRequestDto request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Token) || string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.NewPassword))
+        {
+            return ApiResponse<string>.FailureResponse("Token, Email, and New Password are required.");
+        }
+
+        var emailNormalized = request.Email.Trim().ToLower();
+        var usersFound = await _userRepository.FindAsync(u => u.Email.ToLower() == emailNormalized);
+        var user = usersFound.FirstOrDefault();
+
+        if (user == null)
+        {
+            return ApiResponse<string>.FailureResponse("Invalid password reset request.");
+        }
+
+        // Find token entity matching User, Token string, not used and not expired
+        var tokensFound = await _resetTokenRepository.FindAsync(t => t.UserId == user.UserId && t.Token == request.Token);
+        var tokenEntity = tokensFound.FirstOrDefault();
+
+        if (tokenEntity == null)
+        {
+            return ApiResponse<string>.FailureResponse("Invalid or expired password reset token.");
+        }
+
+        if (tokenEntity.IsUsed)
+        {
+            return ApiResponse<string>.FailureResponse("This password reset link has already been used. Please request a new link.");
+        }
+
+        if (tokenEntity.ExpiresAt < DateTime.UtcNow)
+        {
+            return ApiResponse<string>.FailureResponse("This password reset link has expired. Please request a new link.");
+        }
+
+        // Update User password
+        user.PasswordHash = _passwordHasher.HashPassword(request.NewPassword);
+        user.UpdatedAt = DateTime.UtcNow;
+        _userRepository.Update(user);
+
+        // Mark token as USED so link cannot be reused
+        tokenEntity.IsUsed = true;
+        _resetTokenRepository.Update(tokenEntity);
+
+        await _unitOfWork.SaveChangesAsync();
+
+        return ApiResponse<string>.SuccessResponse("Your password has been reset successfully. You can now log in with your new password.");
     }
 
     private static UserProfileDto MapToUserProfileDto(User user)
