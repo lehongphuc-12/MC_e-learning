@@ -102,7 +102,8 @@ public class AuthService : IAuthService
             {
                 FullName = payload.Name ?? payload.Email,
                 Email = payload.Email,
-                PasswordHash = _passwordHasher.HashPassword(Guid.NewGuid().ToString("N")),
+                PasswordHash = null,
+                IsGoogleLogin = true,
                 AvatarUrl = payload.Picture,
                 RoleId = defaultRole.RoleId,
                 Status = "ACTIVE",
@@ -154,7 +155,8 @@ public class AuthService : IAuthService
                 FullName = user.FullName,
                 Email = user.Email,
                 RoleName = user.Role?.RoleName ?? "Learner",
-                AvatarUrl = user.AvatarUrl
+                AvatarUrl = user.AvatarUrl,
+                IsGoogleLogin = user.IsGoogleLogin
             },
             Token = token,
             ExpiresAt = expiresAt
@@ -244,6 +246,11 @@ public class AuthService : IAuthService
         }
 
         // 3. Verify password
+        if (string.IsNullOrEmpty(user.PasswordHash) || user.IsGoogleLogin)
+        {
+            return ApiResponse<LoginResponse>.FailureResponse("Tài khoản này được đăng ký bằng Google. Vui lòng đăng nhập bằng Google.");
+        }
+
         var isPasswordValid = _passwordHasher.VerifyPassword(request.Password, user.PasswordHash);
         if (!isPasswordValid)
         {
@@ -266,7 +273,8 @@ public class AuthService : IAuthService
                 FullName = user.FullName,
                 Email = user.Email,
                 RoleName = user.Role?.RoleName ?? "Learner",
-                AvatarUrl = user.AvatarUrl
+                AvatarUrl = user.AvatarUrl,
+                IsGoogleLogin = user.IsGoogleLogin
             },
             Token = token,
             ExpiresAt = expiresAt
@@ -296,7 +304,8 @@ public class AuthService : IAuthService
             FullName = user.FullName,
             Email = user.Email,
             RoleName = user.Role?.RoleName ?? "Learner",
-            AvatarUrl = user.AvatarUrl
+            AvatarUrl = user.AvatarUrl,
+            IsGoogleLogin = user.IsGoogleLogin
         };
 
         return ApiResponse<UserDto>.SuccessResponse(userDto, "User details retrieved successfully.");

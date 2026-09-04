@@ -107,6 +107,7 @@ export interface User {
   email: string;
   avatar: string;
   role: 'student' | 'instructor' | 'admin';
+  isGoogleLogin?: boolean;
 }
 
 export interface EnrolledCourseProgress {

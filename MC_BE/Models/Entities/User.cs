@@ -26,10 +26,12 @@ public class User
     [Column("Email")]
     public string Email { get; set; } = string.Empty;
 
-    [Required]
     [MaxLength(255)]
     [Column("PasswordHash")]
-    public string PasswordHash { get; set; } = string.Empty;
+    public string? PasswordHash { get; set; }
+
+    [Column("IsGoogleLogin")]
+    public bool IsGoogleLogin { get; set; } = false;
 
     [MaxLength(20)]
     [Column("PhoneNumber")]

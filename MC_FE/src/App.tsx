@@ -52,7 +52,8 @@ export default function App() {
             name: userObj.fullName,
             email: userObj.email,
             avatar: userObj.avatarUrl || getDefaultAvatar(userObj.fullName),
-            role: mappedRole
+            role: mappedRole,
+            isGoogleLogin: userObj.isGoogleLogin ?? false
           });
         } else {
           localStorage.removeItem('token');
@@ -139,7 +140,8 @@ export default function App() {
       name: userObj.fullName,
       email: userObj.email,
       avatar: userObj.avatarUrl || getDefaultAvatar(userObj.fullName),
-      role: mappedRole
+      role: mappedRole,
+      isGoogleLogin: userObj.isGoogleLogin ?? false
     });
     localStorage.setItem('token', token);
     store.showToast('Welcome Back!', `Logged in successfully as ${userObj.email}`);

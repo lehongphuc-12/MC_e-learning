@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
-import { Lock, Eye, EyeOff } from 'lucide-react';
+import { Lock, Eye, EyeOff, ShieldCheck } from 'lucide-react';
 
 interface PasswordFormProps {
   onSaveSuccess: (msg: string) => void;
   onSaveError: (msg: string) => void;
+  isGoogleLogin?: boolean;
 }
 
 export const PasswordForm: React.FC<PasswordFormProps> = ({ 
   onSaveSuccess, 
-  onSaveError 
+  onSaveError,
+  isGoogleLogin = false
 }) => {
   const [passwordForm, setPasswordForm] = useState({
     current: '',
@@ -38,8 +40,12 @@ export const PasswordForm: React.FC<PasswordFormProps> = ({
 
   const handlePasswordSave = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!passwordForm.current || !passwordForm.new || !passwordForm.confirm) {
-      onSaveError('All password fields are required.');
+    if (!isGoogleLogin && !passwordForm.current) {
+      onSaveError('Current password is required.');
+      return;
+    }
+    if (!passwordForm.new || !passwordForm.confirm) {
+      onSaveError('New password and confirm password are required.');
       return;
     }
     if (passwordForm.new !== passwordForm.confirm) {
@@ -49,7 +55,7 @@ export const PasswordForm: React.FC<PasswordFormProps> = ({
     setIsSaving(true);
     setTimeout(() => {
       setIsSaving(false);
-      onSaveSuccess('Password updated successfully!');
+      onSaveSuccess(isGoogleLogin ? 'Password set successfully!' : 'Password updated successfully!');
       setPasswordForm({ current: '', new: '', confirm: '' });
     }, 1200);
   };
@@ -64,28 +70,38 @@ export const PasswordForm: React.FC<PasswordFormProps> = ({
       </div>
 
       <div className="space-y-4">
-        {/* Current Password */}
-        <div className="space-y-1.5">
-          <label className="text-xs font-bold text-slate-700">Current Password</label>
-          <div className="relative">
-            <input
-              type={showCurrentPassword ? 'text' : 'password'}
-              value={passwordForm.current}
-              onChange={(e) => setPasswordForm({ ...passwordForm, current: e.target.value })}
-              className="w-full pl-3.5 pr-10 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm transition-all bg-slate-50/50"
-              placeholder="••••••••"
-            />
-            <button
-              type="button"
-              onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-            >
-              {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-            </button>
+        {/* Google Login Notice */}
+        {isGoogleLogin ? (
+          <div className="p-3.5 rounded-xl bg-blue-50 border border-blue-100 text-blue-800 text-xs font-medium flex items-center gap-2.5">
+            <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0" />
+            <span>You logged in via Google. You can create a direct password for your account without entering an old password.</span>
           </div>
-        </div>
+        ) : (
+          /* Current Password */
+          <>
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700">Current Password</label>
+              <div className="relative">
+                <input
+                  type={showCurrentPassword ? 'text' : 'password'}
+                  value={passwordForm.current}
+                  onChange={(e) => setPasswordForm({ ...passwordForm, current: e.target.value })}
+                  className="w-full pl-3.5 pr-10 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm transition-all bg-slate-50/50"
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
 
-        <div className="h-px bg-slate-100 my-4" />
+            <div className="h-px bg-slate-100 my-4" />
+          </>
+        )}
 
         {/* New Password */}
         <div className="space-y-1.5">

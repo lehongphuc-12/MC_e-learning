@@ -223,6 +223,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onNavigate, 
 
             {activeTab === 'password' && (
               <PasswordForm 
+                isGoogleLogin={user.isGoogleLogin}
                 onSaveSuccess={(msg) => triggerAlert('success', msg)} 
                 onSaveError={(msg) => triggerAlert('error', msg)} 
               />
