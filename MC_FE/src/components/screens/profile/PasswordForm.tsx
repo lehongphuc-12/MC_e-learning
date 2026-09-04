@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Lock, Eye, EyeOff, ShieldCheck } from 'lucide-react';
+import { authService } from '../../../services/authService';
 
 interface PasswordFormProps {
   onSaveSuccess: (msg: string) => void;
@@ -38,7 +39,7 @@ export const PasswordForm: React.FC<PasswordFormProps> = ({
     return { score, text: 'Strong', color: 'bg-emerald-500' };
   };
 
-  const handlePasswordSave = (e: React.FormEvent) => {
+  const handlePasswordSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isGoogleLogin && !passwordForm.current) {
       onSaveError('Current password is required.');
@@ -48,16 +49,35 @@ export const PasswordForm: React.FC<PasswordFormProps> = ({
       onSaveError('New password and confirm password are required.');
       return;
     }
+    if (passwordForm.new.length < 6) {
+      onSaveError('New password must be at least 6 characters.');
+      return;
+    }
     if (passwordForm.new !== passwordForm.confirm) {
       onSaveError('Confirm password does not match new password.');
       return;
     }
-    setIsSaving(true);
-    setTimeout(() => {
+
+    try {
+      setIsSaving(true);
+      const res = await authService.changePassword(
+        isGoogleLogin ? null : passwordForm.current,
+        passwordForm.new,
+        passwordForm.confirm
+      );
+
+      if (res.success) {
+        onSaveSuccess(res.message || (isGoogleLogin ? 'Password set successfully!' : 'Password updated successfully!'));
+        setPasswordForm({ current: '', new: '', confirm: '' });
+      } else {
+        onSaveError(res.message || 'Failed to update password');
+      }
+    } catch (error: any) {
+      const msg = error?.message || (error?.errors && Array.isArray(error.errors) ? error.errors.join(', ') : 'Failed to update password');
+      onSaveError(msg);
+    } finally {
       setIsSaving(false);
-      onSaveSuccess(isGoogleLogin ? 'Password set successfully!' : 'Password updated successfully!');
-      setPasswordForm({ current: '', new: '', confirm: '' });
-    }, 1200);
+    }
   };
 
   const strength = getPasswordStrength();

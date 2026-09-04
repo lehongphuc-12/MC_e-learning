@@ -620,7 +620,7 @@ public class AuthService : IAuthService
 
         user.PasswordHash = _passwordHasher.HashPassword(request.NewPassword);
         user.UpdatedAt = DateTime.UtcNow;
-
+        user.IsGoogleLogin = false;
         _userRepository.Update(user);
         await _unitOfWork.SaveChangesAsync();
 

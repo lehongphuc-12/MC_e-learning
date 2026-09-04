@@ -94,4 +94,15 @@ export const authService = {
       body: formData,
     });
   },
+
+  async changePassword(oldPassword: string | null, newPassword: string, confirmPassword: string): Promise<any> {
+    const token = localStorage.getItem('token');
+    return request('/auth/change-password', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ oldPassword, newPassword, confirmPassword }),
+    });
+  },
 };
