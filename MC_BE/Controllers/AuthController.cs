@@ -197,4 +197,29 @@ public class AuthController : ControllerBase
 
         return Ok(result);
     }
+
+    [Authorize]
+    [HttpPost("change-password")]
+    public async Task<ActionResult<ApiResponse<string>>> ChangePassword([FromBody] ChangePasswordRequestDto request)
+    {
+        if (!ModelState.IsValid)
+        {
+            var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToList();
+            return BadRequest(ApiResponse<string>.FailureResponse("Validation failed.", errors));
+        }
+
+        var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
+        {
+            return Unauthorized(ApiResponse<string>.FailureResponse("Unauthorized access. Invalid user token."));
+        }
+
+        var result = await _authService.ChangePasswordAsync(userId, request);
+        if (!result.Success)
+        {
+            return BadRequest(result);
+        }
+
+        return Ok(result);
+    }
 }

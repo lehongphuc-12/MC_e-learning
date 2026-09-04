@@ -586,6 +586,48 @@ public class AuthService : IAuthService
         return ApiResponse<string>.SuccessResponse("Your password has been reset successfully. You can now log in with your new password.");
     }
 
+    public async Task<ApiResponse<string>> ChangePasswordAsync(int userId, ChangePasswordRequestDto request)
+    {
+        var usersFound = await _userRepository.FindAsync(u => u.UserId == userId);
+        var user = usersFound.FirstOrDefault();
+
+        if (user == null)
+        {
+            return ApiResponse<string>.FailureResponse("User not found.");
+        }
+
+        if (user.Status != "ACTIVE")
+        {
+            return ApiResponse<string>.FailureResponse("User account is inactive.");
+        }
+
+        // Standard accounts require OldPassword check; Google accounts do not.
+        bool isGoogleUser = user.IsGoogleLogin || string.IsNullOrEmpty(user.PasswordHash);
+
+        if (!isGoogleUser)
+        {
+            if (string.IsNullOrWhiteSpace(request.OldPassword))
+            {
+                return ApiResponse<string>.FailureResponse("Old password is required.");
+            }
+
+            var isPasswordValid = _passwordHasher.VerifyPassword(request.OldPassword, user.PasswordHash!);
+            if (!isPasswordValid)
+            {
+                return ApiResponse<string>.FailureResponse("Incorrect old password.");
+            }
+        }
+
+        user.PasswordHash = _passwordHasher.HashPassword(request.NewPassword);
+        user.UpdatedAt = DateTime.UtcNow;
+
+        _userRepository.Update(user);
+        await _unitOfWork.SaveChangesAsync();
+
+        return ApiResponse<string>.SuccessResponse("Password changed successfully.");
+    }
+
+
     private static UserProfileDto MapToUserProfileDto(User user)
     {
         var profile = user.UserProfile;

@@ -14,4 +14,5 @@ public interface IAuthService
     Task<ApiResponse<UserProfileDto>> UpdateAvatarAsync(int userId, UpdateAvatarRequestDto request);
     Task<ApiResponse<string>> ForgotPasswordAsync(ForgotPasswordRequestDto request);
     Task<ApiResponse<string>> ResetPasswordAsync(ResetPasswordRequestDto request);
+    Task<ApiResponse<string>> ChangePasswordAsync(int userId, ChangePasswordRequestDto request);
 }
