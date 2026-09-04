@@ -6,6 +6,7 @@ import { CourseDetailScreen } from './screens/CourseDetailScreen';
 import { LoginScreen } from './screens/LoginScreen';
 import { RegisterScreen } from './screens/RegisterScreen';
 import { ForgotPasswordScreen } from './screens/ForgotPasswordScreen';
+import { ResetPasswordScreen } from './screens/ResetPasswordScreen';
 import { ProfileScreen } from './screens/ProfileScreen';
 import { MainLayout } from './layouts/MainLayout';
 import { ToastType } from './common/Toast';
@@ -132,6 +133,13 @@ export const AppRouter: React.FC<AppRouterProps> = ({
     case 'forgot-password':
       return (
         <ForgotPasswordScreen
+          onNavigate={onNavigate}
+          onToast={onToast}
+        />
+      );
+    case 'reset-password':
+      return (
+        <ResetPasswordScreen
           onNavigate={onNavigate}
           onToast={onToast}
         />

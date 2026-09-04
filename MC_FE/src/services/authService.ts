@@ -29,6 +29,13 @@ export const authService = {
     });
   },
 
+  async resetPassword(token: string, email: string, newPassword: string): Promise<any> {
+    return request('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, email, newPassword }),
+    });
+  },
+
   async getMe(token?: string): Promise<any> {
     const authToken = token || localStorage.getItem('token');
     return request('/auth/me', {

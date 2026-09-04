@@ -94,6 +94,8 @@ export default function App() {
         setCurrentScreen('register');
       } else if (pathname === '/forgot-password') {
         setCurrentScreen('forgot-password');
+      } else if (pathname === '/reset-password') {
+        setCurrentScreen('reset-password');
       } else {
         setCurrentScreen('home');
       }
