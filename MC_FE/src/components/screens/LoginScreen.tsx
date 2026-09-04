@@ -145,13 +145,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <label className="block text-xs font-bold text-slate-700">Password</label>
-                <a
-                  href="#forgot"
-                  onClick={(e) => { e.preventDefault(); alert('Password reset link sent to ' + email); }}
-                  className="text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors"
+                <button
+                  type="button"
+                  onClick={() => onNavigate('forgot-password')}
+                  className="text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors cursor-pointer"
                 >
                   Forgot Password?
-                </a>
+                </button>
               </div>
               <div className="relative">
                 <input

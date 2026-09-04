@@ -22,6 +22,13 @@ export const authService = {
     });
   },
 
+  async forgotPassword(email: string): Promise<any> {
+    return request('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  },
+
   async getMe(token?: string): Promise<any> {
     const authToken = token || localStorage.getItem('token');
     return request('/auth/me', {

@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ScreenType, Course, User } from './types';
 import { mockCourses } from './data/mockData';
-import { Header } from './components/Header';
-import { Footer } from './components/Footer';
 import { VideoPreviewModal } from './components/modals/VideoPreviewModal';
 import { CheckoutModal } from './components/modals/CheckoutModal';
 import { CartDrawer } from './components/modals/CartDrawer';
@@ -70,47 +68,56 @@ export default function App() {
     fetchMe();
   }, []);
 
-  // Listen to hash change to set active screen
+  // Listen to path changes (HTML5 History API) to set active screen
   useEffect(() => {
-    const handleHashChange = () => {
-      const hash = window.location.hash || '#/';
-      if (hash.startsWith('#/courses')) {
+    const handleLocationChange = () => {
+      const pathname = window.location.pathname;
+      const search = window.location.search;
+
+      if (pathname.startsWith('/courses')) {
         setCurrentScreen('courses');
-      } else if (hash.startsWith('#/course-detail')) {
-        // Parse course ID from hash query parameter
-        const match = hash.match(/\?id=([^&]+)/);
-        const courseId = match ? match[1] : null;
+      } else if (pathname.startsWith('/course-detail')) {
+        const params = new URLSearchParams(search);
+        const courseId = params.get('id');
         if (courseId) {
-          const found = mockCourses.find(c => c.id === courseId);
+          const found = mockCourses.find((c) => c.id === courseId);
           if (found) {
             setSelectedCourse(found);
           }
         }
         setCurrentScreen('course-detail');
-      } else if (hash === '#/profile') {
+      } else if (pathname === '/profile') {
         setCurrentScreen('profile');
-      } else if (hash === '#/login') {
+      } else if (pathname === '/login') {
         setCurrentScreen('login');
-      } else if (hash === '#/register') {
+      } else if (pathname === '/register') {
         setCurrentScreen('register');
+      } else if (pathname === '/forgot-password') {
+        setCurrentScreen('forgot-password');
       } else {
         setCurrentScreen('home');
       }
       window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    window.addEventListener('hashchange', handleHashChange);
-    handleHashChange(); // Run once on startup
+    window.addEventListener('popstate', handleLocationChange);
+    handleLocationChange(); // Run once on startup
 
-    return () => window.removeEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('popstate', handleLocationChange);
   }, []);
 
   const handleNavigate = (screen: ScreenType) => {
-    window.location.hash = `/${screen === 'home' ? '' : screen}`;
+    const targetPath = screen === 'home' ? '/' : `/${screen}`;
+    if (window.location.pathname !== targetPath) {
+      window.history.pushState({}, '', targetPath);
+      window.dispatchEvent(new Event('popstate'));
+    }
   };
 
   const handleSelectCourse = (course: Course) => {
-    window.location.hash = `/course-detail?id=${course.id}`;
+    const targetPath = `/course-detail?id=${course.id}`;
+    window.history.pushState({}, '', targetPath);
+    window.dispatchEvent(new Event('popstate'));
   };
 
   const handleCheckoutSuccess = (course: Course) => {
@@ -174,48 +181,28 @@ export default function App() {
       {/* Toast Notification Alert */}
       <Toast toast={store.toastMessage} onClose={() => store.setToastMessage(null)} />
 
-      {/* Global Header (hidden on login and register screens) */}
-      {currentScreen !== 'login' && currentScreen !== 'register' && (
-        <Header
-          currentScreen={currentScreen}
-          onNavigate={handleNavigate}
-          user={user}
-          onLogout={handleLogout}
-          cartCount={store.cartItems.length}
-          wishlistCount={store.wishlistCourseIds.length}
-          onOpenCart={() => store.setIsCartOpen(true)}
-          onSelectCourse={handleSelectCourse}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-        />
-      )}
-
-      {/* Screen Routing */}
-      <main className="flex-1">
-        <AppRouter
-          currentScreen={currentScreen}
-          selectedCourse={selectedCourse}
-          wishlistCourseIds={store.wishlistCourseIds}
-          searchQuery={searchQuery}
-          user={user}
-          onSearchChange={setSearchQuery}
-          onNavigate={handleNavigate}
-          onSelectCourse={handleSelectCourse}
-          onPreviewVideo={store.setPreviewModalCourse}
-          onAddToCart={store.handleAddToCart}
-          onToggleWishlist={store.handleToggleWishlist}
-          onEnrollDirectly={store.setCheckoutModalCourse}
-          onLoginSuccess={handleLoginSuccess}
-          onRegisterSuccess={handleRegisterSuccess}
-          onUpdateUser={handleUpdateUser}
-          onToast={store.showToast}
-        />
-      </main>
-
-      {/* Global Footer (shown on home, catalog, and detail screens) */}
-      {(currentScreen === 'home' || currentScreen === 'courses' || currentScreen === 'course-detail') && (
-        <Footer onNavigate={handleNavigate} />
-      )}
+      {/* Screen Routing with Layouts */}
+      <AppRouter
+        currentScreen={currentScreen}
+        selectedCourse={selectedCourse}
+        wishlistCourseIds={store.wishlistCourseIds}
+        searchQuery={searchQuery}
+        user={user}
+        onSearchChange={setSearchQuery}
+        onNavigate={handleNavigate}
+        onSelectCourse={handleSelectCourse}
+        onPreviewVideo={store.setPreviewModalCourse}
+        onAddToCart={store.handleAddToCart}
+        onToggleWishlist={store.handleToggleWishlist}
+        onEnrollDirectly={store.setCheckoutModalCourse}
+        onLoginSuccess={handleLoginSuccess}
+        onRegisterSuccess={handleRegisterSuccess}
+        onUpdateUser={handleUpdateUser}
+        onToast={store.showToast}
+        onLogout={handleLogout}
+        cartCount={store.cartItems.length}
+        onOpenCart={() => store.setIsCartOpen(true)}
+      />
 
       {/* Slide-over Cart Drawer */}
       <CartDrawer

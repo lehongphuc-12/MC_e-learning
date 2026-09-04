@@ -5,8 +5,9 @@ import { CourseCatalogScreen } from './screens/CourseCatalogScreen';
 import { CourseDetailScreen } from './screens/CourseDetailScreen';
 import { LoginScreen } from './screens/LoginScreen';
 import { RegisterScreen } from './screens/RegisterScreen';
+import { ForgotPasswordScreen } from './screens/ForgotPasswordScreen';
 import { ProfileScreen } from './screens/ProfileScreen';
-
+import { MainLayout } from './layouts/MainLayout';
 import { ToastType } from './common/Toast';
 
 interface AppRouterProps {
@@ -26,6 +27,9 @@ interface AppRouterProps {
   onRegisterSuccess: (userObj: any) => void;
   onUpdateUser?: (updatedUser: Partial<User>) => void;
   onToast?: (title: string, desc?: string, type?: ToastType) => void;
+  onLogout: () => void;
+  cartCount: number;
+  onOpenCart: () => void;
 }
 
 export const AppRouter: React.FC<AppRouterProps> = ({
@@ -45,10 +49,32 @@ export const AppRouter: React.FC<AppRouterProps> = ({
   onRegisterSuccess,
   onUpdateUser,
   onToast,
+  onLogout,
+  cartCount,
+  onOpenCart,
 }) => {
+  // Helper to wrap public screens in MainLayout
+  const withMainLayout = (component: React.ReactNode, showFooter: boolean = true) => (
+    <MainLayout
+      currentScreen={currentScreen}
+      onNavigate={onNavigate}
+      user={user}
+      onLogout={onLogout}
+      cartCount={cartCount}
+      wishlistCount={wishlistCourseIds.length}
+      onOpenCart={onOpenCart}
+      onSelectCourse={onSelectCourse}
+      searchQuery={searchQuery}
+      onSearchChange={onSearchChange}
+      showFooter={showFooter}
+    >
+      {component}
+    </MainLayout>
+  );
+
   switch (currentScreen) {
     case 'home':
-      return (
+      return withMainLayout(
         <HomeScreen
           onNavigate={onNavigate}
           onSelectCourse={onSelectCourse}
@@ -59,7 +85,7 @@ export const AppRouter: React.FC<AppRouterProps> = ({
         />
       );
     case 'courses':
-      return (
+      return withMainLayout(
         <CourseCatalogScreen
           onNavigate={onNavigate}
           onSelectCourse={onSelectCourse}
@@ -72,7 +98,7 @@ export const AppRouter: React.FC<AppRouterProps> = ({
         />
       );
     case 'course-detail':
-      return (
+      return withMainLayout(
         <CourseDetailScreen
           course={selectedCourse}
           onNavigate={onNavigate}
@@ -83,11 +109,30 @@ export const AppRouter: React.FC<AppRouterProps> = ({
           onPreviewVideo={onPreviewVideo}
         />
       );
+    case 'profile':
+      return user
+        ? withMainLayout(
+            <ProfileScreen
+              user={user}
+              onNavigate={onNavigate}
+              onUpdateUser={onUpdateUser}
+              onToast={onToast}
+            />,
+            false
+          )
+        : null;
     case 'login':
       return (
         <LoginScreen
           onNavigate={onNavigate}
           onLoginSuccess={onLoginSuccess}
+          onToast={onToast}
+        />
+      );
+    case 'forgot-password':
+      return (
+        <ForgotPasswordScreen
+          onNavigate={onNavigate}
           onToast={onToast}
         />
       );
@@ -99,15 +144,6 @@ export const AppRouter: React.FC<AppRouterProps> = ({
           onToast={onToast}
         />
       );
-    case 'profile':
-      return user ? (
-        <ProfileScreen
-          user={user}
-          onNavigate={onNavigate}
-          onUpdateUser={onUpdateUser}
-          onToast={onToast}
-        />
-      ) : null;
     default:
       return null;
   }
