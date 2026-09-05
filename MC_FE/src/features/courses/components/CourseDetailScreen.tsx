@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { 
   Star, 
-  Clock, 
   Award, 
   CheckCircle2, 
   Play, 
@@ -10,19 +9,17 @@ import {
   ShieldCheck, 
   Globe, 
   FileText, 
-  Download, 
   Heart, 
   Share2, 
   Users, 
-  BookOpen, 
   Tv, 
   Smartphone, 
   Infinity as InfinityIcon,
-  MessageSquare,
   Sparkles
 } from 'lucide-react';
-import { Course, ScreenType } from '../../types';
-import { mockCourses } from '../../data/mockData';
+import { Course, ScreenType } from '../../../types';
+import { mockCourses } from '../../../data/mockData';
+import { useCourseDetailQuery } from '../hooks/useCoursesQuery';
 
 interface CourseDetailScreenProps {
   course: Course | null;
@@ -43,8 +40,10 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
   isWishlisted,
   onPreviewVideo,
 }) => {
-  // Default to wedding MC masterclass if none passed
-  const course = initialCourse || mockCourses[0];
+  const courseId = initialCourse?.id || mockCourses[0].id;
+  const courseQuery = useCourseDetailQuery(courseId);
+  const course = courseQuery.data || initialCourse || mockCourses[0];
+
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     'sec-1': true,
     'sec-2': true,
@@ -66,10 +65,9 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
 
   return (
     <div id="course-detail-screen" className="space-y-12 pb-20 animate-fadeIn">
-      {/* 1. DARK HERO BANNER */}
+      {/* DARK HERO BANNER */}
       <section className="bg-slate-950 text-white pt-8 pb-14 border-b border-slate-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
-          {/* Breadcrumb */}
           <div className="flex items-center gap-2 text-xs text-slate-400">
             <button onClick={() => onNavigate('home')} className="hover:text-white">Home</button>
             <span>/</span>
@@ -79,7 +77,6 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            {/* Left Header Info */}
             <div className="lg:col-span-8 space-y-4">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="px-3 py-1 bg-amber-500/20 border border-amber-500/40 text-amber-300 rounded-full text-xs font-bold uppercase tracking-wider">
@@ -101,7 +98,6 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
                 {course.subtitle}
               </p>
 
-              {/* Rating & Metadata Row */}
               <div className="flex flex-wrap items-center gap-4 text-xs pt-2">
                 <div className="flex items-center gap-1.5 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/20">
                   <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
@@ -120,7 +116,6 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
                 </div>
               </div>
 
-              {/* Instructor Lead By */}
               <div className="flex items-center gap-3 pt-3">
                 <img
                   src={course.instructor.avatar}
@@ -137,12 +132,10 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
         </div>
       </section>
 
-      {/* 2. MAIN CONTENT + STICKY SIDEBAR */}
+      {/* MAIN CONTENT + STICKY SIDEBAR */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          {/* Main Left Column */}
           <div className="lg:col-span-8 space-y-10">
-            {/* What you'll learn */}
             <section id="what-you-will-learn" className="p-6 sm:p-8 bg-blue-50/50 rounded-2xl border border-blue-100 space-y-4">
               <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-blue-600" />
@@ -158,7 +151,6 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
               </div>
             </section>
 
-            {/* Course Description */}
             <section id="course-description" className="space-y-4">
               <h2 className="text-xl font-bold text-slate-900">Course Overview</h2>
               <p className="text-sm text-slate-600 leading-relaxed">
@@ -184,7 +176,6 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
               </div>
             </section>
 
-            {/* Curriculum Accordion */}
             <section id="course-curriculum" className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -206,14 +197,12 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
                 </button>
               </div>
 
-              {/* Sections list */}
               <div className="space-y-3">
                 {course.curriculum.map((section) => (
                   <div
                     key={section.id}
                     className="border border-slate-200 rounded-xl bg-white overflow-hidden shadow-xs"
                   >
-                    {/* Section Header */}
                     <button
                       onClick={() => toggleSection(section.id)}
                       className="w-full px-5 py-4 bg-slate-50/80 hover:bg-slate-100/80 text-left flex items-center justify-between text-xs sm:text-sm font-bold text-slate-900 transition-colors cursor-pointer"
@@ -231,7 +220,6 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
                       </div>
                     </button>
 
-                    {/* Section Lectures */}
                     {openSections[section.id] && (
                       <div className="divide-y divide-slate-100 px-2 py-1">
                         {section.lectures.map((lec) => (
@@ -263,7 +251,6 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
               </div>
             </section>
 
-            {/* Requirements & Target Audience */}
             <section className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-200">
               <div className="space-y-3">
                 <h3 className="text-sm font-bold text-slate-900">Requirements</h3>
@@ -289,7 +276,6 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
               </div>
             </section>
 
-            {/* Instructor Profile Card */}
             <section id="instructor-profile" className="p-6 bg-slate-900 text-white rounded-2xl space-y-4">
               <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">Master Mentor</span>
               <div className="flex flex-col sm:flex-row items-start gap-4">
@@ -315,7 +301,6 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
               </p>
             </section>
 
-            {/* Student Reviews */}
             <section id="student-reviews" className="space-y-6">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold text-slate-900">Verified Student Feedback</h2>
@@ -356,10 +341,8 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
             </section>
           </div>
 
-          {/* Right Sticky Card */}
           <div className="lg:col-span-4 lg:sticky lg:top-24 space-y-6">
             <div className="bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden">
-              {/* Video Preview Box */}
               <div className="relative aspect-video bg-black group overflow-hidden">
                 <img
                   src={course.videoPreviewThumb || course.thumbnail}
@@ -377,9 +360,7 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
                 </div>
               </div>
 
-              {/* Card Body */}
               <div className="p-6 space-y-6">
-                {/* Price */}
                 <div className="space-y-1">
                   <div className="flex items-baseline gap-2">
                     <span className="text-3xl font-black text-slate-900">${course.price}</span>
@@ -393,7 +374,6 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
                   <p className="text-xs text-rose-500 font-semibold">⚡ Limited time masterclass enrollment rate</p>
                 </div>
 
-                {/* Primary CTA buttons */}
                 <div className="space-y-2.5">
                   <button
                     id="sticky-enroll-now-btn"
@@ -431,7 +411,6 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
                   </div>
                 </div>
 
-                {/* Course Includes Bullets */}
                 <div className="space-y-2.5 pt-4 border-t border-slate-100 text-xs text-slate-600">
                   <div className="font-bold text-slate-900">This masterclass includes:</div>
                   <div className="flex items-center gap-2.5">
@@ -456,7 +435,6 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
                   </div>
                 </div>
 
-                {/* Guarantee */}
                 <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200/80 flex items-center gap-2 text-xs text-emerald-800 font-medium">
                   <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0" />
                   <span>30-Day Money-Back Guarantee. No questions asked.</span>

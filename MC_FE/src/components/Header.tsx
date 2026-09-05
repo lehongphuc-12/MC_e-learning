@@ -8,10 +8,11 @@ import {
   Search,
   ShoppingBag,
   Sparkles,
+  UserCircle,
   UserPlus,
   X
 } from 'lucide-react';
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Course, ScreenType, User } from '../types';
 
 interface HeaderProps {
@@ -41,6 +42,21 @@ export const Header: React.FC<HeaderProps> = ({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isScreenMenuOpen, setIsScreenMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isAnnouncementVisible, setIsAnnouncementVisible] = useState(true);
+
+  const userMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setIsUserMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   const screensList: { id: ScreenType; label: string; desc: string; icon: string }[] = [
     { id: 'home', label: '1. Home / Landing', desc: 'Hero, Categories, Instructors, Pricing', icon: '🏠' },
@@ -53,60 +69,72 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <>
       {/* Top Announcement Bar */}
-      <div id="top-announcement-bar" className="bg-slate-950 text-slate-300 text-xs py-2 px-4 border-b border-slate-800">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="px-2 py-0.5 rounded-full bg-blue-600/30 text-blue-400 font-semibold border border-blue-500/40 text-[10px] uppercase tracking-wider">
-              NEW RELEASE
-            </span>
-            <span className="hidden sm:inline">2026 Masterclass with Jonathan Sterling: The Elegant Wedding MC</span>
-            <span className="sm:hidden">2026 Wedding MC Masterclass Live</span>
-          </div>
+      {isAnnouncementVisible && (
+        <div id="top-announcement-bar" className="bg-slate-950 text-slate-300 text-xs py-2 px-4 border-b border-slate-800">
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded-full bg-blue-600/30 text-blue-400 font-semibold border border-blue-500/40 text-[10px] uppercase tracking-wider">
+                NEW RELEASE
+              </span>
+              <span className="hidden sm:inline">2026 Masterclass with Jonathan Sterling: The Elegant Wedding MC</span>
+              <span className="sm:hidden">2026 Wedding MC Masterclass Live</span>
+            </div>
 
-          {/* Direct Screen Jumper Pill */}
-          <div className="relative">
-            {/* <button
-              id="screens-dropdown-btn"s
-              onClick={() => setIsScreenMenuOpen(!isScreenMenuOpen)}
-              className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-900/60 hover:bg-blue-800 text-blue-200 rounded-md border border-blue-700/50 font-semibold text-[11px] transition-all cursor-pointer"
-            >
-              <Layers className="w-3.5 h-3.5 text-blue-400" />
-              <span>Switch Screen ({currentScreen})</span>
-              <ChevronDown className="w-3 h-3 text-blue-300" />
-            </button> */}
+            <div className="flex items-center gap-3">
+              {/* Direct Screen Jumper Pill */}
+              <div className="relative">
+                {/* <button
+                  id="screens-dropdown-btn"
+                  onClick={() => setIsScreenMenuOpen(!isScreenMenuOpen)}
+                  className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-900/60 hover:bg-blue-800 text-blue-200 rounded-md border border-blue-700/50 font-semibold text-[11px] transition-all cursor-pointer"
+                >
+                  <Layers className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Switch Screen ({currentScreen})</span>
+                  <ChevronDown className="w-3 h-3 text-blue-300" />
+                </button> */}
 
-            {isScreenMenuOpen && (
-              <div 
-                id="screens-dropdown-menu"
-                className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-2xl border border-slate-200 text-slate-800 py-2 z-50 animate-fadeIn"
-              >
-                <div className="px-3 py-1.5 border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                  Select Screen to Preview
-                </div>
-                {screensList.map((screen) => (
-                  <button
-                    key={screen.id}
-                    id={`jump-to-${screen.id}`}
-                    onClick={() => {
-                      onNavigate(screen.id);
-                      setIsScreenMenuOpen(false);
-                    }}
-                    className={`w-full text-left px-3 py-2 flex items-start gap-2.5 hover:bg-blue-50 transition-colors cursor-pointer ${
-                      currentScreen === screen.id ? 'bg-blue-50/80 font-bold text-blue-700' : 'text-slate-700'
-                    }`}
+                {isScreenMenuOpen && (
+                  <div 
+                    id="screens-dropdown-menu"
+                    className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-2xl border border-slate-200 text-slate-800 py-2 z-50 animate-fadeIn"
                   >
-                    <span className="text-base">{screen.icon}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs font-semibold">{screen.label}</div>
-                      <div className="text-[10px] text-slate-400 truncate">{screen.desc}</div>
+                    <div className="px-3 py-1.5 border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                      Select Screen to Preview
                     </div>
-                  </button>
-                ))}
+                    {screensList.map((screen) => (
+                      <button
+                        key={screen.id}
+                        id={`jump-to-${screen.id}`}
+                        onClick={() => {
+                          onNavigate(screen.id);
+                          setIsScreenMenuOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 flex items-start gap-2.5 hover:bg-blue-50 transition-colors cursor-pointer ${
+                          currentScreen === screen.id ? 'bg-blue-50/80 font-bold text-blue-700' : 'text-slate-700'
+                        }`}
+                      >
+                        <span className="text-base">{screen.icon}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-semibold">{screen.label}</div>
+                          <div className="text-[10px] text-slate-400 truncate">{screen.desc}</div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
+
+              <button
+                onClick={() => setIsAnnouncementVisible(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-md transition-colors cursor-pointer"
+                title="Close Announcement"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Main Header */}
       <header id="main-header" className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-xs">
@@ -223,7 +251,7 @@ export const Header: React.FC<HeaderProps> = ({
 
               {/* User Profile / Auth Action */}
               {user ? (
-                <div className="relative">
+                <div className="relative" ref={userMenuRef}>
                   <button
                     id="header-user-menu-btn"
                     onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
@@ -236,7 +264,7 @@ export const Header: React.FC<HeaderProps> = ({
                     />
                     <div className="hidden sm:block text-left">
                       <div className="text-xs font-bold text-slate-900 leading-tight">{user.name}</div>
-                      <div className="text-[10px] text-blue-600 font-semibold">{user.membershipTier}</div>
+                      <div className="text-[10px] text-blue-600 font-semibold uppercase">{user.role}</div>
                     </div>
                     <ChevronDown className="w-3.5 h-3.5 text-slate-500" />
                   </button>
@@ -250,6 +278,16 @@ export const Header: React.FC<HeaderProps> = ({
                         <p className="text-xs font-bold text-slate-900">{user.name}</p>
                         <p className="text-[11px] text-slate-500">{user.email}</p>
                       </div>
+                      <button
+                        onClick={() => {
+                          onNavigate('profile');
+                          setIsUserMenuOpen(false);
+                        }}
+                        className="w-full text-left px-4 py-2 text-xs font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-600 flex items-center gap-2 cursor-pointer"
+                      >
+                        <UserCircle className="w-4 h-4" />
+                        <span>My Profile</span>
+                      </button>
                       <button
                         onClick={() => {
                           onNavigate('courses');

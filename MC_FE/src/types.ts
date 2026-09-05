@@ -1,4 +1,4 @@
-export type ScreenType = 'home' | 'courses' | 'course-detail' | 'login' | 'register';
+export type ScreenType = 'home' | 'courses' | 'course-detail' | 'login' | 'register' | 'profile' | 'forgot-password' | 'reset-password';
 
 export interface Instructor {
   id: string;
@@ -107,12 +107,7 @@ export interface User {
   email: string;
   avatar: string;
   role: 'student' | 'instructor' | 'admin';
-  membershipTier: 'Free' | 'Pro Learner' | 'Enterprise';
-  enrolledCourseIds: string[];
-  wishlistCourseIds: string[];
-  completedCourseIds: string[];
-  certificatesEarned: number;
-  hoursLearned: number;
+  isGoogleLogin?: boolean;
 }
 
 export interface EnrolledCourseProgress {

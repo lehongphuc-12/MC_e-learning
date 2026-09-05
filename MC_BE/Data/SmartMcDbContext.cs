@@ -1,22 +1,79 @@
-namespace MC_BE.Data;
-
-// Note: Uncomment this class once Microsoft.EntityFrameworkCore is added to the project.
-/*
 using Microsoft.EntityFrameworkCore;
 using MC_BE.Models.Entities;
 
-public class AppDbContext : DbContext
+namespace MC_BE.Data;
+
+public class SmartMcDbContext : DbContext
 {
-    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
+    public SmartMcDbContext(DbContextOptions<SmartMcDbContext> options) : base(options)
     {
     }
 
-    // Example DbSet:
-    // public DbSet<User> Users { get; set; } = null!;
-}
-*/
+    public DbSet<Role> Roles { get; set; } = null!;
+    public DbSet<User> Users { get; set; } = null!;
+    public DbSet<UserProfile> UserProfiles { get; set; } = null!;
+    public DbSet<PasswordResetToken> PasswordResetTokens { get; set; } = null!;
 
-public class SmartMcDbContext
-{
-    // Placeholder to keep the folder tracked and compile-friendly
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+
+        // Role configuration
+        modelBuilder.Entity<Role>(entity =>
+        {
+            entity.HasIndex(e => e.RoleName).IsUnique();
+        });
+
+        // User configuration
+        modelBuilder.Entity<User>(entity =>
+        {
+            entity.HasIndex(e => e.Email).IsUnique();
+
+            // Set default value for Status
+            entity.Property(e => e.Status)
+                .HasDefaultValue("ACTIVE");
+
+            // Set default value for CreatedAt and UpdatedAt
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            // Relationship User -> Role
+            entity.HasOne(d => d.Role)
+                .WithMany(p => p.Users)
+                .HasForeignKey(d => d.RoleId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // UserProfile configuration
+        modelBuilder.Entity<UserProfile>(entity =>
+        {
+            entity.HasIndex(e => e.UserId).IsUnique();
+
+            // Set default value for PreferredLanguage
+            entity.Property(e => e.PreferredLanguage)
+                .HasDefaultValue("en");
+
+            // 1-to-1 Relationship UserProfile -> User
+            entity.HasOne(d => d.User)
+                .WithOne(p => p.UserProfile)
+                .HasForeignKey<UserProfile>(d => d.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // PasswordResetToken configuration
+        modelBuilder.Entity<PasswordResetToken>(entity =>
+        {
+            entity.HasIndex(e => e.Token);
+
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasOne(d => d.User)
+                .WithMany()
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+    }
 }

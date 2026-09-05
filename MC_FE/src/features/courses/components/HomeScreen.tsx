@@ -4,23 +4,17 @@ import {
   Sparkles, 
   ArrowRight, 
   Star, 
-  Users, 
   Award, 
-  Clock, 
-  CheckCircle2, 
   Play, 
   ChevronRight, 
   ChevronDown, 
-  ShieldCheck, 
-  Flame, 
-  BookOpen, 
-  TrendingUp, 
-  GraduationCap,
-  Heart
+  CheckCircle2,
+  TrendingUp,
 } from 'lucide-react';
-import { Course, Instructor, Category, ScreenType } from '../../types';
-import { mockCategories, mockCourses, mockInstructors, mockTestimonials, mockPricingPlans } from '../../data/mockData';
-import { CourseCard } from '../common/CourseCard';
+import { Course, ScreenType } from '../../../types';
+import { mockCategories, mockInstructors, mockTestimonials, mockPricingPlans } from '../../../data/mockData';
+import { CourseCard } from '../../../components/common/CourseCard';
+import { useCoursesQuery } from '../hooks/useCoursesQuery';
 
 interface HomeScreenProps {
   onNavigate: (screen: ScreenType) => void;
@@ -35,7 +29,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onNavigate,
   onSelectCourse,
   onPreviewVideo,
-  onAddToCart,
   onToggleWishlist,
   wishlistCourseIds,
 }) => {
@@ -43,9 +36,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const [isAnnualPricing, setIsAnnualPricing] = useState<boolean>(true);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
 
+  const coursesQuery = useCoursesQuery();
+  const allCourses = coursesQuery.data || [];
+
   const filteredCourses = selectedCategoryTab === 'All'
-    ? mockCourses.slice(0, 4)
-    : mockCourses.filter(c => c.category.includes(selectedCategoryTab) || selectedCategoryTab === 'All').slice(0, 4);
+    ? allCourses.slice(0, 4)
+    : allCourses.filter(c => c.category.includes(selectedCategoryTab) || selectedCategoryTab === 'All').slice(0, 4);
 
   const faqs = [
     {
@@ -68,9 +64,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
   return (
     <div id="home-screen-container" className="space-y-20 pb-20 animate-fadeIn">
-      {/* 1. HERO SECTION */}
+      {/* HERO SECTION */}
       <section id="hero-section" className="relative pt-12 pb-20 overflow-hidden bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white">
-        {/* Glow ambient background circles */}
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-blue-600/15 rounded-full blur-[140px] pointer-events-none" />
         <div className="absolute top-10 right-10 w-96 h-96 bg-indigo-500/10 rounded-full blur-[120px] pointer-events-none" />
 
@@ -78,13 +73,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
             {/* Left Content */}
             <div className="lg:col-span-7 space-y-6 text-center lg:text-left">
-              {/* Badge */}
               <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-semibold">
                 <Sparkles className="w-3.5 h-3.5" />
                 <span>The Premier Masterclass Platform for Speakers & Hosts</span>
               </div>
 
-              {/* Main Headline */}
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-tight">
                 Master the Art of <br />
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-indigo-300 to-sky-400">
@@ -92,12 +85,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 </span>
               </h1>
 
-              {/* Subheadline */}
               <p className="text-base sm:text-lg text-slate-300 max-w-2xl mx-auto lg:mx-0 font-normal leading-relaxed">
                 Command any stage, host luxury galas, and deliver electrifying keynotes. Learn directly from world-renowned broadcast hosts, TEDx coaches, and master MCs.
               </p>
 
-              {/* CTA Buttons */}
               <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 pt-2">
                 <button
                   id="hero-start-learning-btn"
@@ -117,7 +108,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 </button>
               </div>
 
-              {/* Social Proof Avatars */}
               <div className="pt-4 flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 border-t border-slate-800/80">
                 <div className="flex -space-x-2.5">
                   <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80" alt="Student" className="w-9 h-9 rounded-full ring-2 ring-slate-900 object-cover" />
@@ -140,7 +130,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             {/* Right Visual Stage Card */}
             <div className="lg:col-span-5 relative">
               <div className="relative mx-auto max-w-md lg:max-w-none">
-                {/* Main Visual Image */}
                 <div className="relative rounded-2xl overflow-hidden border border-slate-700/80 shadow-2xl bg-slate-800">
                   <img
                     src="https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=800&q=80"
@@ -149,31 +138,30 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/30 to-transparent" />
 
-                  {/* Top Live Badge */}
                   <div className="absolute top-4 left-4 px-3 py-1.5 rounded-full bg-slate-950/80 backdrop-blur-md border border-slate-700 flex items-center gap-2 text-xs font-medium">
                     <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
                     <span className="text-white font-semibold">Live Stage Simulation</span>
                   </div>
 
-                  {/* Bottom Image Overlay Card */}
-                  <div className="absolute bottom-4 left-4 right-4 p-4 rounded-xl bg-slate-900/90 backdrop-blur-md border border-slate-700/80 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-blue-400">FEATURED MASTERCLASS</span>
-                      <span className="text-xs font-extrabold text-amber-400">★ 4.95</span>
+                  {allCourses.length > 0 && (
+                    <div className="absolute bottom-4 left-4 right-4 p-4 rounded-xl bg-slate-900/90 backdrop-blur-md border border-slate-700/80 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-blue-400">FEATURED MASTERCLASS</span>
+                        <span className="text-xs font-extrabold text-amber-400">★ {allCourses[0].rating}</span>
+                      </div>
+                      <h3 className="text-sm font-bold text-white">{allCourses[0].title}</h3>
+                      <p className="text-[11px] text-slate-400">By {allCourses[0].instructor.name} • {allCourses[0].durationHours} hrs • {allCourses[0].lecturesCount} Lectures</p>
+                      <button
+                        onClick={() => onSelectCourse(allCourses[0])}
+                        className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer"
+                      >
+                        <span>Explore Masterclass</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
                     </div>
-                    <h3 className="text-sm font-bold text-white">The Elegant Wedding MC: Managing the Big Day</h3>
-                    <p className="text-[11px] text-slate-400">By Jonathan Sterling • 12.5 hrs • 38 Lectures</p>
-                    <button
-                      onClick={() => onSelectCourse(mockCourses[0])}
-                      className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer"
-                    >
-                      <span>Explore Masterclass</span>
-                      <ChevronRight className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                  )}
                 </div>
 
-                {/* Floating Metric 1 */}
                 <div className="hidden sm:flex absolute -left-6 top-16 p-3 rounded-xl bg-slate-900/95 backdrop-blur-md border border-slate-700 shadow-xl items-center gap-3 animate-float">
                   <div className="w-10 h-10 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
                     <Award className="w-5 h-5" />
@@ -184,7 +172,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   </div>
                 </div>
 
-                {/* Floating Metric 2 */}
                 <div className="hidden sm:flex absolute -right-6 bottom-32 p-3 rounded-xl bg-slate-900/95 backdrop-blur-md border border-slate-700 shadow-xl items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold">
                     <Mic className="w-5 h-5" />
@@ -200,7 +187,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </div>
       </section>
 
-      {/* 2. STATS STRIP */}
+      {/* STATS STRIP */}
       <section id="stats-strip" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-10 relative z-20">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-6 bg-white rounded-2xl shadow-xl border border-slate-200/80">
           <div className="text-center p-2 border-r border-slate-100 last:border-none">
@@ -222,7 +209,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </div>
       </section>
 
-      {/* 3. POPULAR CATEGORIES (BENTO GRID) */}
+      {/* POPULAR CATEGORIES */}
       <section id="popular-categories-section" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
@@ -239,7 +226,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </button>
         </div>
 
-        {/* Bento Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {mockCategories.slice(0, 6).map((cat, idx) => (
             <div
@@ -278,7 +264,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </div>
       </section>
 
-      {/* 4. FEATURED COURSES */}
+      {/* FEATURED COURSES */}
       <section id="featured-courses-section" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
@@ -287,7 +273,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             <p className="text-xs sm:text-sm text-slate-500 mt-1">High-impact curriculum with practical drills, run-sheets, and verified certification.</p>
           </div>
 
-          {/* Filter Tabs */}
           <div className="flex flex-wrap gap-2">
             {['All', 'Wedding & Gala', 'MC & Event', 'Public Speaking'].map((tab) => (
               <button
@@ -305,7 +290,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </div>
         </div>
 
-        {/* Course Cards Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {filteredCourses.map((course) => (
             <CourseCard
@@ -320,7 +304,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </div>
       </section>
 
-      {/* 5. TOP INSTRUCTORS ("LEARN FROM THE GIANTS") */}
+      {/* TOP INSTRUCTORS */}
       <section id="top-instructors-section" className="bg-slate-900 text-white py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
           <div className="text-center max-w-2xl mx-auto space-y-2">
@@ -372,7 +356,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </div>
       </section>
 
-      {/* 6. TESTIMONIAL SPOTLIGHT */}
+      {/* TESTIMONIAL SPOTLIGHT */}
       <section id="testimonials-section" className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="p-8 sm:p-12 rounded-3xl bg-gradient-to-tr from-blue-900/20 via-blue-600/10 to-indigo-900/20 border border-blue-200/80 shadow-md">
           <div className="space-y-6 text-center">
@@ -399,14 +383,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </div>
       </section>
 
-      {/* 7. TRANSPARENT PRICING TIERS */}
+      {/* PRICING TIERS */}
       <section id="pricing-section" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
         <div className="text-center max-w-2xl mx-auto space-y-3">
           <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">Flexible Access</span>
           <h2 className="text-2xl sm:text-3xl font-black text-slate-900">Invest in Your Stage Future</h2>
           <p className="text-xs sm:text-sm text-slate-500">Choose individual masterclass ownership or unlock the complete MSEEK Pro catalog.</p>
 
-          {/* Monthly / Annual Billing Toggle */}
           <div className="pt-3 flex items-center justify-center gap-3">
             <span className={`text-xs font-bold ${!isAnnualPricing ? 'text-slate-900' : 'text-slate-400'}`}>Monthly Billing</span>
             <button
@@ -422,7 +405,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </div>
         </div>
 
-        {/* Pricing Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {mockPricingPlans.map((plan) => (
             <div
@@ -477,7 +459,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </div>
       </section>
 
-      {/* 8. FAQ ACCORDION */}
+      {/* FAQ ACCORDION */}
       <section id="faq-section" className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
         <div className="text-center space-y-2">
           <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">Frequently Asked</span>
@@ -507,7 +489,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </div>
       </section>
 
-      {/* 9. HIGH CONVERTING BOTTOM CTA */}
+      {/* BOTTOM CTA */}
       <section id="bottom-cta-section" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-700 text-white p-8 sm:p-14 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-8">
           <div className="space-y-3 text-center md:text-left max-w-xl">
