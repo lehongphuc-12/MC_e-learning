@@ -10,6 +10,7 @@ import { ResetPasswordScreen } from './screens/ResetPasswordScreen';
 import { ProfileScreen } from './screens/ProfileScreen';
 import { MainLayout } from './layouts/MainLayout';
 import { ToastType } from './common/Toast';
+import { ProtectedRoute } from './common/ProtectedRoute';
 
 interface AppRouterProps {
   currentScreen: ScreenType;
@@ -111,17 +112,24 @@ export const AppRouter: React.FC<AppRouterProps> = ({
         />
       );
     case 'profile':
-      return user
-        ? withMainLayout(
+      return (
+        <ProtectedRoute
+          user={user}
+          currentScreen={currentScreen}
+          onNavigate={onNavigate}
+          onToast={onToast}
+        >
+          {withMainLayout(
             <ProfileScreen
-              user={user}
+              user={user!}
               onNavigate={onNavigate}
               onUpdateUser={onUpdateUser}
               onToast={onToast}
             />,
             false
-          )
-        : null;
+          )}
+        </ProtectedRoute>
+      );
     case 'login':
       return (
         <LoginScreen

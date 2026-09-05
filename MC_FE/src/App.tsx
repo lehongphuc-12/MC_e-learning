@@ -7,6 +7,7 @@ import { CartDrawer } from './components/modals/CartDrawer';
 import { Toast } from './components/common/Toast';
 import { authService } from './services/authService';
 import { useAppStore } from './hooks/useAppStore';
+import { useAuth } from './hooks/useAuth';
 import { AppRouter } from './components/AppRouter';
 
 const getDefaultAvatar = (name: string) => {
@@ -23,10 +24,10 @@ const getDefaultAvatar = (name: string) => {
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<ScreenType>('home');
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(mockCourses[0]);
-  const [user, setUser] = useState<User | null>(null);
   const [isLoadingUser, setIsLoadingUser] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
+  const { user, setAuth, updateUser, logout: authLogout } = useAuth();
   const store = useAppStore();
 
   useEffect(() => {
@@ -34,7 +35,6 @@ export default function App() {
       const token = localStorage.getItem('token');
       if (!token) {
         setIsLoadingUser(false);
-        setUser(null);
         return;
       }
 
@@ -47,27 +47,29 @@ export default function App() {
             userObj.roleName === 'Instructor' ? 'instructor' :
             userObj.roleName === 'Admin' ? 'admin' : 'student';
 
-          setUser({
-            id: userObj.userId.toString(),
-            name: userObj.fullName,
-            email: userObj.email,
-            avatar: userObj.avatarUrl || getDefaultAvatar(userObj.fullName),
-            role: mappedRole,
-            isGoogleLogin: userObj.isGoogleLogin ?? false
-          });
+          setAuth(
+            {
+              id: userObj.userId.toString(),
+              name: userObj.fullName,
+              email: userObj.email,
+              avatar: userObj.avatarUrl || getDefaultAvatar(userObj.fullName),
+              role: mappedRole,
+              isGoogleLogin: userObj.isGoogleLogin ?? false
+            },
+            token
+          );
         } else {
-          localStorage.removeItem('token');
-          setUser(null);
+          authLogout();
         }
       } catch (err) {
-        setUser(null);
+        authLogout();
       } finally {
         setIsLoadingUser(false);
       }
     };
 
     fetchMe();
-  }, []);
+  }, [setAuth, authLogout]);
 
   // Listen to path changes (HTML5 History API) to set active screen
   useEffect(() => {
@@ -135,15 +137,17 @@ export default function App() {
       userObj.roleName === 'Instructor' ? 'instructor' :
       userObj.roleName === 'Admin' ? 'admin' : 'student';
 
-    setUser({
-      id: userObj.userId.toString(),
-      name: userObj.fullName,
-      email: userObj.email,
-      avatar: userObj.avatarUrl || getDefaultAvatar(userObj.fullName),
-      role: mappedRole,
-      isGoogleLogin: userObj.isGoogleLogin ?? false
-    });
-    localStorage.setItem('token', token);
+    setAuth(
+      {
+        id: userObj.userId.toString(),
+        name: userObj.fullName,
+        email: userObj.email,
+        avatar: userObj.avatarUrl || getDefaultAvatar(userObj.fullName),
+        role: mappedRole,
+        isGoogleLogin: userObj.isGoogleLogin ?? false
+      },
+      token
+    );
     store.showToast('Welcome Back!', `Logged in successfully as ${userObj.email}`);
     handleNavigate('courses');
   };
@@ -154,14 +158,13 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    setUser(null);
-    localStorage.removeItem('token');
+    authLogout();
     store.showToast('Signed Out', 'You have been logged out securely.', 'info');
     handleNavigate('home');
   };
 
   const handleUpdateUser = (updatedUser: Partial<User>) => {
-    setUser((prev) => (prev ? { ...prev, ...updatedUser } : null));
+    updateUser(updatedUser);
   };
 
   if (isLoadingUser) {
