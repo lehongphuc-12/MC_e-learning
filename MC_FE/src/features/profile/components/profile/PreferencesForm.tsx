@@ -8,7 +8,6 @@ interface PreferencesFormProps {
 
 export const PreferencesForm: React.FC<PreferencesFormProps> = ({ 
   onSaveSuccess, 
-  onSaveError 
 }) => {
   const [settingsForm, setSettingsForm] = useState({
     notifyCourses: true,

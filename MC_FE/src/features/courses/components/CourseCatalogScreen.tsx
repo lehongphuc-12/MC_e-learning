@@ -1,24 +1,15 @@
 import React, { useState, useMemo } from 'react';
 import { 
   Search, 
-  Filter, 
   SlidersHorizontal, 
   Star, 
-  Clock, 
-  Heart, 
-  Play, 
-  ChevronRight, 
-  Check, 
   X, 
-  Layers, 
-  Sparkles, 
-  BookOpen, 
-  Award,
+  Check, 
   ArrowUpDown
 } from 'lucide-react';
-import { Course, ScreenType } from '../../types';
-import { mockCourses, mockCategories } from '../../data/mockData';
-import { CourseCard } from '../common/CourseCard';
+import { Course, ScreenType } from '../../../types';
+import { CourseCard } from '../../../components/common/CourseCard';
+import { useCoursesQuery } from '../hooks/useCoursesQuery';
 
 interface CourseCatalogScreenProps {
   onNavigate: (screen: ScreenType) => void;
@@ -49,10 +40,11 @@ export const CourseCatalogScreen: React.FC<CourseCatalogScreenProps> = ({
   const [currentPage, setCurrentPage] = useState<number>(1);
   const itemsPerPage = 6;
 
-  // Filter logic
+  const coursesQuery = useCoursesQuery();
+  const allCourses = coursesQuery.data || [];
+
   const filteredCourses = useMemo(() => {
-    return mockCourses.filter((course) => {
-      // Search query match
+    return allCourses.filter((course) => {
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
         const matchTitle = course.title.toLowerCase().includes(query);
@@ -62,22 +54,18 @@ export const CourseCatalogScreen: React.FC<CourseCatalogScreenProps> = ({
         if (!matchTitle && !matchSubtitle && !matchInstructor && !matchCat) return false;
       }
 
-      // Category filter
       if (selectedCategory !== 'All' && !course.category.includes(selectedCategory)) {
         return false;
       }
 
-      // Level filter
       if (selectedLevel !== 'All' && course.level !== selectedLevel && course.level !== 'All Levels') {
         return false;
       }
 
-      // Rating filter
       if (minRating > 0 && course.rating < minRating) {
         return false;
       }
 
-      // Price filter
       if (priceFilter === 'free' && course.price > 0) return false;
       if (priceFilter === 'paid' && course.price === 0) return false;
 
@@ -89,7 +77,7 @@ export const CourseCatalogScreen: React.FC<CourseCatalogScreenProps> = ({
       if (sortBy === 'popular') return b.studentsCount - a.studentsCount;
       return 0;
     });
-  }, [searchQuery, selectedCategory, selectedLevel, minRating, priceFilter, sortBy]);
+  }, [allCourses, searchQuery, selectedCategory, selectedLevel, minRating, priceFilter, sortBy]);
 
   const totalPages = Math.ceil(filteredCourses.length / itemsPerPage) || 1;
   const displayedCourses = filteredCourses.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -130,7 +118,6 @@ export const CourseCatalogScreen: React.FC<CourseCatalogScreenProps> = ({
             </p>
           </div>
 
-          {/* Sort selector */}
           <div className="flex items-center gap-2">
             <span className="text-xs font-semibold text-slate-500 flex items-center gap-1">
               <ArrowUpDown className="w-3.5 h-3.5" />
@@ -151,7 +138,6 @@ export const CourseCatalogScreen: React.FC<CourseCatalogScreenProps> = ({
         </div>
       </div>
 
-      {/* Main Layout: Sidebar Filters + Course Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Left Filter Sidebar */}
         <aside id="catalog-filters-sidebar" className="lg:col-span-3 space-y-6 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
@@ -168,7 +154,6 @@ export const CourseCatalogScreen: React.FC<CourseCatalogScreenProps> = ({
             </button>
           </div>
 
-          {/* Search in catalog */}
           <div className="space-y-2">
             <label className="text-xs font-bold text-slate-700">Search Keywords</label>
             <div className="relative">
@@ -188,7 +173,6 @@ export const CourseCatalogScreen: React.FC<CourseCatalogScreenProps> = ({
             </div>
           </div>
 
-          {/* Category Filter */}
           <div className="space-y-2.5">
             <label className="text-xs font-bold text-slate-700">Category</label>
             <div className="space-y-1">
@@ -209,7 +193,6 @@ export const CourseCatalogScreen: React.FC<CourseCatalogScreenProps> = ({
             </div>
           </div>
 
-          {/* Skill Level Pills */}
           <div className="space-y-2.5 pt-4 border-t border-slate-100">
             <label className="text-xs font-bold text-slate-700">Skill Level</label>
             <div className="grid grid-cols-2 gap-1.5">
@@ -229,7 +212,6 @@ export const CourseCatalogScreen: React.FC<CourseCatalogScreenProps> = ({
             </div>
           </div>
 
-          {/* Minimum Rating */}
           <div className="space-y-2.5 pt-4 border-t border-slate-100">
             <label className="text-xs font-bold text-slate-700">Minimum Rating</label>
             <div className="space-y-1.5">
@@ -255,7 +237,6 @@ export const CourseCatalogScreen: React.FC<CourseCatalogScreenProps> = ({
             </div>
           </div>
 
-          {/* Price Range */}
           <div className="space-y-2.5 pt-4 border-t border-slate-100">
             <label className="text-xs font-bold text-slate-700">Pricing</label>
             <div className="grid grid-cols-3 gap-1.5">
@@ -282,7 +263,6 @@ export const CourseCatalogScreen: React.FC<CourseCatalogScreenProps> = ({
 
         {/* Right Catalog Grid */}
         <main className="lg:col-span-9 space-y-6">
-          {/* Active Filter Tags Bar */}
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <span className="text-slate-400 font-medium">Active Filters:</span>
             {selectedCategory !== 'All' && (
@@ -317,7 +297,6 @@ export const CourseCatalogScreen: React.FC<CourseCatalogScreenProps> = ({
             )}
           </div>
 
-          {/* Courses Grid */}
           {displayedCourses.length === 0 ? (
             <div className="bg-white rounded-2xl p-12 text-center border border-slate-200 space-y-4">
               <div className="w-16 h-16 rounded-full bg-slate-100 text-slate-400 mx-auto flex items-center justify-center">
@@ -352,7 +331,6 @@ export const CourseCatalogScreen: React.FC<CourseCatalogScreenProps> = ({
             </div>
           )}
 
-          {/* Interactive Pagination */}
           {totalPages > 1 && (
             <div className="flex items-center justify-center gap-2 pt-6">
               {[...Array(totalPages)].map((_, i) => (
@@ -370,20 +348,6 @@ export const CourseCatalogScreen: React.FC<CourseCatalogScreenProps> = ({
               ))}
             </div>
           )}
-
-          {/* Bottom Instructor Banner */}
-          <div className="mt-12 p-8 rounded-2xl bg-gradient-to-r from-slate-900 to-indigo-950 text-white flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="space-y-1 text-center md:text-left">
-              <h3 className="text-lg font-bold">Are you a master host or keynote speaker?</h3>
-              <p className="text-xs text-slate-400">Share your expertise and build a global coaching brand on MSEEK.</p>
-            </div>
-            <button
-              onClick={() => alert('MSEEK Mentor Application submitted! Our team will review your speaker reel.')}
-              className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl shadow-lg transition-all cursor-pointer shrink-0"
-            >
-              Apply as Mentor
-            </button>
-          </div>
         </main>
       </div>
     </div>

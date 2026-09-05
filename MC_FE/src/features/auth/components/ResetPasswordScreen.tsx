@@ -1,8 +1,8 @@
 import { ArrowLeft, ArrowRight, CheckCircle2, Eye, EyeOff, Lock, Mic2, ShieldCheck, Sparkles } from 'lucide-react';
 import React, { useState } from 'react';
-import { authService } from '../../services/authService';
-import { ScreenType } from '../../types';
-import { ToastType } from '../common/Toast';
+import { ScreenType } from '../../../types';
+import { ToastType } from '../../../components/common/Toast';
+import { useResetPasswordMutation } from '../hooks/useAuthQueries';
 
 interface ResetPasswordScreenProps {
   onNavigate: (screen: ScreenType) => void;
@@ -13,7 +13,6 @@ export const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({
   onNavigate,
   onToast,
 }) => {
-  // Read token and email from URL query string (?token=...&email=...)
   const urlParams = new URLSearchParams(window.location.search);
   const tokenFromUrl = urlParams.get('token') || '';
   const emailFromUrl = urlParams.get('email') || '';
@@ -22,9 +21,10 @@ export const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const resetPasswordMutation = useResetPasswordMutation();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,27 +50,31 @@ export const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({
       return;
     }
 
-    setIsLoading(true);
     setError(null);
 
-    try {
-      const result = await authService.resetPassword(tokenFromUrl, emailFromUrl, newPassword);
-      if (result.success) {
-        setIsSuccess(true);
-        onToast?.('Password Reset Successful', 'You can now sign in with your new password.', 'success');
-      } else {
-        const msg = result.message || 'Failed to reset password. Link may be expired or already used.';
-        setError(msg);
-        onToast?.('Reset Failed', msg, 'error');
+    resetPasswordMutation.mutate(
+      { token: tokenFromUrl, email: emailFromUrl, newPassword },
+      {
+        onSuccess: (result) => {
+          if (result.success) {
+            setIsSuccess(true);
+            onToast?.('Password Reset Successful', 'You can now sign in with your new password.', 'success');
+          } else {
+            const msg = result.message || 'Failed to reset password. Link may be expired or already used.';
+            setError(msg);
+            onToast?.('Reset Failed', msg, 'error');
+          }
+        },
+        onError: (err: any) => {
+          const msg = err.message || 'An error occurred while resetting password.';
+          setError(msg);
+          onToast?.('Connection Error', msg, 'error');
+        },
       }
-    } catch (err: any) {
-      const msg = err.message || 'An error occurred while resetting password.';
-      setError(msg);
-      onToast?.('Connection Error', msg, 'error');
-    } finally {
-      setIsLoading(false);
-    }
+    );
   };
+
+  const isLoading = resetPasswordMutation.isPending;
 
   return (
     <div id="reset-password-screen" className="min-h-screen flex items-center justify-center p-4 sm:p-6 lg:p-10 bg-slate-50 text-slate-900 animate-fadeIn">
@@ -78,7 +82,6 @@ export const ResetPasswordScreen: React.FC<ResetPasswordScreenProps> = ({
         
         {/* Left Visual Banner Column */}
         <div className="lg:col-span-6 relative bg-slate-950 p-8 sm:p-10 flex flex-col justify-between overflow-hidden text-white min-h-[380px] lg:min-h-[620px]">
-          {/* Background Image with Dark Overlay Mask */}
           <img
             src="https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=1000&q=80"
             alt="Security & Password"

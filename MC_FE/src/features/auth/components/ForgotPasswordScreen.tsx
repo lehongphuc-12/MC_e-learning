@@ -1,8 +1,8 @@
 import { ArrowLeft, ArrowRight, CheckCircle2, KeyRound, Mail, Mic2, Sparkles } from 'lucide-react';
 import React, { useState } from 'react';
-import { authService } from '../../services/authService';
-import { ScreenType } from '../../types';
-import { ToastType } from '../common/Toast';
+import { ScreenType } from '../../../types';
+import { ToastType } from '../../../components/common/Toast';
+import { useForgotPasswordMutation } from '../hooks/useAuthQueries';
 
 interface ForgotPasswordScreenProps {
   onNavigate: (screen: ScreenType) => void;
@@ -14,20 +14,19 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
   onToast,
 }) => {
   const [email, setEmail] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const forgotPasswordMutation = useForgotPasswordMutation();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) return;
 
-    setIsLoading(true);
     setError(null);
 
-    try {
-      if (authService.forgotPassword) {
-        const result = await authService.forgotPassword(email);
+    forgotPasswordMutation.mutate(email, {
+      onSuccess: (result) => {
         if (result.success) {
           setIsSubmitted(true);
           onToast?.('Email Sent', 'Instructions to reset your password have been sent.', 'success');
@@ -36,20 +35,16 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
           setError(msg);
           onToast?.('Error', msg, 'error');
         }
-      } else {
-        // Fallback simulation if backend endpoint is not yet connected
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        setIsSubmitted(true);
-        onToast?.('Email Sent', 'Instructions to reset your password have been sent.', 'success');
-      }
-    } catch (err: any) {
-      const msg = err.message || 'An error occurred while requesting password reset.';
-      setError(msg);
-      onToast?.('Connection Error', msg, 'error');
-    } finally {
-      setIsLoading(false);
-    }
+      },
+      onError: (err: any) => {
+        const msg = err.message || 'An error occurred while requesting password reset.';
+        setError(msg);
+        onToast?.('Connection Error', msg, 'error');
+      },
+    });
   };
+
+  const isLoading = forgotPasswordMutation.isPending;
 
   return (
     <div id="forgot-password-screen" className="min-h-screen flex items-center justify-center p-4 sm:p-6 lg:p-10 bg-slate-50 text-slate-900 animate-fadeIn">
@@ -57,7 +52,6 @@ export const ForgotPasswordScreen: React.FC<ForgotPasswordScreenProps> = ({
         
         {/* Left Visual Banner Column */}
         <div className="lg:col-span-6 relative bg-slate-950 p-8 sm:p-10 flex flex-col justify-between overflow-hidden text-white min-h-[380px] lg:min-h-[620px]">
-          {/* Background Image with Dark Overlay Mask */}
           <img
             src="https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=1000&q=80"
             alt="Speaker on Stage"

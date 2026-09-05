@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Save, Camera, Upload, Link, RotateCcw, Check, Image as ImageIcon, Loader2, X, AlertCircle } from 'lucide-react';
-import { User as UserType } from '../../../types';
-import { authService } from '../../../services/authService';
+import { Save, Camera, Upload, Link, RotateCcw, Check, Image as ImageIcon, Loader2, AlertCircle } from 'lucide-react';
+import { User as UserType } from '../../../../types';
+import { useProfileQuery, useUpdateProfileMutation, useUpdateAvatarMutation } from '../../hooks/useProfileQueries';
 
 interface ProfileInfoFormProps {
   user: UserType | { name: string; email: string; avatar?: string };
@@ -42,10 +42,7 @@ export const ProfileInfoForm: React.FC<ProfileInfoFormProps> = ({
 
   const initialAvatar = ('avatar' in user && user.avatar) ? user.avatar : getDefaultAvatarUrl(user.name);
 
-  // Saved Avatar State (from Backend)
   const [savedAvatar, setSavedAvatar] = useState<string>(initialAvatar);
-  
-  // Pending Preview Avatar State
   const [previewAvatar, setPreviewAvatar] = useState<string>(initialAvatar);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
 
@@ -65,45 +62,36 @@ export const ProfileInfoForm: React.FC<ProfileInfoFormProps> = ({
 
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [customUrl, setCustomUrl] = useState('');
-  const [isSavingProfile, setIsSavingProfile] = useState(false);
-  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+
+  const profileQuery = useProfileQuery();
+  const updateProfileMutation = useUpdateProfileMutation();
+  const updateAvatarMutation = useUpdateAvatarMutation();
 
   const hasPendingAvatarChange = pendingFile !== null || previewAvatar !== savedAvatar;
 
-  // Fetch full profile from backend on component mount
   useEffect(() => {
-    const fetchBackendProfile = async () => {
-      try {
-        const res = await authService.getProfile();
-        if (res.success && res.data) {
-          const p = res.data;
-          setProfileForm((prev) => ({
-            ...prev,
-            name: p.fullName || prev.name,
-            email: p.email || prev.email,
-            phone: p.phoneNumber || '',
-            bio: p.bio || '',
-            gender: p.gender || '',
-            dateOfBirth: p.dateOfBirth || '',
-            experienceLevel: p.experienceLevel || '',
-            learningGoal: p.learningGoal || '',
-            preferredLanguage: p.preferredLanguage || 'en',
-          }));
-          if (p.avatarUrl) {
-            setSavedAvatar(p.avatarUrl);
-            setPreviewAvatar(p.avatarUrl);
-            onUpdateUser?.({ avatar: p.avatarUrl });
-          }
-        }
-      } catch (err) {
-        // Fallback to local user prop if endpoint fails
+    if (profileQuery.data?.success && profileQuery.data?.data) {
+      const p = profileQuery.data.data;
+      setProfileForm((prev) => ({
+        ...prev,
+        name: p.fullName || prev.name,
+        email: p.email || prev.email,
+        phone: p.phoneNumber || '',
+        bio: p.bio || '',
+        gender: p.gender || '',
+        dateOfBirth: p.dateOfBirth || '',
+        experienceLevel: p.experienceLevel || '',
+        learningGoal: p.learningGoal || '',
+        preferredLanguage: p.preferredLanguage || 'en',
+      }));
+      if (p.avatarUrl) {
+        setSavedAvatar(p.avatarUrl);
+        setPreviewAvatar(p.avatarUrl);
+        onUpdateUser?.({ avatar: p.avatarUrl });
       }
-    };
+    }
+  }, [profileQuery.data, onUpdateUser]);
 
-    fetchBackendProfile();
-  }, []);
-
-  // Mode 1: Select File for Preview
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -122,7 +110,6 @@ export const ProfileInfoForm: React.FC<ProfileInfoFormProps> = ({
     setPreviewAvatar(URL.createObjectURL(file));
   };
 
-  // Mode 2: Apply Custom URL for Preview
   const handleApplyCustomUrl = (e: React.FormEvent) => {
     e.preventDefault();
     if (!customUrl.trim()) return;
@@ -132,20 +119,17 @@ export const ProfileInfoForm: React.FC<ProfileInfoFormProps> = ({
     setCustomUrl('');
   };
 
-  // Mode 3: Pick Preset Avatar for Preview
   const handleSelectPreset = (url: string) => {
     setPendingFile(null);
     setPreviewAvatar(url);
   };
 
-  // Reset Avatar Preview to Initial Initials
   const handleResetAvatar = () => {
     const def = getDefaultAvatarUrl(profileForm.name);
     setPendingFile(null);
     setPreviewAvatar(def);
   };
 
-  // Cancel Pending Avatar Preview
   const handleCancelAvatarPreview = () => {
     setPendingFile(null);
     setPreviewAvatar(savedAvatar);
@@ -154,45 +138,38 @@ export const ProfileInfoForm: React.FC<ProfileInfoFormProps> = ({
     }
   };
 
-  // Save Avatar (Triggers Backend API Call)
   const handleSaveAvatar = async () => {
-    setIsUploadingAvatar(true);
-    try {
-      let res;
-      if (pendingFile) {
-        // Local File Upload Mode -> Cloudinary
-        res = await authService.updateAvatar({ file: pendingFile });
-      } else {
-        // Direct URL / Preset Mode
-        res = await authService.updateAvatar({ avatarUrl: previewAvatar });
+    updateAvatarMutation.mutate(
+      pendingFile ? { file: pendingFile } : { avatarUrl: previewAvatar },
+      {
+        onSuccess: (res) => {
+          if (res.success && res.data) {
+            const newAvatarUrl = res.data.avatarUrl;
+            setSavedAvatar(newAvatarUrl);
+            setPreviewAvatar(newAvatarUrl);
+            setPendingFile(null);
+            onUpdateUser?.({ avatar: newAvatarUrl });
+            onSaveSuccess('Avatar updated successfully!');
+          } else {
+            onSaveError(res.message || 'Failed to update avatar.');
+          }
+        },
+        onError: (err: any) => {
+          onSaveError(err.message || 'Error saving avatar.');
+        },
+        onSettled: () => {
+          if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+          }
+        },
       }
-
-      if (res.success && res.data) {
-        const newAvatarUrl = res.data.avatarUrl;
-        setSavedAvatar(newAvatarUrl);
-        setPreviewAvatar(newAvatarUrl);
-        setPendingFile(null);
-        onUpdateUser?.({ avatar: newAvatarUrl });
-        onSaveSuccess('Avatar updated successfully!');
-      } else {
-        onSaveError(res.message || 'Failed to update avatar.');
-      }
-    } catch (err: any) {
-      onSaveError(err.message || 'Error saving avatar.');
-    } finally {
-      setIsUploadingAvatar(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    }
+    );
   };
 
-  // Handle saving profile info via backend API
   const handleProfileSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSavingProfile(true);
-    try {
-      const res = await authService.updateProfile({
+    updateProfileMutation.mutate(
+      {
         fullName: profileForm.name,
         phoneNumber: profileForm.phone,
         bio: profileForm.bio,
@@ -201,25 +178,30 @@ export const ProfileInfoForm: React.FC<ProfileInfoFormProps> = ({
         experienceLevel: profileForm.experienceLevel,
         learningGoal: profileForm.learningGoal,
         preferredLanguage: profileForm.preferredLanguage,
-      });
-
-      if (res.success && res.data) {
-        const p = res.data;
-        onUpdateUser?.({
-          name: p.fullName,
-          email: p.email,
-          avatar: p.avatarUrl || savedAvatar,
-        });
-        onSaveSuccess('Profile information updated successfully!');
-      } else {
-        onSaveError(res.message || 'Failed to update profile.');
+      },
+      {
+        onSuccess: (res) => {
+          if (res.success && res.data) {
+            const p = res.data;
+            onUpdateUser?.({
+              name: p.fullName,
+              email: p.email,
+              avatar: p.avatarUrl || savedAvatar,
+            });
+            onSaveSuccess('Profile information updated successfully!');
+          } else {
+            onSaveError(res.message || 'Failed to update profile.');
+          }
+        },
+        onError: (err: any) => {
+          onSaveError(err.message || 'Error saving profile information.');
+        },
       }
-    } catch (err: any) {
-      onSaveError(err.message || 'Error saving profile information.');
-    } finally {
-      setIsSavingProfile(false);
-    }
+    );
   };
+
+  const isUploadingAvatar = updateAvatarMutation.isPending;
+  const isSavingProfile = updateProfileMutation.isPending;
 
   return (
     <form onSubmit={handleProfileSave} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-8">
@@ -228,7 +210,7 @@ export const ProfileInfoForm: React.FC<ProfileInfoFormProps> = ({
         <p className="text-xs text-slate-500 mt-1">Update your personal information, contact details, and avatar photo.</p>
       </div>
 
-      {/* ─── AVATAR SECTION ─────────────────────────────────── */}
+      {/* Avatar Section */}
       <div className="p-5 rounded-2xl bg-gradient-to-br from-slate-50 to-blue-50/40 border border-slate-200/70 space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -239,7 +221,6 @@ export const ProfileInfoForm: React.FC<ProfileInfoFormProps> = ({
         </div>
 
         <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 pt-1">
-          {/* Avatar Preview Box */}
           <div className="relative group shrink-0 flex flex-col items-center">
             <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full ring-4 ring-white shadow-xl overflow-hidden bg-slate-200 relative">
               <img
@@ -270,7 +251,6 @@ export const ProfileInfoForm: React.FC<ProfileInfoFormProps> = ({
             <span className="absolute bottom-1 right-1 w-4 h-4 bg-emerald-500 border-2 border-white rounded-full shadow-sm" title="Active" />
           </div>
 
-          {/* Action Buttons & Modes */}
           <div className="flex-1 space-y-3.5 w-full">
             <div className="flex flex-wrap items-center gap-2.5">
               <input
@@ -310,7 +290,6 @@ export const ProfileInfoForm: React.FC<ProfileInfoFormProps> = ({
               </button>
             </div>
 
-            {/* Custom URL Input Panel */}
             {showUrlInput && (
               <div className="flex items-center gap-2 animate-fade-in pt-1">
                 <input
@@ -330,7 +309,6 @@ export const ProfileInfoForm: React.FC<ProfileInfoFormProps> = ({
               </div>
             )}
 
-            {/* Preset Avatars Selection */}
             <div>
               <div className="flex items-center gap-1.5 mb-1.5 text-[11px] font-semibold text-slate-500">
                 <ImageIcon className="w-3 h-3 text-slate-400" />
@@ -362,7 +340,6 @@ export const ProfileInfoForm: React.FC<ProfileInfoFormProps> = ({
               </div>
             </div>
 
-            {/* PENDING AVATAR SAVE / CONFIRMATION BAR */}
             {hasPendingAvatarChange && (
               <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex flex-wrap items-center justify-between gap-3 animate-fade-in">
                 <div className="flex items-center gap-2 text-amber-800 text-xs font-medium">
@@ -403,7 +380,7 @@ export const ProfileInfoForm: React.FC<ProfileInfoFormProps> = ({
         </div>
       </div>
 
-      {/* ─── PERSONAL DETAILS SECTION ───────────────────────── */}
+      {/* Personal Details */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <div className="space-y-1.5">
           <label className="text-xs font-bold text-slate-700">Full Name</label>

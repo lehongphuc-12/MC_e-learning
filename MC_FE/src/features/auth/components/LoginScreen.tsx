@@ -1,9 +1,8 @@
 import { ArrowLeft, ArrowRight, Eye, EyeOff, Lock, Mail, Mic2, Sparkles } from 'lucide-react';
 import React, { useState } from 'react';
-import { authService } from '../../services/authService';
-import { ScreenType } from '../../types';
-
-import { ToastType } from '../common/Toast';
+import { ScreenType } from '../../../types';
+import { ToastType } from '../../../components/common/Toast';
+import { useLoginMutation, useGoogleLoginMutation } from '../hooks/useAuthQueries';
 
 interface LoginScreenProps {
   onNavigate: (screen: ScreenType) => void;
@@ -20,31 +19,83 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   const [password, setPassword] = useState('password123');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
-  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const loginMutation = useLoginMutation();
+  const googleLoginMutation = useGoogleLoginMutation();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
     setError(null);
 
-    try {
-      const result = await authService.login(email, password);
-      if (result.success) {
-        onLoginSuccess(result.data.user, result.data.token);
-      } else {
-        const msg = result.message || 'Login failed. Please check your credentials.';
-        setError(msg);
-        onToast?.('Login Failed', msg, 'error');
+    loginMutation.mutate(
+      { email, password },
+      {
+        onSuccess: (result) => {
+          if (result.success) {
+            onLoginSuccess(result.data.user, result.data.token);
+          } else {
+            const msg = result.message || 'Login failed. Please check your credentials.';
+            setError(msg);
+            onToast?.('Login Failed', msg, 'error');
+          }
+        },
+        onError: (err: any) => {
+          const msg = err.message || 'Cannot connect to the server. Please check if backend is running.';
+          setError(msg);
+          onToast?.('Connection Error', msg, 'error');
+        },
       }
-    } catch (err: any) {
-      const msg = err.message || 'Cannot connect to the server. Please check if backend is running.';
-      setError(msg);
-      onToast?.('Connection Error', msg, 'error');
-    } finally {
-      setIsLoading(false);
+    );
+  };
+
+  const handleGoogleLogin = () => {
+    const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || "50611504022-71qcadap5m0g6gi669p3nqr5nqliu8o1.apps.googleusercontent.com";
+    
+    const handleCredentialResponse = (response: any) => {
+      const idToken = response.credential;
+      googleLoginMutation.mutate(idToken, {
+        onSuccess: (res) => {
+          if (res.success) {
+            onToast?.('Login Success', 'Logged in with Google successfully!', 'success');
+            onLoginSuccess(res.data.user, res.data.token);
+          } else {
+            const msg = res.message || 'Google Login failed.';
+            setError(msg);
+            onToast?.('Google Login Failed', msg, 'error');
+          }
+        },
+        onError: (err: any) => {
+          const msg = err.message || 'Cannot connect to backend server.';
+          setError(msg);
+          onToast?.('Connection Error', msg, 'error');
+        },
+      });
+    };
+
+    const initGoogle = () => {
+      if ((window as any).google?.accounts?.id) {
+        (window as any).google.accounts.id.initialize({
+          client_id: googleClientId,
+          callback: handleCredentialResponse
+        });
+        (window as any).google.accounts.id.prompt();
+      }
+    };
+
+    if (!(window as any).google?.accounts?.id) {
+      const script = document.createElement('script');
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true;
+      script.defer = true;
+      script.onload = () => initGoogle();
+      document.body.appendChild(script);
+    } else {
+      initGoogle();
     }
   };
+
+  const isLoading = loginMutation.isPending || googleLoginMutation.isPending;
 
   return (
     <div id="login-screen" className="min-h-screen flex items-center justify-center p-4 sm:p-6 lg:p-10 bg-slate-50 text-slate-900 animate-fadeIn">
@@ -52,7 +103,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         
         {/* Left Visual Banner Column */}
         <div className="lg:col-span-6 relative bg-slate-950 p-8 sm:p-10 flex flex-col justify-between overflow-hidden text-white min-h-[380px] lg:min-h-[620px]">
-          {/* Background Image with Dark Overlay Mask */}
           <img
             src="https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=1000&q=80"
             alt="Speaker on Stage"
@@ -83,7 +133,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             </button>
           </div>
 
-          {/* Center Motivational Content */}
+          {/* Motivational Content */}
           <div className="relative z-10 space-y-4 my-auto py-6">
             <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/20 backdrop-blur-md rounded-full border border-blue-400/30 text-blue-300 text-xs font-medium">
               <Sparkles className="w-3.5 h-3.5 text-blue-400" />
@@ -97,7 +147,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             </p>
           </div>
 
-          {/* Bottom Glass Pill Stats */}
+          {/* Stats */}
           <div className="relative z-10 p-4 rounded-2xl bg-white/10 backdrop-blur-md border border-white/15 flex items-center justify-between text-xs text-slate-200 shadow-inner">
             <div className="flex items-center gap-2.5">
               <span className="relative flex h-2.5 w-2.5">
@@ -110,7 +160,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           </div>
         </div>
 
-        {/* Right Authentication Form Column - White Light Theme */}
+        {/* Right Authentication Form Column */}
         <div className="lg:col-span-6 p-8 sm:p-10 flex flex-col justify-center space-y-6 bg-white text-slate-900">
           <div className="space-y-1.5">
             <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">Welcome Back</h2>
@@ -215,57 +265,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           <button
             type="button"
             disabled={isLoading}
-            onClick={() => {
-              setIsLoading(true);
-              const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || "50611504022-71qcadap5m0g6gi669p3nqr5nqliu8o1.apps.googleusercontent.com";
-              
-              const handleCredentialResponse = async (response: any) => {
-                try {
-                  const idToken = response.credential;
-                  const res = await authService.googleLogin(idToken);
-                  if (res.success) {
-                    onToast?.('Login Success', 'Logged in with Google successfully!', 'success');
-                    onLoginSuccess(res.data.user, res.data.token);
-                  } else {
-                    const msg = res.message || 'Google Login failed.';
-                    setError(msg);
-                    onToast?.('Google Login Failed', msg, 'error');
-                  }
-                } catch (err: any) {
-                  const msg = err.message || 'Cannot connect to backend server.';
-                  setError(msg);
-                  onToast?.('Connection Error', msg, 'error');
-                } finally {
-                  setIsLoading(false);
-                }
-              };
-
-              // Load Google Identity Services script dynamically if not available
-              const initGoogle = () => {
-                if ((window as any).google?.accounts?.id) {
-                  (window as any).google.accounts.id.initialize({
-                    client_id: googleClientId,
-                    callback: handleCredentialResponse
-                  });
-                  (window as any).google.accounts.id.prompt((notification: any) => {
-                    if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-                      // Fallback to one-tap button or prompt
-                    }
-                  });
-                }
-              };
-
-              if (!(window as any).google?.accounts?.id) {
-                const script = document.createElement('script');
-                script.src = 'https://accounts.google.com/gsi/client';
-                script.async = true;
-                script.defer = true;
-                script.onload = () => initGoogle();
-                document.body.appendChild(script);
-              } else {
-                initGoogle();
-              }
-            }}
+            onClick={handleGoogleLogin}
             className="w-full py-3 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition-all flex items-center justify-center gap-2.5 cursor-pointer shadow-xs active:scale-[0.99]"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24">
@@ -293,5 +293,3 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     </div>
   );
 };
-
-

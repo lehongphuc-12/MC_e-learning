@@ -169,7 +169,6 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({ onNavigate }) 
 
         {/* Right Column: Achievements & Bio */}
         <div className="space-y-6">
-          {/* Monthly Goal Card */}
           <div className="bg-gradient-to-br from-slate-900 to-blue-950 rounded-2xl p-5 text-white shadow-lg border border-slate-800">
             <div className="flex items-center justify-between mb-4">
               <div>
@@ -186,7 +185,6 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({ onNavigate }) 
             <p className="text-[11px] text-slate-400">You completed 70% of your August goal! 🎯</p>
           </div>
 
-          {/* Achievements Badges Card */}
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">

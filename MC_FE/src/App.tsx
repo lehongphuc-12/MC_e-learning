@@ -5,7 +5,7 @@ import { VideoPreviewModal } from './components/modals/VideoPreviewModal';
 import { CheckoutModal } from './components/modals/CheckoutModal';
 import { CartDrawer } from './components/modals/CartDrawer';
 import { Toast } from './components/common/Toast';
-import { authService } from './services/authService';
+import { authApi } from './features/auth/api/authApi';
 import { useAppStore } from './hooks/useAppStore';
 import { useAuth } from './hooks/useAuth';
 import { AppRouter } from './components/AppRouter';
@@ -39,7 +39,7 @@ export default function App() {
       }
 
       try {
-        const result = await authService.getMe(token);
+        const result = await authApi.getMe(token);
         if (result.success) {
           const userObj = result.data;
           const mappedRole = 

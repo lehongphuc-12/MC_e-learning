@@ -9,13 +9,13 @@ import {
   User
 } from 'lucide-react';
 import React, { useState } from 'react';
-import { User as UserType } from '../../types';
+import { User as UserType } from '../../../types';
 import { PasswordForm } from './profile/PasswordForm';
 import { PreferencesForm } from './profile/PreferencesForm';
 import { ProfileInfoForm } from './profile/ProfileInfoForm';
 import { ProfileOverview } from './profile/ProfileOverview';
 
-import { ToastType } from '../common/Toast';
+import { ToastType } from '../../../components/common/Toast';
 
 interface ProfileScreenProps {
   user: UserType;
@@ -33,7 +33,6 @@ const roleColor: Record<string, string> = {
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onNavigate, onUpdateUser, onToast }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'profile' | 'password' | 'settings'>('overview');
   
-  // Save Notification States
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [saveMessage, setSaveMessage] = useState('');
 
@@ -52,7 +51,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onNavigate, 
 
   return (
     <div className="min-h-screen bg-slate-50/50">
-      {/* ─── Content Section ─────────────────────────────────── */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 mt-8 pb-24">
         <div className="relative max-w-6xl mx-auto mb-6 flex items-center justify-between">
           <button
@@ -65,12 +63,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onNavigate, 
           </button>
         </div>
 
-        {/* ─── TOP PROFILE BANNER WITH AVATAR ──────────────────── */}
+        {/* TOP PROFILE BANNER WITH AVATAR */}
         <div className="mb-8 rounded-3xl bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 p-6 sm:p-8 text-white shadow-xl relative overflow-hidden border border-slate-800">
           <div className="absolute right-0 top-0 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
           <div className="relative z-10 flex flex-col sm:flex-row items-center sm:items-start gap-6">
-            
-            {/* User Avatar */}
             <div className="relative group shrink-0">
               <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl ring-4 ring-white/10 overflow-hidden shadow-2xl bg-slate-800">
                 <img
@@ -89,7 +85,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onNavigate, 
               </button>
             </div>
 
-            {/* Profile Info Summary */}
             <div className="flex-1 text-center sm:text-left space-y-1.5">
               <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2.5">
                 <h1 className="text-xl sm:text-2xl font-black tracking-tight">{user.name}</h1>
@@ -108,7 +103,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onNavigate, 
               </div>
             </div>
 
-            {/* Quick Action Button */}
             <div className="sm:self-center">
               <button
                 type="button"
@@ -122,7 +116,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onNavigate, 
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          
           {/* SIDEBAR NAVIGATION CARD */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3.5 space-y-1.5 sticky top-24">
@@ -193,8 +186,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onNavigate, 
 
           {/* MAIN CONTENT CARD */}
           <div className="lg:col-span-3 space-y-6">
-            
-            {/* Status alerts */}
             {saveStatus !== 'idle' && (
               <div className={`p-4 rounded-2xl flex items-center gap-3 border animate-fade-in
                 ${saveStatus === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'}`}>
@@ -207,7 +198,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onNavigate, 
               </div>
             )}
 
-            {/* Render Tab Contents */}
             {activeTab === 'overview' && (
               <ProfileOverview onNavigate={onNavigate} />
             )}
@@ -235,9 +225,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onNavigate, 
                 onSaveError={(msg) => triggerAlert('error', msg)} 
               />
             )}
-
           </div>
-
         </div>
       </div>
     </div>

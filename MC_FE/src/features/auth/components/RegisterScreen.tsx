@@ -1,9 +1,8 @@
 import { ArrowLeft, ArrowRight, Award, Lock, Mail, Mic2, Sparkles, TrendingUp, User, Eye, EyeOff } from 'lucide-react';
 import React, { useState } from 'react';
-import { authService } from '../../services/authService';
-import { ScreenType } from '../../types';
-
-import { ToastType } from '../common/Toast';
+import { ScreenType } from '../../../types';
+import { ToastType } from '../../../components/common/Toast';
+import { useRegisterMutation, useGoogleLoginMutation } from '../hooks/useAuthQueries';
 
 interface RegisterScreenProps {
   onNavigate: (screen: ScreenType) => void;
@@ -23,8 +22,10 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [agreedTerms, setAgreedTerms] = useState(true);
-  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const registerMutation = useRegisterMutation();
+  const googleLoginMutation = useGoogleLoginMutation();
 
   const getPasswordStrength = () => {
     if (!password) return 0;
@@ -46,35 +47,37 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
       onToast?.('Validation Error', msg, 'warning');
       return;
     }
-    setIsLoading(true);
     setError(null);
 
-    try {
-      const result = await authService.register(name, email, password);
-      if (result.success) {
-        onRegisterSuccess(result.data);
-      } else {
-        const msg = (result.errors && result.errors.length > 0) ? result.errors.join(', ') : (result.message || 'Registration failed.');
-        setError(msg);
-        onToast?.('Registration Failed', msg, 'error');
+    registerMutation.mutate(
+      { fullName: name, email, password },
+      {
+        onSuccess: (result) => {
+          if (result.success) {
+            onRegisterSuccess(result.data);
+          } else {
+            const msg = (result.errors && result.errors.length > 0) ? result.errors.join(', ') : (result.message || 'Registration failed.');
+            setError(msg);
+            onToast?.('Registration Failed', msg, 'error');
+          }
+        },
+        onError: (err: any) => {
+          const msg = (err.errors && err.errors.length > 0) ? err.errors.join(', ') : (err.message || 'Cannot connect to the server. Please check if backend is running.');
+          setError(msg);
+          onToast?.('Connection Error', msg, 'error');
+        },
       }
-    } catch (err: any) {
-      const msg = (err.errors && err.errors.length > 0) ? err.errors.join(', ') : (err.message || 'Cannot connect to the server. Please check if backend is running.');
-      setError(msg);
-      onToast?.('Connection Error', msg, 'error');
-    } finally {
-      setIsLoading(false);
-    }
+    );
   };
+
+  const isLoading = registerMutation.isPending || googleLoginMutation.isPending;
 
   return (
     <div id="register-screen" className="min-h-screen flex items-center justify-center p-4 sm:p-6 lg:p-10 bg-slate-50 text-slate-900 animate-fadeIn">
-
       <div className="w-full max-w-5xl bg-white rounded-3xl shadow-2xl overflow-hidden grid grid-cols-1 lg:grid-cols-12 border border-slate-200/80">
         
         {/* Left Visual Column */}
         <div className="lg:col-span-6 relative bg-slate-950 p-8 sm:p-10 flex flex-col justify-between overflow-hidden text-white min-h-[380px] lg:min-h-[660px]">
-          {/* Background Stage Image */}
           <img
             src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=1000&q=80"
             alt="Modern Collaborative Masterclass"
@@ -118,7 +121,6 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
               Join over 50,000 ambitious speakers, event hosts, and executives mastering high-impact communication.
             </p>
 
-            {/* Interactive Glass Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
               <div className="p-3.5 rounded-xl bg-white/10 backdrop-blur-md border border-white/15 space-y-1">
                 <div className="flex items-center gap-2 text-emerald-400 text-xs font-bold">
@@ -146,7 +148,7 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
           </div>
         </div>
 
-        {/* Right Registration Form Column - White Light Theme */}
+        {/* Right Registration Form Column */}
         <div className="lg:col-span-6 p-8 sm:p-10 flex flex-col justify-center space-y-5 bg-white text-slate-900">
           <div className="space-y-1">
             <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">Create an Account</h2>
@@ -214,7 +216,6 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
-              {/* Password Strength Meter */}
               {password && (
                 <div className="space-y-1 pt-1">
                   <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
@@ -288,79 +289,8 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
             </button>
           </form>
 
-          {/* Social Sign Up Divider */}
-          <div className="relative flex py-0.5 items-center">
-            <div className="flex-grow border-t border-slate-200" />
-            <span className="flex-shrink mx-4 text-[11px] text-slate-400 uppercase font-bold tracking-wider">Or continue with</span>
-            <div className="flex-grow border-t border-slate-200" />
-          </div>
-
-          <button
-            type="button"
-            disabled={isLoading}
-            onClick={() => {
-              setIsLoading(true);
-              const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || "50611504022-71qcadap5m0g6gi669p3nqr5nqliu8o1.apps.googleusercontent.com";
-              
-              const handleCredentialResponse = async (response: any) => {
-                try {
-                  const idToken = response.credential;
-                  const res = await authService.googleLogin(idToken);
-                  if (res.success) {
-                    onToast?.('Registration Success', 'Signed up & logged in with Google successfully!', 'success');
-                    onRegisterSuccess(res.data.user);
-                  } else {
-                    const msg = res.message || 'Google Signup failed.';
-                    setError(msg);
-                    onToast?.('Google Signup Failed', msg, 'error');
-                  }
-                } catch (err: any) {
-                  const msg = err.message || 'Cannot connect to backend server.';
-                  setError(msg);
-                  onToast?.('Connection Error', msg, 'error');
-                } finally {
-                  setIsLoading(false);
-                }
-              };
-
-              const initGoogle = () => {
-                if ((window as any).google?.accounts?.id) {
-                  (window as any).google.accounts.id.initialize({
-                    client_id: googleClientId,
-                    callback: handleCredentialResponse
-                  });
-                  (window as any).google.accounts.id.prompt((notification: any) => {
-                    if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-                      // Fallback prompt
-                    }
-                  });
-                }
-              };
-
-              if (!(window as any).google?.accounts?.id) {
-                const script = document.createElement('script');
-                script.src = 'https://accounts.google.com/gsi/client';
-                script.async = true;
-                script.defer = true;
-                script.onload = () => initGoogle();
-                document.body.appendChild(script);
-              } else {
-                initGoogle();
-              }
-            }}
-            className="w-full py-2.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition-all flex items-center justify-center gap-2.5 cursor-pointer shadow-xs active:scale-[0.99]"
-          >
-            <svg className="w-4 h-4" viewBox="0 0 24 24">
-              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
-              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
-            </svg>
-            <span>Sign up with Google</span>
-          </button>
-
           {/* Login Link */}
-          <div className="text-center text-xs text-slate-500">
+          <div className="text-center text-xs text-slate-500 pt-2">
             Already have an account?{' '}
             <button
               type="button"
@@ -375,5 +305,3 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
     </div>
   );
 };
-
-
