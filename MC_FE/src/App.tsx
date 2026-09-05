@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { ScreenType, Course, User } from './types';
+import { useNavigate } from 'react-router-dom';
+import { Course, User } from './types';
 import { mockCourses } from './data/mockData';
 import { VideoPreviewModal } from './components/modals/VideoPreviewModal';
 import { CheckoutModal } from './components/modals/CheckoutModal';
@@ -22,21 +23,18 @@ const getDefaultAvatar = (name: string) => {
 };
 
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState<ScreenType>('home');
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(mockCourses[0]);
-  const [isLoadingUser, setIsLoadingUser] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   const { user, setAuth, updateUser, logout: authLogout } = useAuth();
   const store = useAppStore();
+  const navigate = useNavigate();
 
+  // Background session sync - updates state quietly without blocking UI render
   useEffect(() => {
     const fetchMe = async () => {
       const token = localStorage.getItem('token');
-      if (!token) {
-        setIsLoadingUser(false);
-        return;
-      }
+      if (!token) return;
 
       try {
         const result = await authApi.getMe(token);
@@ -63,66 +61,15 @@ export default function App() {
         }
       } catch (err) {
         authLogout();
-      } finally {
-        setIsLoadingUser(false);
       }
     };
 
     fetchMe();
   }, [setAuth, authLogout]);
 
-  // Listen to path changes (HTML5 History API) to set active screen
-  useEffect(() => {
-    const handleLocationChange = () => {
-      const pathname = window.location.pathname;
-      const search = window.location.search;
-
-      if (pathname.startsWith('/courses')) {
-        setCurrentScreen('courses');
-      } else if (pathname.startsWith('/course-detail')) {
-        const params = new URLSearchParams(search);
-        const courseId = params.get('id');
-        if (courseId) {
-          const found = mockCourses.find((c) => c.id === courseId);
-          if (found) {
-            setSelectedCourse(found);
-          }
-        }
-        setCurrentScreen('course-detail');
-      } else if (pathname === '/profile') {
-        setCurrentScreen('profile');
-      } else if (pathname === '/login') {
-        setCurrentScreen('login');
-      } else if (pathname === '/register') {
-        setCurrentScreen('register');
-      } else if (pathname === '/forgot-password') {
-        setCurrentScreen('forgot-password');
-      } else if (pathname === '/reset-password') {
-        setCurrentScreen('reset-password');
-      } else {
-        setCurrentScreen('home');
-      }
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    };
-
-    window.addEventListener('popstate', handleLocationChange);
-    handleLocationChange(); // Run once on startup
-
-    return () => window.removeEventListener('popstate', handleLocationChange);
-  }, []);
-
-  const handleNavigate = (screen: ScreenType) => {
-    const targetPath = screen === 'home' ? '/' : `/${screen}`;
-    if (window.location.pathname !== targetPath) {
-      window.history.pushState({}, '', targetPath);
-      window.dispatchEvent(new Event('popstate'));
-    }
-  };
-
   const handleSelectCourse = (course: Course) => {
-    const targetPath = `/course-detail?id=${course.id}`;
-    window.history.pushState({}, '', targetPath);
-    window.dispatchEvent(new Event('popstate'));
+    setSelectedCourse(course);
+    navigate(`/course-detail?id=${course.id}`);
   };
 
   const handleCheckoutSuccess = (course: Course) => {
@@ -149,55 +96,35 @@ export default function App() {
       token
     );
     store.showToast('Welcome Back!', `Logged in successfully as ${userObj.email}`);
-    handleNavigate('courses');
   };
 
   const handleRegisterSuccess = (userObj: any) => {
     store.showToast('Account Created!', `Welcome to MSEEK Academy, ${userObj.fullName}! Please login.`);
-    handleNavigate('login');
   };
 
   const handleLogout = () => {
     authLogout();
     store.showToast('Signed Out', 'You have been logged out securely.', 'info');
-    handleNavigate('home');
+    navigate('/');
   };
 
   const handleUpdateUser = (updatedUser: Partial<User>) => {
     updateUser(updatedUser);
   };
 
-  if (isLoadingUser) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 text-white">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-blue-600 flex items-center justify-center animate-pulse">
-            <svg className="w-6 h-6 text-white animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-            </svg>
-          </div>
-          <p className="text-sm font-bold text-slate-400 tracking-wider">Verifying Session...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div id="mseek-app-root" className="min-h-screen flex flex-col bg-slate-50 text-slate-900 selection:bg-blue-600 selection:text-white">
       {/* Toast Notification Alert */}
       <Toast toast={store.toastMessage} onClose={() => store.setToastMessage(null)} />
 
-      {/* Screen Routing with Layouts */}
+      {/* Declarative Screen Routing */}
       <AppRouter
-        currentScreen={currentScreen}
         selectedCourse={selectedCourse}
+        setSelectedCourse={setSelectedCourse}
         wishlistCourseIds={store.wishlistCourseIds}
         searchQuery={searchQuery}
         user={user}
         onSearchChange={setSearchQuery}
-        onNavigate={handleNavigate}
-        onSelectCourse={handleSelectCourse}
         onPreviewVideo={store.setPreviewModalCourse}
         onAddToCart={store.handleAddToCart}
         onToggleWishlist={store.handleToggleWishlist}

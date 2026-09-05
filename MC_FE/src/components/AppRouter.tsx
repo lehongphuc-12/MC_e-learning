@@ -1,4 +1,5 @@
 import React from 'react';
+import { Routes, Route, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { ScreenType, Course, User } from '../types';
 import { HomeScreen } from '../features/courses/components/HomeScreen';
 import { CourseCatalogScreen } from '../features/courses/components/CourseCatalogScreen';
@@ -11,16 +12,15 @@ import { ProfileScreen } from '../features/profile/components/ProfileScreen';
 import { MainLayout } from './layouts/MainLayout';
 import { ToastType } from './common/Toast';
 import { ProtectedRoute } from './common/ProtectedRoute';
+import { mockCourses } from '../data/mockData';
 
 interface AppRouterProps {
-  currentScreen: ScreenType;
   selectedCourse: Course | null;
+  setSelectedCourse: (course: Course) => void;
   wishlistCourseIds: string[];
   searchQuery: string;
   user: User | null;
   onSearchChange: (query: string) => void;
-  onNavigate: (screen: ScreenType) => void;
-  onSelectCourse: (course: Course) => void;
   onPreviewVideo: (course: Course) => void;
   onAddToCart: (course: Course) => void;
   onToggleWishlist: (courseId: string) => void;
@@ -35,14 +35,12 @@ interface AppRouterProps {
 }
 
 export const AppRouter: React.FC<AppRouterProps> = ({
-  currentScreen,
   selectedCourse,
+  setSelectedCourse,
   wishlistCourseIds,
   searchQuery,
   user,
   onSearchChange,
-  onNavigate,
-  onSelectCourse,
   onPreviewVideo,
   onAddToCart,
   onToggleWishlist,
@@ -55,17 +53,44 @@ export const AppRouter: React.FC<AppRouterProps> = ({
   cartCount,
   onOpenCart,
 }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+
+  // Map react-router path to ScreenType for layout compatibility
+  const currentScreen: ScreenType = (() => {
+    const path = location.pathname;
+    if (path.startsWith('/courses')) return 'courses';
+    if (path.startsWith('/course-detail')) return 'course-detail';
+    if (path === '/profile') return 'profile';
+    if (path === '/login') return 'login';
+    if (path === '/register') return 'register';
+    if (path === '/forgot-password') return 'forgot-password';
+    if (path === '/reset-password') return 'reset-password';
+    return 'home';
+  })();
+
+  const handleNavigate = (screen: ScreenType) => {
+    const targetPath = screen === 'home' ? '/' : `/${screen}`;
+    navigate(targetPath);
+  };
+
+  const handleSelectCourse = (course: Course) => {
+    setSelectedCourse(course);
+    navigate(`/course-detail?id=${course.id}`);
+  };
+
   // Helper to wrap public screens in MainLayout
   const withMainLayout = (component: React.ReactNode, showFooter: boolean = true) => (
     <MainLayout
       currentScreen={currentScreen}
-      onNavigate={onNavigate}
+      onNavigate={handleNavigate}
       user={user}
       onLogout={onLogout}
       cartCount={cartCount}
       wishlistCount={wishlistCourseIds.length}
       onOpenCart={onOpenCart}
-      onSelectCourse={onSelectCourse}
+      onSelectCourse={handleSelectCourse}
       searchQuery={searchQuery}
       onSearchChange={onSearchChange}
       showFooter={showFooter}
@@ -74,93 +99,134 @@ export const AppRouter: React.FC<AppRouterProps> = ({
     </MainLayout>
   );
 
-  switch (currentScreen) {
-    case 'home':
-      return withMainLayout(
-        <HomeScreen
-          onNavigate={onNavigate}
-          onSelectCourse={onSelectCourse}
-          onPreviewVideo={onPreviewVideo}
-          onAddToCart={onAddToCart}
-          onToggleWishlist={onToggleWishlist}
-          wishlistCourseIds={wishlistCourseIds}
-        />
-      );
-    case 'courses':
-      return withMainLayout(
-        <CourseCatalogScreen
-          onNavigate={onNavigate}
-          onSelectCourse={onSelectCourse}
-          onPreviewVideo={onPreviewVideo}
-          onAddToCart={onAddToCart}
-          onToggleWishlist={onToggleWishlist}
-          wishlistCourseIds={wishlistCourseIds}
-          searchQuery={searchQuery}
-          onSearchChange={onSearchChange}
-        />
-      );
-    case 'course-detail':
-      return withMainLayout(
-        <CourseDetailScreen
-          course={selectedCourse}
-          onNavigate={onNavigate}
-          onEnroll={onEnrollDirectly}
-          onAddToCart={onAddToCart}
-          onToggleWishlist={onToggleWishlist}
-          isWishlisted={selectedCourse ? wishlistCourseIds.includes(selectedCourse.id) : false}
-          onPreviewVideo={onPreviewVideo}
-        />
-      );
-    case 'profile':
-      return (
-        <ProtectedRoute
-          user={user}
-          currentScreen={currentScreen}
-          onNavigate={onNavigate}
-          onToast={onToast}
-        >
-          {withMainLayout(
-            <ProfileScreen
-              user={user!}
-              onNavigate={onNavigate}
-              onUpdateUser={onUpdateUser}
-              onToast={onToast}
-            />,
-            false
-          )}
-        </ProtectedRoute>
-      );
-    case 'login':
-      return (
-        <LoginScreen
-          onNavigate={onNavigate}
-          onLoginSuccess={onLoginSuccess}
-          onToast={onToast}
-        />
-      );
-    case 'forgot-password':
-      return (
-        <ForgotPasswordScreen
-          onNavigate={onNavigate}
-          onToast={onToast}
-        />
-      );
-    case 'reset-password':
-      return (
-        <ResetPasswordScreen
-          onNavigate={onNavigate}
-          onToast={onToast}
-        />
-      );
-    case 'register':
-      return (
-        <RegisterScreen
-          onNavigate={onNavigate}
-          onRegisterSuccess={onRegisterSuccess}
-          onToast={onToast}
-        />
-      );
-    default:
-      return null;
-  }
+  // Sync selectedCourse from URL params on /course-detail
+  const courseIdParam = searchParams.get('id');
+  const activeCourse = (location.pathname === '/course-detail' && courseIdParam)
+    ? (mockCourses.find((c) => c.id === courseIdParam) || selectedCourse)
+    : selectedCourse;
+
+  return (
+    <Routes>
+      <Route
+        path="/"
+        element={withMainLayout(
+          <HomeScreen
+            onNavigate={handleNavigate}
+            onSelectCourse={handleSelectCourse}
+            onPreviewVideo={onPreviewVideo}
+            onAddToCart={onAddToCart}
+            onToggleWishlist={onToggleWishlist}
+            wishlistCourseIds={wishlistCourseIds}
+          />
+        )}
+      />
+      <Route
+        path="/courses"
+        element={withMainLayout(
+          <CourseCatalogScreen
+            onNavigate={handleNavigate}
+            onSelectCourse={handleSelectCourse}
+            onPreviewVideo={onPreviewVideo}
+            onAddToCart={onAddToCart}
+            onToggleWishlist={onToggleWishlist}
+            wishlistCourseIds={wishlistCourseIds}
+            searchQuery={searchQuery}
+            onSearchChange={onSearchChange}
+          />
+        )}
+      />
+      <Route
+        path="/course-detail"
+        element={withMainLayout(
+          <CourseDetailScreen
+            course={activeCourse}
+            onNavigate={handleNavigate}
+            onEnroll={onEnrollDirectly}
+            onAddToCart={onAddToCart}
+            onToggleWishlist={onToggleWishlist}
+            isWishlisted={activeCourse ? wishlistCourseIds.includes(activeCourse.id) : false}
+            onPreviewVideo={onPreviewVideo}
+          />
+        )}
+      />
+      <Route
+        path="/profile"
+        element={
+          <ProtectedRoute
+            user={user}
+            currentScreen={currentScreen}
+            onNavigate={handleNavigate}
+            onToast={onToast}
+          >
+            {withMainLayout(
+              <ProfileScreen
+                user={user!}
+                onNavigate={handleNavigate}
+                onUpdateUser={onUpdateUser}
+                onToast={onToast}
+              />,
+              false
+            )}
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/login"
+        element={
+          <LoginScreen
+            onNavigate={handleNavigate}
+            onLoginSuccess={(userObj, token) => {
+              onLoginSuccess(userObj, token);
+              navigate('/courses');
+            }}
+            onToast={onToast}
+          />
+        }
+      />
+      <Route
+        path="/register"
+        element={
+          <RegisterScreen
+            onNavigate={handleNavigate}
+            onRegisterSuccess={(userObj) => {
+              onRegisterSuccess(userObj);
+              navigate('/login');
+            }}
+            onToast={onToast}
+          />
+        }
+      />
+      <Route
+        path="/forgot-password"
+        element={
+          <ForgotPasswordScreen
+            onNavigate={handleNavigate}
+            onToast={onToast}
+          />
+        }
+      />
+      <Route
+        path="/reset-password"
+        element={
+          <ResetPasswordScreen
+            onNavigate={handleNavigate}
+            onToast={onToast}
+          />
+        }
+      />
+      <Route
+        path="*"
+        element={withMainLayout(
+          <HomeScreen
+            onNavigate={handleNavigate}
+            onSelectCourse={handleSelectCourse}
+            onPreviewVideo={onPreviewVideo}
+            onAddToCart={onAddToCart}
+            onToggleWishlist={onToggleWishlist}
+            wishlistCourseIds={wishlistCourseIds}
+          />
+        )}
+      />
+    </Routes>
+  );
 };
