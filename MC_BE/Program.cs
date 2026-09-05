@@ -1,6 +1,7 @@
 using System.Text;
 using MC_BE.Data;
 using MC_BE.Helpers;
+using MC_BE.Middleware;
 using MC_BE.Models.Entities;
 using MC_BE.Repositories;
 using MC_BE.Services;
@@ -35,10 +36,11 @@ builder.Services.AddCors(options =>
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 
-// Register Auth Services
+// Register Auth & Profile Services
 builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IUserProfileService, UserProfileService>();
 
 // Register Email & Cloudinary Services
 builder.Services.AddScoped<IEmailService, EmailService>();
@@ -104,6 +106,9 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 var app = builder.Build();
+
+// Global Exception Handling Middleware
+app.UseMiddleware<GlobalExceptionMiddleware>();
 
 // Seed roles
 using (var scope = app.Services.CreateScope())

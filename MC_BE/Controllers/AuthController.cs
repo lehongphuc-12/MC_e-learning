@@ -11,10 +11,12 @@ namespace MC_BE.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
+    private readonly IUserProfileService _userProfileService;
 
-    public AuthController(IAuthService authService)
+    public AuthController(IAuthService authService, IUserProfileService userProfileService)
     {
         _authService = authService;
+        _userProfileService = userProfileService;
     }
 
     [HttpPost("register")]
@@ -108,7 +110,7 @@ public class AuthController : ControllerBase
             return Unauthorized(ApiResponse<UserProfileDto>.FailureResponse("Unauthorized access. Invalid user token."));
         }
 
-        var result = await _authService.GetProfileAsync(request, currentUserId);
+        var result = await _userProfileService.GetProfileAsync(request, currentUserId);
         if (!result.Success)
         {
             return BadRequest(result);
@@ -133,7 +135,7 @@ public class AuthController : ControllerBase
             return Unauthorized(ApiResponse<UserProfileDto>.FailureResponse("Unauthorized access. Invalid user token."));
         }
 
-        var result = await _authService.UpdateProfileAsync(userId, request);
+        var result = await _userProfileService.UpdateProfileAsync(userId, request);
         if (!result.Success)
         {
             return BadRequest(result);
@@ -158,7 +160,7 @@ public class AuthController : ControllerBase
             return Unauthorized(ApiResponse<UserProfileDto>.FailureResponse("Unauthorized access. Invalid user token."));
         }
 
-        var result = await _authService.UpdateAvatarAsync(userId, request);
+        var result = await _userProfileService.UpdateAvatarAsync(userId, request);
         if (!result.Success)
         {
             return BadRequest(result);
