@@ -69,6 +69,11 @@ export const ProfileInfoForm: React.FC<ProfileInfoFormProps> = ({
 
   const hasPendingAvatarChange = pendingFile !== null || previewAvatar !== savedAvatar;
 
+  const onUpdateUserRef = useRef(onUpdateUser);
+  useEffect(() => {
+    onUpdateUserRef.current = onUpdateUser;
+  }, [onUpdateUser]);
+
   useEffect(() => {
     if (profileQuery.data?.success && profileQuery.data?.data) {
       const p = profileQuery.data.data;
@@ -87,10 +92,12 @@ export const ProfileInfoForm: React.FC<ProfileInfoFormProps> = ({
       if (p.avatarUrl) {
         setSavedAvatar(p.avatarUrl);
         setPreviewAvatar(p.avatarUrl);
-        onUpdateUser?.({ avatar: p.avatarUrl });
+        if ('avatar' in user && user.avatar !== p.avatarUrl) {
+          onUpdateUserRef.current?.({ avatar: p.avatarUrl });
+        }
       }
     }
-  }, [profileQuery.data, onUpdateUser]);
+  }, [profileQuery.data]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
