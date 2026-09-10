@@ -128,3 +128,24 @@ export interface ActivityLog {
   courseTitle?: string;
   badgeColor?: string;
 }
+
+export interface BackendUserDto {
+  userId: number;
+  fullName: string;
+  email: string;
+  roleName: string;
+  avatarUrl?: string;
+  isGoogleLogin?: boolean;
+}
+
+export interface AuthResponse {
+  user: BackendUserDto;
+  token: string;
+  accessToken?: string;
+  expiresAt: string;
+}
+
+export interface RefreshTokenResponse {
+  accessToken: string;
+  expiresAt: string;
+}

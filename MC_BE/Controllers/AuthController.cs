@@ -46,7 +46,7 @@ public class AuthController : ControllerBase
             return BadRequest(ApiResponse<LoginResponse>.FailureResponse("Validation failed.", errors));
         }
 
-        var result = await _authService.LoginAsync(request);
+        var result = await _authService.LoginAsync(request, Response);
         if (!result.Success)
         {
             return Unauthorized(result);
@@ -64,7 +64,7 @@ public class AuthController : ControllerBase
             return BadRequest(ApiResponse<LoginResponse>.FailureResponse("Validation failed.", errors));
         }
 
-        var result = await _authService.GoogleLoginAsync(request);
+        var result = await _authService.GoogleLoginAsync(request, Response);
         if (!result.Success)
         {
             return BadRequest(result);
@@ -73,12 +73,23 @@ public class AuthController : ControllerBase
         return Ok(result);
     }
 
-    [HttpPost("logout")]
-    public IActionResult Logout()
+    [HttpPost("refresh-token")]
+    public async Task<ActionResult<ApiResponse<RefreshTokenResponseDto>>> RefreshToken([FromBody] RefreshTokenRequestDto? request)
     {
-        // For stateless JWT authentication, client handles token removal.
-        // This endpoint serves to confirm successful user intent of logging out.
-        return Ok(ApiResponse<string>.SuccessResponse("Logged out successfully. Please discard the token on the client side."));
+        var result = await _authService.RefreshTokenAsync(request?.RefreshToken, Request, Response);
+        if (!result.Success)
+        {
+            return Unauthorized(result);
+        }
+
+        return Ok(result);
+    }
+
+    [HttpPost("logout")]
+    public async Task<ActionResult<ApiResponse<string>>> Logout([FromBody] RefreshTokenRequestDto? request)
+    {
+        var result = await _authService.LogoutAsync(request?.RefreshToken, Request, Response);
+        return Ok(result);
     }
 
     [Authorize]

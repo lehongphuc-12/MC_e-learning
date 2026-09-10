@@ -9,6 +9,7 @@ import { Toast } from './components/common/Toast';
 import { authApi } from './features/auth/api/authApi';
 import { useAppStore } from './hooks/useAppStore';
 import { useAuth } from './hooks/useAuth';
+import { useAuthStore } from './store/useAuthStore';
 import { AppRouter } from './components/AppRouter';
 
 const getDefaultAvatar = (name: string) => {
@@ -33,11 +34,8 @@ export default function App() {
   // Background session sync - updates state quietly without blocking UI render
   useEffect(() => {
     const fetchMe = async () => {
-      const token = localStorage.getItem('token');
-      if (!token) return;
-
       try {
-        const result = await authApi.getMe(token);
+        const result = await authApi.getMe();
         if (result.success) {
           const userObj = result.data;
           const mappedRole = 
@@ -54,7 +52,7 @@ export default function App() {
               role: mappedRole,
               isGoogleLogin: userObj.isGoogleLogin ?? false
             },
-            token
+            useAuthStore.getState().token || ''
           );
         } else {
           authLogout();
@@ -102,7 +100,12 @@ export default function App() {
     store.showToast('Account Created!', `Welcome to MSEEK Academy, ${userObj.fullName}! Please login.`);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await authApi.logout();
+    } catch (_) {
+      // Ignore network errors on logout
+    }
     authLogout();
     store.showToast('Signed Out', 'You have been logged out securely.', 'info');
     navigate('/');
