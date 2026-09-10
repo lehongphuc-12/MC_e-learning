@@ -36,13 +36,15 @@ export const authApi = {
     });
   },
 
-  async getMe(token?: string): Promise<any> {
-    const authToken = token || localStorage.getItem('token');
+  async getMe(): Promise<any> {
     return request('/auth/me', {
       method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${authToken}`,
-      },
+    });
+  },
+
+  async logout(): Promise<any> {
+    return request('/auth/logout', {
+      method: 'POST',
     });
   },
 };
