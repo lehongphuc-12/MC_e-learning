@@ -16,6 +16,7 @@ public class AuthService : IAuthService
     private readonly IGenericRepository<Role> _roleRepository;
     private readonly IGenericRepository<UserProfile> _userProfileRepository;
     private readonly IGenericRepository<PasswordResetToken> _resetTokenRepository;
+    private readonly IGenericRepository<RefreshToken> _refreshTokenRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IPasswordHasher _passwordHasher;
     private readonly ITokenService _tokenService;
@@ -28,6 +29,7 @@ public class AuthService : IAuthService
         IGenericRepository<Role> roleRepository,
         IGenericRepository<UserProfile> userProfileRepository,
         IGenericRepository<PasswordResetToken> resetTokenRepository,
+        IGenericRepository<RefreshToken> refreshTokenRepository,
         IUnitOfWork unitOfWork,
         IPasswordHasher passwordHasher,
         ITokenService tokenService,
@@ -39,6 +41,7 @@ public class AuthService : IAuthService
         _roleRepository = roleRepository;
         _userProfileRepository = userProfileRepository;
         _resetTokenRepository = resetTokenRepository;
+        _refreshTokenRepository = refreshTokenRepository;
         _unitOfWork = unitOfWork;
         _passwordHasher = passwordHasher;
         _tokenService = tokenService;
@@ -47,7 +50,7 @@ public class AuthService : IAuthService
         _configuration = configuration;
     }
 
-    public async Task<ApiResponse<LoginResponse>> GoogleLoginAsync(GoogleLoginRequest request)
+    public async Task<ApiResponse<LoginResponse>> GoogleLoginAsync(GoogleLoginRequest request, HttpResponse httpResponse)
     {
         if (string.IsNullOrWhiteSpace(request.IdToken))
         {
@@ -144,8 +147,13 @@ public class AuthService : IAuthService
             await _unitOfWork.SaveChangesAsync();
         }
 
-        // Generate JWT token
+        // Generate JWT Access Token & Refresh Token
         var (token, expiresAt) = _tokenService.GenerateJwtToken(user);
+        var refreshToken = _tokenService.GenerateRefreshToken(user.UserId);
+        await _refreshTokenRepository.AddAsync(refreshToken);
+        await _unitOfWork.SaveChangesAsync();
+
+        _tokenService.SetRefreshTokenCookie(httpResponse, refreshToken.Token, refreshToken.ExpiresAt);
 
         var loginResponse = new LoginResponse
         {
@@ -226,7 +234,7 @@ public class AuthService : IAuthService
         return ApiResponse<UserDto>.SuccessResponse(userDto, "Registration successful.");
     }
 
-    public async Task<ApiResponse<LoginResponse>> LoginAsync(LoginRequest request)
+    public async Task<ApiResponse<LoginResponse>> LoginAsync(LoginRequest request, HttpResponse httpResponse)
     {
         var emailNormalized = request.Email.Trim().ToLower();
 
@@ -260,10 +268,14 @@ public class AuthService : IAuthService
         // 4. Update last login time
         user.LastLoginAt = DateTime.UtcNow;
         _userRepository.Update(user);
+
+        // 5. Generate Access Token & Refresh Token
+        var (token, expiresAt) = _tokenService.GenerateJwtToken(user);
+        var refreshToken = _tokenService.GenerateRefreshToken(user.UserId);
+        await _refreshTokenRepository.AddAsync(refreshToken);
         await _unitOfWork.SaveChangesAsync();
 
-        // 5. Generate JWT token
-        var (token, expiresAt) = _tokenService.GenerateJwtToken(user);
+        _tokenService.SetRefreshTokenCookie(httpResponse, refreshToken.Token, refreshToken.ExpiresAt);
 
         var loginResponse = new LoginResponse
         {
@@ -281,6 +293,73 @@ public class AuthService : IAuthService
         };
 
         return ApiResponse<LoginResponse>.SuccessResponse(loginResponse, "Login successful.");
+    }
+
+    public async Task<ApiResponse<RefreshTokenResponseDto>> RefreshTokenAsync(string? requestRefreshToken, HttpRequest httpRequest, HttpResponse httpResponse)
+    {
+        var refreshTokenString = httpRequest.Cookies["refreshToken"] ?? requestRefreshToken;
+
+        if (string.IsNullOrWhiteSpace(refreshTokenString))
+        {
+            return ApiResponse<RefreshTokenResponseDto>.FailureResponse("Refresh token is required.");
+        }
+
+        var tokensFound = await _refreshTokenRepository.FindAsync(t => t.Token == refreshTokenString, t => t.User, t => t.User.Role);
+        var existingToken = tokensFound.FirstOrDefault();
+
+        if (existingToken == null || !existingToken.IsActive)
+        {
+            _tokenService.ClearRefreshTokenCookie(httpResponse);
+            return ApiResponse<RefreshTokenResponseDto>.FailureResponse("Invalid or expired refresh token.");
+        }
+
+        if (existingToken.User.Status != "ACTIVE")
+        {
+            _tokenService.ClearRefreshTokenCookie(httpResponse);
+            return ApiResponse<RefreshTokenResponseDto>.FailureResponse("User account is inactive.");
+        }
+
+        // Token Rotation: Revoke existing token and create a new one
+        var newRefreshToken = _tokenService.GenerateRefreshToken(existingToken.UserId);
+        existingToken.RevokedAt = DateTime.UtcNow;
+        existingToken.ReplacedByToken = newRefreshToken.Token;
+
+        _refreshTokenRepository.Update(existingToken);
+        await _refreshTokenRepository.AddAsync(newRefreshToken);
+        await _unitOfWork.SaveChangesAsync();
+
+        _tokenService.SetRefreshTokenCookie(httpResponse, newRefreshToken.Token, newRefreshToken.ExpiresAt);
+
+        var (accessToken, expiresAt) = _tokenService.GenerateJwtToken(existingToken.User);
+
+        var response = new RefreshTokenResponseDto
+        {
+            AccessToken = accessToken,
+            ExpiresAt = expiresAt
+        };
+
+        return ApiResponse<RefreshTokenResponseDto>.SuccessResponse(response, "Token refreshed successfully.");
+    }
+
+    public async Task<ApiResponse<string>> LogoutAsync(string? requestRefreshToken, HttpRequest httpRequest, HttpResponse httpResponse)
+    {
+        var refreshTokenString = httpRequest.Cookies["refreshToken"] ?? requestRefreshToken;
+
+        if (!string.IsNullOrWhiteSpace(refreshTokenString))
+        {
+            var tokensFound = await _refreshTokenRepository.FindAsync(t => t.Token == refreshTokenString);
+            var tokenEntity = tokensFound.FirstOrDefault();
+
+            if (tokenEntity != null && tokenEntity.IsActive)
+            {
+                tokenEntity.RevokedAt = DateTime.UtcNow;
+                _refreshTokenRepository.Update(tokenEntity);
+                await _unitOfWork.SaveChangesAsync();
+            }
+        }
+
+        _tokenService.ClearRefreshTokenCookie(httpResponse);
+        return ApiResponse<string>.SuccessResponse("Logged out successfully.");
     }
 
     public async Task<ApiResponse<UserDto>> GetMeAsync(int userId)

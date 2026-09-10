@@ -45,6 +45,19 @@ public class UserDto
 public class LoginResponse
 {
     public UserDto User { get; set; } = null!;
-    public string Token { get; set; } = string.Empty;
+    public string Token { get; set; } = string.Empty; // AccessToken
+    public string AccessToken => Token;
+    public DateTime ExpiresAt { get; set; }
+}
+
+public class RefreshTokenRequestDto
+{
+    // Optional fallback if cookie is not sent
+    public string? RefreshToken { get; set; }
+}
+
+public class RefreshTokenResponseDto
+{
+    public string AccessToken { get; set; } = string.Empty;
     public DateTime ExpiresAt { get; set; }
 }
