@@ -9,6 +9,7 @@ import { RegisterScreen } from '../features/auth/components/RegisterScreen';
 import { ForgotPasswordScreen } from '../features/auth/components/ForgotPasswordScreen';
 import { ResetPasswordScreen } from '../features/auth/components/ResetPasswordScreen';
 import { ProfileScreen } from '../features/profile/components/ProfileScreen';
+import { AdminDashboardPage } from '../features/admin/pages/AdminDashboardPage';
 import { MainLayout } from './layouts/MainLayout';
 import { ToastType } from './common/Toast';
 import { ProtectedRoute } from './common/ProtectedRoute';
@@ -60,6 +61,7 @@ export const AppRouter: React.FC<AppRouterProps> = ({
   // Map react-router path to ScreenType for layout compatibility
   const currentScreen: ScreenType = (() => {
     const path = location.pathname;
+    if (path.startsWith('/admin')) return 'admin';
     if (path.startsWith('/courses')) return 'courses';
     if (path.startsWith('/course-detail')) return 'course-detail';
     if (path === '/profile') return 'profile';
@@ -171,13 +173,35 @@ export const AppRouter: React.FC<AppRouterProps> = ({
         }
       />
       <Route
+        path="/admin"
+        element={
+          <ProtectedRoute
+            user={user}
+            requiredRole="admin"
+            currentScreen={currentScreen}
+            onNavigate={handleNavigate}
+            onToast={onToast}
+          >
+            <AdminDashboardPage
+              currentUser={user}
+              onLogout={onLogout}
+              onToast={onToast}
+            />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/login"
         element={
           <LoginScreen
             onNavigate={handleNavigate}
             onLoginSuccess={(userObj, token) => {
               onLoginSuccess(userObj, token);
-              navigate('/courses');
+              if (userObj.roleName === 'Admin' || userObj.role === 'admin') {
+                navigate('/admin');
+              } else {
+                navigate('/courses');
+              }
             }}
             onToast={onToast}
           />
