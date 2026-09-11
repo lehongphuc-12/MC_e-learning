@@ -1,11 +1,18 @@
 using System.Text;
-using MC_BE.Data;
-using MC_BE.Helpers;
-using MC_BE.Middleware;
-using MC_BE.Models.Entities;
-using MC_BE.Repositories;
-using MC_BE.Services;
-using MC_BE.Services.Interfaces;
+using MC_BE.Core.Entities;
+using MC_BE.Features.Admin.Services;
+using MC_BE.Features.Admin.Services.Interfaces;
+using MC_BE.Features.Auth.Services;
+using MC_BE.Features.Auth.Services.Interfaces;
+using MC_BE.Features.Users.Services;
+using MC_BE.Features.Users.Services.Interfaces;
+using MC_BE.Shared.Data;
+using MC_BE.Shared.Middleware;
+using MC_BE.Shared.Repositories;
+using MC_BE.Shared.Repositories.Interfaces;
+using MC_BE.Shared.Services;
+using MC_BE.Shared.Services.Interfaces;
+using MC_BE.Shared.Settings;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -43,6 +50,7 @@ builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserProfileService, UserProfileService>();
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IAdminService, AdminService>();
 
 // Register Email & Cloudinary Services
 builder.Services.AddScoped<IEmailService, EmailService>();
