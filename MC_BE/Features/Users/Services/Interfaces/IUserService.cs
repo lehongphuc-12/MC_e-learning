@@ -7,4 +7,6 @@ public interface IUserService
 {
     Task<ApiResponse<List<AdminUserDto>>> GetAllUsersForAdminAsync();
     Task<ApiResponse<object>> UpdateUserStatusAsync(int userId, string targetStatus);
+    Task<ApiResponse<AdminUserDto>> AdminUpdateUserAsync(int userId, AdminUpdateUserRequest request);
 }
+

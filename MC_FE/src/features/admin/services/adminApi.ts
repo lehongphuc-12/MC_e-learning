@@ -66,6 +66,20 @@ export const adminApi = {
     }
   },
 
+  async updateUser(userId: string, data: Partial<AdminUser>): Promise<AdminUser | null> {
+    try {
+      const res = await request<{ success: boolean; data: AdminUser }>(`/admin/users/${userId}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      });
+      if (res.success && res.data) return res.data;
+    } catch (_) {
+      // Fallback
+    }
+    return null;
+  },
+
+
   async updateUserRole(userId: string, newRole: UserRole): Promise<boolean> {
     try {
       await request(`/admin/users/${userId}/role`, {

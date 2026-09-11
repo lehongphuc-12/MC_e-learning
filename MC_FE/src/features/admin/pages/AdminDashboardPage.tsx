@@ -171,10 +171,17 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
 
   const handleSaveUser = async (updatedData: Partial<AdminUser>) => {
     if (updatedData.id) {
-      // Edit
-      setUsers((prev) =>
-        prev.map((u) => (u.id === updatedData.id ? { ...u, ...updatedData } : u))
-      );
+      // Edit backend call
+      const updatedUser = await adminApi.updateUser(updatedData.id, updatedData);
+      if (updatedUser) {
+        setUsers((prev) =>
+          prev.map((u) => (u.id === updatedData.id ? { ...u, ...updatedUser } : u))
+        );
+      } else {
+        setUsers((prev) =>
+          prev.map((u) => (u.id === updatedData.id ? { ...u, ...updatedData } : u))
+        );
+      }
       onToast?.('Đã cập nhật', `Cập nhật thông tin ${updatedData.name} thành công.`, 'success');
     } else {
       // Add new
@@ -190,6 +197,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
       onToast?.('Tạo mới thành công', `Đã thêm tài khoản ${newUser.name}.`, 'success');
     }
   };
+
 
   const handleToggleUserStatus = async (userId: string, currentStatus: UserStatus) => {
     const isLocking = currentStatus === 'active';

@@ -31,4 +31,14 @@ public class AdminController : ControllerBase
             return result.Message == "User not found." ? NotFound(result) : BadRequest(result);
         return Ok(result);
     }
+
+    [HttpPut("users/{id}")]
+    public async Task<ActionResult<ApiResponse<AdminUserDto>>> UpdateUser(int id, [FromBody] AdminUpdateUserRequest request)
+    {
+        var result = await _userService.AdminUpdateUserAsync(id, request);
+        if (!result.Success)
+            return result.Message == "User not found." ? NotFound(result) : BadRequest(result);
+        return Ok(result);
+    }
 }
+

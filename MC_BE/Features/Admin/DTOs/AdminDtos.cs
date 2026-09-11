@@ -19,3 +19,14 @@ public class UpdateUserStatusRequest
     /// <summary>"ACTIVE" hoặc "INACTIVE"</summary>
     public string Status { get; set; } = string.Empty;
 }
+
+public class AdminUpdateUserRequest
+{
+    public string Name { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    /// <summary>"student", "instructor", hoặc "admin"</summary>
+    public string Role { get; set; } = string.Empty;
+    /// <summary>"active" hoặc "locked"</summary>
+    public string Status { get; set; } = string.Empty;
+}
+
