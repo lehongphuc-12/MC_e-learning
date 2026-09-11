@@ -6,4 +6,5 @@ namespace MC_BE.Features.Users.Services.Interfaces;
 public interface IUserService
 {
     Task<ApiResponse<List<AdminUserDto>>> GetAllUsersForAdminAsync();
+    Task<ApiResponse<object>> UpdateUserStatusAsync(int userId, string targetStatus);
 }

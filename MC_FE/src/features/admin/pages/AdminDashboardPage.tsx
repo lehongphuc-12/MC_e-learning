@@ -181,17 +181,27 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   };
 
   const handleToggleUserStatus = async (userId: string, currentStatus: UserStatus) => {
-    const targetStatus = currentStatus === 'active' ? 'locked' : 'active';
-    await adminApi.toggleUserStatus(userId, targetStatus);
+    const isLocking = currentStatus === 'active';
+    const targetBEStatus = isLocking ? 'INACTIVE' : 'ACTIVE';
+    const ok = await adminApi.updateUserStatus(userId, targetBEStatus);
+
+    if (!ok) {
+      onToast?.('Lỗi', 'Không thể cập nhật trạng thái tài khoản. Vui lòng thử lại.', 'error');
+      return;
+    }
+
+    const targetStatus: UserStatus = isLocking ? 'locked' : 'active';
     setUsers((prev) =>
       prev.map((u) => (u.id === userId ? { ...u, status: targetStatus } : u))
     );
     onToast?.(
-      targetStatus === 'locked' ? 'Đã khóa tài khoản' : 'Đã mở khóa tài khoản',
+      isLocking ? 'Đã vô hiệu hóa tài khoản' : 'Đã kích hoạt tài khoản',
       'Cập nhật quyền truy cập người dùng thành công.',
-      targetStatus === 'locked' ? 'error' : 'success'
+      isLocking ? 'error' : 'success'
     );
   };
+
+
 
   // --- Handlers for Courses ---
   const handleReviewCourse = (course: AdminCourse) => {

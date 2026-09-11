@@ -54,7 +54,7 @@ export const adminApi = {
     return initialAdminUsers;
   },
 
-  async toggleUserStatus(userId: string, targetStatus: 'active' | 'locked'): Promise<boolean> {
+  async updateUserStatus(userId: string, targetStatus: 'ACTIVE' | 'INACTIVE'): Promise<boolean> {
     try {
       await request(`/admin/users/${userId}/status`, {
         method: 'PUT',
@@ -62,7 +62,7 @@ export const adminApi = {
       });
       return true;
     } catch (_) {
-      return true; // Local state will handle UI fallback
+      return false;
     }
   },
 

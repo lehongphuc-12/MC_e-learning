@@ -13,3 +13,9 @@ public class AdminUserDto
     public int CoursesEnrolled { get; set; } = 0;
     public int CoursesCreated { get; set; } = 0;
 }
+
+public class UpdateUserStatusRequest
+{
+    /// <summary>"ACTIVE" hoặc "INACTIVE"</summary>
+    public string Status { get; set; } = string.Empty;
+}

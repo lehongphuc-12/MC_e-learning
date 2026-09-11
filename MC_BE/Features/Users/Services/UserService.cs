@@ -9,10 +9,12 @@ namespace MC_BE.Features.Users.Services;
 public class UserService : IUserService
 {
     private readonly IGenericRepository<User> _userRepository;
+    private readonly IUnitOfWork _unitOfWork;
 
-    public UserService(IGenericRepository<User> userRepository)
+    public UserService(IGenericRepository<User> userRepository, IUnitOfWork unitOfWork)
     {
         _userRepository = userRepository;
+        _unitOfWork = unitOfWork;
     }
 
     public async Task<ApiResponse<List<AdminUserDto>>> GetAllUsersForAdminAsync()
@@ -38,5 +40,30 @@ public class UserService : IUserService
         }).ToList();
 
         return ApiResponse<List<AdminUserDto>>.SuccessResponse(userDtos, "Retrieved user list successfully.");
+    }
+
+    public async Task<ApiResponse<object>> UpdateUserStatusAsync(int userId, string targetStatus)
+    {
+        var normalizedStatus = targetStatus.ToUpper();
+        if (normalizedStatus != "ACTIVE" && normalizedStatus != "INACTIVE")
+            return ApiResponse<object>.FailureResponse("Invalid status. Allowed values: ACTIVE, INACTIVE.");
+
+        var users = await _userRepository.FindAsync(u => u.UserId == userId);
+        var user = users.FirstOrDefault();
+
+        if (user == null)
+            return ApiResponse<object>.FailureResponse("User not found.");
+
+        if (user.Status.Equals(normalizedStatus, StringComparison.OrdinalIgnoreCase))
+            return ApiResponse<object>.FailureResponse($"User is already {normalizedStatus.ToLower()}.");
+
+        user.Status = normalizedStatus;
+        user.UpdatedAt = DateTime.UtcNow;
+
+        _userRepository.Update(user);
+        await _unitOfWork.SaveChangesAsync();
+
+        var action = normalizedStatus == "ACTIVE" ? "activated" : "deactivated";
+        return ApiResponse<object>.SuccessResponse(null, $"User '{user.FullName}' has been {action} successfully.");
     }
 }
