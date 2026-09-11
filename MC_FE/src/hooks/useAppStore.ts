@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { Course } from '../types';
 import { mockCourses } from '../data/mockData';
 
@@ -17,37 +17,42 @@ export function useAppStore() {
   // Toast Notification state
   const [toastMessage, setToastMessage] = useState<ToastMessage | null>(null);
 
-  const showToast = (title: string, desc?: string, type: ToastType = 'success') => {
+  const showToast = useCallback((title: string, desc?: string, type: ToastType = 'success') => {
     setToastMessage({ title, desc, type });
     setTimeout(() => {
       setToastMessage(null);
     }, 3500);
-  };
+  }, []);
 
-  const handleAddToCart = (course: Course) => {
-    if (!cartItems.some(item => item.id === course.id)) {
-      setCartItems(prev => [...prev, course]);
-      showToast('Added to Cart', `${course.title} is now in your cart.`);
-    } else {
-      showToast('Already in Cart', `${course.title} is already added.`, 'info');
-    }
+  const handleAddToCart = useCallback((course: Course) => {
+    setCartItems(prev => {
+      if (!prev.some(item => item.id === course.id)) {
+        showToast('Added to Cart', `${course.title} is now in your cart.`);
+        return [...prev, course];
+      } else {
+        showToast('Already in Cart', `${course.title} is already added.`, 'info');
+        return prev;
+      }
+    });
     setIsCartOpen(true);
-  };
+  }, [showToast]);
 
-  const handleRemoveFromCart = (courseId: string) => {
+  const handleRemoveFromCart = useCallback((courseId: string) => {
     setCartItems(prev => prev.filter(item => item.id !== courseId));
     showToast('Item Removed', 'Course removed from your shopping cart.', 'info');
-  };
+  }, [showToast]);
 
-  const handleToggleWishlist = (courseId: string) => {
-    if (wishlistCourseIds.includes(courseId)) {
-      setWishlistCourseIds(prev => prev.filter(id => id !== courseId));
-      showToast('Removed from Wishlist', 'Course removed from your saved list.', 'info');
-    } else {
-      setWishlistCourseIds(prev => [...prev, courseId]);
-      showToast('Saved to Wishlist', 'Course added to your saved wishlist.');
-    }
-  };
+  const handleToggleWishlist = useCallback((courseId: string) => {
+    setWishlistCourseIds(prev => {
+      if (prev.includes(courseId)) {
+        showToast('Removed from Wishlist', 'Course removed from your saved list.', 'info');
+        return prev.filter(id => id !== courseId);
+      } else {
+        showToast('Saved to Wishlist', 'Course added to your saved wishlist.');
+        return [...prev, courseId];
+      }
+    });
+  }, [showToast]);
 
   return {
     cartItems,

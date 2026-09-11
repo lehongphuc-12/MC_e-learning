@@ -34,6 +34,9 @@ export default function App() {
   // Background session sync - updates state quietly without blocking UI render
   useEffect(() => {
     const fetchMe = async () => {
+      const storedToken = useAuthStore.getState().token;
+      if (!storedToken) return;
+
       try {
         const result = await authApi.getMe();
         if (result.success) {
@@ -52,7 +55,7 @@ export default function App() {
               role: mappedRole,
               isGoogleLogin: userObj.isGoogleLogin ?? false
             },
-            useAuthStore.getState().token || ''
+            storedToken
           );
         } else {
           authLogout();
@@ -63,7 +66,7 @@ export default function App() {
     };
 
     fetchMe();
-  }, [setAuth, authLogout]);
+  }, []);
 
   const handleSelectCourse = (course: Course) => {
     setSelectedCourse(course);

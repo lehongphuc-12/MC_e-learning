@@ -1,12 +1,14 @@
-import React, { useEffect } from 'react';
+import React from 'react';
+import { Navigate } from 'react-router-dom';
 import { ScreenType, User } from '../../types';
 import { ToastType } from './Toast';
+import { useAuthStore } from '../../store/useAuthStore';
 
 interface ProtectedRouteProps {
   user: User | null;
-  currentScreen: ScreenType;
+  currentScreen?: ScreenType;
   requiredRole?: 'student' | 'instructor' | 'admin';
-  onNavigate: (screen: ScreenType) => void;
+  onNavigate?: (screen: ScreenType) => void;
   onToast?: (title: string, desc?: string, type?: ToastType) => void;
   children: React.ReactNode;
 }
@@ -14,36 +16,19 @@ interface ProtectedRouteProps {
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   user,
   requiredRole,
-  onNavigate,
-  onToast,
   children,
 }) => {
-  const isAuthenticated = !!user || !!localStorage.getItem('token');
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      onToast?.('Yêu cầu đăng nhập', 'Vui lòng đăng nhập để truy cập trang này.', 'error');
-      onNavigate('login');
-      return;
-    }
-
-    if (requiredRole && user?.role !== requiredRole) {
-      onToast?.('Truy cập bị từ chối', 'Bạn không có quyền truy cập vào khu vực này.', 'error');
-      onNavigate('home');
-    }
-  }, [isAuthenticated, user, requiredRole, onNavigate, onToast]);
+  const storedToken = useAuthStore.getState().token;
+  const isAuthenticated = !!user && !!storedToken;
 
   if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-900">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600"></div>
-      </div>
-    );
+    return <Navigate to="/login" replace />;
   }
 
   if (requiredRole && user?.role !== requiredRole) {
-    return null;
+    return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;
 };
+
