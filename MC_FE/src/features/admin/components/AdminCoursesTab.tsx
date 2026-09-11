@@ -96,7 +96,7 @@ export const AdminCoursesTab: React.FC<AdminCoursesTabProps> = ({
         <div className="flex items-center space-x-1 bg-slate-950 p-1 rounded-xl border border-slate-800 self-start">
           <button
             onClick={() => setStatusFilter('all')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
               statusFilter === 'all'
                 ? 'bg-slate-800 text-white font-semibold'
                 : 'text-slate-400 hover:text-slate-200'
@@ -106,7 +106,7 @@ export const AdminCoursesTab: React.FC<AdminCoursesTabProps> = ({
           </button>
           <button
             onClick={() => setStatusFilter('pending')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
               statusFilter === 'pending'
                 ? 'bg-amber-500/20 text-amber-300 font-bold'
                 : 'text-slate-400 hover:text-slate-200'
@@ -116,7 +116,7 @@ export const AdminCoursesTab: React.FC<AdminCoursesTabProps> = ({
           </button>
           <button
             onClick={() => setStatusFilter('published')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
               statusFilter === 'published'
                 ? 'bg-emerald-500/20 text-emerald-400 font-semibold'
                 : 'text-slate-400 hover:text-slate-200'
@@ -126,7 +126,7 @@ export const AdminCoursesTab: React.FC<AdminCoursesTabProps> = ({
           </button>
           <button
             onClick={() => setStatusFilter('rejected')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
               statusFilter === 'rejected'
                 ? 'bg-rose-500/20 text-rose-400 font-semibold'
                 : 'text-slate-400 hover:text-slate-200'
@@ -160,7 +160,7 @@ export const AdminCoursesTab: React.FC<AdminCoursesTabProps> = ({
                 </tr>
               ) : (
                 filteredCourses.map((course) => (
-                  <tr key={course.id} className="hover:bg-slate-800/40 transition">
+                  <tr key={course.id} className="hover:bg-slate-800/40 transition cursor-pointer">
                     <td className="px-6 py-4 max-w-xs">
                       <div>
                         <span className="text-[10px] font-medium text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-md border border-purple-500/20">
@@ -191,7 +191,7 @@ export const AdminCoursesTab: React.FC<AdminCoursesTabProps> = ({
                     <td className="px-6 py-4">
                       <button
                         onClick={() => onToggleFeatured(course.id, !!course.featured)}
-                        className={`p-1.5 rounded-lg border transition ${
+                        className={`p-1.5 rounded-lg border transition cursor-pointer ${
                           course.featured
                             ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
                             : 'bg-slate-800 text-slate-500 border-slate-700 hover:text-slate-300'
@@ -206,7 +206,7 @@ export const AdminCoursesTab: React.FC<AdminCoursesTabProps> = ({
                       <div className="flex items-center justify-end space-x-2">
                         <button
                           onClick={() => onReviewCourse(course)}
-                          className="flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium transition"
+                          className="flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium transition cursor-pointer"
                         >
                           <Eye className="w-3.5 h-3.5 text-blue-400" />
                           <span>Chi tiết & Duyệt</span>
@@ -214,7 +214,7 @@ export const AdminCoursesTab: React.FC<AdminCoursesTabProps> = ({
                         {course.status === 'pending' && (
                           <button
                             onClick={() => onApproveCourse(course.id)}
-                            className="p-1.5 rounded-lg text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 transition"
+                            className="p-1.5 rounded-lg text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 transition cursor-pointer"
                             title="Phê duyệt nhanh"
                           >
                             <CheckCircle className="w-4 h-4" />

@@ -151,7 +151,7 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
                     requireCourseApproval: !formData.requireCourseApproval,
                   })
                 }
-                className="text-slate-300 transition"
+                className="text-slate-300 transition cursor-pointer"
               >
                 {formData.requireCourseApproval ? (
                   <ToggleRight className="w-8 h-8 text-blue-500" />
@@ -180,7 +180,7 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
                     maintenanceMode: !formData.maintenanceMode,
                   })
                 }
-                className="text-slate-300 transition"
+                className="text-slate-300 transition cursor-pointer"
               >
                 {formData.maintenanceMode ? (
                   <ToggleRight className="w-8 h-8 text-rose-500" />
@@ -196,7 +196,7 @@ export const AdminSettingsTab: React.FC<AdminSettingsTabProps> = ({
         <div className="flex justify-end">
           <button
             type="submit"
-            className="flex items-center space-x-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm rounded-xl shadow-lg shadow-blue-600/20 transition"
+            className="flex items-center space-x-2 px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm rounded-xl shadow-lg shadow-blue-600/20 transition cursor-pointer"
           >
             <Save className="w-4 h-4" />
             <span>Lưu Cấu Hình System</span>

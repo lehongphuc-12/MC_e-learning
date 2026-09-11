@@ -103,7 +103,7 @@ export const AdminFinancialsTab: React.FC<AdminFinancialsTabProps> = ({
                 </tr>
               ) : (
                 payouts.map((po) => (
-                  <tr key={po.id} className="hover:bg-slate-800/40 transition">
+                  <tr key={po.id} className="hover:bg-slate-800/40 transition cursor-pointer">
                     <td className="px-6 py-4">
                       <div className="flex items-center space-x-3">
                         <User className="w-4 h-4 text-purple-400" />
@@ -156,14 +156,14 @@ export const AdminFinancialsTab: React.FC<AdminFinancialsTabProps> = ({
                         <div className="flex items-center justify-end space-x-2">
                           <button
                             onClick={() => onRejectPayout(po.id)}
-                            className="p-1.5 rounded-lg text-rose-400 hover:bg-rose-500/10 transition"
+                            className="p-1.5 rounded-lg text-rose-400 hover:bg-rose-500/10 transition cursor-pointer"
                             title="Từ chối lệnh"
                           >
                             <XCircle className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => onApprovePayout(po.id)}
-                            className="flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-lg shadow-emerald-600/20 transition"
+                            className="flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-lg shadow-emerald-600/20 transition cursor-pointer"
                           >
                             <CheckCircle className="w-3.5 h-3.5" />
                             <span>Phê Duyệt Payout</span>

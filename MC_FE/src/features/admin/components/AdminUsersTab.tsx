@@ -91,7 +91,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
           )}
           <button
             onClick={onAddUser}
-            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-xl shadow-lg shadow-blue-600/20 transition"
+            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-xl shadow-lg shadow-blue-600/20 transition cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>Thêm Người Dùng</span>
@@ -116,7 +116,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
         <div className="flex items-center space-x-1 bg-slate-950 p-1 rounded-xl border border-slate-800 self-start">
           <button
             onClick={() => setRoleFilter('all')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
               roleFilter === 'all'
                 ? 'bg-slate-800 text-white font-semibold'
                 : 'text-slate-400 hover:text-slate-200'
@@ -126,7 +126,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
           </button>
           <button
             onClick={() => setRoleFilter('student')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
               roleFilter === 'student'
                 ? 'bg-blue-500/20 text-blue-400 font-semibold'
                 : 'text-slate-400 hover:text-slate-200'
@@ -136,7 +136,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
           </button>
           <button
             onClick={() => setRoleFilter('instructor')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
               roleFilter === 'instructor'
                 ? 'bg-purple-500/20 text-purple-400 font-semibold'
                 : 'text-slate-400 hover:text-slate-200'
@@ -146,7 +146,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
           </button>
           <button
             onClick={() => setRoleFilter('admin')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
               roleFilter === 'admin'
                 ? 'bg-rose-500/20 text-rose-400 font-semibold'
                 : 'text-slate-400 hover:text-slate-200'
@@ -180,7 +180,7 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
                 </tr>
               ) : (
                 filteredUsers.map((user) => (
-                  <tr key={user.id} className="hover:bg-slate-800/40 transition">
+                  <tr key={user.id} className="hover:bg-slate-800/40 transition cursor-pointer">
                     <td className="px-6 py-4">
                       <div className="flex items-center space-x-3">
                         <img
@@ -236,14 +236,14 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
                       <div className="flex items-center justify-end space-x-2">
                         <button
                           onClick={() => onEditUser(user)}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
                           title="Chỉnh sửa tài khoản"
                         >
                           <Edit2 className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => onToggleStatus(user.id, user.status)}
-                          className={`p-1.5 rounded-lg transition ${
+                          className={`p-1.5 rounded-lg transition cursor-pointer ${
                             user.status === 'active'
                               ? 'text-rose-400 hover:bg-rose-500/10'
                               : 'text-emerald-400 hover:bg-emerald-500/10'

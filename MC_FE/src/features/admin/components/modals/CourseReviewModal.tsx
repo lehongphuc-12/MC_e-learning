@@ -46,7 +46,7 @@ export const CourseReviewModal: React.FC<CourseReviewModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -136,14 +136,14 @@ export const CourseReviewModal: React.FC<CourseReviewModalProps> = ({
               <div className="flex justify-end space-x-2">
                 <button
                   onClick={() => setShowRejectForm(false)}
-                  className="px-3 py-1.5 text-xs text-slate-400 hover:text-white"
+                  className="px-3 py-1.5 text-xs text-slate-400 hover:text-white cursor-pointer"
                 >
                   Hủy
                 </button>
                 <button
                   onClick={handleConfirmReject}
                   disabled={!rejectReason.trim()}
-                  className="px-4 py-1.5 text-xs font-medium bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white rounded-lg transition"
+                  className="px-4 py-1.5 text-xs font-medium bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white rounded-lg transition cursor-pointer"
                 >
                   Xác Nhận Từ Chối
                 </button>
@@ -157,7 +157,7 @@ export const CourseReviewModal: React.FC<CourseReviewModalProps> = ({
           <div className="flex items-center justify-between px-6 py-4 border-t border-slate-800 bg-slate-900/50">
             <button
               onClick={() => setShowRejectForm(true)}
-              className="flex items-center space-x-2 px-4 py-2 text-sm font-medium text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 rounded-xl transition"
+              className="flex items-center space-x-2 px-4 py-2 text-sm font-medium text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 rounded-xl transition cursor-pointer"
             >
               <XCircle className="w-4 h-4" />
               <span>Từ Chối Duyệt</span>
@@ -165,7 +165,7 @@ export const CourseReviewModal: React.FC<CourseReviewModalProps> = ({
             <div className="flex space-x-3">
               <button
                 onClick={onClose}
-                className="px-4 py-2 text-sm font-medium text-slate-400 hover:text-white bg-slate-800 rounded-xl transition"
+                className="px-4 py-2 text-sm font-medium text-slate-400 hover:text-white bg-slate-800 rounded-xl transition cursor-pointer"
               >
                 Đóng
               </button>
@@ -174,7 +174,7 @@ export const CourseReviewModal: React.FC<CourseReviewModalProps> = ({
                   onApprove(course.id);
                   onClose();
                 }}
-                className="flex items-center space-x-2 px-5 py-2 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl shadow-lg shadow-emerald-600/20 transition"
+                className="flex items-center space-x-2 px-5 py-2 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl shadow-lg shadow-emerald-600/20 transition cursor-pointer"
               >
                 <CheckCircle className="w-4 h-4" />
                 <span>Phê Duyệt & Xuất Bản</span>

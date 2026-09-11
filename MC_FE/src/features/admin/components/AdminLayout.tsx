@@ -87,7 +87,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         <div className="flex items-center space-x-3">
           <button
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+            className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
             title="Toggle Sidebar"
           >
             {sidebarCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
@@ -128,7 +128,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
           {/* Back to Client Site */}
           <button
             onClick={onNavigateHome}
-            className="hidden sm:flex items-center space-x-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-800/70 hover:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700/50 transition"
+            className="hidden sm:flex items-center space-x-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-800/70 hover:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700/50 transition cursor-pointer"
           >
             <Home className="w-3.5 h-3.5 text-blue-400" />
             <span>Trang Chủ Học Viên</span>
@@ -136,7 +136,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
           {/* Notifications button */}
           <div className="relative">
-            <button className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 relative transition">
+            <button className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 relative transition cursor-pointer">
               <Bell className="w-5 h-5" />
               {pendingApprovalsCount > 0 && (
                 <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-amber-500 rounded-full ring-2 ring-slate-900 animate-pulse" />
@@ -165,7 +165,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
             <button
               onClick={onLogout}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition cursor-pointer"
               title="Đăng xuất"
             >
               <LogOut className="w-4 h-4" />
@@ -194,7 +194,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                 <button
                   key={item.id}
                   onClick={() => onTabChange(item.id)}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium transition ${
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium transition cursor-pointer ${
                     isActive
                       ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20 shadow-sm'
                       : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'

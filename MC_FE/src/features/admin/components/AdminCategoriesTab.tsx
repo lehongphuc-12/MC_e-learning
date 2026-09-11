@@ -58,7 +58,7 @@ export const AdminCategoriesTab: React.FC<AdminCategoriesTabProps> = ({
         </div>
         <button
           onClick={onAddCategory}
-          className="flex items-center space-x-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold rounded-xl shadow-lg shadow-purple-600/20 transition self-start sm:self-auto"
+          className="flex items-center space-x-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold rounded-xl shadow-lg shadow-purple-600/20 transition cursor-pointer self-start sm:self-auto"
         >
           <Plus className="w-4 h-4" />
           <span>Thêm Danh Mục</span>
@@ -69,7 +69,7 @@ export const AdminCategoriesTab: React.FC<AdminCategoriesTabProps> = ({
         {categories.map((cat) => (
           <div
             key={cat.id}
-            className="p-5 rounded-2xl bg-slate-900/70 border border-slate-800 flex flex-col justify-between hover:border-purple-500/40 transition group shadow-lg"
+            className="p-5 rounded-2xl bg-slate-900/70 border border-slate-800 flex flex-col justify-between hover:border-purple-500/40 transition group shadow-lg cursor-pointer"
           >
             <div className="space-y-3">
               <div className="flex items-center justify-between">
@@ -78,7 +78,7 @@ export const AdminCategoriesTab: React.FC<AdminCategoriesTabProps> = ({
                 </div>
                 <button
                   onClick={() => onEditCategory(cat)}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
                   title="Chỉnh sửa danh mục"
                 >
                   <Edit2 className="w-4 h-4" />
