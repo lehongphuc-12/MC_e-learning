@@ -10,6 +10,7 @@ import {
   GraduationCap,
   Briefcase,
   UserCheck,
+  RefreshCw,
 } from 'lucide-react';
 import { AdminUser, UserRole, UserStatus } from '../types/adminTypes';
 
@@ -18,6 +19,8 @@ interface AdminUsersTabProps {
   onAddUser: () => void;
   onEditUser: (user: AdminUser) => void;
   onToggleStatus: (userId: string, currentStatus: UserStatus) => void;
+  onRefresh?: () => void;
+  isLoading?: boolean;
 }
 
 export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
@@ -25,6 +28,8 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
   onAddUser,
   onEditUser,
   onToggleStatus,
+  onRefresh,
+  isLoading = false,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<'all' | UserRole>('all');
@@ -73,13 +78,25 @@ export const AdminUsersTab: React.FC<AdminUsersTabProps> = ({
             Danh sách tất cả tài khoản Học viên, Giảng viên và Quản trị viên trong hệ thống.
           </p>
         </div>
-        <button
-          onClick={onAddUser}
-          className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-xl shadow-lg shadow-blue-600/20 transition self-start sm:self-auto"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Thêm Người Dùng</span>
-        </button>
+        <div className="flex items-center space-x-2 self-start sm:self-auto">
+          {onRefresh && (
+            <button
+              onClick={onRefresh}
+              disabled={isLoading}
+              className="p-2.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-300 hover:text-white rounded-xl border border-slate-700/50 transition cursor-pointer"
+              title="Tải lại từ Backend API"
+            >
+              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-blue-400' : ''}`} />
+            </button>
+          )}
+          <button
+            onClick={onAddUser}
+            className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-xl shadow-lg shadow-blue-600/20 transition"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Thêm Người Dùng</span>
+          </button>
+        </div>
       </div>
 
       {/* Filter Controls Bar */}

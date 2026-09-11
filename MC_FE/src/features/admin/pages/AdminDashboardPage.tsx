@@ -97,6 +97,21 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     loadData();
   }, []);
 
+  const [isUsersLoading, setIsUsersLoading] = useState(false);
+
+  const handleRefreshUsers = async () => {
+    setIsUsersLoading(true);
+    try {
+      const usersRes = await adminApi.getUsers();
+      setUsers(usersRes);
+      onToast?.('Đã làm mới', 'Đã cập nhật danh sách người dùng từ Backend thành công.', 'info');
+    } catch (_) {
+      onToast?.('Lỗi kết nối', 'Không thể tải dữ liệu người dùng từ Backend.', 'error');
+    } finally {
+      setIsUsersLoading(false);
+    }
+  };
+
   // --- Handlers for Users ---
   const handleAddUser = () => {
     setSelectedUser(null);
@@ -271,6 +286,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
           onAddUser={handleAddUser}
           onEditUser={handleEditUser}
           onToggleStatus={handleToggleUserStatus}
+          onRefresh={handleRefreshUsers}
+          isLoading={isUsersLoading}
         />
       )}
 
