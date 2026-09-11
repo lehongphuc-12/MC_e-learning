@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AdminLayout } from '../components/AdminLayout';
 import { AdminOverviewTab } from '../components/AdminOverviewTab';
 import { AdminUsersTab } from '../components/AdminUsersTab';
@@ -39,7 +39,18 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   onToast,
 }) => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<AdminTabType>('overview');
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const VALID_TABS: AdminTabType[] = ['overview', 'users', 'courses', 'categories', 'financials', 'settings'];
+  const tabFromUrl = searchParams.get('tab') as AdminTabType | null;
+  const [activeTab, setActiveTab] = useState<AdminTabType>(
+    tabFromUrl && VALID_TABS.includes(tabFromUrl) ? tabFromUrl : 'overview'
+  );
+
+  const handleTabChange = (tab: AdminTabType) => {
+    setActiveTab(tab);
+    setSearchParams({ tab }, { replace: true });
+  };
 
   // Data States
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -310,7 +321,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   return (
     <AdminLayout
       activeTab={activeTab}
-      onTabChange={setActiveTab}
+      onTabChange={handleTabChange}
       currentUser={currentUser}
       onNavigateHome={() => navigate('/')}
       onLogout={onLogout}
@@ -328,7 +339,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
           stats={stats}
           chartData={chartData}
           recentLogs={logs}
-          onNavigateTab={(tab) => setActiveTab(tab)}
+          onNavigateTab={(tab) => handleTabChange(tab)}
         />
       )}
 
