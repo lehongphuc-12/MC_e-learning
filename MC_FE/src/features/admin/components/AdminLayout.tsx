@@ -13,7 +13,7 @@ import {
   ChevronRight,
   ShieldAlert,
   Home,
-  Sparkles,
+  Mic2,
 } from 'lucide-react';
 import { AdminTabType } from '../types/adminTypes';
 import { User } from '../../../types';
@@ -95,18 +95,20 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
           <div
             onClick={onNavigateHome}
-            className="flex items-center space-x-2.5 cursor-pointer group"
+            className="flex items-center gap-2.5 cursor-pointer group"
           >
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/20 group-hover:scale-105 transition-transform">
-              <Sparkles className="w-5 h-5" />
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-700 via-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-600/30 group-hover:scale-105 transition-transform">
+              <Mic2 className="w-5 h-5" />
             </div>
             <div className="hidden sm:block">
-              <span className="font-extrabold text-base tracking-tight text-white group-hover:text-blue-400 transition">
+              <div className="text-xl font-black tracking-tight text-white leading-none flex items-center gap-1">
                 MSEEK
-              </span>
-              <span className="ml-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                ADMIN HUB
-              </span>
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block" />
+                <span className="ml-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30 tracking-wider uppercase">
+                  ADMIN HUB
+                </span>
+              </div>
+              <div className="text-[10px] font-semibold text-slate-400 tracking-wider uppercase mt-0.5">Master The Art</div>
             </div>
           </div>
         </div>
