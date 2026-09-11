@@ -61,41 +61,76 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<AdminCategory | null>(null);
 
-  // Initial Load
-  useEffect(() => {
-    const loadData = async () => {
-      const [
-        statsRes,
-        chartRes,
-        usersRes,
-        coursesRes,
-        categoriesRes,
-        payoutsRes,
-        logsRes,
-        settingsRes,
-      ] = await Promise.all([
-        adminApi.getDashboardStats(),
-        adminApi.getRevenueChart(),
-        adminApi.getUsers(),
-        adminApi.getCourses(),
-        adminApi.getCategories(),
-        adminApi.getPayoutRequests(),
-        adminApi.getSystemLogs(),
-        adminApi.getPlatformSettings(),
-      ]);
+  // State loading flag per tab
+  const [tabLoading, setTabLoading] = useState<boolean>(false);
 
-      setStats(statsRes);
-      setChartData(chartRes);
-      setUsers(usersRes);
-      setCourses(coursesRes);
-      setCategories(categoriesRes);
-      setPayouts(payoutsRes);
-      setLogs(logsRes);
-      setSettings(settingsRes);
+  // Lazy load data on activeTab change
+  useEffect(() => {
+    const fetchTabData = async () => {
+      setTabLoading(true);
+      try {
+        switch (activeTab) {
+          case 'overview':
+            if (!stats) {
+              const [statsRes, chartRes, logsRes] = await Promise.all([
+                adminApi.getDashboardStats(),
+                adminApi.getRevenueChart(),
+                adminApi.getSystemLogs(),
+              ]);
+              setStats(statsRes);
+              setChartData(chartRes);
+              setLogs(logsRes);
+            }
+            break;
+
+          case 'users':
+            if (users.length === 0) {
+              const usersRes = await adminApi.getUsers();
+              setUsers(usersRes);
+            }
+            break;
+
+          case 'courses':
+            if (courses.length === 0) {
+              const coursesRes = await adminApi.getCourses();
+              setCourses(coursesRes);
+            }
+            break;
+
+          case 'categories':
+            if (categories.length === 0) {
+              const categoriesRes = await adminApi.getCategories();
+              setCategories(categoriesRes);
+            }
+            break;
+
+          case 'financials':
+            if (payouts.length === 0 || !settings) {
+              const [payoutsRes, settingsRes] = await Promise.all([
+                adminApi.getPayoutRequests(),
+                adminApi.getPlatformSettings(),
+              ]);
+              setPayouts(payoutsRes);
+              if (!settings) setSettings(settingsRes);
+            }
+            break;
+
+          case 'settings':
+            if (!settings) {
+              const settingsRes = await adminApi.getPlatformSettings();
+              setSettings(settingsRes);
+            }
+            break;
+        }
+      } catch (err) {
+        console.error('Lỗi tải dữ liệu cho tab:', activeTab, err);
+      } finally {
+        setTabLoading(false);
+      }
     };
 
-    loadData();
-  }, []);
+    fetchTabData();
+  }, [activeTab]);
 
   const [isUsersLoading, setIsUsersLoading] = useState(false);
 
@@ -271,7 +306,14 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
       onLogout={onLogout}
       pendingApprovalsCount={pendingApprovalsCount}
     >
-      {activeTab === 'overview' && stats && (
+      {tabLoading && (
+        <div className="flex items-center justify-center py-16">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600"></div>
+          <span className="ml-3 text-slate-600 font-medium">Đang tải dữ liệu...</span>
+        </div>
+      )}
+
+      {!tabLoading && activeTab === 'overview' && stats && (
         <AdminOverviewTab
           stats={stats}
           chartData={chartData}
