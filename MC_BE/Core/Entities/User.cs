@@ -62,4 +62,10 @@ public class User
     public virtual UserProfile? UserProfile { get; set; }
 
     public virtual ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
+    public virtual ICollection<Course> InstructedCourses { get; set; } = new List<Course>();
+    public virtual ICollection<CourseMaterial> UploadedMaterials { get; set; } = new List<CourseMaterial>();
+    public virtual ICollection<Enrollment> Enrollments { get; set; } = new List<Enrollment>();
+    public virtual ICollection<Payment> Payments { get; set; } = new List<Payment>();
+    public virtual ICollection<Quiz> CreatedQuizzes { get; set; } = new List<Quiz>();
+    public virtual ICollection<QuizAttempt> QuizAttempts { get; set; } = new List<QuizAttempt>();
 }
