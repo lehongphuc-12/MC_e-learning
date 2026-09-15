@@ -16,6 +16,9 @@ public class Lesson
     [Column("CourseID")]
     public int CourseId { get; set; }
 
+    [Column("ModuleID")]
+    public int? ModuleId { get; set; }
+
     [Required]
     [MaxLength(255)]
     [Column("Title")]
@@ -45,6 +48,9 @@ public class Lesson
     // Navigation properties
     [ForeignKey("CourseId")]
     public virtual Course Course { get; set; } = null!;
+
+    [ForeignKey("ModuleId")]
+    public virtual Module? Module { get; set; }
 
     public virtual ICollection<CourseMaterial> CourseMaterials { get; set; } = new List<CourseMaterial>();
     public virtual ICollection<LessonProgress> LessonProgresses { get; set; } = new List<LessonProgress>();
