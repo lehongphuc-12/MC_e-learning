@@ -58,6 +58,7 @@ public class Course
     [ForeignKey("InstructorId")]
     public virtual User Instructor { get; set; } = null!;
 
+    public virtual ICollection<Module> Modules { get; set; } = new List<Module>();
     public virtual ICollection<Lesson> Lessons { get; set; } = new List<Lesson>();
     public virtual ICollection<CourseMaterial> CourseMaterials { get; set; } = new List<CourseMaterial>();
     public virtual ICollection<Enrollment> Enrollments { get; set; } = new List<Enrollment>();

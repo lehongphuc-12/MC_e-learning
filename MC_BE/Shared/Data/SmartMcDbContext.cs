@@ -19,6 +19,7 @@ public class SmartMcDbContext : DbContext
     // Section 2: Course & Learning
     public DbSet<Category> Categories { get; set; } = null!;
     public DbSet<Course> Courses { get; set; } = null!;
+    public DbSet<Module> Modules { get; set; } = null!;
     public DbSet<Lesson> Lessons { get; set; } = null!;
     public DbSet<CourseMaterial> CourseMaterials { get; set; } = null!;
     public DbSet<Enrollment> Enrollments { get; set; } = null!;
@@ -132,6 +133,18 @@ public class SmartMcDbContext : DbContext
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        modelBuilder.Entity<Module>(entity =>
+        {
+            entity.Property(e => e.OrderIndex).HasDefaultValue(1);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasOne(d => d.Course)
+                .WithMany(p => p.Modules)
+                .HasForeignKey(d => d.CourseId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<Lesson>(entity =>
         {
             entity.Property(e => e.LessonType)
@@ -151,6 +164,11 @@ public class SmartMcDbContext : DbContext
                 .WithMany(p => p.Lessons)
                 .HasForeignKey(d => d.CourseId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(d => d.Module)
+                .WithMany(p => p.Lessons)
+                .HasForeignKey(d => d.ModuleId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<CourseMaterial>(entity =>
