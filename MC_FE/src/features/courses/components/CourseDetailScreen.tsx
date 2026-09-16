@@ -363,10 +363,14 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
               <div className="p-6 space-y-6">
                 <div className="space-y-1">
                   <div className="flex items-baseline gap-2">
-                    <span className="text-3xl font-black text-slate-900">${course.price}</span>
+                    <span className="text-3xl font-black text-slate-900">
+                      {course.price === 0 ? 'Miễn phí' : `${course.price.toLocaleString('vi-VN')} VNĐ`}
+                    </span>
                     {course.originalPrice && (
                       <>
-                        <span className="text-sm text-slate-400 line-through">${course.originalPrice}</span>
+                        <span className="text-sm text-slate-400 line-through">
+                          {course.originalPrice.toLocaleString('vi-VN')} VNĐ
+                        </span>
                         <span className="text-xs font-bold text-emerald-600">{course.discountPercentage}% OFF</span>
                       </>
                     )}

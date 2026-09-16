@@ -1,11 +1,21 @@
 using System.Text;
-using MC_BE.Data;
-using MC_BE.Helpers;
-using MC_BE.Middleware;
-using MC_BE.Models.Entities;
-using MC_BE.Repositories;
-using MC_BE.Services;
-using MC_BE.Services.Interfaces;
+using MC_BE.Core.Entities;
+using MC_BE.Features.Admin.Services;
+using MC_BE.Features.Admin.Services.Interfaces;
+using MC_BE.Features.Auth.Services;
+using MC_BE.Features.Auth.Services.Interfaces;
+using MC_BE.Features.Users.Services;
+using MC_BE.Features.Users.Services.Interfaces;
+// FE:03 Course Management — new services
+using MC_BE.Features.Courses.Services;
+using MC_BE.Features.Courses.Services.Interfaces;
+using MC_BE.Shared.Data;
+using MC_BE.Shared.Middleware;
+using MC_BE.Shared.Repositories;
+using MC_BE.Shared.Repositories.Interfaces;
+using MC_BE.Shared.Services;
+using MC_BE.Shared.Services.Interfaces;
+using MC_BE.Shared.Settings;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -37,11 +47,19 @@ builder.Services.AddCors(options =>
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 
-// Register Auth & Profile Services
+// Register Auth, User, Admin & Profile Services
 builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserProfileService, UserProfileService>();
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IAdminService, AdminService>();
+
+// FE:03 Course Management Services
+builder.Services.AddScoped<ICourseService, CourseService>();
+builder.Services.AddScoped<ICategoryService, CategoryService>();
+builder.Services.AddScoped<IModuleService, ModuleService>();
+builder.Services.AddScoped<ILessonService, LessonService>();
 
 // Register Email & Cloudinary Services
 builder.Services.AddScoped<IEmailService, EmailService>();
@@ -68,7 +86,11 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+    });
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
@@ -76,6 +98,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "MC E-Learning API", Version = "v1" });
+    c.CustomSchemaIds(x => x.FullName?.Replace("+", "."));
 
     // Configure JWT Authentication for Swagger
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
