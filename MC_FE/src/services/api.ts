@@ -121,10 +121,21 @@ export async function request<T>(
   const data = await response.json();
 
   if (!response.ok) {
+    let normalizedErrors: string[] = [];
+    if (Array.isArray(data?.errors)) {
+      normalizedErrors = data.errors;
+    } else if (data?.errors && typeof data.errors === 'object') {
+      normalizedErrors = Object.entries(data.errors).flatMap(([field, msgs]) =>
+        Array.isArray(msgs)
+          ? msgs.map((m) => `${field}: ${m}`)
+          : [`${field}: ${String(msgs)}`]
+      );
+    }
+
     throw {
       status: response.status,
-      message: data.message || 'Something went wrong',
-      errors: data.errors || [],
+      message: data?.message || data?.title || 'Something went wrong',
+      errors: normalizedErrors,
     };
   }
 

@@ -1,4 +1,5 @@
-﻿using System;
+using MC_BE.Shared.Data;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 

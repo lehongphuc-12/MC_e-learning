@@ -1,165 +1,74 @@
-using System.Security.Claims;
-using MC_BE.DTOs;
-using MC_BE.Helpers;
-using MC_BE.Services.Interfaces;
+﻿using System.Threading.Tasks;
+using MC_BE.Core.DTOs;
+using MC_BE.Shared.Services.Interfaces;
+using MC_BE.Shared.Settings;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
-namespace MC_BE.Controllers;
+namespace MC_BE.Controllers.EnrollmentPayment;
 
 [ApiController]
-[Route("api/payments")]
+[Route("api/v1/payments")]
 public class PaymentController : ControllerBase
 {
     private readonly IPaymentService _paymentService;
+    private readonly ICurrentUserService _currentUserService;
     private readonly VnPaySettings _vnPaySettings;
 
     public PaymentController(
         IPaymentService paymentService,
-        IOptions<VnPaySettings> vnPaySettings)
+        ICurrentUserService currentUserService,
+        IOptions<VnPaySettings> vnPayOptions)
     {
-        _paymentService =
-            paymentService;
-
-        _vnPaySettings =
-            vnPaySettings.Value;
+        _paymentService = paymentService;
+        _currentUserService = currentUserService;
+        _vnPaySettings = vnPayOptions.Value;
     }
 
-    // LE03
-    [Authorize]
     [HttpPost]
-    public async Task<
-        ActionResult<
-            ApiResponse<CreatePaymentResponseDto>
-        >
-    > CreatePayment(
-        [FromBody]
-        CreatePaymentRequest request)
-    {
-        if (!ModelState.IsValid)
-        {
-            var errors =
-                ModelState.Values
-                    .SelectMany(x => x.Errors)
-                    .Select(x => x.ErrorMessage)
-                    .ToList();
-
-            return BadRequest(
-                ApiResponse<CreatePaymentResponseDto>
-                    .FailureResponse(
-                        "Validation failed.",
-                        errors
-                    )
-            );
-        }
-
-        if (!TryGetUserId(out var userId))
-        {
-            return Unauthorized(
-                ApiResponse<CreatePaymentResponseDto>
-                    .FailureResponse(
-                        "Invalid user token."
-                    )
-            );
-        }
-
-        var ip =
-            HttpContext.Connection
-                .RemoteIpAddress?
-                .ToString()
-            ??
-            "127.0.0.1";
-
-        var result =
-            await _paymentService
-                .CreatePaymentAsync(
-                    userId,
-                    request,
-                    ip
-                );
-
-        if (!result.Success)
-        {
-            return BadRequest(result);
-        }
-
-        return Ok(result);
-    }
-
     [Authorize]
-    [HttpGet("my/{paymentId:int}")]
-    public async Task<
-        ActionResult<
-            ApiResponse<PaymentDetailsDto>
-        >
-    > GetMyPayment(int paymentId)
+    public async Task<ActionResult<ApiResponse<CreatePaymentResponseDto>>> CreatePayment([FromBody] CreatePaymentRequest request)
     {
-        if (!TryGetUserId(out var userId))
+        _currentUserService.RequireLearner();
+        var userId = int.Parse(_currentUserService.GetUserId());
+        var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
+
+        var response = await _paymentService.CreatePaymentAsync(userId, request, ipAddress);
+        if (!response.Success)
         {
-            return Unauthorized(
-                ApiResponse<PaymentDetailsDto>
-                    .FailureResponse(
-                        "Invalid user token."
-                    )
-            );
+            return BadRequest(response);
         }
 
-        var result =
-            await _paymentService
-                .GetMyPaymentAsync(
-                    userId,
-                    paymentId
-                );
+        return Ok(response);
+    }
 
-        if (!result.Success)
+    [HttpGet("{paymentId:int}")]
+    [Authorize]
+    public async Task<ActionResult<ApiResponse<PaymentDetailsDto>>> GetMyPayment(int paymentId)
+    {
+        var userId = int.Parse(_currentUserService.GetUserId());
+        var response = await _paymentService.GetMyPaymentAsync(userId, paymentId);
+        if (!response.Success)
         {
-            return BadRequest(result);
+            return NotFound(response);
+        }
+
+        return Ok(response);
+    }
+
+    [HttpGet("vnpay-return")]
+    [AllowAnonymous]
+    public async Task<IActionResult> VnPayReturn()
+    {
+        var result = await _paymentService.ProcessVnPayResultAsync(Request.Query);
+
+        if (!string.IsNullOrWhiteSpace(_vnPaySettings.FrontendResultUrl))
+        {
+            var redirectUrl = $"{_vnPaySettings.FrontendResultUrl}?success={result.Success}&paymentId={result.Data?.PaymentId}&status={result.Data?.PaymentStatus}";
+            return Redirect(redirectUrl);
         }
 
         return Ok(result);
-    }
-
-    [AllowAnonymous]
-    [HttpGet("vnpay-return")]
-    public async Task<IActionResult>
-        VnPayReturn()
-    {
-        var result =
-            await _paymentService
-                .ProcessVnPayResultAsync(
-                    Request.Query
-                );
-
-        if (!result.Success)
-        {
-            return Redirect(
-                $"{_vnPaySettings.FrontendResultUrl}" +
-                "?error=" +
-                Uri.EscapeDataString(
-                    result.Message
-                )
-            );
-        }
-
-        return Redirect(
-            $"{_vnPaySettings.FrontendResultUrl}" +
-            $"?paymentId={result.Data!.PaymentId}" +
-            $"&status={Uri.EscapeDataString(result.Data.PaymentStatus)}"
-        );
-    }
-
-    private bool TryGetUserId(
-        out int userId)
-    {
-        var claim =
-            User.FindFirst(
-                ClaimTypes.NameIdentifier
-            )?.Value;
-
-        return int.TryParse(
-            claim,
-            out userId
-        );
     }
 }

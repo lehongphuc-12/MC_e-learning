@@ -1,6 +1,6 @@
-using MC_BE.Helpers;
-using MC_BE.Services;
-using MC_BE.Services.Interfaces;
+using MC_BE.Shared.Services;
+using MC_BE.Shared.Services.Interfaces;
+using MC_BE.Shared.Settings;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -19,16 +19,12 @@ public static class EnrollmentPaymentModule
         services.AddHttpContextAccessor();
 
         services.AddScoped<ICurrentUserService, CurrentUserService>();
-
         services.AddScoped<ICourseCatalogService, MockCourseCatalogService>();
-
         services.AddScoped<IEnrollmentService, EnrollmentService>();
-
         services.AddScoped<IPaymentService, PaymentService>();
-
         services.AddScoped<IAdminPaymentService, AdminPaymentService>();
-
         services.AddHttpClient<IVnPayService, VnPayService>();
+        services.AddHostedService<EnrollmentExpirationWorker>();
 
         return services;
     }

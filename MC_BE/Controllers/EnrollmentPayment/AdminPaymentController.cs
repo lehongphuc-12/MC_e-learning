@@ -1,17 +1,14 @@
-using System;
 using System.Threading.Tasks;
-using MC_BE.DTOs;
-using MC_BE.Features.EnrollmentPayment;
-using MC_BE.Services.Interfaces;
+using MC_BE.Core.DTOs;
+using MC_BE.Shared.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace MC_BE.Controllers.EnrollmentPayment;
 
 [ApiController]
+[Route("api/v1/admin")]
 [Authorize]
-[Route("api/admin/payments")]
 public class AdminPaymentController : ControllerBase
 {
     private readonly IAdminPaymentService _adminPaymentService;
@@ -28,140 +25,74 @@ public class AdminPaymentController : ControllerBase
         _currentUserService = currentUserService;
     }
 
-    /*
-     * AD07: Tìm kiếm và lọc danh sách thanh toán
-     */
-    [HttpGet]
-    public async Task<ActionResult<ApiResponse<PagedResult<PaymentDetailsDto>>>> Search([FromQuery] PaymentFilterRequest filter)
+    [HttpGet("payments")]
+    public async Task<ActionResult<ApiResponse<PagedResult<PaymentDetailsDto>>>> SearchPayments([FromQuery] PaymentFilterRequest filter)
     {
-        try
-        {
-            _currentUserService.RequireAdmin();
-            var adminId = int.Parse(_currentUserService.GetUserId());
-            var result = await _adminPaymentService.SearchPaymentsAsync(adminId, filter);
-            return Ok(result);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            return StatusCode(StatusCodes.Status403Forbidden, ApiResponse<PagedResult<PaymentDetailsDto>>.FailureResponse(ex.Message));
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(ApiResponse<PagedResult<PaymentDetailsDto>>.FailureResponse(ex.Message));
-        }
+        _currentUserService.RequireAdmin();
+        var userId = int.Parse(_currentUserService.GetUserId());
+
+        var response = await _adminPaymentService.SearchPaymentsAsync(userId, filter);
+        return Ok(response);
     }
 
-    /*
-     * AD07: Chi tiết thanh toán
-     */
-    [HttpGet("{id:int}")]
-    public async Task<ActionResult<ApiResponse<PaymentDetailsDto>>> Details(int id)
+    [HttpGet("payments/{paymentId:int}")]
+    public async Task<ActionResult<ApiResponse<PaymentDetailsDto>>> GetPayment(int paymentId)
     {
-        try
-        {
-            _currentUserService.RequireAdmin();
-            var adminId = int.Parse(_currentUserService.GetUserId());
-            var result = await _adminPaymentService.GetPaymentAsync(adminId, id);
+        _currentUserService.RequireAdmin();
+        var userId = int.Parse(_currentUserService.GetUserId());
 
-            if (!result.Success)
-            {
-                return BadRequest(result);
-            }
-            return Ok(result);
-        }
-        catch (UnauthorizedAccessException ex)
+        var response = await _adminPaymentService.GetPaymentAsync(userId, paymentId);
+        if (!response.Success)
         {
-            return StatusCode(StatusCodes.Status403Forbidden, ApiResponse<PaymentDetailsDto>.FailureResponse(ex.Message));
+            return NotFound(response);
         }
-        catch (Exception ex)
-        {
-            return BadRequest(ApiResponse<PaymentDetailsDto>.FailureResponse(ex.Message));
-        }
+
+        return Ok(response);
     }
 
-    /*
-     * AD06: Đối soát trạng thái thanh toán
-     */
-    [HttpPost("{id:int}/verify")]
-    public async Task<ActionResult<ApiResponse<VerifyPaymentResultDto>>> Verify(int id)
+    [HttpPost("payments/{paymentId:int}/verify")]
+    public async Task<ActionResult<ApiResponse<VerifyPaymentResultDto>>> VerifyPayment(int paymentId)
     {
-        try
-        {
-            _currentUserService.RequireAdmin();
-            var adminId = int.Parse(_currentUserService.GetUserId());
-            var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
+        _currentUserService.RequireAdmin();
+        var userId = int.Parse(_currentUserService.GetUserId());
+        var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
 
-            var result = await _adminPaymentService.VerifyPaymentAsync(adminId, id, ip);
-            if (!result.Success)
-            {
-                return BadRequest(result);
-            }
-            return Ok(result);
-        }
-        catch (UnauthorizedAccessException ex)
+        var response = await _adminPaymentService.VerifyPaymentAsync(userId, paymentId, ipAddress);
+        if (!response.Success)
         {
-            return StatusCode(StatusCodes.Status403Forbidden, ApiResponse<VerifyPaymentResultDto>.FailureResponse(ex.Message));
+            return NotFound(response);
         }
-        catch (Exception ex)
-        {
-            return BadRequest(ApiResponse<VerifyPaymentResultDto>.FailureResponse(ex.Message));
-        }
+
+        return Ok(response);
     }
 
-    /*
-     * AD07: Truy vấn trực tiếp từ VNPay
-     */
-    [HttpPost("{id:int}/retrieve-from-vnpay")]
-    public async Task<ActionResult<ApiResponse<VnPayQueryResultDto>>> RetrieveFromVnPay(int id)
+    [HttpGet("payments/{paymentId:int}/vnpay-query")]
+    public async Task<ActionResult<ApiResponse<VnPayQueryResultDto>>> RetrieveVnPayInfo(int paymentId)
     {
-        try
-        {
-            _currentUserService.RequireAdmin();
-            var adminId = int.Parse(_currentUserService.GetUserId());
-            var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
+        _currentUserService.RequireAdmin();
+        var userId = int.Parse(_currentUserService.GetUserId());
+        var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
 
-            var result = await _adminPaymentService.RetrieveVnPayInformationAsync(adminId, id, ip);
-            if (!result.Success)
-            {
-                return BadRequest(result);
-            }
-            return Ok(result);
-        }
-        catch (UnauthorizedAccessException ex)
+        var response = await _adminPaymentService.RetrieveVnPayInformationAsync(userId, paymentId, ipAddress);
+        if (!response.Success)
         {
-            return StatusCode(StatusCodes.Status403Forbidden, ApiResponse<VnPayQueryResultDto>.FailureResponse(ex.Message));
+            return NotFound(response);
         }
-        catch (Exception ex)
-        {
-            return BadRequest(ApiResponse<VnPayQueryResultDto>.FailureResponse(ex.Message));
-        }
+
+        return Ok(response);
     }
 
-    /*
-     * LUỒNG 2: Admin thu hồi hoặc hoàn tiền khóa học đã mua
-     */
     [HttpPost("enrollments/{enrollmentId:int}/revoke")]
     public async Task<ActionResult<ApiResponse<bool>>> RevokeEnrollment(int enrollmentId, [FromBody] RevokeEnrollmentRequest request)
     {
-        try
-        {
-            _currentUserService.RequireAdmin();
-            var result = await _enrollmentService.RevokeEnrollmentByAdminAsync(enrollmentId, request);
+        _currentUserService.RequireAdmin();
 
-            if (!result.Success)
-            {
-                return BadRequest(result);
-            }
+        var response = await _enrollmentService.RevokeEnrollmentByAdminAsync(enrollmentId, request);
+        if (!response.Success)
+        {
+            return BadRequest(response);
+        }
 
-            return Ok(result);
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            return StatusCode(StatusCodes.Status403Forbidden, ApiResponse<bool>.FailureResponse(ex.Message));
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(ApiResponse<bool>.FailureResponse(ex.Message));
-        }
+        return Ok(response);
     }
 }
