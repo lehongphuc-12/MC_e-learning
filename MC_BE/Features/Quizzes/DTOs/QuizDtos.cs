@@ -180,13 +180,14 @@ public class SubmitQuizAnswerRequest
 
     public int? SelectedChoiceId { get; set; }
 }
+
 public class QuizResultDto
 {
     public int AttemptId { get; set; }
 
     public int QuizId { get; set; }
 
-    public int UserId { get; set; }
+    public string QuizTitle { get; set; } = string.Empty;
 
     public int AttemptNumber { get; set; }
 
@@ -196,15 +197,27 @@ public class QuizResultDto
 
     public bool IsPassed { get; set; }
 
-    public QuizAttemptStatus ResultStatus { get; set; }
-
-    public int TotalQuestions { get; set; }
-
-    public int CorrectAnswers { get; set; }
-
-    public int WrongAnswers { get; set; }
-
     public DateTime StartedAt { get; set; }
 
-    public DateTime SubmittedAt { get; set; }
+    public DateTime? SubmittedAt { get; set; }
+
+    public List<QuizAnswerResultDto> Answers { get; set; } = new();
+}
+
+
+public class QuizAnswerResultDto
+{
+    public int QuestionId { get; set; }
+
+    public string QuestionText { get; set; } = string.Empty;
+
+    public int? SelectedChoiceId { get; set; }
+
+    public string? SelectedChoiceText { get; set; }
+
+    public int? CorrectChoiceId { get; set; }
+
+    public string? CorrectChoiceText { get; set; }
+
+    public bool IsCorrect { get; set; }
 }

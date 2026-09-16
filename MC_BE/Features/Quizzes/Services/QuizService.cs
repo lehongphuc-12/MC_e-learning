@@ -583,4 +583,124 @@ public async Task<QuizResultDto?> SubmitQuizAsync(
         SubmittedAt = attempt.SubmittedAt.Value
     };
 }
+public async Task<QuizResultDto?> GetQuizResultAsync(
+    int learnerId,
+    int quizId,
+    int attemptId)
+{
+    // =========================================================
+    // 1. Find attempt
+    // =========================================================
+
+    var attempt = await _context.QuizAttempts
+        .Include(a => a.Quiz)
+        .Include(a => a.QuizAnswers)
+            .ThenInclude(a => a.Question)
+        .Include(a => a.QuizAnswers)
+            .ThenInclude(a => a.SelectedChoice)
+        .FirstOrDefaultAsync(a =>
+            a.AttemptId == attemptId &&
+            a.QuizId == quizId &&
+            a.UserId == learnerId);
+
+    if (attempt is null)
+        throw new ArgumentException(
+            "Quiz attempt not found.");
+
+    // =========================================================
+    // 2. Check submitted
+    // =========================================================
+
+    if (!attempt.SubmittedAt.HasValue)
+        throw new ArgumentException(
+            "This quiz attempt has not been submitted yet.");
+
+    // =========================================================
+    // 3. Get correct choices
+    // =========================================================
+
+    var questionIds = attempt.QuizAnswers
+        .Select(a => a.QuestionId)
+        .ToList();
+
+    var correctChoices = await _context.Choices
+        .Where(c =>
+            questionIds.Contains(c.QuestionId) &&
+            c.IsCorrect)
+        .ToListAsync();
+
+    // =========================================================
+    // 4. Calculate result information
+    // =========================================================
+
+    var score = attempt.Score ?? 0;
+
+    var isPassed =
+        score >= attempt.Quiz.PassingScore;
+
+    // =========================================================
+    // 5. Map answers
+    // =========================================================
+
+    var answers = attempt.QuizAnswers
+        .OrderBy(a => a.Question.OrderIndex)
+        .Select(answer =>
+        {
+            var correctChoice = correctChoices
+                .FirstOrDefault(c =>
+                    c.QuestionId == answer.QuestionId);
+
+            return new QuizAnswerResultDto
+            {
+                QuestionId = answer.QuestionId,
+
+                QuestionText =
+                    answer.Question.QuestionText,
+
+                SelectedChoiceId =
+                    answer.SelectedChoiceId,
+
+                SelectedChoiceText =
+                    answer.SelectedChoice?.ChoiceText,
+
+                CorrectChoiceId =
+                    correctChoice?.ChoiceId,
+
+                CorrectChoiceText =
+                    correctChoice?.ChoiceText,
+
+                IsCorrect =
+                    answer.IsCorrect ?? false
+            };
+        })
+        .ToList();
+
+    // =========================================================
+    // 6. Return result
+    // =========================================================
+
+    return new QuizResultDto
+    {
+        AttemptId = attempt.AttemptId,
+
+        QuizId = attempt.QuizId,
+
+        QuizTitle = attempt.Quiz.Title,
+
+        AttemptNumber = attempt.AttemptNumber,
+
+        Score = score,
+
+        PassingScore =
+            attempt.Quiz.PassingScore,
+
+        IsPassed = isPassed,
+
+        StartedAt = attempt.StartedAt,
+
+        SubmittedAt = attempt.SubmittedAt,
+
+        Answers = answers
+    };
+}
 }

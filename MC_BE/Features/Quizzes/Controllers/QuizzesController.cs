@@ -294,4 +294,57 @@ public async Task<ActionResult<ApiResponse<QuizResultDto>>> SubmitQuiz(
                 ex.Message));
     }
 }
+// =============================================================
+// GET /api/quizzes/{quizId}/result/{attemptId}
+// View quiz result
+// =============================================================
+
+[HttpGet("{quizId}/result/{attemptId}")]
+[Authorize(Roles = "Learner")]
+public async Task<ActionResult<ApiResponse<QuizResultDto>>> GetQuizResult(
+    int quizId,
+    int attemptId)
+{
+    var learnerId = GetCurrentUserId();
+
+    if (learnerId is null)
+    {
+        return Unauthorized(
+            ApiResponse<QuizResultDto>.FailureResponse(
+                "Unauthorized."));
+    }
+
+    try
+    {
+        var result = await _quizService.GetQuizResultAsync(
+            learnerId.Value,
+            quizId,
+            attemptId);
+
+        if (result is null)
+        {
+            return NotFound(
+                ApiResponse<QuizResultDto>.FailureResponse(
+                    "Quiz result not found."));
+        }
+
+        return Ok(
+            ApiResponse<QuizResultDto>.SuccessResponse(
+                result,
+                "Quiz result loaded successfully."));
+    }
+    catch (ArgumentException ex)
+    {
+        return BadRequest(
+            ApiResponse<QuizResultDto>.FailureResponse(
+                ex.Message));
+    }
+    catch
+    {
+        return StatusCode(
+            StatusCodes.Status500InternalServerError,
+            ApiResponse<QuizResultDto>.FailureResponse(
+                "Unable to load quiz result. Please try again later."));
+    }
+}
 }

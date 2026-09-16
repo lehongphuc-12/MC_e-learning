@@ -7,7 +7,7 @@ public interface IQuizService
     Task<QuizDto?> CreateQuizAsync(
         int instructorId,
         CreateQuizRequest request);
-        
+
         Task<QuizDto?> GetQuizByIdAsync(
         int quizId);    
 
@@ -24,4 +24,8 @@ public interface IQuizService
         int learnerId,
         int quizId,
         SubmitQuizRequest request);
+    Task<QuizResultDto?> GetQuizResultAsync(
+        int learnerId,
+        int quizId,
+        int attemptId);
 }
