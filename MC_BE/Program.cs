@@ -1,5 +1,6 @@
 using System.Text;
 using MC_BE.Data;
+using MC_BE.Features.EnrollmentPayment;
 using MC_BE.Helpers;
 using MC_BE.Middleware;
 using MC_BE.Models.Entities;
@@ -23,6 +24,9 @@ builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection(
 // Configure Email Settings
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
 
+// Configure VNPay Settings (Phần của Vy)
+builder.Services.Configure<VnPaySettings>(builder.Configuration.GetSection("VnPay"));
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
@@ -36,16 +40,27 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+builder.Services.AddHttpContextAccessor();
 
-// Register Auth & Profile Services
+// Register Auth & Profile Services (Của bạn bạn)
 builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserProfileService, UserProfileService>();
 
-// Register Email & Cloudinary Services
+// Register Email & Cloudinary Services (Của bạn bạn)
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
+
+// Register Course Enrollment & Payment Services (Phần của Vy: LE02, LE03, AD06, AD07)
+builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+builder.Services.AddScoped<ICourseCatalogService, MockCourseCatalogService>();
+builder.Services.AddScoped<IEnrollmentService, EnrollmentService>();
+builder.Services.AddScoped<IPaymentService, PaymentService>();
+builder.Services.AddScoped<IAdminPaymentService, AdminPaymentService>();
+builder.Services.AddHttpClient<IVnPayService, VnPayService>();
+builder.Services.AddHostedService<EnrollmentExpirationWorker>();
+
 
 // Configure JWT Authentication
 var secretKey = builder.Configuration["Jwt:Secret"] ?? throw new InvalidOperationException("JWT Secret not found.");
