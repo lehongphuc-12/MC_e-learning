@@ -1,3 +1,4 @@
+using System;
 using MC_BE.Core.Entities;
 using MC_BE.Core.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -10,6 +11,7 @@ public class SmartMcDbContext : DbContext
     {
     }
 
+    // Section 1: Auth & User
     public DbSet<Role> Roles { get; set; } = null!;
     public DbSet<User> Users { get; set; } = null!;
     public DbSet<UserProfile> UserProfiles { get; set; } = null!;
@@ -40,13 +42,12 @@ public class SmartMcDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
-        // Role configuration
+        // Section 1: Auth & User
         modelBuilder.Entity<Role>(entity =>
         {
             entity.HasIndex(e => e.RoleName).IsUnique();
         });
 
-        // User configuration
         modelBuilder.Entity<User>(entity =>
         {
             entity.HasIndex(e => e.Email).IsUnique();
@@ -60,7 +61,6 @@ public class SmartMcDbContext : DbContext
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
-        // UserProfile configuration
         modelBuilder.Entity<UserProfile>(entity =>
         {
             entity.HasIndex(e => e.UserId).IsUnique();
@@ -72,7 +72,6 @@ public class SmartMcDbContext : DbContext
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
-        // PasswordResetToken configuration
         modelBuilder.Entity<PasswordResetToken>(entity =>
         {
             entity.HasIndex(e => e.Token);
@@ -84,7 +83,6 @@ public class SmartMcDbContext : DbContext
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
-        // RefreshToken configuration
         modelBuilder.Entity<RefreshToken>(entity =>
         {
             entity.HasIndex(e => e.Token);
@@ -96,9 +94,7 @@ public class SmartMcDbContext : DbContext
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
-        // =========================================================
-        // Section 2: Course & Learning Configuration
-        // =========================================================
+        // Section 2: Course & Learning
         modelBuilder.Entity<Category>(entity =>
         {
             entity.Property(e => e.Status)
@@ -109,16 +105,11 @@ public class SmartMcDbContext : DbContext
         modelBuilder.Entity<Course>(entity =>
         {
             entity.HasIndex(e => e.Slug).IsUnique();
-
             entity.Property(e => e.Price).HasDefaultValue(0.00m);
-
-            entity.Property(e => e.Level)
-                .HasConversion<string>();
-
+            entity.Property(e => e.Level).HasConversion<string>();
             entity.Property(e => e.Status)
                 .HasConversion<string>()
                 .HasDefaultValue(CourseStatus.DRAFT);
-
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
 
@@ -147,17 +138,13 @@ public class SmartMcDbContext : DbContext
 
         modelBuilder.Entity<Lesson>(entity =>
         {
-            entity.Property(e => e.LessonType)
-                .HasConversion<string>();
-
+            entity.Property(e => e.LessonType).HasConversion<string>();
             entity.Property(e => e.OrderIndex).HasDefaultValue(1);
             entity.Property(e => e.DurationMinutes).HasDefaultValue(0);
             entity.Property(e => e.IsPreview).HasDefaultValue(false);
-
             entity.Property(e => e.Status)
                 .HasConversion<string>()
                 .HasDefaultValue(LessonStatus.ACTIVE);
-
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
 
             entity.HasOne(d => d.Course)
@@ -173,9 +160,7 @@ public class SmartMcDbContext : DbContext
 
         modelBuilder.Entity<CourseMaterial>(entity =>
         {
-            entity.Property(e => e.MaterialType)
-                .HasConversion<string>();
-
+            entity.Property(e => e.MaterialType).HasConversion<string>();
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
 
             entity.HasOne(d => d.Course)
@@ -194,37 +179,48 @@ public class SmartMcDbContext : DbContext
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        // ENROLLMENT CONFIGURATION
         modelBuilder.Entity<Enrollment>(entity =>
         {
-            entity.HasIndex(e => new { e.UserId, e.CourseId }).IsUnique();
+            entity.ToTable("ENROLLMENT");
 
-            entity.Property(e => e.EnrollmentDate).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasKey(e => e.EnrollmentId);
 
-            entity.Property(e => e.Status)
-                .HasConversion<string>()
-                .HasDefaultValue(EnrollmentStatus.ACTIVE);
+            entity.HasIndex(e => new
+            {
+                e.LearnerId,
+                e.CourseId,
+                e.Status
+            });
 
-            entity.Property(e => e.ProgressPercent).HasDefaultValue(0.00m);
+            entity.HasIndex(e => e.PaymentId);
+            entity.Property(e => e.Status).HasDefaultValue("PENDING_PAYMENT");
+            entity.Property(e => e.CompletionPercentage).HasDefaultValue(0);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
 
-            entity.HasOne(d => d.User)
-                .WithMany(p => p.Enrollments)
-                .HasForeignKey(d => d.UserId)
+            entity.HasOne(e => e.Learner)
+                .WithMany("Enrollments")
+                .HasForeignKey(e => e.LearnerId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(e => e.Course)
+                .WithMany(c => c.Enrollments)
+                .HasForeignKey(e => e.CourseId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            entity.HasOne(d => d.Course)
-                .WithMany(p => p.Enrollments)
-                .HasForeignKey(d => d.CourseId)
-                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Payment)
+                .WithOne(p => p.Enrollment)
+                .HasForeignKey<Payment>(p => p.EnrollmentId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<LessonProgress>(entity =>
         {
             entity.HasIndex(e => new { e.EnrollmentId, e.LessonId }).IsUnique();
-
             entity.Property(e => e.Status)
                 .HasConversion<string>()
                 .HasDefaultValue(LessonProgressStatus.NOT_STARTED);
-
             entity.Property(e => e.TimeSpentMinutes).HasDefaultValue(0);
 
             entity.HasOne(d => d.Enrollment)
@@ -238,58 +234,80 @@ public class SmartMcDbContext : DbContext
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
-        // =========================================================
         // Section 3: Payment Configuration
-        // =========================================================
         modelBuilder.Entity<Payment>(entity =>
         {
-            entity.Property(e => e.PaymentMethod)
-                .HasConversion<string>();
+            entity.ToTable("PAYMENT");
 
-            entity.Property(e => e.PaymentStatus)
-                .HasConversion<string>()
-                .HasDefaultValue(PaymentStatus.PENDING);
+            entity.HasKey(e => e.PaymentId);
 
+            entity.HasIndex(e => e.MerchantTxnRef).IsUnique();
+            entity.HasIndex(e => e.LearnerId);
+            entity.HasIndex(e => e.CourseId);
+            entity.HasIndex(e => e.EnrollmentId);
+            entity.HasIndex(e => e.Status);
+
+            entity.Property(e => e.Currency).HasDefaultValue("VND");
+            entity.Property(e => e.PaymentMethod).HasDefaultValue("VNPAY");
+            entity.Property(e => e.Status).HasDefaultValue("PENDING");
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
 
-            entity.HasOne(d => d.User)
-                .WithMany(p => p.Payments)
-                .HasForeignKey(d => d.UserId)
+            entity.HasOne(e => e.Learner)
+                .WithMany("Payments")
+                .HasForeignKey(e => e.LearnerId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            entity.HasOne(d => d.Enrollment)
-                .WithMany(p => p.Payments)
-                .HasForeignKey(d => d.EnrollmentId)
+            entity.HasOne(e => e.Course)
+                .WithMany()
+                .HasForeignKey(e => e.CourseId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(e => e.Enrollment)
+                .WithOne(en => en.Payment)
+                .HasForeignKey<Payment>(p => p.EnrollmentId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        // PAYMENT_TRANSACTION CONFIGURATION
         modelBuilder.Entity<PaymentTransaction>(entity =>
         {
-            entity.Property(e => e.TransactionStatus)
-                .HasConversion<string>()
-                .HasDefaultValue(TransactionStatus.PENDING);
+            entity.ToTable("PAYMENT_TRANSACTION");
 
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasKey(e => e.TransactionId);
 
-            entity.HasOne(d => d.Payment)
+            entity.Property(e => e.TransactionId).HasColumnName("TransactionID");
+            entity.Property(e => e.PaymentId).HasColumnName("PaymentID");
+            entity.Property(e => e.Provider).HasColumnName("Provider").HasDefaultValue("VNPAY");
+            entity.Property(e => e.ProviderTransactionNo).HasColumnName("ProviderTransactionNo");
+            entity.Property(e => e.ResponseCode).HasColumnName("ResponseCode");
+            entity.Property(e => e.TransactionStatus).HasColumnName("TransactionStatus");
+            entity.Property(e => e.BankCode).HasColumnName("BankCode");
+            entity.Property(e => e.Amount).HasColumnName("Amount");
+            entity.Property(e => e.Status).HasColumnName("Status").HasDefaultValue("PENDING");
+            entity.Property(e => e.SignatureValid).HasColumnName("SignatureValid");
+            entity.Property(e => e.ProcessedAt).HasColumnName("ProcessedAt");
+            entity.Property(e => e.CreatedAt).HasColumnName("CreatedAt").HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasIndex(e => e.PaymentId);
+            entity.HasIndex(e => e.ProviderTransactionNo);
+            entity.HasIndex(e => e.Status);
+
+            entity.HasOne(e => e.Payment)
                 .WithMany(p => p.Transactions)
-                .HasForeignKey(d => d.PaymentId)
+                .HasForeignKey(e => e.PaymentId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
-        // =========================================================
         // Section 4: Quiz & Assessment Configuration
-        // =========================================================
         modelBuilder.Entity<Quiz>(entity =>
         {
             entity.Property(e => e.TimeLimitMinutes).HasDefaultValue(0);
             entity.Property(e => e.PassingScore).HasDefaultValue(80.00m);
             entity.Property(e => e.MaxAttempts).HasDefaultValue(1);
-
             entity.Property(e => e.Status)
                 .HasConversion<string>()
                 .HasDefaultValue(QuizStatus.ACTIVE);
-
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
 
             entity.HasOne(d => d.Course)
@@ -310,9 +328,7 @@ public class SmartMcDbContext : DbContext
 
         modelBuilder.Entity<Question>(entity =>
         {
-            entity.Property(e => e.QuestionType)
-                .HasConversion<string>();
-
+            entity.Property(e => e.QuestionType).HasConversion<string>();
             entity.Property(e => e.OrderIndex).HasDefaultValue(1);
 
             entity.HasOne(d => d.Quiz)
@@ -335,10 +351,7 @@ public class SmartMcDbContext : DbContext
         modelBuilder.Entity<QuizAttempt>(entity =>
         {
             entity.Property(e => e.AttemptNumber).HasDefaultValue(1);
-
-            entity.Property(e => e.ResultStatus)
-                .HasConversion<string>();
-
+            entity.Property(e => e.ResultStatus).HasConversion<string>();
             entity.Property(e => e.StartedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
 
             entity.HasOne(d => d.Quiz)

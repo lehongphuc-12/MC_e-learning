@@ -1,14 +1,16 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using MC_BE.Core.Entities;
 using MC_BE.Features.Admin.Services;
 using MC_BE.Features.Admin.Services.Interfaces;
 using MC_BE.Features.Auth.Services;
 using MC_BE.Features.Auth.Services.Interfaces;
-using MC_BE.Features.Users.Services;
-using MC_BE.Features.Users.Services.Interfaces;
-// FE:03 Course Management — new services
 using MC_BE.Features.Courses.Services;
 using MC_BE.Features.Courses.Services.Interfaces;
+using MC_BE.Features.Users.Services;
+using MC_BE.Features.Users.Services.Interfaces;
 using MC_BE.Shared.Data;
 using MC_BE.Shared.Middleware;
 using MC_BE.Shared.Repositories;
@@ -17,7 +19,12 @@ using MC_BE.Shared.Services;
 using MC_BE.Shared.Services.Interfaces;
 using MC_BE.Shared.Settings;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 // 08.Quiz Management
@@ -26,15 +33,14 @@ using MC_BE.Features.Quizzes.Services.Interfaces;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// Add DbContext
 builder.Services.AddDbContext<SmartMcDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// Configure Cloudinary Settings
+// Configure Settings
 builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection("Cloudinary"));
-
-// Configure Email Settings
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
+builder.Services.Configure<VnPaySettings>(builder.Configuration.GetSection("VnPay"));
 
 builder.Services.AddCors(options =>
 {
@@ -49,6 +55,7 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+builder.Services.AddHttpContextAccessor();
 
 // Register Auth, User, Admin & Profile Services
 builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
@@ -58,7 +65,7 @@ builder.Services.AddScoped<IUserProfileService, UserProfileService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 
-// FE:03 Course Management Services
+// Course Management Services
 builder.Services.AddScoped<ICourseService, CourseService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<IModuleService, ModuleService>();
@@ -70,6 +77,15 @@ builder.Services.AddScoped<IQuizService, QuizService>();
 // Register Email & Cloudinary Services
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
+
+// Register Course Enrollment & Payment Services
+builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+builder.Services.AddScoped<ICourseCatalogService, MockCourseCatalogService>();
+builder.Services.AddScoped<IEnrollmentService, EnrollmentService>();
+builder.Services.AddScoped<IPaymentService, PaymentService>();
+builder.Services.AddScoped<IAdminPaymentService, AdminPaymentService>();
+builder.Services.AddHttpClient<IVnPayService, VnPayService>();
+builder.Services.AddHostedService<EnrollmentExpirationWorker>();
 
 // Configure JWT Authentication
 var secretKey = builder.Configuration["Jwt:Secret"] ?? throw new InvalidOperationException("JWT Secret not found.");
@@ -97,16 +113,14 @@ builder.Services.AddControllers()
     {
         options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
     });
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
 
+builder.Services.AddOpenApi();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "MC E-Learning API", Version = "v1" });
     c.CustomSchemaIds(x => x.FullName?.Replace("+", "."));
 
-    // Configure JWT Authentication for Swagger
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Description = "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\"",
@@ -137,7 +151,6 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// Global Exception Handling Middleware
 app.UseMiddleware<GlobalExceptionMiddleware>();
 
 // Seed roles
@@ -146,7 +159,6 @@ using (var scope = app.Services.CreateScope())
     var context = scope.ServiceProvider.GetRequiredService<SmartMcDbContext>();
     try
     {
-        // Automatically apply any pending migrations
         context.Database.Migrate();
 
         if (!context.Roles.Any())
@@ -161,11 +173,10 @@ using (var scope = app.Services.CreateScope())
     }
     catch (Exception)
     {
-        // Suppress or log migration seeding errors
+        // Suppress migration errors
     }
 }
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();

@@ -1,6 +1,6 @@
+using System;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using MC_BE.Core.Enums;
 
 namespace MC_BE.Core.Entities;
 
@@ -18,32 +18,44 @@ public class PaymentTransaction
 
     [Required]
     [MaxLength(50)]
-    [Column("GatewayName")]
-    public string GatewayName { get; set; } = string.Empty;
+    [Column("Provider")]
+    public string Provider { get; set; } = "VNPAY";
 
     [MaxLength(100)]
-    [Column("GatewayTransactionCode")]
-    public string? GatewayTransactionCode { get; set; }
+    [Column("ProviderTransactionNo")]
+    public string? ProviderTransactionNo { get; set; }
 
     [MaxLength(50)]
     [Column("ResponseCode")]
     public string? ResponseCode { get; set; }
 
-    [MaxLength(20)]
+    [MaxLength(50)]
+    [Column("TransactionStatus")]
+    public string? TransactionStatus { get; set; }
+
+    [MaxLength(50)]
     [Column("BankCode")]
     public string? BankCode { get; set; }
 
     [Required]
-    [Column("TransactionAmount", TypeName = "decimal(10,2)")]
-    public decimal TransactionAmount { get; set; }
+    [Column("Amount", TypeName = "numeric(18,2)")]
+    public decimal Amount { get; set; }
 
-    [Column("TransactionStatus")]
-    public TransactionStatus TransactionStatus { get; set; } = TransactionStatus.PENDING;
+    [Required]
+    [MaxLength(50)]
+    [Column("Status")]
+    public string Status { get; set; } = "PENDING";
+
+    [Column("SignatureValid")]
+    public bool SignatureValid { get; set; }
+
+    [Column("ProcessedAt")]
+    public DateTime? ProcessedAt { get; set; }
 
     [Column("CreatedAt")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-    // Navigation properties
-    [ForeignKey("PaymentId")]
+    // Navigation property
+    [ForeignKey(nameof(PaymentId))]
     public virtual Payment Payment { get; set; } = null!;
 }
