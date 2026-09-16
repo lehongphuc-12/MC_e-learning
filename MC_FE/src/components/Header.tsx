@@ -2,7 +2,6 @@ import {
   BookOpen,
   ChevronDown,
   Heart,
-  LayoutDashboard,
   LogOut,
   Menu,
   Mic2,
@@ -11,11 +10,9 @@ import {
   Sparkles,
   UserCircle,
   UserPlus,
-  X,
-  Shield,
+  X
 } from 'lucide-react';
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Course, ScreenType, User } from '../types';
 
 interface HeaderProps {
@@ -42,7 +39,6 @@ export const Header: React.FC<HeaderProps> = ({
   searchQuery,
   onSearchChange,
 }) => {
-  const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isScreenMenuOpen, setIsScreenMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
@@ -198,30 +194,6 @@ export const Header: React.FC<HeaderProps> = ({
                 >
                   Course Detail
                 </button>
-                {user?.role === 'admin' && (
-                  <button
-                    id="nav-admin-btn"
-                    onClick={() => onNavigate('admin')}
-                    className={`px-3.5 py-2 rounded-lg text-sm font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
-                      currentScreen === 'admin'
-                        ? 'text-purple-700 bg-purple-100 font-extrabold ring-1 ring-purple-300'
-                        : 'text-purple-700 hover:text-purple-900 hover:bg-purple-50'
-                    }`}
-                  >
-                    <Shield className="w-4 h-4 text-purple-600" />
-                    <span>Admin Dashboard</span>
-                  </button>
-                )}
-                {user?.role === 'instructor' && (
-                  <button
-                    id="nav-instructor-dashboard-btn"
-                    onClick={() => navigate('/instructor/courses')}
-                    className="px-3.5 py-2 rounded-lg text-sm font-bold transition-colors cursor-pointer flex items-center gap-1.5 text-emerald-700 hover:text-emerald-900 hover:bg-emerald-50"
-                  >
-                    <LayoutDashboard className="w-4 h-4 text-emerald-600" />
-                    <span>My Courses</span>
-                  </button>
-                )}
               </nav>
             </div>
 
@@ -306,32 +278,6 @@ export const Header: React.FC<HeaderProps> = ({
                         <p className="text-xs font-bold text-slate-900">{user.name}</p>
                         <p className="text-[11px] text-slate-500">{user.email}</p>
                       </div>
-                      {user.role === 'admin' && (
-                        <button
-                          id="dropdown-admin-btn"
-                          onClick={() => {
-                            onNavigate('admin');
-                            setIsUserMenuOpen(false);
-                          }}
-                          className="w-full text-left px-4 py-2 text-xs font-bold text-purple-700 bg-purple-50/80 hover:bg-purple-100 flex items-center gap-2 cursor-pointer border-b border-purple-100"
-                        >
-                          <Shield className="w-4 h-4 text-purple-600" />
-                          <span>Admin Dashboard</span>
-                        </button>
-                      )}
-                      {user.role === 'instructor' && (
-                        <button
-                          id="dropdown-instructor-dashboard-btn"
-                          onClick={() => {
-                            navigate('/instructor/courses');
-                            setIsUserMenuOpen(false);
-                          }}
-                          className="w-full text-left px-4 py-2 text-xs font-bold text-emerald-700 bg-emerald-50/80 hover:bg-emerald-100 flex items-center gap-2 cursor-pointer border-b border-emerald-100"
-                        >
-                          <LayoutDashboard className="w-4 h-4 text-emerald-600" />
-                          <span>My Courses Dashboard</span>
-                        </button>
-                      )}
                       <button
                         onClick={() => {
                           onNavigate('profile');
@@ -420,31 +366,6 @@ export const Header: React.FC<HeaderProps> = ({
                 className="w-full pl-3 pr-3 py-2 text-xs bg-slate-100 rounded-lg"
               />
             </div>
-            {user?.role === 'admin' && (
-              <button
-                onClick={() => {
-                  onNavigate('admin');
-                  setIsMobileMenuOpen(false);
-                }}
-                className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2.5 bg-purple-50 text-purple-700 border border-purple-200"
-              >
-                <span>🛡️</span>
-                <span>Admin Dashboard</span>
-              </button>
-            )}
-            {user?.role === 'instructor' && (
-              <button
-                id="mobile-instructor-dashboard-btn"
-                onClick={() => {
-                  navigate('/instructor/courses');
-                  setIsMobileMenuOpen(false);
-                }}
-                className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2.5 bg-emerald-50 text-emerald-700 border border-emerald-200"
-              >
-                <span>📚</span>
-                <span>My Courses Dashboard</span>
-              </button>
-            )}
             {screensList.map((screen) => (
               <button
                 key={screen.id}
