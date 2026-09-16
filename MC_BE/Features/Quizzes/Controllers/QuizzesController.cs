@@ -214,4 +214,84 @@ public async Task<ActionResult<ApiResponse<QuizDto>>> UpdateQuiz(
                 "Unable to update quiz. Please try again later."));
     }
 }
+[HttpGet("{quizId}/take")]
+[Authorize(Roles = "Learner")]
+public async Task<ActionResult<ApiResponse<TakeQuizDto>>> TakeQuiz(
+    int quizId)
+{
+    var learnerId = GetCurrentUserId();
+
+    if (learnerId is null)
+    {
+        return Unauthorized(
+            ApiResponse<TakeQuizDto>.FailureResponse(
+                "Unauthorized."));
+    }
+
+    try
+    {
+        var result = await _quizService.TakeQuizAsync(
+            learnerId.Value,
+            quizId);
+
+        if (result is null)
+        {
+            return NotFound(
+                ApiResponse<TakeQuizDto>.FailureResponse(
+                    "Quiz not found."));
+        }
+
+        return Ok(
+            ApiResponse<TakeQuizDto>.SuccessResponse(
+                result,
+                "Quiz loaded successfully."));
+    }
+    catch (ArgumentException ex)
+    {
+        return BadRequest(
+            ApiResponse<TakeQuizDto>.FailureResponse(
+                ex.Message));
+    }
+}
+[HttpPost("{quizId}/submit")]
+[Authorize(Roles = "Learner")]
+public async Task<ActionResult<ApiResponse<QuizResultDto>>> SubmitQuiz(
+    int quizId,
+    [FromBody] SubmitQuizRequest request)
+{
+    var learnerId = GetCurrentUserId();
+
+    if (learnerId is null)
+    {
+        return Unauthorized(
+            ApiResponse<QuizResultDto>.FailureResponse(
+                "Unauthorized."));
+    }
+
+    try
+    {
+        var result = await _quizService.SubmitQuizAsync(
+            learnerId.Value,
+            quizId,
+            request);
+
+        if (result is null)
+        {
+            return NotFound(
+                ApiResponse<QuizResultDto>.FailureResponse(
+                    "Quiz attempt not found."));
+        }
+
+        return Ok(
+            ApiResponse<QuizResultDto>.SuccessResponse(
+                result,
+                "Quiz submitted successfully."));
+    }
+    catch (ArgumentException ex)
+    {
+        return BadRequest(
+            ApiResponse<QuizResultDto>.FailureResponse(
+                ex.Message));
+    }
+}
 }

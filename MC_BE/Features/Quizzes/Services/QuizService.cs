@@ -384,4 +384,203 @@ public class QuizService : IQuizService
     // 5. Return updated quiz
     return await GetQuizByIdAsync(quizId);
 }
+public async Task<TakeQuizDto?> TakeQuizAsync(
+    int learnerId,
+    int quizId)
+{
+    // 1. Find quiz
+    var quiz = await _context.Quizzes
+        .Include(q => q.Questions)
+            .ThenInclude(q => q.Choices)
+        .FirstOrDefaultAsync(q => q.QuizId == quizId);
+
+    if (quiz is null)
+        throw new ArgumentException(
+            $"Quiz with ID {quizId} not found.");
+
+    // 2. Check quiz status
+    if (quiz.Status != QuizStatus.ACTIVE)
+        throw new ArgumentException(
+            "This quiz is not available.");
+
+    // 3. Count attempts
+    var attemptCount = await _context.QuizAttempts
+        .CountAsync(a =>
+            a.QuizId == quizId &&
+            a.UserId == learnerId);
+
+    if (attemptCount >= quiz.MaxAttempts)
+        throw new ArgumentException(
+            "You have reached the maximum number of attempts.");
+
+    // 4. Create new attempt
+    var attempt = new QuizAttempt
+    {
+        QuizId = quizId,
+        UserId = learnerId,
+        AttemptNumber = attemptCount + 1,
+        StartedAt = DateTime.UtcNow
+    };
+
+    _context.QuizAttempts.Add(attempt);
+
+    await _context.SaveChangesAsync();
+
+    // 5. Map quiz for learner
+    return new TakeQuizDto
+    {
+        QuizId = quiz.QuizId,
+        Title = quiz.Title,
+        Description = quiz.Description,
+        TimeLimitMinutes = quiz.TimeLimitMinutes,
+        PassingScore = quiz.PassingScore,
+        MaxAttempts = quiz.MaxAttempts,
+        AttemptId = attempt.AttemptId,
+        AttemptNumber = attempt.AttemptNumber,
+        StartedAt = attempt.StartedAt,
+
+        Questions = quiz.Questions
+            .OrderBy(q => q.OrderIndex)
+            .Select(q => new TakeQuestionDto
+            {
+                QuestionId = q.QuestionId,
+                QuestionText = q.QuestionText,
+                QuestionType = q.QuestionType,
+                OrderIndex = q.OrderIndex,
+
+                Choices = q.Choices
+                    .OrderBy(c => c.OrderIndex)
+                    .Select(c => new TakeChoiceDto
+                    {
+                        ChoiceId = c.ChoiceId,
+                        ChoiceText = c.ChoiceText,
+                        OrderIndex = c.OrderIndex
+                    })
+                    .ToList()
+            })
+            .ToList()
+    };
+}
+public async Task<QuizResultDto?> SubmitQuizAsync(
+    int learnerId,
+    int quizId,
+    SubmitQuizRequest request)
+{
+    // 1. Find attempt
+    var attempt = await _context.QuizAttempts
+        .Include(a => a.Quiz)
+            .ThenInclude(q => q.Questions)
+                .ThenInclude(q => q.Choices)
+        .FirstOrDefaultAsync(a =>
+            a.AttemptId == request.AttemptId &&
+            a.QuizId == quizId &&
+            a.UserId == learnerId);
+
+    if (attempt is null)
+        throw new ArgumentException(
+            "Quiz attempt not found.");
+
+    // 2. Prevent submitting twice
+    if (attempt.SubmittedAt.HasValue)
+        throw new ArgumentException(
+            "This quiz attempt has already been submitted.");
+
+    // 3. Check time limit
+    if (attempt.Quiz.TimeLimitMinutes > 0)
+    {
+        var deadline = attempt.StartedAt
+            .AddMinutes(attempt.Quiz.TimeLimitMinutes);
+
+        if (DateTime.UtcNow > deadline)
+            throw new ArgumentException(
+                "The quiz time limit has expired.");
+    }
+
+    // 4. Validate questions and choices
+    foreach (var answer in request.Answers)
+    {
+        var question = attempt.Quiz.Questions
+            .FirstOrDefault(q => q.QuestionId == answer.QuestionId);
+
+        if (question is null)
+            throw new ArgumentException(
+                $"Question with ID {answer.QuestionId} does not belong to this quiz.");
+
+        if (answer.SelectedChoiceId.HasValue)
+        {
+            var choiceExists = question.Choices
+                .Any(c => c.ChoiceId == answer.SelectedChoiceId.Value);
+
+            if (!choiceExists)
+                throw new ArgumentException(
+                    $"Selected choice does not belong to question {answer.QuestionId}.");
+        }
+    }
+
+    // 5. Calculate score
+    var totalQuestions = attempt.Quiz.Questions.Count;
+    var correctAnswers = 0;
+
+    foreach (var question in attempt.Quiz.Questions)
+    {
+        var answer = request.Answers
+            .FirstOrDefault(a => a.QuestionId == question.QuestionId);
+
+        var selectedChoice = answer?.SelectedChoiceId;
+
+        var correctChoice = question.Choices
+            .FirstOrDefault(c => c.IsCorrect);
+
+        bool isCorrect =
+            selectedChoice.HasValue &&
+            correctChoice != null &&
+            selectedChoice.Value == correctChoice.ChoiceId;
+
+        if (isCorrect)
+            correctAnswers++;
+
+        var quizAnswer = new QuizAnswer
+        {
+            AttemptId = attempt.AttemptId,
+            QuestionId = question.QuestionId,
+            SelectedChoiceId = selectedChoice,
+            IsCorrect = isCorrect,
+            AnsweredAt = DateTime.UtcNow
+        };
+
+        _context.QuizAnswers.Add(quizAnswer);
+    }
+
+    // 6. Calculate score
+    decimal score = totalQuestions == 0
+        ? 0
+        : Math.Round(
+            (decimal)correctAnswers / totalQuestions * 100,
+            2);
+
+    // 7. Update attempt
+    attempt.Score = score;
+    attempt.ResultStatus =
+        score >= attempt.Quiz.PassingScore
+            ? QuizAttemptStatus.PASSED
+            : QuizAttemptStatus.FAILED;
+
+    attempt.SubmittedAt = DateTime.UtcNow;
+
+    await _context.SaveChangesAsync();
+
+    // 8. Return result
+    return new QuizResultDto
+    {
+        AttemptId = attempt.AttemptId,
+        QuizId = attempt.QuizId,
+        AttemptNumber = attempt.AttemptNumber,
+        Score = score,
+        PassingScore = attempt.Quiz.PassingScore,
+        IsPassed =
+            score >= attempt.Quiz.PassingScore,
+        StartedAt = attempt.StartedAt,
+        SubmittedAt = attempt.SubmittedAt.Value
+    };
+}
 }

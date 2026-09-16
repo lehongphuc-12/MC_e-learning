@@ -136,3 +136,75 @@ public class UpdateQuizRequest
 
     public QuizStatus Status { get; set; }
 }
+public class TakeQuizDto
+{
+    public int QuizId { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public int TimeLimitMinutes { get; set; }
+    public decimal PassingScore { get; set; }
+    public int MaxAttempts { get; set; }
+    public int AttemptId { get; set; }
+    public int AttemptNumber { get; set; }
+    public DateTime StartedAt { get; set; }
+    public List<TakeQuestionDto> Questions { get; set; } = new();
+}
+
+public class TakeQuestionDto
+{
+    public int QuestionId { get; set; }
+    public string QuestionText { get; set; } = string.Empty;
+    public QuestionType QuestionType { get; set; }
+    public int OrderIndex { get; set; }
+    public List<TakeChoiceDto> Choices { get; set; } = new();
+}
+
+public class TakeChoiceDto
+{
+    public int ChoiceId { get; set; }
+    public string ChoiceText { get; set; } = string.Empty;
+    public int OrderIndex { get; set; }
+}
+public class SubmitQuizRequest
+{
+    [Required]
+    public int AttemptId { get; set; }
+
+    public List<SubmitQuizAnswerRequest> Answers { get; set; } = new();
+}
+
+public class SubmitQuizAnswerRequest
+{
+    [Required]
+    public int QuestionId { get; set; }
+
+    public int? SelectedChoiceId { get; set; }
+}
+public class QuizResultDto
+{
+    public int AttemptId { get; set; }
+
+    public int QuizId { get; set; }
+
+    public int UserId { get; set; }
+
+    public int AttemptNumber { get; set; }
+
+    public decimal Score { get; set; }
+
+    public decimal PassingScore { get; set; }
+
+    public bool IsPassed { get; set; }
+
+    public QuizAttemptStatus ResultStatus { get; set; }
+
+    public int TotalQuestions { get; set; }
+
+    public int CorrectAnswers { get; set; }
+
+    public int WrongAnswers { get; set; }
+
+    public DateTime StartedAt { get; set; }
+
+    public DateTime SubmittedAt { get; set; }
+}
