@@ -346,4 +346,42 @@ public class QuizService : IQuizService
                 .ToList()
         };
     }
+    public async Task<QuizDto?> UpdateQuizAsync(
+    int instructorId,
+    int quizId,
+    UpdateQuizRequest request)
+{
+    // 1. Find quiz
+    var quiz = await _context.Quizzes
+        .Include(q => q.Questions)
+            .ThenInclude(q => q.Choices)
+        .FirstOrDefaultAsync(q => q.QuizId == quizId);
+
+    if (quiz is null)
+        throw new ArgumentException(
+            $"Quiz with ID {quizId} not found.");
+
+    // 2. Check permission
+    if (quiz.CreatedById != instructorId)
+        throw new UnauthorizedAccessException(
+            "You do not have permission to update this quiz.");
+
+    // 3. Validate title
+    if (string.IsNullOrWhiteSpace(request.Title))
+        throw new ArgumentException(
+            "Quiz title is required.");
+
+    // 4. Update quiz
+    quiz.Title = request.Title.Trim();
+    quiz.Description = request.Description?.Trim();
+    quiz.TimeLimitMinutes = request.TimeLimitMinutes;
+    quiz.PassingScore = request.PassingScore;
+    quiz.MaxAttempts = request.MaxAttempts;
+    quiz.Status = request.Status;
+
+    await _context.SaveChangesAsync();
+
+    // 5. Return updated quiz
+    return await GetQuizByIdAsync(quizId);
+}
 }

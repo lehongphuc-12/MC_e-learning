@@ -146,4 +146,72 @@ public async Task<ActionResult<ApiResponse<QuizDto>>> GetQuiz(int id)
                     "Unable to create quiz. Please try again later."));
         }
     }
+    [HttpPut("{quizId}")]
+[Authorize(Roles = "Instructor")]
+public async Task<ActionResult<ApiResponse<QuizDto>>> UpdateQuiz(
+    int quizId,
+    [FromBody] UpdateQuizRequest request)
+{
+    if (!ModelState.IsValid)
+    {
+        var errors = ModelState.Values
+            .SelectMany(v => v.Errors)
+            .Select(e => e.ErrorMessage)
+            .ToList();
+
+        return BadRequest(
+            ApiResponse<QuizDto>.FailureResponse(
+                "Validation failed.",
+                errors));
+    }
+
+    var instructorId = GetCurrentUserId();
+
+    if (instructorId is null)
+    {
+        return Unauthorized(
+            ApiResponse<QuizDto>.FailureResponse(
+                "Unauthorized."));
+    }
+
+    try
+    {
+        var updated = await _quizService.UpdateQuizAsync(
+            instructorId.Value,
+            quizId,
+            request);
+
+        if (updated is null)
+        {
+            return NotFound(
+                ApiResponse<QuizDto>.FailureResponse(
+                    "Quiz not found."));
+        }
+
+        return Ok(
+            ApiResponse<QuizDto>.SuccessResponse(
+                updated,
+                "Quiz updated successfully."));
+    }
+    catch (UnauthorizedAccessException ex)
+    {
+        return StatusCode(
+            StatusCodes.Status403Forbidden,
+            ApiResponse<QuizDto>.FailureResponse(
+                ex.Message));
+    }
+    catch (ArgumentException ex)
+    {
+        return BadRequest(
+            ApiResponse<QuizDto>.FailureResponse(
+                ex.Message));
+    }
+    catch
+    {
+        return StatusCode(
+            StatusCodes.Status500InternalServerError,
+            ApiResponse<QuizDto>.FailureResponse(
+                "Unable to update quiz. Please try again later."));
+    }
+}
 }

@@ -117,3 +117,22 @@ public class ChoiceDto
 
     public int OrderIndex { get; set; }
 }
+public class UpdateQuizRequest
+{
+    [Required(ErrorMessage = "Quiz title is required.")]
+    [MaxLength(255, ErrorMessage = "Quiz title cannot exceed 255 characters.")]
+    public string Title { get; set; } = string.Empty;
+
+    public string? Description { get; set; }
+
+    [Range(0, int.MaxValue, ErrorMessage = "Time limit must be 0 or greater.")]
+    public int TimeLimitMinutes { get; set; }
+
+    [Range(0, 100, ErrorMessage = "Passing score must be between 0 and 100.")]
+    public decimal PassingScore { get; set; }
+
+    [Range(1, int.MaxValue, ErrorMessage = "Max attempts must be at least 1.")]
+    public int MaxAttempts { get; set; }
+
+    public QuizStatus Status { get; set; }
+}

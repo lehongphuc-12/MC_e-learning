@@ -9,4 +9,8 @@ public interface IQuizService
         CreateQuizRequest request);
 
     Task<QuizDto?> GetQuizByIdAsync(int quizId);
+    Task<QuizDto?> UpdateQuizAsync(
+    int instructorId,
+    int quizId,
+    UpdateQuizRequest request);
 }
