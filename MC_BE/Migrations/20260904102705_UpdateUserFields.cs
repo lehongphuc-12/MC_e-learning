@@ -1,5 +1,4 @@
-using MC_BE.Shared.Data;
-using Microsoft.EntityFrameworkCore.Migrations;
+﻿using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
