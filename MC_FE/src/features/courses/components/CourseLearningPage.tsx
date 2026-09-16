@@ -49,6 +49,13 @@ export function getEmbedVideoUrl(url?: string): string | null {
     return `https://player.vimeo.com/video/${vimeoMatch[3]}?autoplay=1`;
   }
 
+  // Google Drive
+  const gdriveRegex = /drive\.google\.com\/file\/d\/([^\/]+)/;
+  const gdriveMatch = url.match(gdriveRegex);
+  if (gdriveMatch && gdriveMatch[1]) {
+    return `https://drive.google.com/file/d/${gdriveMatch[1]}/preview`;
+  }
+
   return url;
 }
 
@@ -268,10 +275,10 @@ export const CourseLearningPage: React.FC = () => {
               )}
 
               {embedUrl ? (
-                embedUrl.includes('youtube.com') || embedUrl.includes('vimeo.com') ? (
+                embedUrl.includes('youtube.com') || embedUrl.includes('vimeo.com') || embedUrl.includes('drive.google.com') ? (
                   <iframe
                     key={activeLesson?.lessonId}
-                    id="youtube-player-iframe"
+                    id="video-player-iframe"
                     src={embedUrl}
                     title={activeLesson?.title}
                     className="h-full w-full border-0"

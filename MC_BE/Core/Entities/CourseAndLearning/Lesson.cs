@@ -23,6 +23,7 @@ public class Lesson
     [MaxLength(255)]
     [Column("Title")]
     public string Title { get; set; } = string.Empty;
+    
 
     [Column("Description")]
     public string? Description { get; set; }

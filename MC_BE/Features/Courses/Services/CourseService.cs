@@ -2,7 +2,7 @@ using MC_BE.Core.Entities;
 using MC_BE.Core.Enums;
 using MC_BE.Features.Courses.DTOs;
 using MC_BE.Features.Courses.Services.Interfaces;
-using MC_BE.Shared.Data;
+using MC_BE.Shared.Repositories.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using System.Text.RegularExpressions;
 
@@ -10,17 +10,22 @@ namespace MC_BE.Features.Courses.Services;
 
 /// <summary>
 /// Implements all Course CRUD operations.
-/// Uses SmartMcDbContext directly (instead of the generic repository) because
-/// we need EF Core's Include() and complex LINQ filtering — the generic repo
-/// doesn't support that cleanly without breaking its abstraction.
+/// Uses GenericRepository and UnitOfWork to decouple service logic from DbContext.
 /// </summary>
 public class CourseService : ICourseService
 {
-    private readonly SmartMcDbContext _context;
+    private readonly IGenericRepository<Course> _courseRepository;
+    private readonly IGenericRepository<Category> _categoryRepository;
+    private readonly IUnitOfWork _unitOfWork;
 
-    public CourseService(SmartMcDbContext context)
+    public CourseService(
+        IGenericRepository<Course> courseRepository,
+        IGenericRepository<Category> categoryRepository,
+        IUnitOfWork unitOfWork)
     {
-        _context = context;
+        _courseRepository = courseRepository;
+        _categoryRepository = categoryRepository;
+        _unitOfWork = unitOfWork;
     }
 
     // -------------------------------------------------------------------------
@@ -64,12 +69,10 @@ public class CourseService : ICourseService
 
     // -------------------------------------------------------------------------
     // Build a reusable, filterable IQueryable for Course
-    // WHY private? Both GetInstructorCoursesAsync and GetAllCoursesAsync share
-    // the same filter logic — extracting it avoids duplication.
     // -------------------------------------------------------------------------
     private IQueryable<Course> BuildCourseQuery(int? instructorId, string? status, int? categoryId, string? search)
     {
-        var query = _context.Courses
+        var query = _courseRepository.GetQueryable()
             .Include(c => c.Category)
             .Include(c => c.Instructor)
             .AsQueryable();
@@ -143,7 +146,7 @@ public class CourseService : ICourseService
     // -------------------------------------------------------------------------
     public async Task<CourseDto?> GetCourseByIdAsync(int courseId)
     {
-        var course = await _context.Courses
+        var course = await _courseRepository.GetQueryable()
             .Include(c => c.Category)
             .Include(c => c.Instructor)
             .FirstOrDefaultAsync(c => c.CourseId == courseId);
@@ -159,7 +162,7 @@ public class CourseService : ICourseService
         // Validate the CategoryId FK if provided
         if (request.CategoryId.HasValue)
         {
-            var catExists = await _context.Categories.AnyAsync(c => c.CategoryId == request.CategoryId.Value);
+            var catExists = await _categoryRepository.AnyAsync(c => c.CategoryId == request.CategoryId.Value);
             if (!catExists) return null; // Let caller decide the error response
         }
 
@@ -178,8 +181,8 @@ public class CourseService : ICourseService
             UpdatedAt    = DateTime.UtcNow,
         };
 
-        _context.Courses.Add(course);
-        await _context.SaveChangesAsync();
+        await _courseRepository.AddAsync(course);
+        await _unitOfWork.SaveChangesAsync();
 
         // Reload with includes so the returned DTO has CategoryName/InstructorName
         return await GetCourseByIdAsync(course.CourseId);
@@ -190,7 +193,7 @@ public class CourseService : ICourseService
     // -------------------------------------------------------------------------
     public async Task<CourseDto?> UpdateCourseAsync(int courseId, int instructorId, UpdateCourseRequest request)
     {
-        var course = await _context.Courses.FindAsync(courseId);
+        var course = await _courseRepository.GetByIdAsync(courseId);
 
         // 404 or 403: not found OR caller is not the owner
         if (course is null || course.InstructorId != instructorId)
@@ -211,7 +214,8 @@ public class CourseService : ICourseService
 
         course.UpdatedAt = DateTime.UtcNow;
 
-        await _context.SaveChangesAsync();
+        _courseRepository.Update(course);
+        await _unitOfWork.SaveChangesAsync();
         return await GetCourseByIdAsync(courseId);
     }
 
@@ -220,12 +224,12 @@ public class CourseService : ICourseService
     // -------------------------------------------------------------------------
     public async Task<bool> DeleteCourseAsync(int courseId, int instructorId)
     {
-        var course = await _context.Courses.FindAsync(courseId);
+        var course = await _courseRepository.GetByIdAsync(courseId);
         if (course is null || course.InstructorId != instructorId)
             return false;
 
-        _context.Courses.Remove(course);
-        await _context.SaveChangesAsync();
+        _courseRepository.Remove(course);
+        await _unitOfWork.SaveChangesAsync();
         return true;
     }
 
@@ -234,7 +238,7 @@ public class CourseService : ICourseService
     // -------------------------------------------------------------------------
     public async Task<CourseDto?> UpdateCourseStatusAsync(int courseId, int instructorId, string newStatus)
     {
-        var course = await _context.Courses.FindAsync(courseId);
+        var course = await _courseRepository.GetByIdAsync(courseId);
         if (course is null || course.InstructorId != instructorId)
             return null;
 
@@ -244,7 +248,8 @@ public class CourseService : ICourseService
         course.Status    = parsedStatus;
         course.UpdatedAt = DateTime.UtcNow;
 
-        await _context.SaveChangesAsync();
+        _courseRepository.Update(course);
+        await _unitOfWork.SaveChangesAsync();
         return await GetCourseByIdAsync(courseId);
     }
 
