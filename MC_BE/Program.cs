@@ -20,6 +20,9 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+// 08.Quiz Management
+using MC_BE.Features.Quizzes.Services;
+using MC_BE.Features.Quizzes.Services.Interfaces;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -60,6 +63,9 @@ builder.Services.AddScoped<ICourseService, CourseService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<IModuleService, ModuleService>();
 builder.Services.AddScoped<ILessonService, LessonService>();
+
+// 08.Quiz Management Services
+builder.Services.AddScoped<IQuizService, QuizService>();
 
 // Register Email & Cloudinary Services
 builder.Services.AddScoped<IEmailService, EmailService>();

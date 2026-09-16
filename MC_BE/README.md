@@ -59,3 +59,7 @@ dotnet watch
 # 3. Open Swagger UI
 https://localhost:7051/swagger
 ```
+
+  "email": "instructor@test.com",
+  "password": "Instructor@123",
+
