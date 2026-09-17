@@ -26,6 +26,7 @@ public class SmartMcDbContext : DbContext
     public DbSet<CourseMaterial> CourseMaterials { get; set; } = null!;
     public DbSet<Enrollment> Enrollments { get; set; } = null!;
     public DbSet<LessonProgress> LessonProgresses { get; set; } = null!;
+    public DbSet<Certificate> Certificates { get; set; } = null!;
 
     // Section 3: Payment
     public DbSet<Payment> Payments { get; set; } = null!;
@@ -231,6 +232,21 @@ public class SmartMcDbContext : DbContext
             entity.HasOne(d => d.Lesson)
                 .WithMany(p => p.LessonProgresses)
                 .HasForeignKey(d => d.LessonId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Certificate>(entity =>
+        {
+            entity.ToTable("CERTIFICATE");
+            entity.HasIndex(e => e.CertificateCode).IsUnique();
+            entity.HasIndex(e => e.EnrollmentId).IsUnique();
+            entity.Property(e => e.CompletionPercentage).HasDefaultValue(100.00m);
+            entity.Property(e => e.Status).HasDefaultValue("ACTIVE");
+            entity.Property(e => e.IssuedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasOne(d => d.Enrollment)
+                .WithMany()
+                .HasForeignKey(d => d.EnrollmentId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
