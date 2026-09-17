@@ -3,6 +3,7 @@ using System;
 using MC_BE.Shared.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MC_BE.Migrations
 {
     [DbContext(typeof(SmartMcDbContext))]
-    partial class SmartMcDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260917055633_AddLearningProgressAndCertificate")]
+    partial class AddLearningProgressAndCertificate
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -50,7 +53,7 @@ namespace MC_BE.Migrations
 
                     b.HasKey("CategoryId");
 
-                    b.ToTable("categories", (string)null);
+                    b.ToTable("CATEGORY");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.Certificate", b =>
@@ -147,7 +150,7 @@ namespace MC_BE.Migrations
 
                     b.HasIndex("QuestionId");
 
-                    b.ToTable("choices", (string)null);
+                    b.ToTable("CHOICE");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.Course", b =>
@@ -226,7 +229,7 @@ namespace MC_BE.Migrations
                     b.HasIndex("Slug")
                         .IsUnique();
 
-                    b.ToTable("courses", (string)null);
+                    b.ToTable("COURSE");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.CourseMaterial", b =>
@@ -284,7 +287,7 @@ namespace MC_BE.Migrations
 
                     b.HasIndex("UploaderId");
 
-                    b.ToTable("course_materials", (string)null);
+                    b.ToTable("COURSE_MATERIAL");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.Enrollment", b =>
@@ -351,8 +354,7 @@ namespace MC_BE.Migrations
 
                     b.HasIndex("LearnerId", "CourseId", "Status");
 
-                    b.ToTable("enrollments", (string)null);
-
+                    b.ToTable("ENROLLMENT", (string)null);
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.Lesson", b =>
@@ -423,7 +425,7 @@ namespace MC_BE.Migrations
 
                     b.HasIndex("ModuleId");
 
-                    b.ToTable("lessons", (string)null);
+                    b.ToTable("LESSON");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.LessonProgress", b =>
@@ -487,7 +489,7 @@ namespace MC_BE.Migrations
                     b.HasIndex("EnrollmentId", "LessonId")
                         .IsUnique();
 
-                    b.ToTable("lesson_progresses", (string)null);
+                    b.ToTable("LESSON_PROGRESS");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.Module", b =>
@@ -535,7 +537,7 @@ namespace MC_BE.Migrations
 
                     b.HasIndex("CourseId");
 
-                    b.ToTable("modules", (string)null);
+                    b.ToTable("MODULE");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.PasswordResetToken", b =>
@@ -685,9 +687,7 @@ namespace MC_BE.Migrations
 
                     b.HasIndex("Status");
 
-
-                    b.ToTable("payments", (string)null);
-
+                    b.ToTable("PAYMENT", (string)null);
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.PaymentTransaction", b =>
@@ -765,9 +765,7 @@ namespace MC_BE.Migrations
 
                     b.HasIndex("Status");
 
-
-                    b.ToTable("payment_transactions", (string)null);
-
+                    b.ToTable("PAYMENT_TRANSACTION", (string)null);
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.Question", b =>
@@ -807,7 +805,7 @@ namespace MC_BE.Migrations
 
                     b.HasIndex("QuizId");
 
-                    b.ToTable("questions", (string)null);
+                    b.ToTable("QUESTION");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.Quiz", b =>
@@ -880,7 +878,7 @@ namespace MC_BE.Migrations
 
                     b.HasIndex("LessonId");
 
-                    b.ToTable("quizzes", (string)null);
+                    b.ToTable("QUIZ");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.QuizAnswer", b =>
@@ -922,7 +920,7 @@ namespace MC_BE.Migrations
 
                     b.HasIndex("SelectedChoiceId");
 
-                    b.ToTable("quiz_answers", (string)null);
+                    b.ToTable("QUIZ_ANSWER");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.QuizAttempt", b =>
@@ -972,7 +970,7 @@ namespace MC_BE.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("quiz_attempts", (string)null);
+                    b.ToTable("QUIZ_ATTEMPT");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.RefreshToken", b =>

@@ -30,6 +30,8 @@ using Microsoft.OpenApi.Models;
 // 08.Quiz Management
 using MC_BE.Features.Quizzes.Services;
 using MC_BE.Features.Quizzes.Services.Interfaces;
+using MC_BE.Features.Learning.Services;
+using MC_BE.Features.Learning.Services.Interfaces;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -73,6 +75,10 @@ builder.Services.AddScoped<ILessonService, LessonService>();
 
 // 08.Quiz Management Services
 builder.Services.AddScoped<IQuizService, QuizService>();
+
+// Learning & Certification Services
+builder.Services.AddScoped<ICertificateService, CertificateService>();
+builder.Services.AddScoped<ILearningProgressService, LearningProgressService>();
 
 // Register Email & Cloudinary Services
 builder.Services.AddScoped<IEmailService, EmailService>();

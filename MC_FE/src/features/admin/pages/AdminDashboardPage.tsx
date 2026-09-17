@@ -102,9 +102,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
             break;
 
           case 'courses':
-            if (courses.length === 0) {
+            if (!Array.isArray(courses) || courses.length === 0) {
               const coursesRes = await adminApi.getCourses();
-              setCourses(coursesRes);
+              setCourses(Array.isArray(coursesRes) ? coursesRes : []);
             }
             break;
 
@@ -324,7 +324,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     onToast?.('Đã lưu cấu hình', 'Các thiết lập hệ thống đã được cập nhật.', 'success');
   };
 
-  const pendingApprovalsCount = courses.filter((c) => c.status === 'pending').length;
+  const pendingApprovalsCount = (Array.isArray(courses) ? courses : []).filter((c) => c.status === 'pending').length;
 
   return (
     <AdminLayout

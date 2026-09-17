@@ -23,6 +23,15 @@ public class LessonProgress
     [Column("Status")]
     public LessonProgressStatus Status { get; set; } = LessonProgressStatus.NOT_STARTED;
 
+    [Column("IsCompleted")]
+    public bool IsCompleted { get; set; } = false;
+
+    [Column("LastPositionSeconds")]
+    public int LastPositionSeconds { get; set; } = 0;
+
+    [Column("TimeSpentSeconds")]
+    public int TimeSpentSeconds { get; set; } = 0;
+
     [Column("TimeSpentMinutes")]
     public int TimeSpentMinutes { get; set; } = 0;
 
@@ -31,6 +40,9 @@ public class LessonProgress
 
     [Column("CompletedAt")]
     public DateTime? CompletedAt { get; set; }
+
+    [Column("UpdatedAt")]
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     // Navigation properties
     [ForeignKey("EnrollmentId")]
