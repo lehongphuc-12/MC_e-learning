@@ -19,7 +19,7 @@ public static class EnrollmentPaymentModule
         services.AddHttpContextAccessor();
 
         services.AddScoped<ICurrentUserService, CurrentUserService>();
-        services.AddScoped<ICourseCatalogService, MockCourseCatalogService>();
+        services.AddScoped<ICourseCatalogService, CourseCatalogService>();
         services.AddScoped<IEnrollmentService, EnrollmentService>();
         services.AddScoped<IPaymentService, PaymentService>();
         services.AddScoped<IAdminPaymentService, AdminPaymentService>();

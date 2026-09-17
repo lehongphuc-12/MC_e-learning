@@ -10,7 +10,7 @@ import { ForgotPasswordScreen } from '../features/auth/components/ForgotPassword
 import { ResetPasswordScreen } from '../features/auth/components/ResetPasswordScreen';
 import { ProfileScreen } from '../features/profile/components/ProfileScreen';
 import { AdminDashboardPage } from '../features/admin/pages/AdminDashboardPage';
-// FE:03 Course Management imports
+import { PaymentResultPage } from '../features/courses/payment/pages/PaymentResultPage';
 import { CourseManagementPage } from '../features/courses/components/management/CourseManagementPage';
 import { CourseFormPage } from '../features/courses/components/management/CourseFormPage';
 import { CourseLessonsPage } from '../features/courses/components/management/CourseLessonsPage';
@@ -185,6 +185,8 @@ export const AppRouter: React.FC<AppRouterProps> = ({
           </ProtectedRoute>
         }
       />
+
+      {/* ── Admin Dashboard & Sub-routes ───────────────────────────── */}
       <Route
         path="/admin"
         element={
@@ -203,6 +205,11 @@ export const AppRouter: React.FC<AppRouterProps> = ({
           </ProtectedRoute>
         }
       />
+
+    
+
+      {/* ── Route Callback VNPay Return (FrontendResultUrl) ──────────────── */}
+      <Route path="/payment-result" element={<PaymentResultPage />} />
 
       {/* ── FE:03 Instructor Course Management Routes ────────────────────── */}
       <Route
@@ -287,7 +294,6 @@ export const AppRouter: React.FC<AppRouterProps> = ({
               if (userObj.roleName === 'Admin' || userObj.role === 'admin') {
                 navigate('/admin');
               } else if (userObj.roleName === 'Instructor' || userObj.role === 'instructor') {
-                // Instructors go directly to their course management dashboard
                 navigate('/instructor/courses');
               } else {
                 navigate('/courses');

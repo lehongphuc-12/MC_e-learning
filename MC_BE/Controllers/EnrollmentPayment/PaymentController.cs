@@ -1,4 +1,5 @@
-﻿using System.Threading.Tasks;
+﻿using System;
+using System.Threading.Tasks;
 using MC_BE.Core.DTOs;
 using MC_BE.Shared.Services.Interfaces;
 using MC_BE.Shared.Settings;
@@ -26,15 +27,38 @@ public class PaymentController : ControllerBase
         _vnPaySettings = vnPayOptions.Value;
     }
 
+    // ============================================================
+    // CREATE PAYMENT
+    // POST /api/v1/payments
+    // ============================================================
+
     [HttpPost]
     [Authorize]
-    public async Task<ActionResult<ApiResponse<CreatePaymentResponseDto>>> CreatePayment([FromBody] CreatePaymentRequest request)
+    public async Task<
+        ActionResult<
+            ApiResponse<CreatePaymentResponseDto>
+        >
+    > CreatePayment(
+        [FromBody] CreatePaymentRequest request)
     {
         _currentUserService.RequireLearner();
-        var userId = int.Parse(_currentUserService.GetUserId());
-        var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "127.0.0.1";
 
-        var response = await _paymentService.CreatePaymentAsync(userId, request, ipAddress);
+        var userId =
+            int.Parse(
+                _currentUserService.GetUserId()
+            );
+
+        var ipAddress =
+            HttpContext.Connection.RemoteIpAddress?.ToString()
+            ?? "127.0.0.1";
+
+        var response =
+            await _paymentService.CreatePaymentAsync(
+                userId,
+                request,
+                ipAddress
+            );
+
         if (!response.Success)
         {
             return BadRequest(response);
@@ -43,12 +67,31 @@ public class PaymentController : ControllerBase
         return Ok(response);
     }
 
+    // ============================================================
+    // GET MY PAYMENT
+    // GET /api/v1/payments/{paymentId}
+    // ============================================================
+
     [HttpGet("{paymentId:int}")]
     [Authorize]
-    public async Task<ActionResult<ApiResponse<PaymentDetailsDto>>> GetMyPayment(int paymentId)
+    public async Task<
+        ActionResult<
+            ApiResponse<PaymentDetailsDto>
+        >
+    > GetMyPayment(
+        int paymentId)
     {
-        var userId = int.Parse(_currentUserService.GetUserId());
-        var response = await _paymentService.GetMyPaymentAsync(userId, paymentId);
+        var userId =
+            int.Parse(
+                _currentUserService.GetUserId()
+            );
+
+        var response =
+            await _paymentService.GetMyPaymentAsync(
+                userId,
+                paymentId
+            );
+
         if (!response.Success)
         {
             return NotFound(response);
@@ -57,15 +100,47 @@ public class PaymentController : ControllerBase
         return Ok(response);
     }
 
+    // ============================================================
+    // VNPAY RETURN
+    // GET /api/v1/payments/vnpay-return
+    // ============================================================
+
     [HttpGet("vnpay-return")]
     [AllowAnonymous]
     public async Task<IActionResult> VnPayReturn()
     {
-        var result = await _paymentService.ProcessVnPayResultAsync(Request.Query);
+        var result =
+            await _paymentService.ProcessVnPayResultAsync(
+                Request.Query
+            );
 
-        if (!string.IsNullOrWhiteSpace(_vnPaySettings.FrontendResultUrl))
+        if (
+            !string.IsNullOrWhiteSpace(
+                _vnPaySettings.FrontendResultUrl
+            )
+        )
         {
-            var redirectUrl = $"{_vnPaySettings.FrontendResultUrl}?success={result.Success}&paymentId={result.Data?.PaymentId}&status={result.Data?.PaymentStatus}";
+            var paymentId =
+                result.Data?.PaymentId;
+
+            var status =
+                result.Data?.PaymentStatus ??
+                "FAILED";
+
+            var success =
+                result.Success &&
+                string.Equals(
+                    status,
+                    "SUCCESS",
+                    StringComparison.OrdinalIgnoreCase
+                );
+
+            var redirectUrl =
+                $"{_vnPaySettings.FrontendResultUrl}" +
+                $"?success={success.ToString().ToLowerInvariant()}" +
+                $"&paymentId={paymentId}" +
+                $"&status={status}";
+
             return Redirect(redirectUrl);
         }
 
