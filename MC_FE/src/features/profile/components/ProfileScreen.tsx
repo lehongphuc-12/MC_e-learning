@@ -1,11 +1,14 @@
 import {
   ArrowLeft,
+  Award,
   BarChart2,
   CheckCircle2,
   ChevronRight,
+  ExternalLink,
   Lock,
   Settings,
   Shield,
+  ShieldCheck,
   User
 } from 'lucide-react';
 import React, { useState } from 'react';
@@ -14,6 +17,7 @@ import { PasswordForm } from './profile/PasswordForm';
 import { PreferencesForm } from './profile/PreferencesForm';
 import { ProfileInfoForm } from './profile/ProfileInfoForm';
 import { ProfileOverview } from './profile/ProfileOverview';
+import { useMyCertificates } from '../../courses/hooks/useCertificateQueries';
 
 import { ToastType } from '../../../components/common/Toast';
 
@@ -31,7 +35,8 @@ const roleColor: Record<string, string> = {
 };
 
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onNavigate, onUpdateUser, onToast }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'profile' | 'password' | 'settings'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'certificates' | 'profile' | 'password' | 'settings'>('overview');
+  const { data: myCertificates = [], isLoading: isCertsLoading } = useMyCertificates();
   
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [saveMessage, setSaveMessage] = useState('');
@@ -139,6 +144,21 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onNavigate, 
 
               <button
                 type="button"
+                onClick={() => setActiveTab('certificates')}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer group
+                  ${activeTab === 'certificates'
+                    ? 'bg-amber-50 text-amber-700 font-bold border border-amber-200'
+                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
+              >
+                <div className="flex items-center gap-3">
+                  <Award className="w-4 h-4 text-amber-500" />
+                  <span>My Certificates</span>
+                </div>
+                <ChevronRight className={`w-4 h-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all text-slate-400 ${activeTab === 'certificates' ? 'opacity-100 text-amber-500' : ''}`} />
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setActiveTab('profile')}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer group
                   ${activeTab === 'profile'
@@ -200,6 +220,76 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onNavigate, 
 
             {activeTab === 'overview' && (
               <ProfileOverview onNavigate={onNavigate} />
+            )}
+
+            {activeTab === 'certificates' && (
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 space-y-6">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                  <div>
+                    <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                      <Award className="w-5 h-5 text-amber-500" />
+                      <span>Chứng Chỉ Đã Đạt Được</span>
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">Danh sách tất cả chứng chỉ hoàn thành khóa học của bạn</p>
+                  </div>
+                  <span className="px-3 py-1 rounded-full bg-amber-50 text-amber-700 text-xs font-bold border border-amber-200">
+                    {myCertificates.length} Chứng chỉ
+                  </span>
+                </div>
+
+                {isCertsLoading ? (
+                  <div className="py-12 text-center text-xs text-slate-400">Đang tải danh sách chứng chỉ...</div>
+                ) : myCertificates.length === 0 ? (
+                  <div className="py-12 text-center space-y-3">
+                    <div className="w-16 h-16 rounded-full bg-amber-50 text-amber-500 flex items-center justify-center mx-auto border border-amber-200">
+                      <Award className="w-8 h-8" />
+                    </div>
+                    <h4 className="text-sm font-bold text-slate-800">Chưa có chứng chỉ nào</h4>
+                    <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                      Hãy tiếp tục học tập và hoàn thành 100% nội dung các khóa học đã đăng ký để nhận chứng chỉ chính thức!
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {myCertificates.map((cert) => (
+                      <div
+                        key={cert.certificateId}
+                        className="rounded-2xl border border-amber-200/80 bg-gradient-to-br from-amber-50/40 via-white to-amber-50/20 p-5 space-y-4 hover:shadow-md transition-shadow relative overflow-hidden"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-center gap-2">
+                            <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center border border-amber-300/50 shrink-0">
+                              <Award className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <h4 className="font-bold text-slate-900 text-sm line-clamp-1">{cert.courseTitle}</h4>
+                              <p className="text-[11px] text-amber-700 font-mono font-semibold">{cert.certificateCode}</p>
+                            </div>
+                          </div>
+                          <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold shrink-0">
+                            XÁC THỰC
+                          </span>
+                        </div>
+
+                        <div className="text-xs text-slate-500 space-y-1 pt-2 border-t border-slate-100">
+                          <p>Học viên: <strong className="text-slate-800">{cert.learnerName}</strong></p>
+                          <p>Ngày cấp: <span className="text-slate-700">{new Date(cert.issuedAt).toLocaleDateString('vi-VN')}</span></p>
+                        </div>
+
+                        <div className="flex items-center gap-2 pt-2">
+                          <a
+                            href={`/certificates/${cert.certificateId}`}
+                            className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-amber-400 hover:bg-slate-800 transition-colors"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                            Xem chứng chỉ
+                          </a>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
 
             {activeTab === 'profile' && (
