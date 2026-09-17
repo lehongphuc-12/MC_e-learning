@@ -347,4 +347,41 @@ public async Task<ActionResult<ApiResponse<QuizResultDto>>> GetQuizResult(
                 "Unable to load quiz result. Please try again later."));
     }
 }
+[HttpGet("course/{courseId}")]
+[Authorize(Roles = "Instructor,Admin")]
+public async Task<IActionResult> GetQuizzesByCourse(int courseId)
+{
+    try
+    {
+        var result = await _quizService.GetQuizzesByCourseAsync(courseId);
+
+        return Ok(new ApiResponse<List<QuizListItemDto>>
+        {
+            Success = true,
+            Message = "Quizzes loaded successfully.",
+            Data = result,
+            Errors = new List<string>()
+        });
+    }
+    catch (ArgumentException ex)
+    {
+        return BadRequest(new ApiResponse<List<QuizListItemDto>>
+        {
+            Success = false,
+            Message = ex.Message,
+            Data = new List<QuizListItemDto>(),
+            Errors = new List<string> { ex.Message }
+        });
+    }
+    catch (Exception)
+    {
+        return StatusCode(500, new ApiResponse<List<QuizListItemDto>>
+        {
+            Success = false,
+            Message = "An error occurred while loading quizzes.",
+            Data = new List<QuizListItemDto>(),
+            Errors = new List<string>()
+        });
+    }
+}
 }
