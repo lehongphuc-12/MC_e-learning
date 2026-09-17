@@ -1115,4 +1115,22 @@ private static void ValidateUpdateChoiceTexts(
         }
     }
 }
+private static void ValidateUpdateMultipleChoice(UpdateQuestionRequest question)
+{
+    if (question.Choices == null || question.Choices.Count < 2)
+    {
+        throw new ArgumentException(
+            "Multiple choice question must have at least 2 choices.");
+    }
+
+    var correctChoices = question.Choices.Count(c => c.IsCorrect);
+
+    if (correctChoices < 1)
+    {
+        throw new ArgumentException(
+            "Multiple choice question must have at least 1 correct choice.");
+    }
+
+    ValidateUpdateChoiceTexts(question.Choices);
+}
 }
