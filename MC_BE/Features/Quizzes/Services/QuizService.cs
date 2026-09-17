@@ -346,12 +346,15 @@ public class QuizService : IQuizService
                 .ToList()
         };
     }
-    public async Task<QuizDto?> UpdateQuizAsync(
+public async Task<QuizDto?> UpdateQuizAsync(
     int instructorId,
     int quizId,
     UpdateQuizRequest request)
 {
+    // =========================================================
     // 1. Find quiz
+    // =========================================================
+
     var quiz = await _context.Quizzes
         .Include(q => q.Questions)
             .ThenInclude(q => q.Choices)
@@ -361,28 +364,318 @@ public class QuizService : IQuizService
         throw new ArgumentException(
             $"Quiz with ID {quizId} not found.");
 
+    // =========================================================
     // 2. Check permission
+    // =========================================================
+
     if (quiz.CreatedById != instructorId)
         throw new UnauthorizedAccessException(
             "You do not have permission to update this quiz.");
 
-    // 3. Validate title
+    // =========================================================
+    // 3. Validate quiz information
+    // =========================================================
+
     if (string.IsNullOrWhiteSpace(request.Title))
         throw new ArgumentException(
             "Quiz title is required.");
 
-    // 4. Update quiz
-    quiz.Title = request.Title.Trim();
-    quiz.Description = request.Description?.Trim();
-    quiz.TimeLimitMinutes = request.TimeLimitMinutes;
-    quiz.PassingScore = request.PassingScore;
-    quiz.MaxAttempts = request.MaxAttempts;
-    quiz.Status = request.Status;
+    if (request.Questions == null ||
+        !request.Questions.Any())
+    {
+        throw new ArgumentException(
+            "At least one question is required.");
+    }
 
-    await _context.SaveChangesAsync();
+    // =========================================================
+    // 4. Validate questions
+    // =========================================================
 
-    // 5. Return updated quiz
-    return await GetQuizByIdAsync(quizId);
+    foreach (var questionRequest in request.Questions)
+    {
+        ValidateUpdateQuestion(questionRequest);
+    }
+
+    // =========================================================
+    // 5. Check whether quiz already has attempts
+    // =========================================================
+
+    var hasAttempts = await _context.QuizAttempts
+        .AnyAsync(a => a.QuizId == quizId);
+
+    // =========================================================
+    // 6. Begin transaction
+    // =========================================================
+
+    await using var transaction =
+        await _context.Database.BeginTransactionAsync();
+
+    try
+    {
+        // =====================================================
+        // 7. Update Quiz information
+        // =====================================================
+
+        quiz.Title = request.Title.Trim();
+        quiz.Description = request.Description?.Trim();
+        quiz.TimeLimitMinutes = request.TimeLimitMinutes;
+        quiz.PassingScore = request.PassingScore;
+        quiz.MaxAttempts = request.MaxAttempts;
+        quiz.Status = request.Status;
+
+        // =====================================================
+        // 8. Existing questions
+        // =====================================================
+
+        var existingQuestions = quiz.Questions
+            .ToList();
+
+        var requestQuestionIds = request.Questions
+            .Where(q => q.QuestionId > 0)
+            .Select(q => q.QuestionId)
+            .ToHashSet();
+
+        // =====================================================
+        // 9. Validate Question IDs
+        // =====================================================
+
+        foreach (var questionRequest in request.Questions)
+        {
+            if (questionRequest.QuestionId <= 0)
+                continue;
+
+            var existingQuestion = existingQuestions
+                .FirstOrDefault(q =>
+                    q.QuestionId == questionRequest.QuestionId);
+
+            if (existingQuestion is null)
+            {
+                throw new ArgumentException(
+                    $"Question with ID {questionRequest.QuestionId} does not belong to quiz {quizId}.");
+            }
+        }
+
+        // =====================================================
+        // 10. Delete removed questions
+        // =====================================================
+
+        if (!hasAttempts)
+        {
+            var questionsToDelete = existingQuestions
+                .Where(q => !requestQuestionIds.Contains(q.QuestionId))
+                .ToList();
+
+            foreach (var question in questionsToDelete)
+            {
+                _context.Questions.Remove(question);
+            }
+        }
+        else
+        {
+            // Không cho xóa question nếu quiz đã có attempt
+            var removedQuestions = existingQuestions
+                .Where(q => !requestQuestionIds.Contains(q.QuestionId))
+                .ToList();
+
+            if (removedQuestions.Any())
+            {
+                throw new ArgumentException(
+                    "Questions cannot be deleted because this quiz already has attempts.");
+            }
+        }
+
+        // =====================================================
+        // 11. Update / Create questions
+        // =====================================================
+
+        foreach (var questionRequest in request.Questions)
+        {
+            Question question;
+
+            if (questionRequest.QuestionId > 0)
+            {
+                // ---------------------------------------------
+                // Update existing question
+                // ---------------------------------------------
+
+                question = existingQuestions
+                    .First(q =>
+                        q.QuestionId == questionRequest.QuestionId);
+
+                question.QuestionText =
+                    questionRequest.QuestionText.Trim();
+
+                question.QuestionType =
+                    questionRequest.QuestionType;
+
+                question.Explanation =
+                    questionRequest.Explanation?.Trim();
+
+                question.OrderIndex =
+                    questionRequest.OrderIndex;
+            }
+            else
+            {
+                // ---------------------------------------------
+                // Create new question
+                // ---------------------------------------------
+
+                question = new Question
+                {
+                    QuizId = quizId,
+                    QuestionText =
+                        questionRequest.QuestionText.Trim(),
+
+                    QuestionType =
+                        questionRequest.QuestionType,
+
+                    Explanation =
+                        questionRequest.Explanation?.Trim(),
+
+                    OrderIndex =
+                        questionRequest.OrderIndex
+                };
+
+                _context.Questions.Add(question);
+
+                await _context.SaveChangesAsync();
+            }
+
+            // =================================================
+            // 12. Handle choices
+            // =================================================
+
+            var existingChoices = question.Choices
+                .ToList();
+
+            var requestChoiceIds = questionRequest.Choices
+                .Where(c => c.ChoiceId > 0)
+                .Select(c => c.ChoiceId)
+                .ToHashSet();
+
+            // -------------------------------------------------
+            // Validate choice IDs
+            // -------------------------------------------------
+
+            foreach (var choiceRequest in questionRequest.Choices)
+            {
+                if (choiceRequest.ChoiceId <= 0)
+                    continue;
+
+                var existingChoice = existingChoices
+                    .FirstOrDefault(c =>
+                        c.ChoiceId == choiceRequest.ChoiceId);
+
+                if (existingChoice is null)
+                {
+                    throw new ArgumentException(
+                        $"Choice with ID {choiceRequest.ChoiceId} does not belong to question {question.QuestionId}.");
+                }
+            }
+
+            // -------------------------------------------------
+            // Delete removed choices
+            // -------------------------------------------------
+
+            if (!hasAttempts)
+            {
+                var choicesToDelete = existingChoices
+                    .Where(c =>
+                        !requestChoiceIds.Contains(c.ChoiceId))
+                    .ToList();
+
+                foreach (var choice in choicesToDelete)
+                {
+                    _context.Choices.Remove(choice);
+                }
+            }
+            else
+            {
+                var removedChoices = existingChoices
+                    .Where(c =>
+                        !requestChoiceIds.Contains(c.ChoiceId))
+                    .ToList();
+
+                if (removedChoices.Any())
+                {
+                    throw new ArgumentException(
+                        "Choices cannot be deleted because this quiz already has attempts.");
+                }
+            }
+
+            // -------------------------------------------------
+            // Update / create choices
+            // -------------------------------------------------
+
+            foreach (var choiceRequest in questionRequest.Choices)
+            {
+                if (choiceRequest.ChoiceId > 0)
+                {
+                    // -----------------------------------------
+                    // Update existing choice
+                    // -----------------------------------------
+
+                    var choice = existingChoices
+                        .First(c =>
+                            c.ChoiceId ==
+                            choiceRequest.ChoiceId);
+
+                    choice.ChoiceText =
+                        choiceRequest.ChoiceText.Trim();
+
+                    choice.IsCorrect =
+                        choiceRequest.IsCorrect;
+
+                    choice.OrderIndex =
+                        choiceRequest.OrderIndex;
+                }
+                else
+                {
+                    // -----------------------------------------
+                    // Create new choice
+                    // -----------------------------------------
+
+                    var choice = new Choice
+                    {
+                        QuestionId = question.QuestionId,
+                        ChoiceText =
+                            choiceRequest.ChoiceText.Trim(),
+
+                        IsCorrect =
+                            choiceRequest.IsCorrect,
+
+                        OrderIndex =
+                            choiceRequest.OrderIndex
+                    };
+
+                    _context.Choices.Add(choice);
+                }
+            }
+        }
+
+        // =====================================================
+        // 13. Save changes
+        // =====================================================
+
+        await _context.SaveChangesAsync();
+
+        // =====================================================
+        // 14. Commit transaction
+        // =====================================================
+
+        await transaction.CommitAsync();
+
+        // =====================================================
+        // 15. Return updated quiz
+        // =====================================================
+
+        return await GetQuizByIdAsync(quizId);
+    }
+    catch
+    {
+        await transaction.RollbackAsync();
+        throw;
+    }
 }
 public async Task<TakeQuizDto?> TakeQuizAsync(
     int learnerId,
@@ -702,5 +995,124 @@ public async Task<QuizResultDto?> GetQuizResultAsync(
 
         Answers = answers
     };
+}
+public async Task<List<QuizListItemDto>> GetQuizzesByCourseAsync(int courseId)
+{
+    var quizzes = await _context.Quizzes
+        .Include(q => q.Questions)
+        .Where(q => q.CourseId == courseId)
+        .OrderByDescending(q => q.CreatedAt)
+        .ToListAsync();
+
+    return quizzes
+        .Select(q => new QuizListItemDto
+        {
+            QuizId = q.QuizId,
+            CourseId = q.CourseId,
+            LessonId = q.LessonId,
+            Title = q.Title,
+            Description = q.Description,
+            TimeLimitMinutes = q.TimeLimitMinutes,
+            PassingScore = q.PassingScore,
+            MaxAttempts = q.MaxAttempts,
+            Status = q.Status,
+            CreatedAt = q.CreatedAt,
+            QuestionCount = q.Questions.Count
+        })
+        .ToList();
+}
+private static void ValidateUpdateQuestion(
+    UpdateQuestionRequest question)
+{
+    if (string.IsNullOrWhiteSpace(question.QuestionText))
+        throw new ArgumentException(
+            "Question text is required.");
+
+    switch (question.QuestionType)
+    {
+        case QuestionType.SINGLE_CHOICE:
+
+            ValidateUpdateSingleChoice(question);
+            break;
+
+        case QuestionType.MULTIPLE_CHOICE:
+
+            ValidateUpdateMultipleChoice(question);
+            break;
+
+        case QuestionType.TRUE_FALSE:
+
+            ValidateUpdateTrueFalse(question);
+            break;
+
+        case QuestionType.ESSAY:
+
+            ValidateUpdateEssay(question);
+            break;
+
+        default:
+
+            throw new ArgumentException(
+                "Invalid question type.");
+    }
+}
+private static void ValidateUpdateSingleChoice(
+    UpdateQuestionRequest question)
+{
+    if (question.Choices == null ||
+        question.Choices.Count < 2)
+    {
+        throw new ArgumentException(
+            "A single choice question must have at least 2 choices.");
+    }
+
+    var correctCount =
+        question.Choices.Count(c => c.IsCorrect);
+
+    if (correctCount != 1)
+    {
+        throw new ArgumentException(
+            "A single choice question must have exactly one correct answer.");
+    }
+
+    ValidateUpdateChoiceTexts(question.Choices);
+}
+private static void ValidateUpdateTrueFalse(
+    UpdateQuestionRequest question)
+{
+    if (question.Choices == null ||
+        question.Choices.Count != 2)
+    {
+        throw new ArgumentException(
+            "A true/false question must have exactly 2 choices.");
+    }
+
+    var correctCount =
+        question.Choices.Count(c => c.IsCorrect);
+
+    if (correctCount != 1)
+    {
+        throw new ArgumentException(
+            "A true/false question must have exactly one correct answer.");
+    }
+
+    ValidateUpdateChoiceTexts(question.Choices);
+}
+private static void ValidateUpdateEssay(
+    UpdateQuestionRequest question)
+{
+    // Essay does not require choices.
+}
+private static void ValidateUpdateChoiceTexts(
+    List<UpdateChoiceRequest> choices)
+{
+    foreach (var choice in choices)
+    {
+        if (string.IsNullOrWhiteSpace(choice.ChoiceText))
+        {
+            throw new ArgumentException(
+                "Choice text cannot be empty.");
+        }
+    }
 }
 }

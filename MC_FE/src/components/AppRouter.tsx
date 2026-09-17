@@ -21,7 +21,13 @@ import { MainLayout } from './layouts/MainLayout';
 import { ToastType } from './common/Toast';
 import { ProtectedRoute } from './common/ProtectedRoute';
 import { mockCourses } from '../data/mockData';
-
+// FE:08 Quiz Management imports
+import { CreateQuizPage } from '../features/quizzes/pages/CreateQuizPage';
+import { UpdateQuizPage } from '../features/quizzes/pages/UpdateQuizPage';
+import { TakeQuizPage } from '../features/quizzes/pages/TakeQuizPage';
+import { QuizResultPage } from '../features/quizzes/pages/QuizResultPage';
+import { QuizDetailPage } from '../features/quizzes/pages/QuizDetailPage';
+import { QuizManagementPage } from '../features/quizzes/pages/QuizManagementPage';
 interface AppRouterProps {
   selectedCourse: Course | null;
   setSelectedCourse: (course: Course) => void;
@@ -323,6 +329,102 @@ export const AppRouter: React.FC<AppRouterProps> = ({
         }
       />
       <Route
+        path="/instructor/quizzes/new"
+        element={
+          <ProtectedRoute
+            user={user}
+            allowedRoles={['instructor', 'admin']}
+            currentScreen={currentScreen}
+            onNavigate={handleNavigate}
+            onToast={onToast}
+      >
+      {withMainLayout(
+        <CreateQuizPage />
+      )}
+    </ProtectedRoute>
+  }
+/>
+      <Route
+  path="/instructor/quizzes/:id/edit"
+  element={
+    <ProtectedRoute
+      user={user}
+      allowedRoles={['instructor', 'admin']}
+      currentScreen={currentScreen}
+      onNavigate={handleNavigate}
+      onToast={onToast}
+    >
+      {withMainLayout(
+        <UpdateQuizPage />
+      )}
+    </ProtectedRoute>
+  }
+/>
+      <Route
+  path="/quizzes/:quizId/take"
+  element={
+    <ProtectedRoute
+      user={user}
+      allowedRoles={['student']}
+      currentScreen={currentScreen}
+      onNavigate={handleNavigate}
+      onToast={onToast}
+    >
+      {withMainLayout(
+        <TakeQuizPage />
+      )}
+    </ProtectedRoute>
+  }
+/>  
+    <Route
+  path="/quizzes/:quizId/result/:attemptId"
+  element={
+    <ProtectedRoute
+      user={user}
+      allowedRoles={['student']}
+      currentScreen={currentScreen}
+      onNavigate={handleNavigate}
+      onToast={onToast}
+    >
+      {withMainLayout(
+        <QuizResultPage />
+      )}
+    </ProtectedRoute>
+  }
+/>
+    <Route
+  path="/instructor/quizzes/:id"
+  element={
+    <ProtectedRoute
+      user={user}
+      allowedRoles={['instructor', 'admin']}
+      currentScreen={currentScreen}
+      onNavigate={handleNavigate}
+      onToast={onToast}
+    >
+      {withMainLayout(
+        <QuizDetailPage />
+      )}
+    </ProtectedRoute>
+  }
+/>
+  <Route
+  path="/instructor/courses/:courseId/quizzes"
+  element={
+    <ProtectedRoute
+      user={user}
+      allowedRoles={['instructor', 'admin']}
+      currentScreen={currentScreen}
+      onNavigate={handleNavigate}
+      onToast={onToast}
+    >
+      {withMainLayout(
+        <QuizManagementPage />
+      )}
+    </ProtectedRoute>
+  }
+/>
+  <Route
         path="*"
         element={withMainLayout(
           <HomeScreen
@@ -336,5 +438,6 @@ export const AppRouter: React.FC<AppRouterProps> = ({
         )}
       />
     </Routes>
+    
   );
 };
