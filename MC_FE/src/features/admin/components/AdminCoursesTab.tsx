@@ -28,11 +28,13 @@ export const AdminCoursesTab: React.FC<AdminCoursesTabProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | CourseModerationStatus>('all');
 
-  const filteredCourses = courses.filter((c) => {
+  const courseList = Array.isArray(courses) ? courses : [];
+
+  const filteredCourses = courseList.filter((c) => {
     const matchesSearch =
-      c.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.instructorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.category.toLowerCase().includes(searchTerm.toLowerCase());
+      (c.title || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (c.instructorName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (c.category || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || c.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -102,7 +104,7 @@ export const AdminCoursesTab: React.FC<AdminCoursesTabProps> = ({
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            Tất cả ({courses.length})
+            Tất cả ({courseList.length})
           </button>
           <button
             onClick={() => setStatusFilter('pending')}
@@ -112,7 +114,7 @@ export const AdminCoursesTab: React.FC<AdminCoursesTabProps> = ({
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            Chờ duyệt ({courses.filter((c) => c.status === 'pending').length})
+            Chờ duyệt ({courseList.filter((c) => c.status === 'pending').length})
           </button>
           <button
             onClick={() => setStatusFilter('published')}
