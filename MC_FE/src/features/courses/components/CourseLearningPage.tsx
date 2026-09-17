@@ -23,10 +23,15 @@ import {
   RotateCcw,
   Layers,
   ChevronDown,
+  Award,
+  ShieldCheck,
 } from 'lucide-react';
 import { useCourseDetail } from '../hooks/useInstructorCourses';
 import { useCourseLessons } from '../hooks/useLessonQueries';
 import { useCourseModules } from '../hooks/useModuleQueries';
+import { useCourseProgress, useUpdateLessonProgress } from '../hooks/useLearningQueries';
+import { useCourseCertificate, useIssueCertificate } from '../hooks/useCertificateQueries';
+import { CertificateModal } from './CertificateModal';
 import type { Lesson } from '../types/lessonTypes';
 
 /**
@@ -65,15 +70,32 @@ export const CourseLearningPage: React.FC = () => {
   const { data: lessons = [], isLoading: isLessonsLoading } = useCourseLessons(courseId);
   const { data: modules = [] } = useCourseModules(courseId);
 
+  // Real progress & certificate queries
+  const { data: progressData } = useCourseProgress(courseId);
+  const updateProgressMutation = useUpdateLessonProgress(courseId);
+  const { data: certificate } = useCourseCertificate(courseId);
+  const issueCertMutation = useIssueCertificate(courseId);
+
   // Active state
   const [activeLesson, setActiveLesson] = useState<Lesson | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'notes' | 'discussion'>('overview');
   const [completedLessonIds, setCompletedLessonIds] = useState<number[]>([]);
   const [isVideoEnded, setIsVideoEnded] = useState(false);
+  const [isCertModalOpen, setIsCertModalOpen] = useState(false);
 
   // Accordion state for sidebar modules
   const [collapsedModules, setCollapsedModules] = useState<Record<number, boolean>>({});
+
+  // Sync completed lesson IDs from backend progress
+  useEffect(() => {
+    if (progressData?.lessonProgresses) {
+      const completed = progressData.lessonProgresses
+        .filter((lp) => lp.isCompleted)
+        .map((lp) => lp.lessonId);
+      setCompletedLessonIds(completed);
+    }
+  }, [progressData]);
 
   const toggleModuleCollapse = (moduleId: number) => {
     setCollapsedModules((prev) => ({ ...prev, [moduleId]: !prev[moduleId] }));
@@ -93,6 +115,17 @@ export const CourseLearningPage: React.FC = () => {
     setIsVideoEnded(false);
   }, [activeLesson?.lessonId]);
 
+  // Handle explicit lesson completion
+  const handleMarkLessonComplete = (lessonId: number, isCompleted: boolean) => {
+    setCompletedLessonIds((prev) =>
+      isCompleted ? (prev.includes(lessonId) ? prev : [...prev, lessonId]) : prev.filter((id) => id !== lessonId)
+    );
+    updateProgressMutation.mutate({
+      lessonId,
+      dto: { isCompleted },
+    });
+  };
+
   // Detect video completion via window postMessage
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -102,9 +135,7 @@ export const CourseLearningPage: React.FC = () => {
           if (data.event === 'onStateChange' && data.info === 0) {
             setIsVideoEnded(true);
             if (activeLesson) {
-              setCompletedLessonIds((prev) =>
-                prev.includes(activeLesson.lessonId) ? prev : [...prev, activeLesson.lessonId]
-              );
+              handleMarkLessonComplete(activeLesson.lessonId, true);
             }
           }
         }
@@ -138,11 +169,26 @@ export const CourseLearningPage: React.FC = () => {
     setSearchParams({ lessonId: lesson.lessonId.toString() }, { replace: true });
   };
 
+  // Handle video playback time updates (sends lastPositionSeconds & timeSpentSeconds)
+  const lastUpdatedSecRef = React.useRef<number>(0);
+  const handleVideoTimeUpdate = (currentTime: number) => {
+    const currentSec = Math.floor(currentTime);
+    if (activeLesson && currentSec > 0 && currentSec !== lastUpdatedSecRef.current && currentSec % 5 === 0) {
+      lastUpdatedSecRef.current = currentSec;
+      updateProgressMutation.mutate({
+        lessonId: activeLesson.lessonId,
+        dto: {
+          lastPositionSeconds: currentSec,
+          timeSpentSeconds: currentSec,
+        },
+      });
+    }
+  };
+
   // Toggle lesson completed checkmark
   const toggleComplete = (lessonId: number) => {
-    setCompletedLessonIds((prev) =>
-      prev.includes(lessonId) ? prev.filter((id) => id !== lessonId) : [...prev, lessonId]
-    );
+    const isCurrentlyDone = completedLessonIds.includes(lessonId);
+    handleMarkLessonComplete(lessonId, !isCurrentlyDone);
   };
 
   // Navigation handlers
@@ -177,6 +223,18 @@ export const CourseLearningPage: React.FC = () => {
     );
   }
 
+  const completionPercentage = progressData?.completionPercentage ?? (lessons.length > 0 ? Math.round((completedLessonIds.length / lessons.length) * 100) : 0);
+  const is100Percent = completionPercentage >= 100 || (lessons.length > 0 && completedLessonIds.length === lessons.length);
+
+  const handleOpenCertificate = async () => {
+    if (!certificate && courseId) {
+      try {
+        await issueCertMutation.mutateAsync();
+      } catch (_) {}
+    }
+    setIsCertModalOpen(true);
+  };
+
   return (
     <div className="flex h-screen w-full flex-col bg-slate-950 text-slate-100 overflow-hidden font-sans">
       {/* ── Top Bar ──────────────────────────────────────────────────────────── */}
@@ -207,7 +265,29 @@ export const CourseLearningPage: React.FC = () => {
 
         {/* Right header action */}
         <div className="flex items-center gap-3">
-          <div className="hidden sm:flex items-center gap-2 rounded-full bg-indigo-500/10 border border-indigo-500/20 px-3 py-1 text-xs text-indigo-400 font-semibold">
+          {/* Progress Badge */}
+          <div className="hidden sm:flex items-center gap-2 rounded-full bg-slate-800/90 border border-slate-700 px-3 py-1 text-xs text-slate-200 font-semibold">
+            <div className="w-16 bg-slate-700 rounded-full h-1.5 overflow-hidden">
+              <div
+                className="bg-emerald-400 h-full rounded-full transition-all duration-500"
+                style={{ width: `${Math.min(100, completionPercentage)}%` }}
+              />
+            </div>
+            <span className="text-[11px] text-emerald-400 font-bold">{completionPercentage}%</span>
+          </div>
+
+          {/* Certificate Button when 100% completed or already issued */}
+          {(is100Percent || certificate || progressData?.certificateCode) && (
+            <button
+              onClick={handleOpenCertificate}
+              className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 px-3.5 py-1.5 text-xs font-extrabold text-slate-950 hover:from-amber-400 hover:to-amber-500 transition-all cursor-pointer shadow-md shadow-amber-500/20"
+            >
+              <Award className="h-4 w-4" />
+              <span>{certificate || progressData?.certificateCode ? 'Xem Chứng Chỉ' : 'Nhận Chứng Chỉ'}</span>
+            </button>
+          )}
+
+          <div className="hidden md:flex items-center gap-2 rounded-full bg-indigo-500/10 border border-indigo-500/20 px-3 py-1 text-xs text-indigo-400 font-semibold">
             <Sparkles className="h-3.5 w-3.5" />
             <span>Bài {currentIndex >= 0 ? currentIndex + 1 : 1} / {lessons.length}</span>
           </div>
@@ -283,12 +363,12 @@ export const CourseLearningPage: React.FC = () => {
                     src={embedUrl}
                     controls
                     autoPlay
+                    onTimeUpdate={(e) => handleVideoTimeUpdate(e.currentTarget.currentTime)}
+                    onPause={(e) => handleVideoTimeUpdate(e.currentTarget.currentTime)}
                     onEnded={() => {
                       setIsVideoEnded(true);
                       if (activeLesson) {
-                        setCompletedLessonIds((prev) =>
-                          prev.includes(activeLesson.lessonId) ? prev : [...prev, activeLesson.lessonId]
-                        );
+                        handleMarkLessonComplete(activeLesson.lessonId, true);
                       }
                     }}
                     className="h-full w-full object-contain"
@@ -669,6 +749,14 @@ export const CourseLearningPage: React.FC = () => {
           </aside>
         )}
       </div>
+
+      {/* Certificate Modal dialog */}
+      <CertificateModal
+        isOpen={isCertModalOpen}
+        onClose={() => setIsCertModalOpen(false)}
+        certificate={certificate || null}
+        courseTitle={course?.title}
+      />
     </div>
   );
 };
