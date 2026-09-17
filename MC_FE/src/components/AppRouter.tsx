@@ -15,9 +15,11 @@ import { CourseManagementPage } from '../features/courses/components/management/
 import { CourseFormPage } from '../features/courses/components/management/CourseFormPage';
 import { CourseLessonsPage } from '../features/courses/components/management/CourseLessonsPage';
 import { CourseLearningPage } from '../features/courses/components/CourseLearningPage';
+import { InstructorDashboard } from '../features/courses/components/InstructorDashboard';
 import { CertificateScreen } from '../features/courses/components/CertificateScreen';
 import { CertificateVerifyScreen } from '../features/courses/components/CertificateVerifyScreen';
 import { MainLayout } from './layouts/MainLayout';
+import { InstructorLayout } from './layouts/InstructorLayout';
 import { ToastType } from './common/Toast';
 import { ProtectedRoute } from './common/ProtectedRoute';
 import { mockCourses } from '../data/mockData';
@@ -106,6 +108,18 @@ export const AppRouter: React.FC<AppRouterProps> = ({
     >
       {component}
     </MainLayout>
+  );
+
+  // Helper to wrap instructor portal screens in InstructorLayout
+  const withInstructorLayout = (component: React.ReactNode, showFooter: boolean = true) => (
+    <InstructorLayout
+      user={user}
+      onLogout={onLogout}
+      onNavigate={handleNavigate}
+      showFooter={showFooter}
+    >
+      {component}
+    </InstructorLayout>
   );
 
   // Sync selectedCourse from URL params on /course-detail
@@ -200,6 +214,34 @@ export const AppRouter: React.FC<AppRouterProps> = ({
 
       {/* ── FE:03 Instructor Course Management Routes ────────────────────── */}
       <Route
+        path="/instructor"
+        element={
+          <ProtectedRoute
+            user={user}
+            allowedRoles={['instructor', 'admin']}
+            currentScreen={currentScreen}
+            onNavigate={handleNavigate}
+            onToast={onToast}
+          >
+            {withInstructorLayout(<InstructorDashboard />)}
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/instructor/dashboard"
+        element={
+          <ProtectedRoute
+            user={user}
+            allowedRoles={['instructor', 'admin']}
+            currentScreen={currentScreen}
+            onNavigate={handleNavigate}
+            onToast={onToast}
+          >
+            {withInstructorLayout(<InstructorDashboard />)}
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/instructor/courses"
         element={
           <ProtectedRoute
@@ -209,7 +251,7 @@ export const AppRouter: React.FC<AppRouterProps> = ({
             onNavigate={handleNavigate}
             onToast={onToast}
           >
-            {withMainLayout(<CourseManagementPage />)}
+            {withInstructorLayout(<CourseManagementPage />)}
           </ProtectedRoute>
         }
       />
@@ -223,7 +265,7 @@ export const AppRouter: React.FC<AppRouterProps> = ({
             onNavigate={handleNavigate}
             onToast={onToast}
           >
-            {withMainLayout(<CourseFormPage />)}
+            {withInstructorLayout(<CourseFormPage />)}
           </ProtectedRoute>
         }
       />
@@ -237,7 +279,7 @@ export const AppRouter: React.FC<AppRouterProps> = ({
             onNavigate={handleNavigate}
             onToast={onToast}
           >
-            {withMainLayout(<CourseFormPage />)}
+            {withInstructorLayout(<CourseFormPage />)}
           </ProtectedRoute>
         }
       />
@@ -251,7 +293,7 @@ export const AppRouter: React.FC<AppRouterProps> = ({
             onNavigate={handleNavigate}
             onToast={onToast}
           >
-            {withMainLayout(<CourseLessonsPage />)}
+            {withInstructorLayout(<CourseLessonsPage />)}
           </ProtectedRoute>
         }
       />
@@ -281,8 +323,8 @@ export const AppRouter: React.FC<AppRouterProps> = ({
               if (userObj.roleName === 'Admin' || userObj.role === 'admin') {
                 navigate('/admin');
               } else if (userObj.roleName === 'Instructor' || userObj.role === 'instructor') {
-                // Instructors go directly to their course management dashboard
-                navigate('/instructor/courses');
+                // Instructors go directly to their instructor dashboard
+                navigate('/instructor');
               } else {
                 navigate('/courses');
               }

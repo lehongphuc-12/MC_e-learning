@@ -93,8 +93,8 @@ export const CourseFormPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50/60 pb-16">
-      <div className="mx-auto max-w-3xl px-4 py-8">
+    <div className="min-h-screen bg-slate-50/60 pb-16 font-sans">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
         {/* ── Page header ── */}
         <div className="mb-8 flex items-center gap-4">
           <button
@@ -157,24 +157,22 @@ export const CourseFormPage: React.FC = () => {
           </div>
         )}
 
-        {/* ── Form card ── */}
-        <div className="rounded-3xl border border-slate-200/80 bg-white p-8 shadow-sm">
-          {isCategoriesLoading ? (
-            <div className="animate-pulse space-y-5">
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="h-12 rounded-xl bg-slate-100" />
-              ))}
-            </div>
-          ) : (
-            <CourseForm
-              existingCourse={existingCourse}
-              categories={categories}
-              isSubmitting={isCreating || isUpdating}
-              onSubmit={handleSubmit}
-              onCancel={() => navigate('/instructor/courses')}
-            />
-          )}
-        </div>
+        {/* ── Form Body ── */}
+        {isCategoriesLoading ? (
+          <div className="rounded-3xl border border-slate-200/80 bg-white p-8 animate-pulse space-y-5">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="h-12 rounded-xl bg-slate-100" />
+            ))}
+          </div>
+        ) : (
+          <CourseForm
+            existingCourse={existingCourse}
+            categories={categories}
+            isSubmitting={isCreating || isUpdating}
+            onSubmit={handleSubmit}
+            onCancel={() => navigate('/instructor/courses')}
+          />
+        )}
       </div>
     </div>
   );
