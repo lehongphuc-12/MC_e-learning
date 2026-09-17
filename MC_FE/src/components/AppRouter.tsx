@@ -15,6 +15,8 @@ import { CourseManagementPage } from '../features/courses/components/management/
 import { CourseFormPage } from '../features/courses/components/management/CourseFormPage';
 import { CourseLessonsPage } from '../features/courses/components/management/CourseLessonsPage';
 import { CourseLearningPage } from '../features/courses/components/CourseLearningPage';
+import { CertificateScreen } from '../features/courses/components/CertificateScreen';
+import { CertificateVerifyScreen } from '../features/courses/components/CertificateVerifyScreen';
 import { MainLayout } from './layouts/MainLayout';
 import { ToastType } from './common/Toast';
 import { ProtectedRoute } from './common/ProtectedRoute';
@@ -260,6 +262,14 @@ export const AppRouter: React.FC<AppRouterProps> = ({
       <Route
         path="/instructor/courses/:id/learn"
         element={<CourseLearningPage />}
+      />
+      <Route
+        path="/certificates/:certificateId"
+        element={<CertificateScreen />}
+      />
+      <Route
+        path="/verify-certificate"
+        element={<CertificateVerifyScreen />}
       />
       <Route
         path="/login"
