@@ -624,3 +624,69 @@ export const mockWeeklyLearningHours = [
   { day: 'Sat', hours: 5.0, target: 2.5 },
   { day: 'Sun', hours: 3.1, target: 2.0 }
 ];
+
+export interface EnrolledCourse {
+  id: string;
+  course: Course;
+  progressPercent: number;
+  completedLecturesCount: number;
+  totalLecturesCount: number;
+  lastAccessed: string;
+  lastLectureTitle: string;
+  status: 'in-progress' | 'completed';
+  enrolledDate: string;
+  certificateId?: string;
+  rating?: number;
+}
+
+export const mockEnrolledCourses: EnrolledCourse[] = [
+  {
+    id: 'enroll-1',
+    course: mockCourses[0], // The Elegant Wedding MC
+    progressPercent: 68,
+    completedLecturesCount: 26,
+    totalLecturesCount: 38,
+    lastAccessed: '2 giờ trước',
+    lastLectureTitle: 'Section 3: What to Do When a Toast Goes Off the Rails',
+    status: 'in-progress',
+    enrolledDate: '15/01/2026',
+  },
+  {
+    id: 'enroll-2',
+    course: mockCourses[1], // Executive Public Speaking
+    progressPercent: 35,
+    completedLecturesCount: 11,
+    totalLecturesCount: 32,
+    lastAccessed: 'Hôm qua',
+    lastLectureTitle: 'Section 1: Reprogramming the Fight-or-Flight Response',
+    status: 'in-progress',
+    enrolledDate: '02/02/2026',
+  },
+  {
+    id: 'enroll-3',
+    course: mockCourses[6], // MC Essentials (Free)
+    progressPercent: 100,
+    completedLecturesCount: 12,
+    totalLecturesCount: 12,
+    lastAccessed: '3 ngày trước',
+    lastLectureTitle: 'The 5 universal opening icebreakers for any audience',
+    status: 'completed',
+    enrolledDate: '10/01/2026',
+    certificateId: 'cert-mc-essentials-2026',
+    rating: 5
+  },
+  {
+    id: 'enroll-4',
+    course: mockCourses[4], // Vocal Power & Broadcast Diction
+    progressPercent: 100,
+    completedLecturesCount: 20,
+    totalLecturesCount: 20,
+    lastAccessed: '1 tuần trước',
+    lastLectureTitle: 'Perform warm-up and cool-down routines before big speeches',
+    status: 'completed',
+    enrolledDate: '20/12/2025',
+    certificateId: 'cert-vocal-power-2025',
+    rating: 5
+  }
+];
+

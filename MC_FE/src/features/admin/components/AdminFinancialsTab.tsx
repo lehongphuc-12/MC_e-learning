@@ -16,11 +16,12 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { PayoutRequest } from '../types/adminTypes';
-import { paymentApi } from '../../courses/payment/api/paymentApi';
+import { paymentApi } from '../../payment/api/paymentApi';
 import type {
   PaymentDetailsDto,
   VerifyPaymentResultDto,
-} from '../../courses/payment/types/paymentTypes';
+} from '../../payment/types/paymentTypes';
+import { request } from '../../../services/api';
 
 interface AdminFinancialsTabProps {
   payouts: PayoutRequest[];
@@ -50,16 +51,6 @@ export const AdminFinancialsTab: React.FC<AdminFinancialsTabProps> = ({
   const [revokeModal, setRevokeModal] = useState<PaymentDetailsDto | null>(null);
   const [revokeReason, setRevokeReason] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
-
-  const getHeaders = () => {
-    const token =
-      localStorage.getItem('token') ||
-      localStorage.getItem('accessToken') ||
-      sessionStorage.getItem('token');
-    return token
-      ? { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
-      : { 'Content-Type': 'application/json' };
-  };
 
   // ============================================================
   // AD07 - LẤY DANH SÁCH THANH TOÁN (dùng paymentApi thay vì fetch trực tiếp)
@@ -137,17 +128,16 @@ export const AdminFinancialsTab: React.FC<AdminFinancialsTabProps> = ({
   };
 
   // ============================================================
-  // THU HỒI GHI DANH KHÓA HỌC (chưa có trong paymentApi, giữ fetch riêng)
+  // THU HỒI GHI DANH KHÓA HỌC (AD07 - Admin Revoke)
   // ============================================================
   const handleRevokeEnrollment = async () => {
     if (!revokeModal) return;
     try {
       setIsProcessing(true);
-      const res = await fetch(
-        `http://localhost:5239/api/v1/admin/enrollments/${revokeModal.enrollmentId}/revoke`,
+      const result = await request<any>(
+        `/v1/admin/enrollments/${revokeModal.enrollmentId}/revoke`,
         {
           method: 'POST',
-          headers: getHeaders(),
           body: JSON.stringify({
             reason: revokeReason || 'Admin thu hồi quyền truy cập',
             isRefunded: true,
@@ -155,10 +145,7 @@ export const AdminFinancialsTab: React.FC<AdminFinancialsTabProps> = ({
         }
       );
 
-      const textData = await res.text();
-      const result = textData ? JSON.parse(textData) : null;
-
-      if (res.ok && (result?.success || result === true)) {
+      if (result?.success || result === true) {
         alert('Thu hồi ghi danh khóa học thành công!');
         setRevokeModal(null);
         setRevokeReason('');
@@ -166,8 +153,8 @@ export const AdminFinancialsTab: React.FC<AdminFinancialsTabProps> = ({
       } else {
         alert(result?.message || 'Không thể thu hồi khóa học.');
       }
-    } catch (err) {
-      alert('Lỗi kết nối khi thực hiện thu hồi ghi danh.');
+    } catch (err: any) {
+      alert(err?.message || 'Lỗi kết nối khi thực hiện thu hồi ghi danh.');
     } finally {
       setIsProcessing(false);
     }

@@ -1,16 +1,19 @@
-﻿using System;
-using Microsoft.EntityFrameworkCore.Migrations;
+﻿using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
 namespace MC_BE.Migrations
 {
     /// <inheritdoc />
-    public partial class SyncTableMappings : Migration
+    public partial class RenameTablesToLowerCase : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.DropForeignKey(
+                name: "FK_CERTIFICATE_ENROLLMENT_EnrollmentID",
+                table: "CERTIFICATE");
+
             migrationBuilder.DropForeignKey(
                 name: "FK_CHOICE_QUESTION_QuestionID",
                 table: "CHOICE");
@@ -40,7 +43,7 @@ namespace MC_BE.Migrations
                 table: "ENROLLMENT");
 
             migrationBuilder.DropForeignKey(
-                name: "FK_ENROLLMENT_USER_UserID",
+                name: "FK_ENROLLMENT_USER_LearnerID",
                 table: "ENROLLMENT");
 
             migrationBuilder.DropForeignKey(
@@ -64,11 +67,15 @@ namespace MC_BE.Migrations
                 table: "MODULE");
 
             migrationBuilder.DropForeignKey(
+                name: "FK_PAYMENT_COURSE_CourseID",
+                table: "PAYMENT");
+
+            migrationBuilder.DropForeignKey(
                 name: "FK_PAYMENT_ENROLLMENT_EnrollmentID",
                 table: "PAYMENT");
 
             migrationBuilder.DropForeignKey(
-                name: "FK_PAYMENT_USER_UserID",
+                name: "FK_PAYMENT_USER_LearnerID",
                 table: "PAYMENT");
 
             migrationBuilder.DropForeignKey(
@@ -135,10 +142,6 @@ namespace MC_BE.Migrations
                 name: "PK_PAYMENT",
                 table: "PAYMENT");
 
-            migrationBuilder.DropIndex(
-                name: "IX_PAYMENT_EnrollmentID",
-                table: "PAYMENT");
-
             migrationBuilder.DropPrimaryKey(
                 name: "PK_MODULE",
                 table: "MODULE");
@@ -153,10 +156,6 @@ namespace MC_BE.Migrations
 
             migrationBuilder.DropPrimaryKey(
                 name: "PK_ENROLLMENT",
-                table: "ENROLLMENT");
-
-            migrationBuilder.DropIndex(
-                name: "IX_ENROLLMENT_UserID_CourseID",
                 table: "ENROLLMENT");
 
             migrationBuilder.DropPrimaryKey(
@@ -174,22 +173,6 @@ namespace MC_BE.Migrations
             migrationBuilder.DropPrimaryKey(
                 name: "PK_CATEGORY",
                 table: "CATEGORY");
-
-            migrationBuilder.DropColumn(
-                name: "GatewayName",
-                table: "PAYMENT_TRANSACTION");
-
-            migrationBuilder.DropColumn(
-                name: "TransactionAmount",
-                table: "PAYMENT_TRANSACTION");
-
-            migrationBuilder.DropColumn(
-                name: "PaymentDate",
-                table: "PAYMENT");
-
-            migrationBuilder.DropColumn(
-                name: "PaymentStatus",
-                table: "PAYMENT");
 
             migrationBuilder.RenameTable(
                 name: "QUIZ_ATTEMPT",
@@ -292,30 +275,45 @@ namespace MC_BE.Migrations
                 table: "questions",
                 newName: "IX_questions_QuizID");
 
-            migrationBuilder.RenameColumn(
-                name: "GatewayTransactionCode",
+            migrationBuilder.RenameIndex(
+                name: "IX_PAYMENT_TRANSACTION_Status",
                 table: "payment_transactions",
-                newName: "ProviderTransactionNo");
+                newName: "IX_payment_transactions_Status");
+
+            migrationBuilder.RenameIndex(
+                name: "IX_PAYMENT_TRANSACTION_ProviderTransactionNo",
+                table: "payment_transactions",
+                newName: "IX_payment_transactions_ProviderTransactionNo");
 
             migrationBuilder.RenameIndex(
                 name: "IX_PAYMENT_TRANSACTION_PaymentID",
                 table: "payment_transactions",
                 newName: "IX_payment_transactions_PaymentID");
 
-            migrationBuilder.RenameColumn(
-                name: "UserID",
+            migrationBuilder.RenameIndex(
+                name: "IX_PAYMENT_Status",
                 table: "payments",
-                newName: "LearnerID");
-
-            migrationBuilder.RenameColumn(
-                name: "TransactionRef",
-                table: "payments",
-                newName: "VnPayTransactionNo");
+                newName: "IX_payments_Status");
 
             migrationBuilder.RenameIndex(
-                name: "IX_PAYMENT_UserID",
+                name: "IX_PAYMENT_MerchantTxnRef",
+                table: "payments",
+                newName: "IX_payments_MerchantTxnRef");
+
+            migrationBuilder.RenameIndex(
+                name: "IX_PAYMENT_LearnerID",
                 table: "payments",
                 newName: "IX_payments_LearnerID");
+
+            migrationBuilder.RenameIndex(
+                name: "IX_PAYMENT_EnrollmentID",
+                table: "payments",
+                newName: "IX_payments_EnrollmentID");
+
+            migrationBuilder.RenameIndex(
+                name: "IX_PAYMENT_CourseID",
+                table: "payments",
+                newName: "IX_payments_CourseID");
 
             migrationBuilder.RenameIndex(
                 name: "IX_MODULE_CourseID",
@@ -342,25 +340,15 @@ namespace MC_BE.Migrations
                 table: "lessons",
                 newName: "IX_lessons_CourseID");
 
-            migrationBuilder.RenameColumn(
-                name: "UserID",
+            migrationBuilder.RenameIndex(
+                name: "IX_ENROLLMENT_PaymentID",
                 table: "enrollments",
-                newName: "LearnerID");
+                newName: "IX_enrollments_PaymentID");
 
-            migrationBuilder.RenameColumn(
-                name: "ProgressPercent",
+            migrationBuilder.RenameIndex(
+                name: "IX_ENROLLMENT_LearnerID_CourseID_Status",
                 table: "enrollments",
-                newName: "CompletionPercentage");
-
-            migrationBuilder.RenameColumn(
-                name: "EnrollmentDate",
-                table: "enrollments",
-                newName: "UpdatedAt");
-
-            migrationBuilder.RenameColumn(
-                name: "CompletedAt",
-                table: "enrollments",
-                newName: "ExpiresAt");
+                newName: "IX_enrollments_LearnerID_CourseID_Status");
 
             migrationBuilder.RenameIndex(
                 name: "IX_ENROLLMENT_CourseID",
@@ -401,177 +389,6 @@ namespace MC_BE.Migrations
                 name: "IX_CHOICE_QuestionID",
                 table: "choices",
                 newName: "IX_choices_QuestionID");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "TransactionStatus",
-                table: "payment_transactions",
-                type: "character varying(50)",
-                maxLength: 50,
-                nullable: true,
-                oldClrType: typeof(string),
-                oldType: "text",
-                oldDefaultValue: "PENDING");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "BankCode",
-                table: "payment_transactions",
-                type: "character varying(50)",
-                maxLength: 50,
-                nullable: true,
-                oldClrType: typeof(string),
-                oldType: "character varying(20)",
-                oldMaxLength: 20,
-                oldNullable: true);
-
-            migrationBuilder.AddColumn<decimal>(
-                name: "Amount",
-                table: "payment_transactions",
-                type: "numeric(18,2)",
-                nullable: false,
-                defaultValue: 0m);
-
-            migrationBuilder.AddColumn<DateTime>(
-                name: "ProcessedAt",
-                table: "payment_transactions",
-                type: "timestamp with time zone",
-                nullable: true);
-
-            migrationBuilder.AddColumn<string>(
-                name: "Provider",
-                table: "payment_transactions",
-                type: "character varying(50)",
-                maxLength: 50,
-                nullable: false,
-                defaultValue: "VNPAY");
-
-            migrationBuilder.AddColumn<bool>(
-                name: "SignatureValid",
-                table: "payment_transactions",
-                type: "boolean",
-                nullable: false,
-                defaultValue: false);
-
-            migrationBuilder.AddColumn<string>(
-                name: "Status",
-                table: "payment_transactions",
-                type: "character varying(50)",
-                maxLength: 50,
-                nullable: false,
-                defaultValue: "PENDING");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "PaymentMethod",
-                table: "payments",
-                type: "character varying(30)",
-                maxLength: 30,
-                nullable: false,
-                defaultValue: "VNPAY",
-                oldClrType: typeof(string),
-                oldType: "text");
-
-            migrationBuilder.AlterColumn<decimal>(
-                name: "Amount",
-                table: "payments",
-                type: "numeric(18,2)",
-                nullable: false,
-                oldClrType: typeof(decimal),
-                oldType: "numeric(10,2)");
-
-            migrationBuilder.AddColumn<int>(
-                name: "CourseID",
-                table: "payments",
-                type: "integer",
-                nullable: false,
-                defaultValue: 0);
-
-            migrationBuilder.AddColumn<string>(
-                name: "Currency",
-                table: "payments",
-                type: "character varying(10)",
-                maxLength: 10,
-                nullable: false,
-                defaultValue: "VND");
-
-            migrationBuilder.AddColumn<DateTime>(
-                name: "ExpiresAt",
-                table: "payments",
-                type: "timestamp with time zone",
-                nullable: false,
-                defaultValue: new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified));
-
-            migrationBuilder.AddColumn<string>(
-                name: "MerchantTxnRef",
-                table: "payments",
-                type: "character varying(100)",
-                maxLength: 100,
-                nullable: false,
-                defaultValue: "");
-
-            migrationBuilder.AddColumn<string>(
-                name: "OrderInfo",
-                table: "payments",
-                type: "character varying(255)",
-                maxLength: 255,
-                nullable: true);
-
-            migrationBuilder.AddColumn<string>(
-                name: "Status",
-                table: "payments",
-                type: "character varying(30)",
-                maxLength: 30,
-                nullable: false,
-                defaultValue: "PENDING");
-
-            migrationBuilder.AddColumn<DateTime>(
-                name: "UpdatedAt",
-                table: "payments",
-                type: "timestamp with time zone",
-                nullable: false,
-                defaultValueSql: "CURRENT_TIMESTAMP");
-
-            migrationBuilder.AddColumn<string>(
-                name: "VnPayResponseCode",
-                table: "payments",
-                type: "character varying(20)",
-                maxLength: 20,
-                nullable: true);
-
-            migrationBuilder.AddColumn<string>(
-                name: "VnPayTransactionStatus",
-                table: "payments",
-                type: "character varying(20)",
-                maxLength: 20,
-                nullable: true);
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Status",
-                table: "enrollments",
-                type: "character varying(50)",
-                maxLength: 50,
-                nullable: false,
-                defaultValue: "PENDING_PAYMENT",
-                oldClrType: typeof(string),
-                oldType: "text",
-                oldDefaultValue: "ACTIVE");
-
-            migrationBuilder.AddColumn<DateTime>(
-                name: "CreatedAt",
-                table: "enrollments",
-                type: "timestamp with time zone",
-                nullable: false,
-                defaultValueSql: "CURRENT_TIMESTAMP");
-
-            migrationBuilder.AddColumn<DateTime>(
-                name: "EnrolledAt",
-                table: "enrollments",
-                type: "timestamp with time zone",
-                nullable: true);
-
-            migrationBuilder.AddColumn<int>(
-                name: "PaymentID",
-                table: "enrollments",
-                type: "integer",
-                nullable: true);
 
             migrationBuilder.AddPrimaryKey(
                 name: "PK_quiz_attempts",
@@ -643,48 +460,13 @@ namespace MC_BE.Migrations
                 table: "categories",
                 column: "CategoryID");
 
-            migrationBuilder.CreateIndex(
-                name: "IX_payment_transactions_ProviderTransactionNo",
-                table: "payment_transactions",
-                column: "ProviderTransactionNo");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_payment_transactions_Status",
-                table: "payment_transactions",
-                column: "Status");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_payments_CourseID",
-                table: "payments",
-                column: "CourseID");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_payments_EnrollmentID",
-                table: "payments",
+            migrationBuilder.AddForeignKey(
+                name: "FK_CERTIFICATE_enrollments_EnrollmentID",
+                table: "CERTIFICATE",
                 column: "EnrollmentID",
-                unique: true);
-
-            migrationBuilder.CreateIndex(
-                name: "IX_payments_MerchantTxnRef",
-                table: "payments",
-                column: "MerchantTxnRef",
-                unique: true);
-
-            migrationBuilder.CreateIndex(
-                name: "IX_payments_Status",
-                table: "payments",
-                column: "Status");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_enrollments_LearnerID_CourseID_Status",
-                table: "enrollments",
-                columns: new[] { "LearnerID", "CourseID", "Status" });
-
-            migrationBuilder.CreateIndex(
-                name: "IX_enrollments_PaymentID",
-                table: "enrollments",
-                column: "PaymentID",
-                unique: true);
+                principalTable: "enrollments",
+                principalColumn: "EnrollmentID",
+                onDelete: ReferentialAction.Cascade);
 
             migrationBuilder.AddForeignKey(
                 name: "FK_choices_questions_QuestionID",
@@ -899,6 +681,10 @@ namespace MC_BE.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropForeignKey(
+                name: "FK_CERTIFICATE_enrollments_EnrollmentID",
+                table: "CERTIFICATE");
+
+            migrationBuilder.DropForeignKey(
                 name: "FK_choices_questions_QuestionID",
                 table: "choices");
 
@@ -1022,32 +808,8 @@ namespace MC_BE.Migrations
                 name: "PK_payments",
                 table: "payments");
 
-            migrationBuilder.DropIndex(
-                name: "IX_payments_CourseID",
-                table: "payments");
-
-            migrationBuilder.DropIndex(
-                name: "IX_payments_EnrollmentID",
-                table: "payments");
-
-            migrationBuilder.DropIndex(
-                name: "IX_payments_MerchantTxnRef",
-                table: "payments");
-
-            migrationBuilder.DropIndex(
-                name: "IX_payments_Status",
-                table: "payments");
-
             migrationBuilder.DropPrimaryKey(
                 name: "PK_payment_transactions",
-                table: "payment_transactions");
-
-            migrationBuilder.DropIndex(
-                name: "IX_payment_transactions_ProviderTransactionNo",
-                table: "payment_transactions");
-
-            migrationBuilder.DropIndex(
-                name: "IX_payment_transactions_Status",
                 table: "payment_transactions");
 
             migrationBuilder.DropPrimaryKey(
@@ -1066,14 +828,6 @@ namespace MC_BE.Migrations
                 name: "PK_enrollments",
                 table: "enrollments");
 
-            migrationBuilder.DropIndex(
-                name: "IX_enrollments_LearnerID_CourseID_Status",
-                table: "enrollments");
-
-            migrationBuilder.DropIndex(
-                name: "IX_enrollments_PaymentID",
-                table: "enrollments");
-
             migrationBuilder.DropPrimaryKey(
                 name: "PK_courses",
                 table: "courses");
@@ -1089,74 +843,6 @@ namespace MC_BE.Migrations
             migrationBuilder.DropPrimaryKey(
                 name: "PK_categories",
                 table: "categories");
-
-            migrationBuilder.DropColumn(
-                name: "CourseID",
-                table: "payments");
-
-            migrationBuilder.DropColumn(
-                name: "Currency",
-                table: "payments");
-
-            migrationBuilder.DropColumn(
-                name: "ExpiresAt",
-                table: "payments");
-
-            migrationBuilder.DropColumn(
-                name: "MerchantTxnRef",
-                table: "payments");
-
-            migrationBuilder.DropColumn(
-                name: "OrderInfo",
-                table: "payments");
-
-            migrationBuilder.DropColumn(
-                name: "Status",
-                table: "payments");
-
-            migrationBuilder.DropColumn(
-                name: "UpdatedAt",
-                table: "payments");
-
-            migrationBuilder.DropColumn(
-                name: "VnPayResponseCode",
-                table: "payments");
-
-            migrationBuilder.DropColumn(
-                name: "VnPayTransactionStatus",
-                table: "payments");
-
-            migrationBuilder.DropColumn(
-                name: "Amount",
-                table: "payment_transactions");
-
-            migrationBuilder.DropColumn(
-                name: "ProcessedAt",
-                table: "payment_transactions");
-
-            migrationBuilder.DropColumn(
-                name: "Provider",
-                table: "payment_transactions");
-
-            migrationBuilder.DropColumn(
-                name: "SignatureValid",
-                table: "payment_transactions");
-
-            migrationBuilder.DropColumn(
-                name: "Status",
-                table: "payment_transactions");
-
-            migrationBuilder.DropColumn(
-                name: "CreatedAt",
-                table: "enrollments");
-
-            migrationBuilder.DropColumn(
-                name: "EnrolledAt",
-                table: "enrollments");
-
-            migrationBuilder.DropColumn(
-                name: "PaymentID",
-                table: "enrollments");
 
             migrationBuilder.RenameTable(
                 name: "quizzes",
@@ -1259,25 +945,40 @@ namespace MC_BE.Migrations
                 table: "QUESTION",
                 newName: "IX_QUESTION_QuizID");
 
-            migrationBuilder.RenameColumn(
-                name: "VnPayTransactionNo",
+            migrationBuilder.RenameIndex(
+                name: "IX_payments_Status",
                 table: "PAYMENT",
-                newName: "TransactionRef");
+                newName: "IX_PAYMENT_Status");
 
-            migrationBuilder.RenameColumn(
-                name: "LearnerID",
+            migrationBuilder.RenameIndex(
+                name: "IX_payments_MerchantTxnRef",
                 table: "PAYMENT",
-                newName: "UserID");
+                newName: "IX_PAYMENT_MerchantTxnRef");
 
             migrationBuilder.RenameIndex(
                 name: "IX_payments_LearnerID",
                 table: "PAYMENT",
-                newName: "IX_PAYMENT_UserID");
+                newName: "IX_PAYMENT_LearnerID");
 
-            migrationBuilder.RenameColumn(
-                name: "ProviderTransactionNo",
+            migrationBuilder.RenameIndex(
+                name: "IX_payments_EnrollmentID",
+                table: "PAYMENT",
+                newName: "IX_PAYMENT_EnrollmentID");
+
+            migrationBuilder.RenameIndex(
+                name: "IX_payments_CourseID",
+                table: "PAYMENT",
+                newName: "IX_PAYMENT_CourseID");
+
+            migrationBuilder.RenameIndex(
+                name: "IX_payment_transactions_Status",
                 table: "PAYMENT_TRANSACTION",
-                newName: "GatewayTransactionCode");
+                newName: "IX_PAYMENT_TRANSACTION_Status");
+
+            migrationBuilder.RenameIndex(
+                name: "IX_payment_transactions_ProviderTransactionNo",
+                table: "PAYMENT_TRANSACTION",
+                newName: "IX_PAYMENT_TRANSACTION_ProviderTransactionNo");
 
             migrationBuilder.RenameIndex(
                 name: "IX_payment_transactions_PaymentID",
@@ -1309,25 +1010,15 @@ namespace MC_BE.Migrations
                 table: "LESSON_PROGRESS",
                 newName: "IX_LESSON_PROGRESS_EnrollmentID_LessonID");
 
-            migrationBuilder.RenameColumn(
-                name: "UpdatedAt",
+            migrationBuilder.RenameIndex(
+                name: "IX_enrollments_PaymentID",
                 table: "ENROLLMENT",
-                newName: "EnrollmentDate");
+                newName: "IX_ENROLLMENT_PaymentID");
 
-            migrationBuilder.RenameColumn(
-                name: "LearnerID",
+            migrationBuilder.RenameIndex(
+                name: "IX_enrollments_LearnerID_CourseID_Status",
                 table: "ENROLLMENT",
-                newName: "UserID");
-
-            migrationBuilder.RenameColumn(
-                name: "ExpiresAt",
-                table: "ENROLLMENT",
-                newName: "CompletedAt");
-
-            migrationBuilder.RenameColumn(
-                name: "CompletionPercentage",
-                table: "ENROLLMENT",
-                newName: "ProgressPercent");
+                newName: "IX_ENROLLMENT_LearnerID_CourseID_Status");
 
             migrationBuilder.RenameIndex(
                 name: "IX_enrollments_CourseID",
@@ -1368,85 +1059,6 @@ namespace MC_BE.Migrations
                 name: "IX_choices_QuestionID",
                 table: "CHOICE",
                 newName: "IX_CHOICE_QuestionID");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "PaymentMethod",
-                table: "PAYMENT",
-                type: "text",
-                nullable: false,
-                oldClrType: typeof(string),
-                oldType: "character varying(30)",
-                oldMaxLength: 30,
-                oldDefaultValue: "VNPAY");
-
-            migrationBuilder.AlterColumn<decimal>(
-                name: "Amount",
-                table: "PAYMENT",
-                type: "numeric(10,2)",
-                nullable: false,
-                oldClrType: typeof(decimal),
-                oldType: "numeric(18,2)");
-
-            migrationBuilder.AddColumn<DateTime>(
-                name: "PaymentDate",
-                table: "PAYMENT",
-                type: "timestamp with time zone",
-                nullable: true);
-
-            migrationBuilder.AddColumn<string>(
-                name: "PaymentStatus",
-                table: "PAYMENT",
-                type: "text",
-                nullable: false,
-                defaultValue: "PENDING");
-
-            migrationBuilder.AlterColumn<string>(
-                name: "TransactionStatus",
-                table: "PAYMENT_TRANSACTION",
-                type: "text",
-                nullable: false,
-                defaultValue: "PENDING",
-                oldClrType: typeof(string),
-                oldType: "character varying(50)",
-                oldMaxLength: 50,
-                oldNullable: true);
-
-            migrationBuilder.AlterColumn<string>(
-                name: "BankCode",
-                table: "PAYMENT_TRANSACTION",
-                type: "character varying(20)",
-                maxLength: 20,
-                nullable: true,
-                oldClrType: typeof(string),
-                oldType: "character varying(50)",
-                oldMaxLength: 50,
-                oldNullable: true);
-
-            migrationBuilder.AddColumn<string>(
-                name: "GatewayName",
-                table: "PAYMENT_TRANSACTION",
-                type: "character varying(50)",
-                maxLength: 50,
-                nullable: false,
-                defaultValue: "");
-
-            migrationBuilder.AddColumn<decimal>(
-                name: "TransactionAmount",
-                table: "PAYMENT_TRANSACTION",
-                type: "numeric(10,2)",
-                nullable: false,
-                defaultValue: 0m);
-
-            migrationBuilder.AlterColumn<string>(
-                name: "Status",
-                table: "ENROLLMENT",
-                type: "text",
-                nullable: false,
-                defaultValue: "ACTIVE",
-                oldClrType: typeof(string),
-                oldType: "character varying(50)",
-                oldMaxLength: 50,
-                oldDefaultValue: "PENDING_PAYMENT");
 
             migrationBuilder.AddPrimaryKey(
                 name: "PK_QUIZ",
@@ -1518,16 +1130,13 @@ namespace MC_BE.Migrations
                 table: "CATEGORY",
                 column: "CategoryID");
 
-            migrationBuilder.CreateIndex(
-                name: "IX_PAYMENT_EnrollmentID",
-                table: "PAYMENT",
-                column: "EnrollmentID");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_ENROLLMENT_UserID_CourseID",
-                table: "ENROLLMENT",
-                columns: new[] { "UserID", "CourseID" },
-                unique: true);
+            migrationBuilder.AddForeignKey(
+                name: "FK_CERTIFICATE_ENROLLMENT_EnrollmentID",
+                table: "CERTIFICATE",
+                column: "EnrollmentID",
+                principalTable: "ENROLLMENT",
+                principalColumn: "EnrollmentID",
+                onDelete: ReferentialAction.Cascade);
 
             migrationBuilder.AddForeignKey(
                 name: "FK_CHOICE_QUESTION_QuestionID",
@@ -1586,12 +1195,12 @@ namespace MC_BE.Migrations
                 onDelete: ReferentialAction.Cascade);
 
             migrationBuilder.AddForeignKey(
-                name: "FK_ENROLLMENT_USER_UserID",
+                name: "FK_ENROLLMENT_USER_LearnerID",
                 table: "ENROLLMENT",
-                column: "UserID",
+                column: "LearnerID",
                 principalTable: "USER",
                 principalColumn: "UserID",
-                onDelete: ReferentialAction.Cascade);
+                onDelete: ReferentialAction.Restrict);
 
             migrationBuilder.AddForeignKey(
                 name: "FK_LESSON_COURSE_CourseID",
@@ -1634,6 +1243,14 @@ namespace MC_BE.Migrations
                 onDelete: ReferentialAction.Cascade);
 
             migrationBuilder.AddForeignKey(
+                name: "FK_PAYMENT_COURSE_CourseID",
+                table: "PAYMENT",
+                column: "CourseID",
+                principalTable: "COURSE",
+                principalColumn: "CourseID",
+                onDelete: ReferentialAction.Restrict);
+
+            migrationBuilder.AddForeignKey(
                 name: "FK_PAYMENT_ENROLLMENT_EnrollmentID",
                 table: "PAYMENT",
                 column: "EnrollmentID",
@@ -1642,9 +1259,9 @@ namespace MC_BE.Migrations
                 onDelete: ReferentialAction.Restrict);
 
             migrationBuilder.AddForeignKey(
-                name: "FK_PAYMENT_USER_UserID",
+                name: "FK_PAYMENT_USER_LearnerID",
                 table: "PAYMENT",
-                column: "UserID",
+                column: "LearnerID",
                 principalTable: "USER",
                 principalColumn: "UserID",
                 onDelete: ReferentialAction.Restrict);

@@ -12,8 +12,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MC_BE.Migrations
 {
     [DbContext(typeof(SmartMcDbContext))]
-    [Migration("20260917142457_SyncTableMappings")]
-    partial class SyncTableMappings
+    [Migration("20260918021610_RenameTablesToLowerCase")]
+    partial class RenameTablesToLowerCase
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -54,6 +54,66 @@ namespace MC_BE.Migrations
                     b.HasKey("CategoryId");
 
                     b.ToTable("categories", (string)null);
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.Certificate", b =>
+                {
+                    b.Property<int>("CertificateId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("CertificateID");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("CertificateId"));
+
+                    b.Property<string>("CertificateCode")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("CertificateCode");
+
+                    b.Property<string>("CertificateUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("CertificateUrl");
+
+                    b.Property<decimal>("CompletionPercentage")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("numeric(5,2)")
+                        .HasDefaultValue(100.00m)
+                        .HasColumnName("CompletionPercentage");
+
+                    b.Property<int>("EnrollmentId")
+                        .HasColumnType("integer")
+                        .HasColumnName("EnrollmentID");
+
+                    b.Property<string>("Grade")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("Grade");
+
+                    b.Property<DateTime>("IssuedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("IssuedAt")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasDefaultValue("ACTIVE")
+                        .HasColumnName("Status");
+
+                    b.HasKey("CertificateId");
+
+                    b.HasIndex("CertificateCode")
+                        .IsUnique();
+
+                    b.HasIndex("EnrollmentId")
+                        .IsUnique();
+
+                    b.ToTable("CERTIFICATE", (string)null);
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.Choice", b =>
@@ -385,9 +445,17 @@ namespace MC_BE.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("EnrollmentID");
 
+                    b.Property<bool>("IsCompleted")
+                        .HasColumnType("boolean")
+                        .HasColumnName("IsCompleted");
+
                     b.Property<DateTime?>("LastAccessedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("LastAccessedAt");
+
+                    b.Property<int>("LastPositionSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("LastPositionSeconds");
 
                     b.Property<int>("LessonId")
                         .HasColumnType("integer")
@@ -405,6 +473,14 @@ namespace MC_BE.Migrations
                         .HasColumnType("integer")
                         .HasDefaultValue(0)
                         .HasColumnName("TimeSpentMinutes");
+
+                    b.Property<int>("TimeSpentSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("TimeSpentSeconds");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("UpdatedAt");
 
                     b.HasKey("LessonProgressId");
 
@@ -1098,6 +1174,17 @@ namespace MC_BE.Migrations
                         .IsUnique();
 
                     b.ToTable("USER_PROFILE");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.Certificate", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.Enrollment", "Enrollment")
+                        .WithMany()
+                        .HasForeignKey("EnrollmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Enrollment");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.Choice", b =>

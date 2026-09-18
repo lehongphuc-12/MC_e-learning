@@ -1,4 +1,4 @@
-import { request } from '../../../../services/api';
+import { request } from '../../../services/api';
 
 import type {
   ApiResponse,

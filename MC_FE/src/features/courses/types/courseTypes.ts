@@ -154,3 +154,21 @@ export interface CourseFormValues {
   level: CourseLevel | '';
   status: CourseStatus;    // 'DRAFT' | 'PUBLISHED' | 'ARCHIVED'
 }
+
+// ---------------------------------------------------------------------------
+// 7. LEARNED COURSE TYPE — returned from GET /courses/learned-courses
+// ---------------------------------------------------------------------------
+export interface LearnedCourse {
+  enrollmentId: number;
+  courseId: number;
+  course: Course;
+  progressPercent: number;
+  completedLecturesCount: number;
+  totalLecturesCount: number;
+  lastAccessedAt?: string;
+  lastLectureTitle?: string;
+  status: 'in-progress' | 'completed';
+  enrolledDate?: string;
+  certificateId?: number;
+}
+

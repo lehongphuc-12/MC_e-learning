@@ -2,26 +2,42 @@ using MC_BE.Core.Entities;
 using MC_BE.Core.Enums;
 using MC_BE.Features.Courses.DTOs;
 using MC_BE.Features.Courses.Services.Interfaces;
-using MC_BE.Shared.Data;
-using Microsoft.EntityFrameworkCore;
+using MC_BE.Shared.Repositories.Interfaces;
 using System.Text.RegularExpressions;
 
 namespace MC_BE.Features.Courses.Services;
 
 /// <summary>
-/// Implements all Course CRUD operations.
-/// Uses SmartMcDbContext directly (instead of the generic repository) because
-/// we need EF Core's Include() and complex LINQ filtering — the generic repo
-/// doesn't support that cleanly without breaking its abstraction.
+/// Implements all Course CRUD operations using generic repositories.
 /// </summary>
 public class CourseService : ICourseService
 {
-    private readonly SmartMcDbContext _context;
+    private readonly IGenericRepository<Course> _courseRepository;
+    private readonly IGenericRepository<Category> _categoryRepository;
+    private readonly IGenericRepository<Enrollment> _enrollmentRepository;
+    private readonly IGenericRepository<Lesson> _lessonRepository;
+    private readonly IGenericRepository<LessonProgress> _lessonProgressRepository;
+    private readonly IGenericRepository<Certificate> _certificateRepository;
+    private readonly IUnitOfWork _unitOfWork;
 
-    public CourseService(SmartMcDbContext context)
+    public CourseService(
+        IGenericRepository<Course> courseRepository,
+        IGenericRepository<Category> categoryRepository,
+        IGenericRepository<Enrollment> enrollmentRepository,
+        IGenericRepository<Lesson> lessonRepository,
+        IGenericRepository<LessonProgress> lessonProgressRepository,
+        IGenericRepository<Certificate> certificateRepository,
+        IUnitOfWork unitOfWork)
     {
-        _context = context;
+        _courseRepository = courseRepository;
+        _categoryRepository = categoryRepository;
+        _enrollmentRepository = enrollmentRepository;
+        _lessonRepository = lessonRepository;
+        _lessonProgressRepository = lessonProgressRepository;
+        _certificateRepository = certificateRepository;
+        _unitOfWork = unitOfWork;
     }
+
 
     // -------------------------------------------------------------------------
     // Slug generation helper
@@ -62,35 +78,24 @@ public class CourseService : ICourseService
         UpdatedAt     = course.UpdatedAt,
     };
 
-    // -------------------------------------------------------------------------
-    // Build a reusable, filterable IQueryable for Course
-    // WHY private? Both GetInstructorCoursesAsync and GetAllCoursesAsync share
-    // the same filter logic — extracting it avoids duplication.
-    // -------------------------------------------------------------------------
-    private IQueryable<Course> BuildCourseQuery(int? instructorId, string? status, int? categoryId, string? search)
+    private async Task<IEnumerable<Course>> FilterCoursesAsync(int? instructorId, string? status, int? categoryId, string? search)
     {
-        var query = _context.Courses
-            .Include(c => c.Category)
-            .Include(c => c.Instructor)
-            .AsQueryable();
+        var courses = await _courseRepository.GetAllAsync(c => c.Category, c => c.Instructor);
+        var query = courses.AsQueryable();
 
-        // Filter by instructor (for instructor's own courses view)
         if (instructorId.HasValue)
             query = query.Where(c => c.InstructorId == instructorId.Value);
 
-        // Filter by status (convert string → enum for comparison)
         if (!string.IsNullOrEmpty(status) && Enum.TryParse<CourseStatus>(status, true, out var parsedStatus))
             query = query.Where(c => c.Status == parsedStatus);
 
-        // Filter by category
         if (categoryId.HasValue)
             query = query.Where(c => c.CategoryId == categoryId.Value);
 
-        // Full-text search on Title
         if (!string.IsNullOrEmpty(search))
             query = query.Where(c => c.Title.ToLower().Contains(search.ToLower()));
 
-        return query.OrderByDescending(c => c.UpdatedAt);
+        return query.OrderByDescending(c => c.UpdatedAt).ToList();
     }
 
     // -------------------------------------------------------------------------
@@ -99,8 +104,8 @@ public class CourseService : ICourseService
     public async Task<CourseListResponse> GetInstructorCoursesAsync(
         int instructorId, int page, int limit, string? status, int? categoryId, string? search)
     {
-        var query = BuildCourseQuery(instructorId, status, categoryId, search);
-        return await ExecutePaginatedQueryAsync(query, page, limit);
+        var courses = await FilterCoursesAsync(instructorId, status, categoryId, search);
+        return ExecutePaginatedList(courses, page, limit);
     }
 
     // -------------------------------------------------------------------------
@@ -109,21 +114,22 @@ public class CourseService : ICourseService
     public async Task<CourseListResponse> GetAllCoursesAsync(
         int page, int limit, string? status, int? categoryId, string? search)
     {
-        var query = BuildCourseQuery(null, status, categoryId, search);
-        return await ExecutePaginatedQueryAsync(query, page, limit);
+        var courses = await FilterCoursesAsync(null, status, categoryId, search);
+        return ExecutePaginatedList(courses, page, limit);
     }
 
     // -------------------------------------------------------------------------
     // Execute pagination — shared between both list methods
     // -------------------------------------------------------------------------
-    private static async Task<CourseListResponse> ExecutePaginatedQueryAsync(
-        IQueryable<Course> query, int page, int limit)
+    private static CourseListResponse ExecutePaginatedList(
+        IEnumerable<Course> source, int page, int limit)
     {
-        var total = await query.CountAsync();
-        var items = await query
+        var list = source.ToList();
+        var total = list.Count;
+        var items = list
             .Skip((page - 1) * limit)
             .Take(limit)
-            .ToListAsync();
+            .ToList();
 
         return new CourseListResponse
         {
@@ -143,11 +149,12 @@ public class CourseService : ICourseService
     // -------------------------------------------------------------------------
     public async Task<CourseDto?> GetCourseByIdAsync(int courseId)
     {
-        var course = await _context.Courses
-            .Include(c => c.Category)
-            .Include(c => c.Instructor)
-            .FirstOrDefaultAsync(c => c.CourseId == courseId);
+        var courses = await _courseRepository.FindAsync(
+            c => c.CourseId == courseId,
+            c => c.Category,
+            c => c.Instructor);
 
+        var course = courses.FirstOrDefault();
         return course is null ? null : MapToDto(course);
     }
 
@@ -159,8 +166,8 @@ public class CourseService : ICourseService
         // Validate the CategoryId FK if provided
         if (request.CategoryId.HasValue)
         {
-            var catExists = await _context.Categories.AnyAsync(c => c.CategoryId == request.CategoryId.Value);
-            if (!catExists) return null; // Let caller decide the error response
+            var cat = await _categoryRepository.GetByIdAsync(request.CategoryId.Value);
+            if (cat == null) return null; // Let caller decide the error response
         }
 
         var course = new Course
@@ -178,8 +185,8 @@ public class CourseService : ICourseService
             UpdatedAt    = DateTime.UtcNow,
         };
 
-        _context.Courses.Add(course);
-        await _context.SaveChangesAsync();
+        await _courseRepository.AddAsync(course);
+        await _unitOfWork.SaveChangesAsync();
 
         // Reload with includes so the returned DTO has CategoryName/InstructorName
         return await GetCourseByIdAsync(course.CourseId);
@@ -190,7 +197,7 @@ public class CourseService : ICourseService
     // -------------------------------------------------------------------------
     public async Task<CourseDto?> UpdateCourseAsync(int courseId, int instructorId, UpdateCourseRequest request)
     {
-        var course = await _context.Courses.FindAsync(courseId);
+        var course = await _courseRepository.GetByIdAsync(courseId);
 
         // 404 or 403: not found OR caller is not the owner
         if (course is null || course.InstructorId != instructorId)
@@ -211,7 +218,9 @@ public class CourseService : ICourseService
 
         course.UpdatedAt = DateTime.UtcNow;
 
-        await _context.SaveChangesAsync();
+        _courseRepository.Update(course);
+        await _unitOfWork.SaveChangesAsync();
+
         return await GetCourseByIdAsync(courseId);
     }
 
@@ -220,12 +229,12 @@ public class CourseService : ICourseService
     // -------------------------------------------------------------------------
     public async Task<bool> DeleteCourseAsync(int courseId, int instructorId)
     {
-        var course = await _context.Courses.FindAsync(courseId);
+        var course = await _courseRepository.GetByIdAsync(courseId);
         if (course is null || course.InstructorId != instructorId)
             return false;
 
-        _context.Courses.Remove(course);
-        await _context.SaveChangesAsync();
+        _courseRepository.Remove(course);
+        await _unitOfWork.SaveChangesAsync();
         return true;
     }
 
@@ -234,7 +243,7 @@ public class CourseService : ICourseService
     // -------------------------------------------------------------------------
     public async Task<CourseDto?> UpdateCourseStatusAsync(int courseId, int instructorId, string newStatus)
     {
-        var course = await _context.Courses.FindAsync(courseId);
+        var course = await _courseRepository.GetByIdAsync(courseId);
         if (course is null || course.InstructorId != instructorId)
             return null;
 
@@ -244,7 +253,9 @@ public class CourseService : ICourseService
         course.Status    = parsedStatus;
         course.UpdatedAt = DateTime.UtcNow;
 
-        await _context.SaveChangesAsync();
+        _courseRepository.Update(course);
+        await _unitOfWork.SaveChangesAsync();
+
         return await GetCourseByIdAsync(courseId);
     }
 
@@ -264,4 +275,70 @@ public class CourseService : ICourseService
         }
         return createdList;
     }
+
+    // -------------------------------------------------------------------------
+    // GET Learned Courses (for enrolled learner)
+    // -------------------------------------------------------------------------
+    public async Task<List<LearnedCourseDto>> GetLearnedCoursesAsync(int learnerId)
+    {
+        var enrollments = await _enrollmentRepository.FindAsync(
+            e => e.LearnerId == learnerId && (e.Status == "ACTIVE" || e.Status == "COMPLETED" || e.Status == "EXPIRED"),
+            e => e.Course,
+            e => e.Course.Category,
+            e => e.Course.Instructor,
+            e => e.LessonProgresses);
+
+        var result = new List<LearnedCourseDto>();
+
+        foreach (var enrollment in enrollments.OrderByDescending(e => e.UpdatedAt))
+        {
+            if (enrollment.Course == null) continue;
+
+            var courseDto = MapToDto(enrollment.Course);
+
+            var lessons = await _lessonRepository.FindAsync(
+                l => l.CourseId == enrollment.CourseId && l.Status == LessonStatus.ACTIVE);
+            var totalLessonsCount = lessons.Count();
+
+            var progressList = enrollment.LessonProgresses ?? new List<LessonProgress>();
+            var completedProgresses = progressList.Where(p => p.IsCompleted || p.Status == LessonProgressStatus.COMPLETED).ToList();
+            var completedCount = completedProgresses.Count;
+
+            decimal progressPercent = totalLessonsCount > 0
+                ? Math.Round((decimal)completedCount / totalLessonsCount * 100, 2)
+                : Convert.ToDecimal(enrollment.CompletionPercentage);
+
+            var lastProgress = progressList.OrderByDescending(p => p.LastAccessedAt ?? p.UpdatedAt).FirstOrDefault();
+            string? lastLectureTitle = null;
+            if (lastProgress != null)
+            {
+                var lastLesson = lessons.FirstOrDefault(l => l.LessonId == lastProgress.LessonId);
+                lastLectureTitle = lastLesson?.Title;
+            }
+
+            var certs = await _certificateRepository.FindAsync(c => c.EnrollmentId == enrollment.EnrollmentId);
+            var cert = certs.FirstOrDefault();
+
+            bool isCompleted = progressPercent >= 100m || enrollment.Status == "COMPLETED";
+
+            result.Add(new LearnedCourseDto
+            {
+                EnrollmentId = enrollment.EnrollmentId,
+                CourseId = enrollment.CourseId,
+                Course = courseDto,
+                ProgressPercent = progressPercent,
+                CompletedLecturesCount = completedCount,
+                TotalLecturesCount = totalLessonsCount,
+                LastAccessedAt = lastProgress?.LastAccessedAt ?? enrollment.UpdatedAt,
+                LastLectureTitle = lastLectureTitle,
+                Status = isCompleted ? "completed" : "in-progress",
+                EnrolledDate = enrollment.EnrolledAt ?? enrollment.CreatedAt,
+                CertificateId = cert?.CertificateId
+            });
+        }
+
+        return result;
+    }
 }
+
+

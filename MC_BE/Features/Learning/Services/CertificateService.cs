@@ -5,70 +5,111 @@ using System.Threading.Tasks;
 using MC_BE.Core.Entities;
 using MC_BE.Features.Learning.DTOs;
 using MC_BE.Features.Learning.Services.Interfaces;
-using MC_BE.Shared.Data;
-using Microsoft.EntityFrameworkCore;
+using MC_BE.Shared.Repositories.Interfaces;
 
 namespace MC_BE.Features.Learning.Services;
 
 public class CertificateService : ICertificateService
 {
-    private readonly SmartMcDbContext _context;
+    private readonly IGenericRepository<Certificate> _certificateRepository;
+    private readonly IGenericRepository<Enrollment> _enrollmentRepository;
+    private readonly IGenericRepository<Lesson> _lessonRepository;
+    private readonly IGenericRepository<LessonProgress> _progressRepository;
+    private readonly IGenericRepository<User> _userRepository;
+    private readonly IUnitOfWork _unitOfWork;
 
-    public CertificateService(SmartMcDbContext context)
+    public CertificateService(
+        IGenericRepository<Certificate> certificateRepository,
+        IGenericRepository<Enrollment> enrollmentRepository,
+        IGenericRepository<Lesson> lessonRepository,
+        IGenericRepository<LessonProgress> progressRepository,
+        IGenericRepository<User> userRepository,
+        IUnitOfWork unitOfWork)
     {
-        _context = context;
+        _certificateRepository = certificateRepository;
+        _enrollmentRepository = enrollmentRepository;
+        _lessonRepository = lessonRepository;
+        _progressRepository = progressRepository;
+        _userRepository = userRepository;
+        _unitOfWork = unitOfWork;
     }
 
     public async Task<List<CertificateDto>> GetMyCertificatesAsync(int learnerId)
     {
-        var certificates = await _context.Certificates
-            .Include(c => c.Enrollment)
-                .ThenInclude(e => e.Course)
-                    .ThenInclude(co => co.Instructor)
-            .Include(c => c.Enrollment)
-                .ThenInclude(e => e.Learner)
-            .Where(c => c.Enrollment.LearnerId == learnerId && c.Status == "ACTIVE")
-            .OrderByDescending(c => c.IssuedAt)
-            .ToListAsync();
+        var certs = await _certificateRepository.FindAsync(
+            c => c.Enrollment.LearnerId == learnerId && c.Status == "ACTIVE",
+            c => c.Enrollment);
 
-        return certificates.Select(MapToDto).ToList();
+        // Load navigation properties for Mapping
+        var certList = certs.ToList();
+        var enrollmentIds = certList.Select(c => c.EnrollmentId).Distinct().ToList();
+        var enrollments = await _enrollmentRepository.FindAsync(
+            e => enrollmentIds.Contains(e.EnrollmentId),
+            e => e.Course,
+            e => e.Learner);
+
+        var enrollmentDict = enrollments.ToDictionary(e => e.EnrollmentId);
+
+        foreach (var cert in certList)
+        {
+            if (enrollmentDict.TryGetValue(cert.EnrollmentId, out var enr))
+            {
+                cert.Enrollment = enr;
+            }
+        }
+
+        return certList
+            .OrderByDescending(c => c.IssuedAt)
+            .Select(MapToDto)
+            .ToList();
     }
 
     public async Task<CertificateDto?> GetCertificateByCourseAsync(int learnerId, int courseId)
     {
-        var certificate = await _context.Certificates
-            .Include(c => c.Enrollment)
-                .ThenInclude(e => e.Course)
-                    .ThenInclude(co => co.Instructor)
-            .Include(c => c.Enrollment)
-                .ThenInclude(e => e.Learner)
-            .FirstOrDefaultAsync(c => c.Enrollment.LearnerId == learnerId &&
-                                      c.Enrollment.CourseId == courseId &&
-                                      c.Status == "ACTIVE");
+        var certs = await _certificateRepository.FindAsync(
+            c => c.Enrollment.LearnerId == learnerId &&
+                 c.Enrollment.CourseId == courseId &&
+                 c.Status == "ACTIVE",
+            c => c.Enrollment);
 
-        return certificate != null ? MapToDto(certificate) : null;
+        var cert = certs.FirstOrDefault();
+        if (cert == null) return null;
+
+        var enrollments = await _enrollmentRepository.FindAsync(
+            e => e.EnrollmentId == cert.EnrollmentId,
+            e => e.Course,
+            e => e.Learner);
+
+        cert.Enrollment = enrollments.FirstOrDefault() ?? cert.Enrollment;
+
+        return MapToDto(cert);
     }
 
     public async Task<CertificateDto?> GetCertificateByIdAsync(int certificateId, int? currentUserId = null)
     {
-        var certificate = await _context.Certificates
-            .Include(c => c.Enrollment)
-                .ThenInclude(e => e.Course)
-                    .ThenInclude(co => co.Instructor)
-            .Include(c => c.Enrollment)
-                .ThenInclude(e => e.Learner)
-            .FirstOrDefaultAsync(c => c.CertificateId == certificateId);
+        var certs = await _certificateRepository.FindAsync(
+            c => c.CertificateId == certificateId,
+            c => c.Enrollment);
 
+        var certificate = certs.FirstOrDefault();
         if (certificate == null) return null;
 
+        var enrollments = await _enrollmentRepository.FindAsync(
+            e => e.EnrollmentId == certificate.EnrollmentId,
+            e => e.Course,
+            e => e.Learner);
+
+        certificate.Enrollment = enrollments.FirstOrDefault() ?? certificate.Enrollment;
+
         // If currentUserId is passed, ensure learner owns certificate or is instructor/admin
-        if (currentUserId.HasValue && certificate.Enrollment.LearnerId != currentUserId.Value)
+        if (currentUserId.HasValue && certificate.Enrollment?.LearnerId != currentUserId.Value)
         {
             // Allow if user is instructor of the course
-            if (certificate.Enrollment.Course?.InstructorId != currentUserId.Value)
+            if (certificate.Enrollment?.Course?.InstructorId != currentUserId.Value)
             {
                 // Check if user is admin
-                var user = await _context.Users.Include(u => u.Role).FirstOrDefaultAsync(u => u.UserId == currentUserId.Value);
+                var users = await _userRepository.FindAsync(u => u.UserId == currentUserId.Value, u => u.Role);
+                var user = users.FirstOrDefault();
                 if (user?.Role?.RoleName != "Admin")
                 {
                     return null;
@@ -81,11 +122,12 @@ public class CertificateService : ICertificateService
 
     public async Task<CertificateDto?> IssueCertificateAsync(int learnerId, int courseId)
     {
-        var enrollment = await _context.Enrollments
-            .Include(e => e.Course)
-                .ThenInclude(c => c.Instructor)
-            .Include(e => e.Learner)
-            .FirstOrDefaultAsync(e => e.LearnerId == learnerId && e.CourseId == courseId);
+        var enrollments = await _enrollmentRepository.FindAsync(
+            e => e.LearnerId == learnerId && e.CourseId == courseId,
+            e => e.Course,
+            e => e.Learner);
+
+        var enrollment = enrollments.FirstOrDefault();
 
         if (enrollment == null)
         {
@@ -93,21 +135,26 @@ public class CertificateService : ICertificateService
         }
 
         // Idempotency: Return existing certificate if already issued
-        var existingCert = await _context.Certificates
-            .FirstOrDefaultAsync(c => c.EnrollmentId == enrollment.EnrollmentId);
+        var existingCerts = await _certificateRepository.FindAsync(
+            c => c.EnrollmentId == enrollment.EnrollmentId);
+
+        var existingCert = existingCerts.FirstOrDefault();
 
         if (existingCert != null)
         {
+            existingCert.Enrollment = enrollment;
             return MapToDto(existingCert);
         }
 
         // Verify completion rate
-        var totalLessons = await _context.Lessons
-            .CountAsync(l => l.CourseId == courseId && l.Status == Core.Enums.LessonStatus.ACTIVE);
+        var totalLessonsList = await _lessonRepository.FindAsync(
+            l => l.CourseId == courseId && l.Status == Core.Enums.LessonStatus.ACTIVE);
+        var totalLessons = totalLessonsList.Count();
 
-        var completedLessons = await _context.LessonProgresses
-            .CountAsync(lp => lp.EnrollmentId == enrollment.EnrollmentId &&
-                         (lp.IsCompleted || lp.Status == Core.Enums.LessonProgressStatus.COMPLETED));
+        var completedLessonsList = await _progressRepository.FindAsync(
+            lp => lp.EnrollmentId == enrollment.EnrollmentId &&
+                 (lp.IsCompleted || lp.Status == Core.Enums.LessonProgressStatus.COMPLETED));
+        var completedLessons = completedLessonsList.Count();
 
         decimal completionPercentage = totalLessons > 0
             ? Math.Round((decimal)completedLessons / totalLessons * 100, 2)
@@ -131,9 +178,10 @@ public class CertificateService : ICertificateService
             Status = "ACTIVE"
         };
 
-        _context.Certificates.Add(certificate);
-        await _context.SaveChangesAsync();
+        await _certificateRepository.AddAsync(certificate);
+        await _unitOfWork.SaveChangesAsync();
 
+        certificate.Enrollment = enrollment;
         return MapToDto(certificate);
     }
 
@@ -143,12 +191,11 @@ public class CertificateService : ICertificateService
 
         var cleanCode = code.Trim().ToUpperInvariant();
 
-        var cert = await _context.Certificates
-            .Include(c => c.Enrollment)
-                .ThenInclude(e => e.Course)
-            .Include(c => c.Enrollment)
-                .ThenInclude(e => e.Learner)
-            .FirstOrDefaultAsync(c => c.CertificateCode.ToUpper() == cleanCode);
+        var certs = await _certificateRepository.FindAsync(
+            c => c.CertificateCode.ToUpper() == cleanCode,
+            c => c.Enrollment);
+
+        var cert = certs.FirstOrDefault();
 
         if (cert == null)
         {
@@ -162,6 +209,13 @@ public class CertificateService : ICertificateService
                 Status = "NOT_FOUND"
             };
         }
+
+        var enrollments = await _enrollmentRepository.FindAsync(
+            e => e.EnrollmentId == cert.EnrollmentId,
+            e => e.Course,
+            e => e.Learner);
+
+        cert.Enrollment = enrollments.FirstOrDefault() ?? cert.Enrollment;
 
         return new CertificateVerificationDto
         {
@@ -201,3 +255,4 @@ public class CertificateService : ICertificateService
         };
     }
 }
+
