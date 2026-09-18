@@ -352,7 +352,6 @@ namespace MC_BE.Migrations
                     b.HasIndex("LearnerId", "CourseId", "Status");
 
                     b.ToTable("enrollments", (string)null);
-
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.Lesson", b =>
@@ -685,9 +684,7 @@ namespace MC_BE.Migrations
 
                     b.HasIndex("Status");
 
-
                     b.ToTable("payments", (string)null);
-
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.PaymentTransaction", b =>
@@ -765,9 +762,7 @@ namespace MC_BE.Migrations
 
                     b.HasIndex("Status");
 
-
                     b.ToTable("payment_transactions", (string)null);
-
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.Question", b =>
