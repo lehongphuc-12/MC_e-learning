@@ -61,6 +61,7 @@ export const AppRouter: React.FC<AppRouterProps> = ({
   const currentScreen: ScreenType = (() => {
     const path = location.pathname;
     if (path.startsWith('/admin')) return 'admin';
+    if (path === '/my-courses') return 'my-courses';
     if (path.startsWith('/courses')) return 'courses';
     if (path.startsWith('/course-detail')) return 'course-detail';
     if (path === '/profile') return 'profile';

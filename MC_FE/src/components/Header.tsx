@@ -7,14 +7,14 @@ import {
   Menu,
   Mic2,
   Search,
+  Shield,
   ShoppingBag,
   Sparkles,
   UserCircle,
   UserPlus,
   X,
-  Shield,
 } from 'lucide-react';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Course, ScreenType, User } from '../types';
 
@@ -333,13 +333,13 @@ export const Header: React.FC<HeaderProps> = ({
                       </button>
                       <button
                         onClick={() => {
-                          onNavigate('courses');
+                          onNavigate('my-courses');
                           setIsUserMenuOpen(false);
                         }}
                         className="w-full text-left px-4 py-2 text-xs font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-600 flex items-center gap-2 cursor-pointer"
                       >
                         <BookOpen className="w-4 h-4" />
-                        <span>Explore Courses</span>
+                        <span>Khóa học của tôi</span>
                       </button>
                       <button
                         onClick={() => {

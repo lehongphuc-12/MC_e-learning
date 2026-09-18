@@ -7,6 +7,7 @@ import { CourseDetailScreen } from './components/CourseDetailScreen';
 import { CourseLearningPage } from './components/CourseLearningPage';
 import { CertificateScreen } from './components/CertificateScreen';
 import { CertificateVerifyScreen } from './components/CertificateVerifyScreen';
+import { MyCoursesScreen } from './components/MyCoursesScreen';
 import { CourseManagementPage } from './components/management/CourseManagementPage';
 import { CourseFormPage } from './components/management/CourseFormPage';
 import { CourseLessonsPage } from './components/management/CourseLessonsPage';
@@ -92,6 +93,7 @@ export const renderCourseRoutes = ({
         )}
       />
       <Route path="/courses/:id/learn" element={<CourseLearningPage />} />
+      <Route path="/my-courses" element={withMainLayout(<MyCoursesScreen onNavigate={onNavigate} />)} />
       <Route path="/certificates/:certificateId" element={<CertificateScreen />} />
       <Route path="/verify-certificate" element={<CertificateVerifyScreen />} />
 
