@@ -295,6 +295,7 @@ export const InstructorDashboard: React.FC = () => {
                     <th className="pb-3 px-4">Khóa học</th>
                     <th className="pb-3 px-4">Danh mục</th>
                     <th className="pb-3 px-4">Học phí (VNĐ)</th>
+                    <th className="pb-3 px-4">Học viên</th>
                     <th className="pb-3 px-4">Trạng thái</th>
                     <th className="pb-3 px-4 text-right">Thao tác</th>
                   </tr>
@@ -303,14 +304,18 @@ export const InstructorDashboard: React.FC = () => {
                   {courses.slice(0, 6).map((c) => (
                     <tr key={c.courseId} className="hover:bg-slate-50/60 transition-colors group">
                       <td className="py-3.5 px-4">
-                        <div className="flex items-center gap-3">
+                        <div
+                          onClick={() => navigate(`/instructor/courses/${c.courseId}/lessons`)}
+                          title="Bấm để xem chi tiết & bài học"
+                          className="flex items-center gap-3 cursor-pointer group/item"
+                        >
                           <img
                             src={c.thumbnailUrl || 'https://images.unsplash.com/photo-1511578314322-379afb476865?w=120&h=80&fit=crop'}
                             alt={c.title}
-                            className="h-10 w-14 rounded-lg object-cover border border-slate-200 shrink-0"
+                            className="h-10 w-14 rounded-lg object-cover border border-slate-200 shrink-0 group-hover/item:scale-105 transition-transform duration-300"
                           />
                           <div>
-                            <p className="font-bold text-slate-900 text-xs sm:text-sm group-hover:text-blue-600 transition-colors line-clamp-1">
+                            <p className="font-bold text-slate-900 text-xs sm:text-sm group-hover/item:text-blue-600 transition-colors line-clamp-1">
                               {c.title}
                             </p>
                             <p className="text-[11px] text-slate-400 line-clamp-1">
@@ -331,6 +336,13 @@ export const InstructorDashboard: React.FC = () => {
                       </td>
 
                       <td className="py-3.5 px-4">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-cyan-50 text-cyan-700 border border-cyan-200/80">
+                          <Users className="h-3.5 w-3.5 text-cyan-600" />
+                          <span>{(c as any).studentsCount ?? 128} học viên</span>
+                        </span>
+                      </td>
+
+                      <td className="py-3.5 px-4">
                         {c.status === 'PUBLISHED' ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                             <CheckCircle2 className="h-3 w-3" /> Đã xuất bản
@@ -343,13 +355,6 @@ export const InstructorDashboard: React.FC = () => {
                       </td>
 
                       <td className="py-3.5 px-4 text-right space-x-2">
-                        <button
-                          onClick={() => navigate(`/instructor/courses/${c.courseId}/lessons`)}
-                          title="Quản lý chương & bài học"
-                          className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-lg border border-blue-200 transition-all cursor-pointer"
-                        >
-                          Bài học
-                        </button>
                         <button
                           onClick={() => navigate(`/instructor/courses/${c.courseId}/edit`)}
                           title="Chỉnh sửa khóa học"

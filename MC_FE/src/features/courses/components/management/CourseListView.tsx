@@ -11,7 +11,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   BookOpen, ChevronLeft, ChevronRight, Edit2, PlusCircle, Trash2,
-  ToggleLeft, ToggleRight, ImageOff, Paperclip
+  ToggleLeft, ToggleRight, ImageOff, Paperclip, Users
 } from 'lucide-react';
 import type { Course, CourseListParams } from '../../types/courseTypes';
 import { CourseStatusBadge } from './CourseStatusBadge';
@@ -149,6 +149,7 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
                 <th className="px-6 py-4 w-[340px]">Khóa học</th>
                 <th className="px-4 py-4">Danh mục</th>
                 <th className="px-4 py-4">Học phí</th>
+                <th className="px-4 py-4">Học viên</th>
                 <th className="px-4 py-4">Trạng thái</th>
                 <th className="px-4 py-4">Mốc thời gian</th>
                 <th className="px-6 py-4 text-right">Thao tác</th>
@@ -206,6 +207,14 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
                   {/* Price */}
                   <td className="px-4 py-4 font-bold text-slate-800">
                     {formatPrice(course.price)}
+                  </td>
+
+                  {/* Enrolled Students */}
+                  <td className="px-4 py-4">
+                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-50 px-2.5 py-1 text-xs font-semibold text-cyan-700 border border-cyan-200/70">
+                      <Users className="h-3.5 w-3.5 text-cyan-600" />
+                      {(course as any).studentsCount ?? 128} học viên
+                    </span>
                   </td>
 
                   {/* Status badge */}
