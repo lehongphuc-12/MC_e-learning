@@ -70,20 +70,20 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
   const faqs = [
     {
-      q: 'Do I receive a verified certificate upon completing a masterclass?',
-      a: 'Yes! Upon finishing 100% of the lectures and submitting your final speech run-sheet or practical audit, you receive a verifiable MSEEK Digital Certificate which can be embedded directly onto LinkedIn or your professional portfolio.'
+      q: 'Tôi có nhận được chứng chỉ sau khi hoàn thành khóa học masterclass không?',
+      a: 'Có! Sau khi hoàn thành 100% bài học và nộp kịch bản dẫn chương trình hoặc bài kiểm tra thực hành cuối khóa, bạn sẽ nhận được Chứng chỉ Số MSEEK có thể xác thực và nhúng trực tiếp vào hồ sơ LinkedIn hoặc Portfolio cá nhân.'
     },
     {
-      q: 'Are the masterclass run-sheets and templates downloadable?',
-      a: 'Absolutely. Every course includes full PDF, Word, and Excel timeline architectures, crisis checklist run-sheets, and fill-in-the-blank script templates that you can customize for your real events.'
+      q: 'Kịch bản mẫu và tài liệu khóa học có thể tải về không?',
+      a: 'Hoàn toàn có thể. Mỗi khóa học đều bao gồm đầy đủ tài liệu PDF, Word, khung thời gian Excel, danh mục kiểm tra xử lý sự cố và các mẫu kịch bản chuẩn bị sẵn để bạn tùy chỉnh cho sự kiện thực tế.'
     },
     {
-      q: 'Can I watch lectures offline on mobile devices?',
-      a: 'Yes, with MSEEK Pro Pass you can download all high-definition video modules for offline study while traveling or in green rooms before your stage appearances.'
+      q: 'Tôi có thể xem bài giảng ngoại tuyến trên thiết bị di động không?',
+      a: 'Có, với Gói MSEEK Pro Pass bạn có thể tải toàn bộ các video chất lượng cao để học ngoại tuyến khi di chuyển hoặc chuẩn bị trong hậu trường trước giờ lên sân khấu.'
     },
     {
-      q: 'What is the MSEEK 30-Day Money-Back Guarantee?',
-      a: 'If within 30 days of enrolling in any individual masterclass you feel the skills have not dramatically boosted your stage confidence, contact support@mseek.edu for a 100% immediate, no-questions-asked refund.'
+      q: 'Chính sách hoàn tiền 30 ngày của MSEEK hoạt động như thế nào?',
+      a: 'Nếu trong vòng 30 ngày kể từ khi đăng ký bất kỳ khóa học nào bạn cảm thấy kỹ năng của mình chưa cải thiện rõ rệt, hãy liên hệ support@mseek.edu để được hoàn tiền 100% ngay lập tức mà không cần thủ tục phức tạp.'
     }
   ];
 
@@ -100,18 +100,18 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             <div className="lg:col-span-7 space-y-6 text-center lg:text-left">
               <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-semibold">
                 <Sparkles className="w-3.5 h-3.5" />
-                <span>The Premier Masterclass Platform for Speakers & Hosts</span>
+                <span>Nền Tảng Đào Tạo Diễn Diễn Giả & MC Chuyên Nghiệp Hàng Đầu</span>
               </div>
 
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-tight">
-                Master the Art of <br />
+                Làm Chủ Nghệ Thuật <br />
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-indigo-300 to-sky-400">
-                  Live Communication.
+                  Giao Tiếp & Dẫn Chương Trình.
                 </span>
               </h1>
 
               <p className="text-base sm:text-lg text-slate-300 max-w-2xl mx-auto lg:mx-0 font-normal leading-relaxed">
-                Command any stage, host luxury galas, and deliver electrifying keynotes. Learn directly from world-renowned broadcast hosts, TEDx coaches, and master MCs.
+                Tự tin làm chủ mọi sân khấu, dẫn dắt các sự kiện cao cấp và làm thuyết trình đầy sức thuyết phục. Học hỏi trực tiếp từ các MC truyền hình, chuyên gia huấn luyện TEDx và diễn giả danh tiếng.
               </p>
 
               <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 pt-2">
@@ -120,16 +120,16 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   onClick={() => onNavigate('courses')}
                   className="w-full sm:w-auto px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm rounded-xl shadow-xl shadow-blue-600/30 hover:shadow-blue-600/50 hover:scale-[1.02] transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <span>Start Learning Now</span>
+                  <span>Bắt Đầu Học Ngay</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
                 <button
                   id="hero-browse-courses-btn"
-                  onClick={() => onNavigate('course-detail')}
+                  onClick={() => onNavigate('courses')}
                   className="w-full sm:w-auto px-7 py-4 bg-slate-800/80 hover:bg-slate-800 text-slate-200 font-semibold text-sm rounded-xl border border-slate-700 hover:border-slate-600 transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <Play className="w-4 h-4 text-blue-400 fill-blue-400" />
-                  <span>Preview Featured MC Masterclass</span>
+                  <span>Xem Khóa Học Masterclass Nổi Bật</span>
                 </button>
               </div>
 
@@ -147,7 +147,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                     ))}
                     <span className="text-xs font-bold text-white ml-1">4.9/5</span>
                   </div>
-                  <div className="text-xs text-slate-400">Trusted by 50,000+ graduates in 64 countries</div>
+                  <div className="text-xs text-slate-400">Được tin tưởng bởi hơn 50.000 học viên toàn quốc</div>
                 </div>
               </div>
             </div>
@@ -165,22 +165,22 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
                   <div className="absolute top-4 left-4 px-3 py-1.5 rounded-full bg-slate-950/80 backdrop-blur-md border border-slate-700 flex items-center gap-2 text-xs font-medium">
                     <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
-                    <span className="text-white font-semibold">Live Stage Simulation</span>
+                    <span className="text-white font-semibold">Mô Phỏng Sân Thấu Thực Tế</span>
                   </div>
 
                   {allCourses.length > 0 && (
                     <div className="absolute bottom-4 left-4 right-4 p-4 rounded-xl bg-slate-900/90 backdrop-blur-md border border-slate-700/80 space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-blue-400">FEATURED MASTERCLASS</span>
+                        <span className="text-xs font-bold text-blue-400">KHÓA HỌC NỔI BẬT</span>
                         <span className="text-xs font-extrabold text-amber-400">★ {allCourses[0].rating}</span>
                       </div>
                       <h3 className="text-sm font-bold text-white">{allCourses[0].title}</h3>
-                      <p className="text-[11px] text-slate-400">By {allCourses[0].instructor.name} • {allCourses[0].durationHours} hrs • {allCourses[0].lecturesCount} Lectures</p>
+                      <p className="text-[11px] text-slate-400">Giảng viên {allCourses[0].instructor.name} • {allCourses[0].durationHours} giờ • {allCourses[0].lecturesCount} bài học</p>
                       <button
                         onClick={() => onSelectCourse(allCourses[0])}
                         className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer"
                       >
-                        <span>Explore Masterclass</span>
+                        <span>Khám Phá Chi Tiết</span>
                         <ChevronRight className="w-3.5 h-3.5" />
                       </button>
                     </div>
@@ -192,8 +192,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                     <Award className="w-5 h-5" />
                   </div>
                   <div>
-                    <div className="text-xs font-bold text-white">98% Success Rate</div>
-                    <div className="text-[10px] text-slate-400">Bookings after 60 days</div>
+                    <div className="text-xs font-bold text-white">98% Tỷ Lệ Hài Lòng</div>
+                    <div className="text-[10px] text-slate-400">Tự tin nhận show sau 60 ngày</div>
                   </div>
                 </div>
 
@@ -202,8 +202,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                     <Mic className="w-5 h-5" />
                   </div>
                   <div>
-                    <div className="text-xs font-bold text-white">120+ Masterclasses</div>
-                    <div className="text-[10px] text-slate-400">On-demand 4K streaming</div>
+                    <div className="text-xs font-bold text-white">120+ Khóa Masterclass</div>
+                    <div className="text-[10px] text-slate-400">Phát trực tuyến Full HD/4K</div>
                   </div>
                 </div>
               </div>
@@ -217,19 +217,19 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-6 bg-white rounded-2xl shadow-xl border border-slate-200/80">
           <div className="text-center p-2 border-r border-slate-100 last:border-none">
             <div className="text-2xl sm:text-3xl font-black text-slate-900">120+</div>
-            <div className="text-xs font-medium text-slate-500 mt-1">Expert Masterclasses</div>
+            <div className="text-xs font-medium text-slate-500 mt-1">Khóa Học Chuyên Sâu</div>
           </div>
           <div className="text-center p-2 border-r border-slate-100 last:border-none">
-            <div className="text-2xl sm:text-3xl font-black text-slate-900">50,000+</div>
-            <div className="text-xs font-medium text-slate-500 mt-1">Global Alumni</div>
+            <div className="text-2xl sm:text-3xl font-black text-slate-900">50.000+</div>
+            <div className="text-xs font-medium text-slate-500 mt-1">Học Viên Tốt Nghiệp</div>
           </div>
           <div className="text-center p-2 border-r border-slate-100 last:border-none">
-            <div className="text-2xl sm:text-3xl font-black text-slate-900">15,000+</div>
-            <div className="text-xs font-medium text-slate-500 mt-1">Certificates Issued</div>
+            <div className="text-2xl sm:text-3xl font-black text-slate-900">15.000+</div>
+            <div className="text-xs font-medium text-slate-500 mt-1">Chứng Chỉ Đã Cấp</div>
           </div>
           <div className="text-center p-2">
             <div className="text-2xl sm:text-3xl font-black text-blue-600">4.92 / 5</div>
-            <div className="text-xs font-medium text-slate-500 mt-1">Average Student Rating</div>
+            <div className="text-xs font-medium text-slate-500 mt-1">Đánh Giá Trung Bình</div>
           </div>
         </div>
       </section>
@@ -238,15 +238,15 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       <section id="popular-categories-section" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
-            <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">Curated Disciplines</span>
-            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 mt-1">Master Your Stage Niche</h2>
-            <p className="text-xs sm:text-sm text-slate-500 mt-1">From intimate wedding receptions to Fortune 500 summits, choose your specialty.</p>
+            <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">Lĩnh Vực Chuyên Môn</span>
+            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 mt-1">Làm Chủ Lĩnh Vực Của Bạn</h2>
+            <p className="text-xs sm:text-sm text-slate-500 mt-1">Từ tiệc cưới sang trọng đến các hội nghị doanh nghiệp lớn, hãy chọn chuyên ngành bạn yêu thích.</p>
           </div>
           <button
             onClick={() => onNavigate('courses')}
             className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer"
           >
-            <span>View All Categories</span>
+            <span>Xem Tất Cả Danh Mục</span>
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>
@@ -269,7 +269,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/40 to-transparent" />
                 {cat.tag && (
                   <span className="absolute top-3 right-3 px-2.5 py-1 bg-blue-600 text-white rounded-md text-[10px] font-bold uppercase tracking-wider shadow">
-                    {cat.tag}
+                    {cat.tag === 'Trending' ? 'Nổi Bật' : cat.tag === 'High Demand' ? 'Nhu Cầu Cao' : cat.tag}
                   </span>
                 )}
               </div>
@@ -279,7 +279,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                     {cat.name}
                   </h3>
                   <span className="text-xs font-semibold text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full">
-                    {cat.coursesCount} Courses
+                    {cat.coursesCount} Khóa học
                   </span>
                 </div>
                 <p className="text-xs text-slate-500 line-clamp-2">{cat.description}</p>
@@ -293,9 +293,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       <section id="featured-courses-section" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
-            <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">Top Tier Programs</span>
-            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 mt-1">Featured Masterclasses</h2>
-            <p className="text-xs sm:text-sm text-slate-500 mt-1">High-impact curriculum with practical drills, run-sheets, and verified certification.</p>
+            <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">Chương Trình Hàng Đầu</span>
+            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 mt-1">Khóa Học Nổi Bật</h2>
+            <p className="text-xs sm:text-sm text-slate-500 mt-1">Giáo trình thực tế, lộ trình rõ ràng và chứng chỉ hoàn thành được công nhận.</p>
           </div>
 
           <div className="flex flex-wrap gap-2">
@@ -309,7 +309,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
-                {tab}
+                {tab === 'All' ? 'Tất cả' : tab}
               </button>
             ))}
           </div>
@@ -333,9 +333,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       <section id="top-instructors-section" className="bg-slate-900 text-white py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
           <div className="text-center max-w-2xl mx-auto space-y-2">
-            <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">World-Class Mentors</span>
-            <h2 className="text-2xl sm:text-3xl font-black text-white">Learn from the Stage Giants</h2>
-            <p className="text-xs sm:text-sm text-slate-400">Our mentors have hosted royal events, TED stages, BBC broadcasts, and Fortune 50 summits.</p>
+            <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">Đội Ngũ Chuyên Gia</span>
+            <h2 className="text-2xl sm:text-3xl font-black text-white">Học Hỏi Từ Các Chuyên Gia Hàng Đầu</h2>
+            <p className="text-xs sm:text-sm text-slate-400">Đội ngũ giảng viên từng dẫn dắt các sự kiện lớn, các chương trình truyền hình và đại hội quy mô lớn.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -364,15 +364,15 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 <div className="pt-3 border-t border-slate-700 w-full flex items-center justify-around text-xs text-slate-300">
                   <div>
                     <div className="font-bold text-white">{inst.studentsCount.toLocaleString()}+</div>
-                    <div className="text-[10px] text-slate-400">Students</div>
+                    <div className="text-[10px] text-slate-400">Học viên</div>
                   </div>
                   <div>
                     <div className="font-bold text-amber-400">★ {inst.rating}</div>
-                    <div className="text-[10px] text-slate-400">Instructor Rating</div>
+                    <div className="text-[10px] text-slate-400">Đánh giá</div>
                   </div>
                   <div>
                     <div className="font-bold text-white">{inst.coursesCount}</div>
-                    <div className="text-[10px] text-slate-400">Masterclasses</div>
+                    <div className="text-[10px] text-slate-400">Khóa học</div>
                   </div>
                 </div>
               </div>
@@ -391,7 +391,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               ))}
             </div>
             <blockquote className="text-lg sm:text-2xl font-bold text-slate-900 leading-snug">
-              "{mockTestimonials[0].quote}"
+              "MSEEK đã thay đổi hoàn toàn sự nghiệp dẫn chương trình của tôi. Bài học mô phỏng sân khấu và quy trình từng bước của khóa học giúp tôi tự tin dẫn dắt sự kiện 1.200 khách hàng hoàn hảo."
             </blockquote>
             <div className="flex items-center justify-center gap-3">
               <img
@@ -400,95 +400,19 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 className="w-12 h-12 rounded-full object-cover ring-2 ring-blue-600"
               />
               <div className="text-left">
-                <div className="text-sm font-bold text-slate-900">{mockTestimonials[0].author}</div>
-                <div className="text-xs text-slate-500">{mockTestimonials[0].role} • <span className="text-blue-600 font-semibold">{mockTestimonials[0].company}</span></div>
+                <div className="text-sm font-bold text-slate-900">Nguyễn Thu Thảo</div>
+                <div className="text-xs text-slate-500">Giám đốc Sự kiện • <span className="text-blue-600 font-semibold">Nexus Global</span></div>
               </div>
             </div>
           </div>
-        </div>
-      </section>
-
-      {/* PRICING TIERS */}
-      <section id="pricing-section" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
-        <div className="text-center max-w-2xl mx-auto space-y-3">
-          <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">Flexible Access</span>
-          <h2 className="text-2xl sm:text-3xl font-black text-slate-900">Invest in Your Stage Future</h2>
-          <p className="text-xs sm:text-sm text-slate-500">Choose individual masterclass ownership or unlock the complete MSEEK Pro catalog.</p>
-
-          <div className="pt-3 flex items-center justify-center gap-3">
-            <span className={`text-xs font-bold ${!isAnnualPricing ? 'text-slate-900' : 'text-slate-400'}`}>Monthly Billing</span>
-            <button
-              onClick={() => setIsAnnualPricing(!isAnnualPricing)}
-              className="w-12 h-6 rounded-full bg-slate-900 p-1 flex items-center transition-colors cursor-pointer"
-            >
-              <div className={`w-4 h-4 rounded-full bg-white transition-transform ${isAnnualPricing ? 'translate-x-6 bg-blue-500' : 'translate-x-0'}`} />
-            </button>
-            <div className="flex items-center gap-1.5">
-              <span className={`text-xs font-bold ${isAnnualPricing ? 'text-slate-900' : 'text-slate-400'}`}>Annual Billing</span>
-              <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-extrabold uppercase">Save 25%</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {mockPricingPlans.map((plan) => (
-            <div
-              key={plan.id}
-              className={`rounded-2xl p-8 flex flex-col justify-between border transition-all duration-300 relative ${
-                plan.popular
-                  ? 'bg-slate-900 text-white border-blue-500 shadow-2xl scale-105 z-10'
-                  : 'bg-white text-slate-900 border-slate-200 shadow-sm hover:shadow-lg'
-              }`}
-            >
-              {plan.popular && (
-                <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-[11px] font-black uppercase tracking-wider rounded-full shadow">
-                  Most Popular Choice
-                </span>
-              )}
-
-              <div className="space-y-6">
-                <div>
-                  <h3 className={`text-lg font-bold ${plan.popular ? 'text-white' : 'text-slate-900'}`}>{plan.name}</h3>
-                  <p className={`text-xs mt-1 ${plan.popular ? 'text-slate-400' : 'text-slate-500'}`}>{plan.description}</p>
-                </div>
-
-                <div className="flex items-baseline gap-1">
-                  <span className="text-4xl font-black">
-                    ${isAnnualPricing ? plan.annualPrice : plan.monthlyPrice}
-                  </span>
-                  <span className={`text-xs ${plan.popular ? 'text-slate-400' : 'text-slate-500'}`}>/ month</span>
-                </div>
-
-                <ul className="space-y-3 pt-4 border-t border-slate-200/20 text-xs">
-                  {plan.features.map((feat, idx) => (
-                    <li key={idx} className="flex items-start gap-2.5">
-                      <CheckCircle2 className={`w-4 h-4 shrink-0 ${plan.popular ? 'text-blue-400' : 'text-blue-600'}`} />
-                      <span className={plan.popular ? 'text-slate-300' : 'text-slate-600'}>{feat}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <button
-                onClick={() => onNavigate('register')}
-                className={`w-full mt-8 py-3.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
-                  plan.popular
-                    ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/40'
-                    : 'bg-slate-900 hover:bg-blue-600 text-white'
-                }`}
-              >
-                {plan.ctaText}
-              </button>
-            </div>
-          ))}
         </div>
       </section>
 
       {/* FAQ ACCORDION */}
       <section id="faq-section" className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
         <div className="text-center space-y-2">
-          <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">Frequently Asked</span>
-          <h2 className="text-2xl sm:text-3xl font-black text-slate-900">Questions & Answers</h2>
+          <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">Thắc Mắc Thường Gặp</span>
+          <h2 className="text-2xl sm:text-3xl font-black text-slate-900">Hỏi & Đáp</h2>
         </div>
 
         <div className="space-y-3">
@@ -518,9 +442,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       <section id="bottom-cta-section" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-blue-700 via-blue-600 to-indigo-700 text-white p-8 sm:p-14 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-8">
           <div className="space-y-3 text-center md:text-left max-w-xl">
-            <h2 className="text-2xl sm:text-4xl font-extrabold tracking-tight">Ready to Find Your Voice and Command Any Stage?</h2>
+            <h2 className="text-2xl sm:text-4xl font-extrabold tracking-tight">Sẵn Sàng Làm Chủ Giọng Nói Và Tự Tin Trên Mọi Sân Khấu?</h2>
             <p className="text-xs sm:text-sm text-blue-100">
-              Join over 50,000 learners mastering public speaking, wedding MCing, and executive communication today.
+              Gia nhập cùng hơn 50.000 học viên đang rèn luyện kỹ năng nói trước công chúng và dẫn chương trình ngay hôm nay.
             </p>
           </div>
           <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
@@ -528,13 +452,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               onClick={() => onNavigate('register')}
               className="px-8 py-4 bg-white hover:bg-slate-100 text-blue-900 font-extrabold text-sm rounded-xl shadow-lg transition-all text-center cursor-pointer"
             >
-              Start Free 7-Day Trial
+              Đăng Ký Học Ngay
             </button>
             <button
               onClick={() => onNavigate('courses')}
               className="px-6 py-4 bg-blue-800/80 hover:bg-blue-800 text-white font-semibold text-sm rounded-xl border border-blue-400/40 transition-all text-center cursor-pointer"
             >
-              Browse Catalog
+              Xem Danh Mục Khóa Học
             </button>
           </div>
         </div>

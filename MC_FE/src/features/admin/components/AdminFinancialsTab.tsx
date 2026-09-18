@@ -16,11 +16,11 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { PayoutRequest } from '../types/adminTypes';
-import { paymentApi } from '../../courses/payment/api/paymentApi';
+import { paymentApi } from '../../payment/api/paymentApi';
 import type {
   PaymentDetailsDto,
   VerifyPaymentResultDto,
-} from '../../courses/payment/types/paymentTypes';
+} from '../../payment/types/paymentTypes';
 
 interface AdminFinancialsTabProps {
   payouts: PayoutRequest[];

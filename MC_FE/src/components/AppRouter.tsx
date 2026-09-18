@@ -10,7 +10,7 @@ import { ForgotPasswordScreen } from '../features/auth/components/ForgotPassword
 import { ResetPasswordScreen } from '../features/auth/components/ResetPasswordScreen';
 import { ProfileScreen } from '../features/profile/components/ProfileScreen';
 import { AdminDashboardPage } from '../features/admin/pages/AdminDashboardPage';
-import { PaymentResultPage } from '../features/courses/payment/pages/PaymentResultPage';
+import { PaymentResultPage } from '../features/payment/pages/PaymentResultPage';
 import { CourseManagementPage } from '../features/courses/components/management/CourseManagementPage';
 import { CourseFormPage } from '../features/courses/components/management/CourseFormPage';
 import { CourseLessonsPage } from '../features/courses/components/management/CourseLessonsPage';

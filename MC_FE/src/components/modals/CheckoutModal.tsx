@@ -13,7 +13,7 @@ import {
   BookOpen,
   ArrowRight
 } from 'lucide-react';
-import { paymentApi } from '../../features/courses/payment/api/paymentApi';
+import { paymentApi } from '../../features/payment/api/paymentApi';
 import { useAuthStore } from '../../store/useAuthStore';
 
 interface CheckoutModalProps {
