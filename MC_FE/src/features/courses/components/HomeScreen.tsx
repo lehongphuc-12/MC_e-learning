@@ -11,10 +11,11 @@ import {
   CheckCircle2,
   TrendingUp,
 } from 'lucide-react';
-import { Course, ScreenType } from '../../../types';
-import { mockCategories, mockInstructors, mockTestimonials, mockPricingPlans } from '../../../data/mockData';
+import { Course, ScreenType, Category } from '../../../types';
+import { mockInstructors, mockTestimonials, mockPricingPlans } from '../../../data/mockData';
 import { CourseCard } from '../../../components/common/CourseCard';
 import { useCoursesQuery } from '../hooks/useCoursesQuery';
+import { useCategoriesQuery } from '../hooks/useInstructorCourses';
 
 interface HomeScreenProps {
   onNavigate: (screen: ScreenType) => void;
@@ -37,11 +38,35 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
 
   const coursesQuery = useCoursesQuery();
+  const categoriesQuery = useCategoriesQuery();
+
   const allCourses = coursesQuery.data || [];
+  const rawCategories = categoriesQuery.data || [];
+
+  // Map backend Category model to UI Category shape
+  const categories: Category[] = rawCategories.map((cat, idx) => ({
+    id: String(cat.categoryId),
+    name: cat.categoryName,
+    iconName: 'Mic',
+    coursesCount: allCourses.filter(c => c.category === cat.categoryName).length,
+    image: [
+      'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?auto=format&fit=crop&w=600&q=80',
+      'https://images.unsplash.com/photo-1475721027785-f74eccf877e2?auto=format&fit=crop&w=600&q=80',
+      'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=600&q=80',
+      'https://images.unsplash.com/photo-1531482615713-2afd69097998?auto=format&fit=crop&w=600&q=80',
+      'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=600&q=80',
+      'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?auto=format&fit=crop&w=600&q=80',
+    ][idx % 6],
+    description: cat.description || 'Master key skills in this curated discipline.',
+    tag: idx === 0 ? 'Trending' : idx === 1 ? 'High Demand' : undefined,
+  }));
+
+  const dynamicCategoryTabs = ['All', ...categories.map(c => c.name).slice(0, 4)];
 
   const filteredCourses = selectedCategoryTab === 'All'
     ? allCourses.slice(0, 4)
-    : allCourses.filter(c => c.category.includes(selectedCategoryTab) || selectedCategoryTab === 'All').slice(0, 4);
+    : allCourses.filter(c => c.category.toLowerCase().includes(selectedCategoryTab.toLowerCase())).slice(0, 4);
+
 
   const faqs = [
     {
@@ -227,7 +252,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {mockCategories.slice(0, 6).map((cat, idx) => (
+          {categories.slice(0, 6).map((cat: Category, idx: number) => (
             <div
               key={cat.id}
               onClick={() => onNavigate('courses')}
@@ -274,7 +299,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {['All', 'Wedding & Gala', 'MC & Event', 'Public Speaking'].map((tab) => (
+            {dynamicCategoryTabs.map((tab) => (
               <button
                 key={tab}
                 onClick={() => setSelectedCategoryTab(tab)}
