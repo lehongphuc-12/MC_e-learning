@@ -6,41 +6,59 @@ using MC_BE.Core.Entities;
 using MC_BE.Core.Enums;
 using MC_BE.Features.Learning.DTOs;
 using MC_BE.Features.Learning.Services.Interfaces;
-using MC_BE.Shared.Data;
-using Microsoft.EntityFrameworkCore;
+using MC_BE.Shared.Repositories.Interfaces;
 
 namespace MC_BE.Features.Learning.Services;
 
 public class LearningProgressService : ILearningProgressService
 {
-    private readonly SmartMcDbContext _context;
+    private readonly IGenericRepository<Enrollment> _enrollmentRepository;
+    private readonly IGenericRepository<Lesson> _lessonRepository;
+    private readonly IGenericRepository<LessonProgress> _progressRepository;
+    private readonly IGenericRepository<Certificate> _certificateRepository;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly ICertificateService _certificateService;
 
-    public LearningProgressService(SmartMcDbContext context, ICertificateService certificateService)
+    public LearningProgressService(
+        IGenericRepository<Enrollment> enrollmentRepository,
+        IGenericRepository<Lesson> lessonRepository,
+        IGenericRepository<LessonProgress> progressRepository,
+        IGenericRepository<Certificate> certificateRepository,
+        IUnitOfWork unitOfWork,
+        ICertificateService certificateService)
     {
-        _context = context;
+        _enrollmentRepository = enrollmentRepository;
+        _lessonRepository = lessonRepository;
+        _progressRepository = progressRepository;
+        _certificateRepository = certificateRepository;
+        _unitOfWork = unitOfWork;
         _certificateService = certificateService;
     }
 
     public async Task<CourseLearningProgressDto?> GetCourseProgressAsync(int learnerId, int courseId)
     {
-        var enrollment = await _context.Enrollments
-            .Include(e => e.Course)
-            .Include(e => e.LessonProgresses)
-            .FirstOrDefaultAsync(e => e.LearnerId == learnerId && e.CourseId == courseId);
+        var enrollments = await _enrollmentRepository.FindAsync(
+            e => e.LearnerId == learnerId && e.CourseId == courseId,
+            e => e.Course,
+            e => e.LessonProgresses);
+
+        var enrollment = enrollments.FirstOrDefault();
 
         if (enrollment == null)
         {
             return null;
         }
 
-        var lessons = await _context.Lessons
-            .Where(l => l.CourseId == courseId && l.Status == LessonStatus.ACTIVE)
+        var lessonsList = await _lessonRepository.FindAsync(
+            l => l.CourseId == courseId && l.Status == LessonStatus.ACTIVE);
+
+        var lessons = lessonsList
             .OrderBy(l => l.OrderIndex)
-            .ToListAsync();
+            .ToList();
 
         var totalLessons = lessons.Count;
-        var lessonProgressDict = enrollment.LessonProgresses.ToDictionary(lp => lp.LessonId);
+        var lessonProgressDict = (enrollment.LessonProgresses ?? new List<LessonProgress>())
+            .ToDictionary(lp => lp.LessonId);
 
         var progressDtos = new List<LessonProgressDto>();
         int completedCount = 0;
@@ -83,8 +101,10 @@ public class LearningProgressService : ILearningProgressService
             : 0m;
 
         // Check if certificate exists
-        var certificate = await _context.Certificates
-            .FirstOrDefaultAsync(c => c.EnrollmentId == enrollment.EnrollmentId);
+        var certs = await _certificateRepository.FindAsync(
+            c => c.EnrollmentId == enrollment.EnrollmentId);
+
+        var certificate = certs.FirstOrDefault();
 
         return new CourseLearningProgressDto
         {
@@ -104,16 +124,18 @@ public class LearningProgressService : ILearningProgressService
     public async Task<CourseLearningProgressDto?> UpdateLessonProgressAsync(
         int learnerId, int lessonId, UpdateLessonProgressRequest request)
     {
-        var lesson = await _context.Lessons.FirstOrDefaultAsync(l => l.LessonId == lessonId);
+        var lesson = await _lessonRepository.GetByIdAsync(lessonId);
         if (lesson == null) return null;
 
-        var enrollment = await _context.Enrollments
-            .Include(e => e.LessonProgresses)
-            .FirstOrDefaultAsync(e => e.LearnerId == learnerId && e.CourseId == lesson.CourseId);
+        var enrollments = await _enrollmentRepository.FindAsync(
+            e => e.LearnerId == learnerId && e.CourseId == lesson.CourseId,
+            e => e.LessonProgresses);
+
+        var enrollment = enrollments.FirstOrDefault();
 
         if (enrollment == null) return null;
 
-        var progress = enrollment.LessonProgresses.FirstOrDefault(lp => lp.LessonId == lessonId);
+        var progress = (enrollment.LessonProgresses ?? new List<LessonProgress>()).FirstOrDefault(lp => lp.LessonId == lessonId);
         if (progress == null)
         {
             progress = new LessonProgress
@@ -128,7 +150,7 @@ public class LearningProgressService : ILearningProgressService
                 LastAccessedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
-            _context.LessonProgresses.Add(progress);
+            await _progressRepository.AddAsync(progress);
         }
 
         if (request.IsCompleted.HasValue)
@@ -160,28 +182,32 @@ public class LearningProgressService : ILearningProgressService
         progress.LastAccessedAt = DateTime.UtcNow;
         progress.UpdatedAt = DateTime.UtcNow;
 
-        await _context.SaveChangesAsync();
+        _progressRepository.Update(progress);
+        await _unitOfWork.SaveChangesAsync();
 
         // Calculate new course completion rate
-        var allLessons = await _context.Lessons
-            .Where(l => l.CourseId == lesson.CourseId && l.Status == LessonStatus.ACTIVE)
-            .Select(l => l.LessonId)
-            .ToListAsync();
+        var allLessonsList = await _lessonRepository.FindAsync(
+            l => l.CourseId == lesson.CourseId && l.Status == LessonStatus.ACTIVE);
 
-        var completedCount = await _context.LessonProgresses
-            .Where(lp => lp.EnrollmentId == enrollment.EnrollmentId &&
-                         allLessons.Contains(lp.LessonId) &&
-                         (lp.IsCompleted || lp.Status == LessonProgressStatus.COMPLETED))
-            .CountAsync();
+        var allLessonIds = allLessonsList.Select(l => l.LessonId).ToList();
 
-        int totalLessons = allLessons.Count;
+        var completedProgresses = await _progressRepository.FindAsync(
+            lp => lp.EnrollmentId == enrollment.EnrollmentId &&
+                 allLessonIds.Contains(lp.LessonId) &&
+                 (lp.IsCompleted || lp.Status == LessonProgressStatus.COMPLETED));
+
+        int completedCount = completedProgresses.Count();
+        int totalLessons = allLessonIds.Count;
+
         decimal newPercentage = totalLessons > 0
             ? Math.Round((decimal)completedCount / totalLessons * 100, 2)
             : 0m;
 
         enrollment.CompletionPercentage = newPercentage;
         enrollment.UpdatedAt = DateTime.UtcNow;
-        await _context.SaveChangesAsync();
+
+        _enrollmentRepository.Update(enrollment);
+        await _unitOfWork.SaveChangesAsync();
 
         // Auto-issue certificate if 100% completed
         if (newPercentage >= 100.00m)
@@ -199,3 +225,4 @@ public class LearningProgressService : ILearningProgressService
         return await GetCourseProgressAsync(learnerId, lesson.CourseId);
     }
 }
+
