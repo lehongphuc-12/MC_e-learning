@@ -86,7 +86,7 @@ builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
 
 // Register Course Enrollment & Payment Services
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
-builder.Services.AddScoped<ICourseCatalogService, MockCourseCatalogService>();
+builder.Services.AddScoped<ICourseCatalogService, CourseCatalogService>();
 builder.Services.AddScoped<IEnrollmentService, EnrollmentService>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddScoped<IAdminPaymentService, AdminPaymentService>();

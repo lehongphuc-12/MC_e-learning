@@ -38,6 +38,24 @@ public class CoursesController : ControllerBase
     }
 
     // -------------------------------------------------------------------------
+    // GET /api/courses
+    // Public endpoint to get all courses (paginated, filtered, searched)
+    // Query params: page, limit, status, categoryId, search
+    // -------------------------------------------------------------------------
+    [HttpGet]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<CourseListResponse>>> GetCourses(
+        [FromQuery] int page = 1,
+        [FromQuery] int limit = 10,
+        [FromQuery] string? status = null,
+        [FromQuery] int? categoryId = null,
+        [FromQuery] string? search = null)
+    {
+        var result = await _courseService.GetAllCoursesAsync(page, limit, status, categoryId, search);
+        return Ok(ApiResponse<CourseListResponse>.SuccessResponse(result));
+    }
+
+    // -------------------------------------------------------------------------
     // GET /api/courses/my-courses
     // Returns the authenticated instructor's own courses.
     // Query params: page, limit, status, categoryId, search
@@ -60,6 +78,22 @@ public class CoursesController : ControllerBase
 
         return Ok(ApiResponse<CourseListResponse>.SuccessResponse(result));
     }
+
+    // -------------------------------------------------------------------------
+    // GET /api/courses/learned-courses
+    // Returns the authenticated learner's enrolled courses with progress & details.
+    // -------------------------------------------------------------------------
+    [HttpGet("learned-courses")]
+    public async Task<ActionResult<ApiResponse<List<LearnedCourseDto>>>> GetLearnedCourses()
+    {
+        var learnerId = GetCurrentUserId();
+        if (learnerId is null)
+            return Unauthorized(ApiResponse<List<LearnedCourseDto>>.FailureResponse("Unauthorized."));
+
+        var result = await _courseService.GetLearnedCoursesAsync(learnerId.Value);
+        return Ok(ApiResponse<List<LearnedCourseDto>>.SuccessResponse(result));
+    }
+
 
     // -------------------------------------------------------------------------
     // GET /api/courses/{id}

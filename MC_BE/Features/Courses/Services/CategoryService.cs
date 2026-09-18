@@ -28,7 +28,7 @@ public class CategoryService : ICategoryService
                 Description  = c.Description,
                 Status       = c.Status.ToString(),
             })
-            .ToListAsync();
+            .ToList();
     }
 
     public async Task<CategoryDto?> GetCategoryByIdAsync(int categoryId)
@@ -45,3 +45,4 @@ public class CategoryService : ICategoryService
         };
     }
 }
+

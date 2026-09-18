@@ -28,6 +28,7 @@ public class CourseService : ICourseService
         _unitOfWork = unitOfWork;
     }
 
+
     // -------------------------------------------------------------------------
     // Slug generation helper
     // Converts "Master of Ceremonies Training!" → "master-of-ceremonies-training"
@@ -84,23 +85,19 @@ public class CourseService : ICourseService
             .Include(c => c.ApprovedBy)
             .AsQueryable();
 
-        // Filter by instructor (for instructor's own courses view)
         if (instructorId.HasValue)
             query = query.Where(c => c.InstructorId == instructorId.Value);
 
-        // Filter by status (convert string → enum for comparison)
         if (!string.IsNullOrEmpty(status) && Enum.TryParse<CourseStatus>(status, true, out var parsedStatus))
             query = query.Where(c => c.Status == parsedStatus);
 
-        // Filter by category
         if (categoryId.HasValue)
             query = query.Where(c => c.CategoryId == categoryId.Value);
 
-        // Full-text search on Title
         if (!string.IsNullOrEmpty(search))
             query = query.Where(c => c.Title.ToLower().Contains(search.ToLower()));
 
-        return query.OrderByDescending(c => c.UpdatedAt);
+        return query.OrderByDescending(c => c.UpdatedAt).ToList();
     }
 
     // -------------------------------------------------------------------------
@@ -109,8 +106,8 @@ public class CourseService : ICourseService
     public async Task<CourseListResponse> GetInstructorCoursesAsync(
         int instructorId, int page, int limit, string? status, int? categoryId, string? search)
     {
-        var query = BuildCourseQuery(instructorId, status, categoryId, search);
-        return await ExecutePaginatedQueryAsync(query, page, limit);
+        var courses = await FilterCoursesAsync(instructorId, status, categoryId, search);
+        return ExecutePaginatedList(courses, page, limit);
     }
 
     // -------------------------------------------------------------------------
@@ -119,21 +116,22 @@ public class CourseService : ICourseService
     public async Task<CourseListResponse> GetAllCoursesAsync(
         int page, int limit, string? status, int? categoryId, string? search)
     {
-        var query = BuildCourseQuery(null, status, categoryId, search);
-        return await ExecutePaginatedQueryAsync(query, page, limit);
+        var courses = await FilterCoursesAsync(null, status, categoryId, search);
+        return ExecutePaginatedList(courses, page, limit);
     }
 
     // -------------------------------------------------------------------------
     // Execute pagination — shared between both list methods
     // -------------------------------------------------------------------------
-    private static async Task<CourseListResponse> ExecutePaginatedQueryAsync(
-        IQueryable<Course> query, int page, int limit)
+    private static CourseListResponse ExecutePaginatedList(
+        IEnumerable<Course> source, int page, int limit)
     {
-        var total = await query.CountAsync();
-        var items = await query
+        var list = source.ToList();
+        var total = list.Count;
+        var items = list
             .Skip((page - 1) * limit)
             .Take(limit)
-            .ToListAsync();
+            .ToList();
 
         return new CourseListResponse
         {
@@ -159,6 +157,7 @@ public class CourseService : ICourseService
             .Include(c => c.ApprovedBy)
             .FirstOrDefaultAsync(c => c.CourseId == courseId);
 
+        var course = courses.FirstOrDefault();
         return course is null ? null : MapToDto(course);
     }
 
@@ -368,4 +367,70 @@ public class CourseService : ICourseService
         }
         return createdList;
     }
+
+    // -------------------------------------------------------------------------
+    // GET Learned Courses (for enrolled learner)
+    // -------------------------------------------------------------------------
+    public async Task<List<LearnedCourseDto>> GetLearnedCoursesAsync(int learnerId)
+    {
+        var enrollments = await _enrollmentRepository.FindAsync(
+            e => e.LearnerId == learnerId && (e.Status == "ACTIVE" || e.Status == "COMPLETED" || e.Status == "EXPIRED"),
+            e => e.Course,
+            e => e.Course.Category,
+            e => e.Course.Instructor,
+            e => e.LessonProgresses);
+
+        var result = new List<LearnedCourseDto>();
+
+        foreach (var enrollment in enrollments.OrderByDescending(e => e.UpdatedAt))
+        {
+            if (enrollment.Course == null) continue;
+
+            var courseDto = MapToDto(enrollment.Course);
+
+            var lessons = await _lessonRepository.FindAsync(
+                l => l.CourseId == enrollment.CourseId && l.Status == LessonStatus.ACTIVE);
+            var totalLessonsCount = lessons.Count();
+
+            var progressList = enrollment.LessonProgresses ?? new List<LessonProgress>();
+            var completedProgresses = progressList.Where(p => p.IsCompleted || p.Status == LessonProgressStatus.COMPLETED).ToList();
+            var completedCount = completedProgresses.Count;
+
+            decimal progressPercent = totalLessonsCount > 0
+                ? Math.Round((decimal)completedCount / totalLessonsCount * 100, 2)
+                : Convert.ToDecimal(enrollment.CompletionPercentage);
+
+            var lastProgress = progressList.OrderByDescending(p => p.LastAccessedAt ?? p.UpdatedAt).FirstOrDefault();
+            string? lastLectureTitle = null;
+            if (lastProgress != null)
+            {
+                var lastLesson = lessons.FirstOrDefault(l => l.LessonId == lastProgress.LessonId);
+                lastLectureTitle = lastLesson?.Title;
+            }
+
+            var certs = await _certificateRepository.FindAsync(c => c.EnrollmentId == enrollment.EnrollmentId);
+            var cert = certs.FirstOrDefault();
+
+            bool isCompleted = progressPercent >= 100m || enrollment.Status == "COMPLETED";
+
+            result.Add(new LearnedCourseDto
+            {
+                EnrollmentId = enrollment.EnrollmentId,
+                CourseId = enrollment.CourseId,
+                Course = courseDto,
+                ProgressPercent = progressPercent,
+                CompletedLecturesCount = completedCount,
+                TotalLecturesCount = totalLessonsCount,
+                LastAccessedAt = lastProgress?.LastAccessedAt ?? enrollment.UpdatedAt,
+                LastLectureTitle = lastLectureTitle,
+                Status = isCompleted ? "completed" : "in-progress",
+                EnrolledDate = enrollment.EnrolledAt ?? enrollment.CreatedAt,
+                CertificateId = cert?.CertificateId
+            });
+        }
+
+        return result;
+    }
 }
+
+

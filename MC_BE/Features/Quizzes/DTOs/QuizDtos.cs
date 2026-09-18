@@ -119,22 +119,54 @@ public class ChoiceDto
 }
 public class UpdateQuizRequest
 {
-    [Required(ErrorMessage = "Quiz title is required.")]
-    [MaxLength(255, ErrorMessage = "Quiz title cannot exceed 255 characters.")]
+    [Required, MaxLength(255)]
     public string Title { get; set; } = string.Empty;
 
     public string? Description { get; set; }
 
-    [Range(0, int.MaxValue, ErrorMessage = "Time limit must be 0 or greater.")]
+    [Range(0, int.MaxValue)]
     public int TimeLimitMinutes { get; set; }
 
-    [Range(0, 100, ErrorMessage = "Passing score must be between 0 and 100.")]
+    [Range(0, 100)]
     public decimal PassingScore { get; set; }
 
-    [Range(1, int.MaxValue, ErrorMessage = "Max attempts must be at least 1.")]
+    [Range(1, int.MaxValue)]
     public int MaxAttempts { get; set; }
 
     public QuizStatus Status { get; set; }
+
+    public List<UpdateQuestionRequest> Questions { get; set; } = new();
+}
+public class UpdateQuestionRequest
+{
+    // = 0 nếu tạo question mới
+    public int QuestionId { get; set; }
+
+    [Required]
+    public string QuestionText { get; set; } = string.Empty;
+
+    [Required]
+    public QuestionType QuestionType { get; set; }
+
+    public string? Explanation { get; set; }
+
+    [Range(1, int.MaxValue)]
+    public int OrderIndex { get; set; } = 1;
+
+    public List<UpdateChoiceRequest> Choices { get; set; } = new();
+}
+public class UpdateChoiceRequest
+{
+    // = 0 nếu tạo choice mới
+    public int ChoiceId { get; set; }
+
+    [Required]
+    public string ChoiceText { get; set; } = string.Empty;
+
+    public bool IsCorrect { get; set; }
+
+    [Range(1, int.MaxValue)]
+    public int OrderIndex { get; set; } = 1;
 }
 public class TakeQuizDto
 {
@@ -220,4 +252,23 @@ public class QuizAnswerResultDto
     public string? CorrectChoiceText { get; set; }
 
     public bool IsCorrect { get; set; }
+}
+public class QuizListItemDto
+{
+    public int QuizId { get; set; }
+    public int? CourseId { get; set; }
+    public int? LessonId { get; set; }
+
+    public string Title { get; set; } = string.Empty;
+    public string? Description { get; set; }
+
+    public int TimeLimitMinutes { get; set; }
+    public decimal PassingScore { get; set; }
+    public int MaxAttempts { get; set; }
+
+    public QuizStatus Status { get; set; }
+
+    public DateTime CreatedAt { get; set; }
+
+    public int QuestionCount { get; set; }
 }

@@ -27,6 +27,7 @@ import type {
   CreateCourseDto,
   UpdateCourseDto,
   CourseListParams,
+  LearnedCourse,
 } from '../types/courseTypes';
 
 // ---------------------------------------------------------------------------
@@ -73,6 +74,16 @@ function buildQuery(params?: Record<string, string | number | undefined>): strin
 }
 
 export const courseApi = {
+  // -------------------------------------------------------------------------
+  // READ — Public courses catalog
+  // GET /courses
+  // -------------------------------------------------------------------------
+  async getCourses(params?: CourseListParams): Promise<CourseListResult> {
+    const query = buildQuery(params as Record<string, string | number | undefined>);
+    const envelope = await request<ApiEnvelope<CourseListPayload>>(`/courses${query}`);
+    return envelope.data;
+  },
+
   // -------------------------------------------------------------------------
   // READ — Instructor's own courses (paginated + filterable)
   // GET /courses/my-courses
@@ -173,3 +184,4 @@ export const courseApi = {
     return envelope.data;
   },
 };
+

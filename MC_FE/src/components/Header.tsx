@@ -7,14 +7,14 @@ import {
   Menu,
   Mic2,
   Search,
+  Shield,
   ShoppingBag,
   Sparkles,
   UserCircle,
   UserPlus,
   X,
-  Shield,
 } from 'lucide-react';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Course, ScreenType, User } from '../types';
 
@@ -185,18 +185,7 @@ export const Header: React.FC<HeaderProps> = ({
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                   }`}
                 >
-                  Courses
-                </button>
-                <button
-                  id="nav-detail-btn"
-                  onClick={() => onNavigate('course-detail')}
-                  className={`px-3.5 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
-                    currentScreen === 'course-detail'
-                      ? 'text-blue-600 bg-blue-50/70 font-semibold'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                  }`}
-                >
-                  Course Detail
+                  Khóa học
                 </button>
                 {user?.role === 'admin' && (
                   <button
@@ -367,13 +356,13 @@ export const Header: React.FC<HeaderProps> = ({
                       </button>
                       <button
                         onClick={() => {
-                          onNavigate('courses');
+                          onNavigate('my-courses');
                           setIsUserMenuOpen(false);
                         }}
                         className="w-full text-left px-4 py-2 text-xs font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-600 flex items-center gap-2 cursor-pointer"
                       >
                         <BookOpen className="w-4 h-4" />
-                        <span>Explore Courses</span>
+                        <span>Khóa học của tôi</span>
                       </button>
                       <button
                         onClick={() => {

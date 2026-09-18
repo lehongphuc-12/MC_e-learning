@@ -71,9 +71,8 @@ public class ModuleService : IModuleService
                 .ThenInclude(l => l.CourseMaterials)
             .Where(m => m.CourseId == courseId)
             .OrderBy(m => m.OrderIndex)
-            .ToListAsync();
-
-        return modules.Select(MapToDto).ToList();
+            .Select(MapToDto)
+            .ToList();
     }
 
     public async Task<ModuleDto?> GetModuleByIdAsync(int moduleId)
@@ -83,7 +82,7 @@ public class ModuleService : IModuleService
                 .ThenInclude(l => l.CourseMaterials)
             .FirstOrDefaultAsync(m => m.ModuleId == moduleId);
 
-        return module == null ? null : MapToDto(module);
+        return MapToDto(module);
     }
 
     public async Task<ModuleDto?> CreateModuleAsync(int courseId, int instructorId, CreateModuleRequest request)
@@ -116,6 +115,8 @@ public class ModuleService : IModuleService
             .FirstOrDefaultAsync(m => m.ModuleId == moduleId);
 
         if (module == null || module.Course == null || module.Course.InstructorId != instructorId) return null;
+
+        if (module == null || module.Course?.InstructorId != instructorId) return null;
 
         module.Title = request.Title.Trim();
         module.Description = request.Description?.Trim();
@@ -215,3 +216,4 @@ public class ModuleService : IModuleService
         return await GetModulesByCourseIdAsync(courseId);
     }
 }
+

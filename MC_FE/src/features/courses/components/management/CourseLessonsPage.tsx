@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { CourseStudentsModal } from './CourseStudentsModal';
 import { useCourseDetail } from '../../hooks/useInstructorCourses';
+import { useQuizzesByCourse } from "../../../quizzes/hooks/useQuiz";
 import {
   useCourseLessons,
   useCreateLesson,
@@ -57,6 +58,10 @@ export const CourseLessonsPage: React.FC = () => {
   const { data: course, isLoading: isCourseLoading } = useCourseDetail(courseId);
   const { data: lessons = [], isLoading: isLessonsLoading } = useCourseLessons(courseId);
   const { data: modules = [], isLoading: isModulesLoading } = useCourseModules(courseId);
+  const {
+  data: quizzes = [],
+  isLoading: isQuizzesLoading,
+} = useQuizzesByCourse(courseId);
 
   // Accordion open state for modules
   const [collapsedModules, setCollapsedModules] = useState<Record<number, boolean>>({});
@@ -299,7 +304,13 @@ export const CourseLessonsPage: React.FC = () => {
                 <FolderPlus className="h-4 w-4" />
                 Thêm Chương mới
               </button>
-
+              <button
+  onClick={() => navigate(`/instructor/courses/${courseId}/quizzes`)}
+  className="inline-flex items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-xs font-semibold text-white shadow-lg shadow-violet-500/20 hover:bg-violet-500 active:scale-95 transition-all cursor-pointer"
+>
+  <FileSpreadsheet className="h-4 w-4" />
+  Quản lý Quiz
+</button>
               {modules.length > 0 && (
                 <button
                   onClick={() => handleOpenCreateLesson(modules[0]?.moduleId)}
@@ -313,7 +324,257 @@ export const CourseLessonsPage: React.FC = () => {
           </div>
         </div>
       </div>
+       {/* ============================================================
+    QUIZ MANAGEMENT
+============================================================ */}
 
+<div className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-xs">
+
+  {/* Header */}
+  <div className="flex flex-col gap-4 border-b border-slate-100 bg-gradient-to-r from-indigo-50 to-blue-50 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+
+    <div className="flex items-center gap-3">
+
+      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-600">
+        <ClipboardList className="h-5 w-5" />
+      </div>
+
+      <div>
+        <h2 className="text-base font-bold text-slate-900">
+          Quản lý Quiz
+        </h2>
+
+        <p className="mt-0.5 text-xs text-slate-500">
+          {quizzes.length} bài kiểm tra trong khóa học
+        </p>
+      </div>
+
+    </div>
+
+    <button
+      type="button"
+      onClick={() =>
+        navigate(
+          `/instructor/quizzes/new?courseId=${courseId}`
+        )
+      }
+      className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-semibold text-white shadow-md shadow-indigo-500/20 transition-all hover:bg-indigo-700 active:scale-95"
+    >
+      <Plus className="h-4 w-4" />
+      Tạo Quiz
+    </button>
+
+  </div>
+
+  {/* Content */}
+  {isQuizzesLoading ? (
+
+    <div className="space-y-3 p-6">
+      {[1, 2, 3].map((item) => (
+        <div
+          key={item}
+          className="h-16 animate-pulse rounded-xl bg-slate-100"
+        />
+      ))}
+    </div>
+
+  ) : quizzes.length === 0 ? (
+
+    <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
+
+      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-500">
+        <ClipboardList className="h-7 w-7" />
+      </div>
+
+      <h3 className="mt-4 text-sm font-bold text-slate-800">
+        Chưa có Quiz nào
+      </h3>
+
+      <p className="mt-1 max-w-md text-xs text-slate-500">
+        Tạo bài kiểm tra để đánh giá kiến thức của học viên
+        trong khóa học này.
+      </p>
+
+      <button
+        type="button"
+        onClick={() =>
+          navigate(
+            `/instructor/quizzes/new?courseId=${courseId}`
+          )
+        }
+        className="mt-5 inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-indigo-700"
+      >
+        <Plus className="h-4 w-4" />
+        Tạo Quiz đầu tiên
+      </button>
+
+    </div>
+
+  ) : (
+
+    <div className="overflow-x-auto">
+
+      <table className="w-full text-xs text-left">
+
+        <thead>
+          <tr className="border-b border-slate-100 bg-slate-50/70 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+
+            <th className="px-6 py-3">
+              Quiz
+            </th>
+
+            <th className="px-4 py-3">
+              Câu hỏi
+            </th>
+
+            <th className="px-4 py-3">
+              Thời gian
+            </th>
+
+            <th className="px-4 py-3">
+              Điểm đạt
+            </th>
+
+            <th className="px-4 py-3">
+              Trạng thái
+            </th>
+
+            <th className="px-6 py-3 text-right">
+              Thao tác
+            </th>
+
+          </tr>
+        </thead>
+
+        <tbody className="divide-y divide-slate-100">
+
+          {quizzes.map((quiz) => (
+
+            <tr
+              key={quiz.quizId}
+              className="group transition-colors hover:bg-indigo-50/20"
+            >
+
+              {/* Quiz */}
+              <td className="px-6 py-4">
+
+                <div>
+                  <p className="font-semibold text-slate-900">
+                    {quiz.title}
+                  </p>
+
+                  {quiz.description && (
+                    <p className="mt-0.5 max-w-md truncate text-xs text-slate-500">
+                      {quiz.description}
+                    </p>
+                  )}
+
+                </div>
+
+              </td>
+
+              {/* Questions */}
+              <td className="px-4 py-4 font-medium text-slate-700">
+                {quiz.questionCount ?? 0} câu
+              </td>
+
+              {/* Time */}
+              <td className="px-4 py-4 text-slate-600">
+                {quiz.timeLimitMinutes > 0
+                  ? `${quiz.timeLimitMinutes} phút`
+                  : 'Không giới hạn'}
+              </td>
+
+              {/* Passing */}
+              <td className="px-4 py-4 font-medium text-slate-700">
+                {quiz.passingScore}%
+              </td>
+
+              {/* Status */}
+              <td className="px-4 py-4">
+
+                <span
+                  className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                    quiz.status === 'PUBLISHED'
+                      ? 'bg-emerald-50 text-emerald-700'
+                      : quiz.status === 'ARCHIVED'
+                      ? 'bg-slate-100 text-slate-500'
+                      : 'bg-amber-50 text-amber-700'
+                  }`}
+                >
+                  {quiz.status === 'PUBLISHED'
+                    ? 'Đã xuất bản'
+                    : quiz.status === 'ARCHIVED'
+                    ? 'Đã lưu trữ'
+                    : 'Bản nháp'}
+                </span>
+
+              </td>
+
+              {/* Actions */}
+              <td className="px-6 py-4">
+
+                <div className="flex items-center justify-end gap-1.5">
+
+                  {/* Detail */}
+                  <button
+                    type="button"
+                    title="Xem Quiz"
+                    onClick={() =>
+                      navigate(
+                        `/instructor/quizzes/${quiz.quizId}`
+                      )
+                    }
+                    className="rounded-xl p-2 text-slate-400 transition-all hover:bg-indigo-50 hover:text-indigo-600"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </button>
+
+                  {/* Edit */}
+                  <button
+                    type="button"
+                    title="Chỉnh sửa Quiz"
+                    onClick={() =>
+                      navigate(
+                        `/instructor/quizzes/${quiz.quizId}/edit`
+                      )
+                    }
+                    className="rounded-xl p-2 text-slate-400 transition-all hover:bg-blue-50 hover:text-blue-600"
+                  >
+                    <Edit2 className="h-4 w-4" />
+                  </button>
+
+                  {/* Take */}
+                  <button
+                    type="button"
+                    title="Làm Quiz"
+                    onClick={() =>
+                      navigate(
+                        `/quizzes/${quiz.quizId}/take`
+                      )
+                    }
+                    className="rounded-xl p-2 text-slate-400 transition-all hover:bg-emerald-50 hover:text-emerald-600"
+                  >
+                    <PlayCircle className="h-4 w-4" />
+                  </button>
+
+                </div>
+
+              </td>
+
+            </tr>
+
+          ))}
+
+        </tbody>
+
+      </table>
+
+    </div>
+
+  )}
+
+</div>       
       {/* Content Container */}
       <div className="mx-auto max-w-7xl px-6 pt-8 space-y-6">
         {/* Module Accordions */}

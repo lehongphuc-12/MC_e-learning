@@ -46,8 +46,11 @@ export const adminApi = {
   // Users
   async getUsers(): Promise<AdminUser[]> {
     try {
-      const res = await request<{ success: boolean; data: AdminUser[] }>('/admin/users');
-      if (res.success && res.data) return res.data;
+      const res = await request<{ success: boolean; data: any }>('/admin/users');
+      if (res.success && res.data) {
+        if (Array.isArray(res.data)) return res.data;
+        if (Array.isArray(res.data.data)) return res.data.data;
+      }
     } catch (_) {
       // Fallback
     }
@@ -195,8 +198,11 @@ export const adminApi = {
   // Categories
   async getCategories(): Promise<AdminCategory[]> {
     try {
-      const res = await request<{ success: boolean; data: AdminCategory[] }>('/admin/categories');
-      if (res.success && res.data) return res.data;
+      const res = await request<{ success: boolean; data: any }>('/admin/categories');
+      if (res.success && res.data) {
+        if (Array.isArray(res.data)) return res.data;
+        if (Array.isArray(res.data.data)) return res.data.data;
+      }
     } catch (_) {
       // Fallback
     }

@@ -102,10 +102,12 @@ export const CourseCard: React.FC<CourseCardProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <span className="text-base font-extrabold text-slate-900">
-                {course.price === 0 ? 'FREE' : `$${course.price}`}
+                {course.price === 0 ? 'MIỄN PHÍ' : `${course.price.toLocaleString('vi-VN')} đ`}
               </span>
               {course.originalPrice && (
-                <span className="text-xs text-slate-400 line-through ml-1.5">${course.originalPrice}</span>
+                <span className="text-xs text-slate-400 line-through ml-1.5">
+                  {course.originalPrice.toLocaleString('vi-VN')} đ
+                </span>
               )}
             </div>
             <div className="flex items-center gap-1.5">

@@ -133,3 +133,22 @@ public class CategoryDto
     public string? Description { get; set; }
     public string Status { get; set; } = "ACTIVE";
 }
+
+// ---------------------------------------------------------------------------
+// Learned course response DTO — returned for learner's enrolled courses with progress
+// ---------------------------------------------------------------------------
+public class LearnedCourseDto
+{
+    public int EnrollmentId { get; set; }
+    public int CourseId { get; set; }
+    public CourseDto Course { get; set; } = new();
+    public decimal ProgressPercent { get; set; }
+    public int CompletedLecturesCount { get; set; }
+    public int TotalLecturesCount { get; set; }
+    public DateTime? LastAccessedAt { get; set; }
+    public string? LastLectureTitle { get; set; }
+    public string Status { get; set; } = "in-progress"; // "in-progress" or "completed"
+    public DateTime? EnrolledDate { get; set; }
+    public int? CertificateId { get; set; }
+}
+

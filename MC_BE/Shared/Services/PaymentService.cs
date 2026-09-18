@@ -58,17 +58,33 @@ public class PaymentService : IPaymentService
             return ApiResponse<CreatePaymentResponseDto>.FailureResponse("Khóa học không tồn tại.");
         }
 
+        // Tìm kiếm toàn bộ bản ghi thanh toán đã tồn tại của enrollment này (không phân biệt trạng thái để tránh trùng unique key)
         var existingPayment = await _context.Payments
-            .FirstOrDefaultAsync(p => p.EnrollmentId == enrollment.EnrollmentId && p.Status == "PENDING" && p.ExpiresAt > DateTime.UtcNow);
+            .FirstOrDefaultAsync(p => p.EnrollmentId == enrollment.EnrollmentId);
 
         Payment payment;
+        var txnRef = $"{DateTime.UtcNow:yyyyMMddHHmmss}_{enrollment.EnrollmentId}_{RandomNumberGenerator.GetInt32(1000, 9999)}";
+
         if (existingPayment != null)
         {
+            if (existingPayment.Status == "SUCCESS")
+            {
+                return ApiResponse<CreatePaymentResponseDto>.FailureResponse("Khóa học này đã được thanh toán thành công trước đó.");
+            }
+
+            // Tái sử dụng bản ghi cũ và cập nhật lại thông tin PENDING mới
             payment = existingPayment;
+            payment.Amount = course.Price;
+            payment.MerchantTxnRef = txnRef;
+            payment.Status = "PENDING";
+            payment.UpdatedAt = DateTime.UtcNow;
+            payment.ExpiresAt = DateTime.UtcNow.AddMinutes(15);
+
+            _context.Payments.Update(payment);
+            await _context.SaveChangesAsync();
         }
         else
         {
-            var txnRef = $"{DateTime.UtcNow:yyyyMMddHHmmss}_{enrollment.EnrollmentId}_{RandomNumberGenerator.GetInt32(1000, 9999)}";
             payment = new Payment
             {
                 LearnerId = currentUserId,

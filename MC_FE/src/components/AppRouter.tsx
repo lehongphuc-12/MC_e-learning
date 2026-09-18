@@ -21,8 +21,16 @@ import { CertificateVerifyScreen } from '../features/courses/components/Certific
 import { MainLayout } from './layouts/MainLayout';
 import { InstructorLayout } from './layouts/InstructorLayout';
 import { ToastType } from './common/Toast';
-import { ProtectedRoute } from './common/ProtectedRoute';
 import { mockCourses } from '../data/mockData';
+import { HomeScreen } from '../features/courses/components/HomeScreen';
+
+// Feature route modules
+import { renderAuthRoutes } from '../features/auth/routes';
+import { renderCourseRoutes } from '../features/courses/routes';
+import { renderQuizRoutes } from '../features/quizzes/routes';
+import { renderProfileRoutes } from '../features/profile/routes';
+import { renderAdminRoutes } from '../features/admin/routes';
+import { renderPaymentRoutes } from '../features/payment/routes';
 
 interface AppRouterProps {
   selectedCourse: Course | null;
@@ -71,6 +79,7 @@ export const AppRouter: React.FC<AppRouterProps> = ({
   const currentScreen: ScreenType = (() => {
     const path = location.pathname;
     if (path.startsWith('/admin')) return 'admin';
+    if (path === '/my-courses') return 'my-courses';
     if (path.startsWith('/courses')) return 'courses';
     if (path.startsWith('/course-detail')) return 'course-detail';
     if (path === '/profile') return 'profile';
@@ -91,7 +100,7 @@ export const AppRouter: React.FC<AppRouterProps> = ({
     navigate(`/course-detail?id=${course.id}`);
   };
 
-  // Helper to wrap public screens in MainLayout
+  // Helper to wrap screens in MainLayout
   const withMainLayout = (component: React.ReactNode, showFooter: boolean = true) => (
     <MainLayout
       currentScreen={currentScreen}
@@ -130,87 +139,62 @@ export const AppRouter: React.FC<AppRouterProps> = ({
 
   return (
     <Routes>
-      <Route
-        path="/"
-        element={withMainLayout(
-          <HomeScreen
-            onNavigate={handleNavigate}
-            onSelectCourse={handleSelectCourse}
-            onPreviewVideo={onPreviewVideo}
-            onAddToCart={onAddToCart}
-            onToggleWishlist={onToggleWishlist}
-            wishlistCourseIds={wishlistCourseIds}
-          />
-        )}
-      />
-      <Route
-        path="/courses"
-        element={withMainLayout(
-          <CourseCatalogScreen
-            onNavigate={handleNavigate}
-            onSelectCourse={handleSelectCourse}
-            onPreviewVideo={onPreviewVideo}
-            onAddToCart={onAddToCart}
-            onToggleWishlist={onToggleWishlist}
-            wishlistCourseIds={wishlistCourseIds}
-            searchQuery={searchQuery}
-            onSearchChange={onSearchChange}
-          />
-        )}
-      />
-      <Route
-        path="/course-detail"
-        element={withMainLayout(
-          <CourseDetailScreen
-            course={activeCourse}
-            onNavigate={handleNavigate}
-            onEnroll={onEnrollDirectly}
-            onAddToCart={onAddToCart}
-            onToggleWishlist={onToggleWishlist}
-            isWishlisted={activeCourse ? wishlistCourseIds.includes(activeCourse.id) : false}
-            onPreviewVideo={onPreviewVideo}
-          />
-        )}
-      />
-      <Route
-        path="/profile"
-        element={
-          <ProtectedRoute
-            user={user}
-            currentScreen={currentScreen}
-            onNavigate={handleNavigate}
-            onToast={onToast}
-          >
-            {withMainLayout(
-              <ProfileScreen
-                user={user!}
-                onNavigate={handleNavigate}
-                onUpdateUser={onUpdateUser}
-                onToast={onToast}
-              />,
-              false
-            )}
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin"
-        element={
-          <ProtectedRoute
-            user={user}
-            requiredRole="admin"
-            currentScreen={currentScreen}
-            onNavigate={handleNavigate}
-            onToast={onToast}
-          >
-            <AdminDashboardPage
-              currentUser={user}
-              onLogout={onLogout}
-              onToast={onToast}
-            />
-          </ProtectedRoute>
-        }
-      />
+      {/* ── 1. Auth Routes (/login, /register, /forgot-password, /reset-password) ── */}
+      {renderAuthRoutes({
+        onNavigate: handleNavigate,
+        onLoginSuccess,
+        onRegisterSuccess,
+        onToast,
+      })}
+
+      {/* ── 2. Course Routes (/, /courses, /course-detail, /instructor/courses/*) ── */}
+      {renderCourseRoutes({
+        onNavigate: handleNavigate,
+        onSelectCourse: handleSelectCourse,
+        onPreviewVideo,
+        onAddToCart,
+        onToggleWishlist,
+        onEnrollDirectly,
+        wishlistCourseIds,
+        searchQuery,
+        onSearchChange,
+        activeCourse,
+        withMainLayout,
+        user,
+        currentScreen,
+        onToast,
+      })}
+
+      {/* ── 3. Quiz Routes (/quizzes/*, /instructor/quizzes/*) ── */}
+      {renderQuizRoutes({
+        onNavigate: handleNavigate,
+        withMainLayout,
+        user,
+        currentScreen,
+        onToast,
+      })}
+
+      {/* ── 4. Profile Route (/profile) ── */}
+      {renderProfileRoutes({
+        user,
+        currentScreen,
+        onNavigate: handleNavigate,
+        onUpdateUser,
+        onToast,
+        withMainLayout,
+      })}
+
+      {/* ── 5. Admin Routes (/admin) ── */}
+      {renderAdminRoutes({
+        user,
+        currentScreen,
+        onNavigate: handleNavigate,
+        onLogout,
+        onToast,
+      })}
+
+      {/* ── 6. Payment Result Route (/payment-result) ── */}
+      {renderPaymentRoutes()}
 
       {/* ── FE:03 Instructor Course Management Routes ────────────────────── */}
       <Route
