@@ -52,7 +52,7 @@ export const CourseFormPage: React.FC = () => {
   };
 
   // ── Submit handler ─────────────────────────────────────────────────────────
-  const handleSubmit = (formData: CourseFormData) => {
+  const handleSubmit = (formData: CourseFormData & { submitForApproval?: boolean; submissionNote?: string }) => {
     // Clear previous error on each new attempt
     setSubmitError(null);
     setSubmitErrors([]);
@@ -64,7 +64,9 @@ export const CourseFormPage: React.FC = () => {
       thumbnailUrl: formData.thumbnailUrl || undefined,
       price: formData.price,
       level: formData.level || undefined,
-      status: formData.status,
+      status: formData.submitForApproval ? 'PENDING_APPROVAL' : ('DRAFT' as const),
+      submissionNote: formData.submissionNote,
+      submitForApproval: formData.submitForApproval || false,
     };
 
     if (isEditMode) {

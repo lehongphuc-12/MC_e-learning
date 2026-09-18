@@ -139,7 +139,7 @@ export const CourseForm: React.FC<CourseFormProps> = ({
         thumbnailUrl: existingCourse.thumbnailUrl ?? '',
         price: existingCourse.price.toString(),
         level: existingCourse.level ?? '',
-        status: existingCourse.status,
+        status: existingCourse.status === 'ARCHIVED' ? 'ARCHIVED' : 'DRAFT',
       });
     }
   }, [existingCourse, reset]);
@@ -285,14 +285,13 @@ export const CourseForm: React.FC<CourseFormProps> = ({
 
             <FormField
               id="status"
-              label="Trạng thái xuất bản"
+              label="Trạng thái lưu trữ"
               icon={<CheckCircle2 className="h-4 w-4 text-purple-600" />}
               required
               error={errors.status?.message}
             >
               <select id="status" aria-invalid={!!errors.status} className={`${inputClass} cursor-pointer`} {...register('status')}>
-                <option value="DRAFT">Bản nháp (Chỉ mình bạn xem)</option>
-                <option value="PUBLISHED">Đã xuất bản (Công khai học viên)</option>
+                <option value="DRAFT">Bản nháp (Lưu chỉnh sửa, chờ gửi Admin duyệt)</option>
                 <option value="ARCHIVED">Đã lưu trữ (Ẩn khỏi danh mục)</option>
               </select>
             </FormField>
@@ -315,34 +314,66 @@ export const CourseForm: React.FC<CourseFormProps> = ({
             />
           </FormField>
 
+          {/* Submission Note for Admin */}
+          <FormField
+            id="submissionNote"
+            label="Ghi chú cho Admin khi gửi duyệt (Tùy chọn)"
+            icon={<FileEdit className="h-4 w-4 text-amber-600" />}
+            error={errors.submissionNote?.message}
+          >
+            <textarea
+              id="submissionNote"
+              rows={2}
+              placeholder="Nhập tóm tắt các nội dung tạo mới hoặc chỉnh sửa để Admin duyệt nhanh (ví dụ: Tạo mới khóa học, Bổ sung bài giảng 2 và 3...)"
+              className={`${inputClass} resize-none leading-relaxed`}
+              {...register('submissionNote')}
+            />
+          </FormField>
+
           {/* Action buttons */}
-          <div className="flex items-center justify-end gap-3 border-t border-slate-100 pt-6 mt-8">
+          <div className="flex flex-wrap items-center justify-end gap-3 border-t border-slate-100 pt-6 mt-8">
             <button
               id="course-form-cancel-btn"
               type="button"
               onClick={onCancel}
               disabled={isSubmitting}
-              className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-50 active:scale-95 disabled:opacity-50 transition-all cursor-pointer"
+              className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-50 active:scale-95 disabled:opacity-50 transition-all cursor-pointer"
             >
               <X className="h-4 w-4" />
               Hủy bỏ
             </button>
 
             <button
-              id="course-form-submit-btn"
+              id="course-form-save-draft-btn"
               type="submit"
-              disabled={isSubmitting || (!isDirty && isEditMode)}
-              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-2.5 text-xs sm:text-sm font-bold text-white shadow-lg shadow-blue-500/25 hover:from-blue-700 hover:to-indigo-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
+              disabled={isSubmitting}
+              className="flex items-center gap-2 rounded-xl border border-slate-300 bg-slate-100 px-5 py-2.5 text-xs sm:text-sm font-bold text-slate-800 hover:bg-slate-200 active:scale-95 disabled:opacity-50 transition-all cursor-pointer"
+            >
+              <Save className="h-4 w-4 text-slate-600" />
+              {isEditMode ? 'Lưu thay đổi' : 'Lưu bản nháp'}
+            </button>
+
+            <button
+              id="course-form-submit-approval-btn"
+              type="button"
+              disabled={isSubmitting}
+              onClick={handleSubmit((data) => {
+                onSubmit({
+                  ...data,
+                  submitForApproval: true,
+                } as any);
+              })}
+              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 px-6 py-2.5 text-xs sm:text-sm font-bold text-white shadow-lg shadow-amber-500/25 hover:from-amber-600 hover:to-orange-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
             >
               {isSubmitting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  {isEditMode ? 'Đang lưu...' : 'Đang tạo...'}
+                  Đang gửi...
                 </>
               ) : (
                 <>
-                  <Save className="h-4 w-4" />
-                  {isEditMode ? 'Lưu thay đổi' : 'Tạo khóa học'}
+                  <Sparkles className="h-4 w-4" />
+                  Gửi Admin duyệt ngay
                 </>
               )}
             </button>

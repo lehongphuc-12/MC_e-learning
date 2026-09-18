@@ -161,4 +161,15 @@ export const courseApi = {
     });
     return envelope.data;
   },
+
+  // -------------------------------------------------------------------------
+  // SUBMIT FOR APPROVAL — POST /courses/:id/submit-approval
+  // -------------------------------------------------------------------------
+  async submitForApproval(courseId: number, submissionNote?: string): Promise<Course> {
+    const envelope = await request<ApiEnvelope<Course>>(`/courses/${courseId}/submit-approval`, {
+      method: 'POST',
+      body: JSON.stringify({ submissionNote }),
+    });
+    return envelope.data;
+  },
 };

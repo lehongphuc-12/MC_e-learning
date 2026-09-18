@@ -180,11 +180,31 @@ public class CoursesController : ControllerBase
             return Unauthorized(ApiResponse<CourseDto>.FailureResponse("Unauthorized."));
 
         var updated = await _courseService.UpdateCourseStatusAsync(
-            id, instructorId.Value, request.Status.ToString());
+            id, instructorId.Value, request.Status.ToString(), request.Reason);
 
         if (updated is null)
             return NotFound(ApiResponse<CourseDto>.FailureResponse("Course not found or you are not the owner."));
 
         return Ok(ApiResponse<CourseDto>.SuccessResponse(updated, $"Course status updated to {request.Status}."));
+    }
+
+    // -------------------------------------------------------------------------
+    // POST /api/courses/{id}/submit-approval
+    // Instructor submits course for admin review with an optional note
+    // -------------------------------------------------------------------------
+    [HttpPost("{id:int}/submit-approval")]
+    [Authorize(Roles = "Instructor")]
+    public async Task<ActionResult<ApiResponse<CourseDto>>> SubmitForApproval(
+        int id, [FromBody] SubmitApprovalRequest request)
+    {
+        var instructorId = GetCurrentUserId();
+        if (instructorId is null)
+            return Unauthorized(ApiResponse<CourseDto>.FailureResponse("Unauthorized."));
+
+        var updated = await _courseService.SubmitForApprovalAsync(id, instructorId.Value, request.SubmissionNote);
+        if (updated is null)
+            return NotFound(ApiResponse<CourseDto>.FailureResponse("Course not found or you are not the owner."));
+
+        return Ok(ApiResponse<CourseDto>.SuccessResponse(updated, "Khóa học đã được gửi cho Admin phê duyệt."));
     }
 }

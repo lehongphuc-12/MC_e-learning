@@ -95,8 +95,43 @@ export const adminApi = {
   // Courses
   async getCourses(): Promise<AdminCourse[]> {
     try {
-      const res = await request<{ success: boolean; data: AdminCourse[] }>('/admin/courses');
-      if (res.success && res.data) return res.data;
+      const res = await request<{ success: boolean; data: any }>('/admin/courses');
+      const rawData = res?.data;
+      const rawList: any[] = Array.isArray(rawData)
+        ? rawData
+        : Array.isArray(rawData?.data)
+        ? rawData.data
+        : [];
+
+      if (rawList.length > 0) {
+        return rawList.map((c: any) => {
+          let moderationStatus: CourseModerationStatus = 'draft';
+          const st = String(c.status || '').toUpperCase();
+          if (st === 'PUBLISHED') moderationStatus = 'published';
+          else if (st === 'PENDING_APPROVAL' || st === 'PENDING') moderationStatus = 'pending';
+          else if (st === 'REJECTED') moderationStatus = 'rejected';
+
+          return {
+            id: String(c.courseId || c.id || Date.now()),
+            title: c.title || 'Khóa học',
+            instructorName: c.instructorName || 'Giảng viên',
+            instructorEmail: c.instructorEmail || '',
+            category: c.categoryName || c.category || 'Chưa phân loại',
+            price: Number(c.price) || 0,
+            status: moderationStatus,
+            rating: Number(c.rating) || 5.0,
+            studentsCount: Number(c.studentsCount) || 0,
+            submittedDate: c.submittedAt || c.createdAt || new Date().toISOString(),
+            createdAt: c.createdAt,
+            updatedAt: c.updatedAt,
+            submittedAt: c.submittedAt,
+            approvedAt: c.approvedAt,
+            approvedByName: c.approvedByName,
+            submissionNote: c.submissionNote,
+            rejectReason: c.rejectionReason || c.rejectReason,
+          };
+        });
+      }
     } catch (_) {
       // Fallback
     }
@@ -105,13 +140,43 @@ export const adminApi = {
 
   async updateCourseStatus(courseId: string, status: CourseModerationStatus, reason?: string): Promise<boolean> {
     try {
-      await request(`/admin/courses/${courseId}/moderation`, {
-        method: 'PUT',
-        body: JSON.stringify({ status, reason }),
-      });
+      if (status === 'published') {
+        await request(`/admin/courses/${courseId}/approve`, { method: 'POST' });
+      } else if (status === 'rejected') {
+        await request(`/admin/courses/${courseId}/reject`, {
+          method: 'POST',
+          body: JSON.stringify({ reason: reason || 'Nội dung chưa đạt yêu cầu' }),
+        });
+      } else {
+        await request(`/admin/courses/${courseId}/moderation`, {
+          method: 'PUT',
+          body: JSON.stringify({ status, reason }),
+        });
+      }
       return true;
     } catch (_) {
       return true;
+    }
+  },
+
+  async approveCourse(courseId: string | number): Promise<boolean> {
+    try {
+      await request(`/admin/courses/${courseId}/approve`, { method: 'POST' });
+      return true;
+    } catch (_) {
+      return false;
+    }
+  },
+
+  async rejectCourse(courseId: string | number, reason: string): Promise<boolean> {
+    try {
+      await request(`/admin/courses/${courseId}/reject`, {
+        method: 'POST',
+        body: JSON.stringify({ reason }),
+      });
+      return true;
+    } catch (_) {
+      return false;
     }
   },
 

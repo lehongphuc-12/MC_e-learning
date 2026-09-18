@@ -22,6 +22,12 @@ public class CourseDto
     public CourseStatus Status { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+    public DateTime? SubmittedAt { get; set; }
+    public DateTime? ApprovedAt { get; set; }
+    public int? ApprovedById { get; set; }
+    public string? ApprovedByName { get; set; }
+    public string? SubmissionNote { get; set; }
+    public string? RejectionReason { get; set; }
 }
 
 // ---------------------------------------------------------------------------
@@ -63,6 +69,10 @@ public class CreateCourseRequest
     public CourseLevel? Level { get; set; }
 
     public CourseStatus Status { get; set; } = CourseStatus.DRAFT;
+
+    public string? SubmissionNote { get; set; }
+
+    public bool SubmitForApproval { get; set; } = false;
 }
 
 // ---------------------------------------------------------------------------
@@ -85,6 +95,10 @@ public class UpdateCourseRequest
     public CourseLevel? Level { get; set; }
 
     public CourseStatus? Status { get; set; }
+
+    public string? SubmissionNote { get; set; }
+
+    public bool SubmitForApproval { get; set; } = false;
 }
 
 // ---------------------------------------------------------------------------
@@ -94,6 +108,19 @@ public class UpdateCourseStatusRequest
 {
     [System.ComponentModel.DataAnnotations.Required]
     public CourseStatus Status { get; set; }
+
+    public string? Reason { get; set; }
+}
+
+public class SubmitApprovalRequest
+{
+    public string? SubmissionNote { get; set; }
+}
+
+public class RejectCourseRequest
+{
+    [System.ComponentModel.DataAnnotations.Required]
+    public string Reason { get; set; } = string.Empty;
 }
 
 // ---------------------------------------------------------------------------

@@ -51,20 +51,26 @@ public class CourseService : ICourseService
     // -------------------------------------------------------------------------
     private static CourseDto MapToDto(Course course) => new()
     {
-        CourseId      = course.CourseId,
-        CategoryId    = course.CategoryId,
-        CategoryName  = course.Category?.CategoryName,
-        InstructorId  = course.InstructorId,
+        CourseId       = course.CourseId,
+        CategoryId     = course.CategoryId,
+        CategoryName   = course.Category?.CategoryName,
+        InstructorId   = course.InstructorId,
         InstructorName = course.Instructor?.FullName,
-        Title         = course.Title,
-        Slug          = course.Slug,
-        Description   = course.Description,
-        ThumbnailUrl  = course.ThumbnailUrl,
-        Price         = course.Price,
-        Level         = course.Level,
-        Status        = course.Status,
-        CreatedAt     = course.CreatedAt,
-        UpdatedAt     = course.UpdatedAt,
+        Title          = course.Title,
+        Slug           = course.Slug,
+        Description    = course.Description,
+        ThumbnailUrl   = course.ThumbnailUrl,
+        Price          = course.Price,
+        Level          = course.Level,
+        Status         = course.Status,
+        CreatedAt      = course.CreatedAt,
+        UpdatedAt      = course.UpdatedAt,
+        SubmittedAt    = course.SubmittedAt,
+        ApprovedAt     = course.ApprovedAt,
+        ApprovedById   = course.ApprovedById,
+        ApprovedByName = course.ApprovedBy?.FullName,
+        SubmissionNote = course.SubmissionNote,
+        RejectionReason = course.RejectionReason,
     };
 
     // -------------------------------------------------------------------------
@@ -75,6 +81,7 @@ public class CourseService : ICourseService
         var query = _courseRepository.GetQueryable()
             .Include(c => c.Category)
             .Include(c => c.Instructor)
+            .Include(c => c.ApprovedBy)
             .AsQueryable();
 
         // Filter by instructor (for instructor's own courses view)
@@ -149,6 +156,7 @@ public class CourseService : ICourseService
         var course = await _courseRepository.GetQueryable()
             .Include(c => c.Category)
             .Include(c => c.Instructor)
+            .Include(c => c.ApprovedBy)
             .FirstOrDefaultAsync(c => c.CourseId == courseId);
 
         return course is null ? null : MapToDto(course);
@@ -166,19 +174,23 @@ public class CourseService : ICourseService
             if (!catExists) return null; // Let caller decide the error response
         }
 
+        var status = request.SubmitForApproval ? CourseStatus.PENDING_APPROVAL : request.Status;
+
         var course = new Course
         {
-            InstructorId = instructorId,
-            CategoryId   = request.CategoryId,
-            Title        = request.Title,
-            Slug         = GenerateSlug(request.Title),
-            Description  = request.Description,
-            ThumbnailUrl = request.ThumbnailUrl,
-            Price        = request.Price,
-            Level        = request.Level,
-            Status       = request.Status,
-            CreatedAt    = DateTime.UtcNow,
-            UpdatedAt    = DateTime.UtcNow,
+            InstructorId   = instructorId,
+            CategoryId     = request.CategoryId,
+            Title          = request.Title,
+            Slug           = GenerateSlug(request.Title),
+            Description    = request.Description,
+            ThumbnailUrl   = request.ThumbnailUrl,
+            Price          = request.Price,
+            Level          = request.Level,
+            Status         = status,
+            SubmissionNote = request.SubmissionNote,
+            SubmittedAt    = status == CourseStatus.PENDING_APPROVAL ? DateTime.UtcNow : null,
+            CreatedAt      = DateTime.UtcNow,
+            UpdatedAt      = DateTime.UtcNow,
         };
 
         await _courseRepository.AddAsync(course);
@@ -210,7 +222,16 @@ public class CourseService : ICourseService
         if (request.ThumbnailUrl is not null) course.ThumbnailUrl = request.ThumbnailUrl;
         if (request.Price.HasValue)          course.Price       = request.Price.Value;
         if (request.Level.HasValue)          course.Level       = request.Level;
-        if (request.Status.HasValue)         course.Status      = request.Status.Value;
+        if (request.Status.HasValue)
+        {
+            // Instructors cannot directly publish courses; any edit defaults to DRAFT unless submitted for approval
+            course.Status = request.Status.Value == CourseStatus.PUBLISHED ? CourseStatus.DRAFT : request.Status.Value;
+        }
+        if (request.SubmitForApproval)
+        {
+            course.Status = CourseStatus.PENDING_APPROVAL;
+            course.SubmittedAt = DateTime.UtcNow;
+        }
 
         course.UpdatedAt = DateTime.UtcNow;
 
@@ -236,16 +257,94 @@ public class CourseService : ICourseService
     // -------------------------------------------------------------------------
     // PATCH status (quick toggle from table row)
     // -------------------------------------------------------------------------
-    public async Task<CourseDto?> UpdateCourseStatusAsync(int courseId, int instructorId, string newStatus)
+    public async Task<CourseDto?> UpdateCourseStatusAsync(int courseId, int currentUserId, string newStatus, string? reason = null)
     {
         var course = await _courseRepository.GetByIdAsync(courseId);
-        if (course is null || course.InstructorId != instructorId)
+        if (course is null)
             return null;
 
         if (!Enum.TryParse<CourseStatus>(newStatus, true, out var parsedStatus))
             return null; // Invalid status string
 
-        course.Status    = parsedStatus;
+        course.Status = parsedStatus;
+        if (parsedStatus == CourseStatus.PENDING_APPROVAL)
+        {
+            course.SubmittedAt = DateTime.UtcNow;
+        }
+        else if (parsedStatus == CourseStatus.PUBLISHED)
+        {
+            course.ApprovedAt = DateTime.UtcNow;
+            course.ApprovedById = currentUserId;
+            course.RejectionReason = null;
+        }
+        else if (parsedStatus == CourseStatus.REJECTED)
+        {
+            course.ApprovedAt = DateTime.UtcNow;
+            course.ApprovedById = currentUserId;
+            if (!string.IsNullOrEmpty(reason))
+                course.RejectionReason = reason;
+        }
+
+        course.UpdatedAt = DateTime.UtcNow;
+
+        _courseRepository.Update(course);
+        await _unitOfWork.SaveChangesAsync();
+        return await GetCourseByIdAsync(courseId);
+    }
+
+    // -------------------------------------------------------------------------
+    // Submit for Admin Approval
+    // -------------------------------------------------------------------------
+    public async Task<CourseDto?> SubmitForApprovalAsync(int courseId, int instructorId, string? submissionNote)
+    {
+        var course = await _courseRepository.GetByIdAsync(courseId);
+        if (course is null || course.InstructorId != instructorId)
+            return null;
+
+        course.Status = CourseStatus.PENDING_APPROVAL;
+        course.SubmittedAt = DateTime.UtcNow;
+        if (submissionNote is not null)
+            course.SubmissionNote = submissionNote;
+        course.UpdatedAt = DateTime.UtcNow;
+
+        _courseRepository.Update(course);
+        await _unitOfWork.SaveChangesAsync();
+        return await GetCourseByIdAsync(courseId);
+    }
+
+    // -------------------------------------------------------------------------
+    // Admin Approve Course
+    // -------------------------------------------------------------------------
+    public async Task<CourseDto?> ApproveCourseAsync(int courseId, int adminId)
+    {
+        var course = await _courseRepository.GetByIdAsync(courseId);
+        if (course is null)
+            return null;
+
+        course.Status = CourseStatus.PUBLISHED;
+        course.ApprovedAt = DateTime.UtcNow;
+        course.ApprovedById = adminId;
+        course.RejectionReason = null;
+        course.UpdatedAt = DateTime.UtcNow;
+
+        _courseRepository.Update(course);
+        await _unitOfWork.SaveChangesAsync();
+        return await GetCourseByIdAsync(courseId);
+    }
+
+    // -------------------------------------------------------------------------
+    // Admin Reject Course
+    // -------------------------------------------------------------------------
+    public async Task<CourseDto?> RejectCourseAsync(int courseId, int adminId, string reason)
+    {
+        var course = await _courseRepository.GetByIdAsync(courseId);
+        if (course is null)
+            return null;
+
+        course.Status = CourseStatus.REJECTED;
+        course.ApprovedAt = DateTime.UtcNow;
+        course.ApprovedById = adminId;
+        course.RejectionReason = reason;
         course.UpdatedAt = DateTime.UtcNow;
 
         _courseRepository.Update(course);

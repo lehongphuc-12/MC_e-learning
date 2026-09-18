@@ -51,12 +51,30 @@ public class Course
     [Column("UpdatedAt")]
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
+    [Column("SubmittedAt")]
+    public DateTime? SubmittedAt { get; set; }
+
+    [Column("ApprovedAt")]
+    public DateTime? ApprovedAt { get; set; }
+
+    [Column("ApprovedByID")]
+    public int? ApprovedById { get; set; }
+
+    [Column("SubmissionNote")]
+    public string? SubmissionNote { get; set; }
+
+    [Column("RejectionReason")]
+    public string? RejectionReason { get; set; }
+
     // Navigation properties
     [ForeignKey("CategoryId")]
     public virtual Category? Category { get; set; }
 
     [ForeignKey("InstructorId")]
     public virtual User Instructor { get; set; } = null!;
+
+    [ForeignKey("ApprovedById")]
+    public virtual User? ApprovedBy { get; set; }
 
     public virtual ICollection<Module> Modules { get; set; } = new List<Module>();
     public virtual ICollection<Lesson> Lessons { get; set; } = new List<Lesson>();
