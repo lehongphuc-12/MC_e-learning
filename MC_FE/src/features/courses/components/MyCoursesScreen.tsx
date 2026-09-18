@@ -13,10 +13,12 @@ import {
   Filter,
   GraduationCap,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Loader2
 } from 'lucide-react';
-import { mockEnrolledCourses, EnrolledCourse } from '../../../data/mockData';
+import { EnrolledCourse } from '../../../data/mockData';
 import { ScreenType } from '../../../types';
+import { useLearnedCoursesQuery } from '../hooks/useCoursesQuery';
 
 interface MyCoursesScreenProps {
   onNavigate: (screen: ScreenType) => void;
@@ -24,6 +26,12 @@ interface MyCoursesScreenProps {
 
 export const MyCoursesScreen: React.FC<MyCoursesScreenProps> = ({ onNavigate }) => {
   const navigate = useNavigate();
+  const { data: apiEnrolledCourses, isLoading, isError } = useLearnedCoursesQuery();
+
+  // Pure API data (100% real backend data)
+  const enrolledCourses: EnrolledCourse[] = (apiEnrolledCourses as EnrolledCourse[]) || [];
+
+
   const [activeTab, setActiveTab] = useState<'all' | 'in-progress' | 'completed'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'recent' | 'progress' | 'title'>('recent');
@@ -31,7 +39,7 @@ export const MyCoursesScreen: React.FC<MyCoursesScreenProps> = ({ onNavigate }) 
   const [currentPage, setCurrentPage] = useState(1);
 
   // Filter courses
-  const filteredCourses = mockEnrolledCourses.filter((item) => {
+  const filteredCourses = enrolledCourses.filter((item) => {
     if (activeTab === 'in-progress' && item.status !== 'in-progress') return false;
     if (activeTab === 'completed' && item.status !== 'completed') return false;
 
@@ -68,10 +76,11 @@ export const MyCoursesScreen: React.FC<MyCoursesScreenProps> = ({ onNavigate }) 
     setCurrentPage(1);
   };
 
-  const totalEnrolled = mockEnrolledCourses.length;
-  const inProgressCount = mockEnrolledCourses.filter((c) => c.status === 'in-progress').length;
-  const completedCount = mockEnrolledCourses.filter((c) => c.status === 'completed').length;
-  const certificatesCount = mockEnrolledCourses.filter((c) => c.certificateId).length;
+  const totalEnrolled = enrolledCourses.length;
+  const inProgressCount = enrolledCourses.filter((c) => c.status === 'in-progress').length;
+  const completedCount = enrolledCourses.filter((c) => c.status === 'completed').length;
+  const certificatesCount = enrolledCourses.filter((c) => c.certificateId).length;
+
 
   return (
     <div className="min-h-screen bg-slate-50 py-8 px-4 sm:px-6 lg:px-8">
@@ -216,7 +225,13 @@ export const MyCoursesScreen: React.FC<MyCoursesScreenProps> = ({ onNavigate }) 
         </div>
 
         {/* Course Cards Grid */}
-        {sortedCourses.length === 0 ? (
+        {isLoading ? (
+          <div className="bg-white rounded-2xl p-12 text-center border border-slate-200 shadow-sm flex flex-col items-center justify-center space-y-3">
+            <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+            <p className="text-sm font-medium text-slate-600">Đang tải danh sách khóa học...</p>
+          </div>
+        ) : sortedCourses.length === 0 ? (
+
           <div className="bg-white rounded-2xl p-12 text-center border border-slate-200 shadow-sm space-y-4">
             <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto text-blue-500">
               <BookOpen className="w-8 h-8" />

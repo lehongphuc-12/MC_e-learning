@@ -5,6 +5,7 @@ import type { Course as BackendCourse } from '../types/courseTypes';
 
 export const COURSE_QUERY_KEYS = {
   all: ['courses', 'public'] as const,
+  learned: ['courses', 'learned'] as const,
   detail: (id: string) => ['courses', 'public', id] as const,
 };
 
@@ -71,6 +72,33 @@ export const useCoursesQuery = () => {
   });
 };
 
+// Learned courses — fetches enrolled courses from GET /courses/learned-courses
+export const useLearnedCoursesQuery = () => {
+  return useQuery({
+    queryKey: COURSE_QUERY_KEYS.learned,
+    queryFn: async () => {
+      const items = await courseApi.getLearnedCourses();
+      return items.map((item) => ({
+        id: String(item.enrollmentId),
+        course: mapBackendCourseToUI(item.course),
+        progressPercent: item.progressPercent,
+        completedLecturesCount: item.completedLecturesCount,
+        totalLecturesCount: item.totalLecturesCount,
+        lastAccessed: item.lastAccessedAt
+          ? new Date(item.lastAccessedAt).toLocaleDateString('vi-VN')
+          : 'Mới đăng ký',
+        lastLectureTitle: item.lastLectureTitle || '',
+        status: item.status,
+        enrolledDate: item.enrolledDate
+          ? new Date(item.enrolledDate).toLocaleDateString('vi-VN')
+          : '',
+        certificateId: item.certificateId ? String(item.certificateId) : undefined,
+      }));
+    },
+    staleTime: 1000 * 60 * 2,
+  });
+};
+
 // Detail query for learner catalog
 export const useCourseDetailQuery = (courseId: string) => {
   return useQuery({
@@ -84,4 +112,5 @@ export const useCourseDetailQuery = (courseId: string) => {
     staleTime: 1000 * 60 * 5,
   });
 };
+
 

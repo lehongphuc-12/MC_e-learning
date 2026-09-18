@@ -27,6 +27,7 @@ import type {
   CreateCourseDto,
   UpdateCourseDto,
   CourseListParams,
+  LearnedCourse,
 } from '../types/courseTypes';
 
 // ---------------------------------------------------------------------------
@@ -171,4 +172,14 @@ export const courseApi = {
     });
     return envelope.data;
   },
+
+  // -------------------------------------------------------------------------
+  // READ — Enrolled courses with learning progress for current learner
+  // GET /courses/learned-courses
+  // -------------------------------------------------------------------------
+  async getLearnedCourses(): Promise<LearnedCourse[]> {
+    const envelope = await request<ApiEnvelope<LearnedCourse[]>>('/courses/learned-courses');
+    return envelope.data;
+  },
 };
+
