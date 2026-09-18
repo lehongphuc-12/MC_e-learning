@@ -54,9 +54,9 @@ export const CourseStatusBadge: React.FC<CourseStatusBadgeProps> = ({
 
   return (
     <span
-      className={`inline-flex items-center rounded-full transition-colors ${sizeClass} ${config.className}`}
+      className={`inline-flex items-center rounded-full transition-colors whitespace-nowrap shrink-0 ${sizeClass} ${config.className}`}
     >
-      <span className={`mr-1.5 h-1.5 w-1.5 rounded-full ${config.dotColor}`} />
+      <span className={`mr-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${config.dotColor}`} />
       {config.label}
     </span>
   );

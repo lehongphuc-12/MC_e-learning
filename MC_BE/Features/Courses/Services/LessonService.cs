@@ -53,8 +53,9 @@ public class LessonService : ILessonService
             .Where(l => l.CourseId == courseId)
             .OrderBy(l => l.OrderIndex)
             .ThenBy(l => l.LessonId)
-            .Select(MapToDto)
-            .ToList();
+            .ToListAsync();
+
+        return lessons.Select(MapToDto).ToList();
     }
 
     public async Task<LessonDto?> GetLessonByIdAsync(int lessonId)
@@ -63,7 +64,6 @@ public class LessonService : ILessonService
             .Include(l => l.CourseMaterials)
             .FirstOrDefaultAsync(l => l.LessonId == lessonId);
 
-        var lesson = lessons.FirstOrDefault();
         return lesson is null ? null : MapToDto(lesson);
     }
 

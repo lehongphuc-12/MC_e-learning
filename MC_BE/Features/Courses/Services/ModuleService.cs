@@ -71,8 +71,9 @@ public class ModuleService : IModuleService
                 .ThenInclude(l => l.CourseMaterials)
             .Where(m => m.CourseId == courseId)
             .OrderBy(m => m.OrderIndex)
-            .Select(MapToDto)
-            .ToList();
+            .ToListAsync();
+
+        return modules.Select(MapToDto).ToList();
     }
 
     public async Task<ModuleDto?> GetModuleByIdAsync(int moduleId)

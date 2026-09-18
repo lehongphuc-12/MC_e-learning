@@ -11,14 +11,17 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   BookOpen, ChevronLeft, ChevronRight, Edit2, PlusCircle, Trash2,
-  ToggleLeft, ToggleRight, ImageOff, Paperclip, Users
+  ToggleLeft, ToggleRight, ImageOff, Paperclip, Clock, Users
 } from 'lucide-react';
 import type { Course, CourseListParams } from '../../types/courseTypes';
 import { CourseStatusBadge } from './CourseStatusBadge';
 import { DeleteCourseModal } from './DeleteCourseModal';
 import { CourseMaterialModal } from './CourseMaterialModal';
+import { CourseStudentsModal } from './CourseStudentsModal';
+import { moduleApi } from '../../api/moduleApi';
+import { lessonApi } from '../../api/lessonApi';
+import { IncompleteCourseModal } from './IncompleteCourseModal';
 import { useDeleteCourse, useToggleCourseStatus, useSubmitForApproval } from '../../hooks/useCourseMutations';
-import { Clock } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -70,13 +73,17 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
 }) => {
   const navigate = useNavigate();
   const [courseToDelete, setCourseToDelete] = useState<Course | null>(null);
-  const [courseForMaterial, setCourseForMaterial] = useState<Course | null>(null);
+  const [courseForStudents, setCourseForStudents] = useState<Course | null>(null);
+  const [incompleteCourse, setIncompleteCourse] = useState<{
+    course: Course;
+    missingItems: string[];
+  } | null>(null);
 
   const { mutate: deleteCourse, isPending: isDeleting } = useDeleteCourse();
   const { mutate: toggleStatus } = useToggleCourseStatus();
   const { mutate: submitForApproval } = useSubmitForApproval();
 
-  const handleToggleAction = (course: Course) => {
+  const handleToggleAction = async (course: Course) => {
     if (course.status === 'PUBLISHED') {
       // Recall published course back to DRAFT
       toggleStatus({ courseId: course.courseId, newStatus: 'DRAFT' });
@@ -84,7 +91,40 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
       // Recall pending course back to DRAFT
       toggleStatus({ courseId: course.courseId, newStatus: 'DRAFT' });
     } else {
-      // DRAFT or REJECTED: Submit to Admin for approval
+      // DRAFT or REJECTED: Submit to Admin for approval -> Validate course completeness!
+      const missingItems: string[] = [];
+
+      if (!course.title || !course.title.trim()) {
+        missingItems.push('Tên khóa học chưa điền');
+      }
+      if (!course.categoryId) {
+        missingItems.push('Chưa chọn Danh mục khóa học');
+      }
+      if (!course.description || !course.description.trim()) {
+        missingItems.push('Chưa có Mô tả khóa học');
+      }
+
+      try {
+        const [modules, lessons] = await Promise.all([
+          moduleApi.getModulesByCourseId(course.courseId),
+          lessonApi.getLessonsByCourseId(course.courseId),
+        ]);
+
+        if (!modules || modules.length === 0) {
+          missingItems.push('Chưa tạo Chương học (Module) nào');
+        }
+        if (!lessons || lessons.length === 0) {
+          missingItems.push('Chưa tạo Bài học (Lesson) nào');
+        }
+      } catch {
+        // Fallthrough if API fails
+      }
+
+      if (missingItems.length > 0) {
+        setIncompleteCourse({ course, missingItems });
+        return;
+      }
+
       submitForApproval({ courseId: course.courseId });
     }
   };
@@ -209,12 +249,23 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
                     {formatPrice(course.price)}
                   </td>
 
-                  {/* Enrolled Students */}
+                  {/* Student Count */}
                   <td className="px-4 py-4">
-                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-50 px-2.5 py-1 text-xs font-semibold text-cyan-700 border border-cyan-200/70">
-                      <Users className="h-3.5 w-3.5 text-cyan-600" />
-                      {(course as any).studentsCount ?? 128} học viên
-                    </span>
+                    {course.status !== 'PUBLISHED' ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-400 border border-slate-200/60 whitespace-nowrap">
+                        <Users className="h-3.5 w-3.5 text-slate-300" />
+                        <span>Chưa có học viên</span>
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => setCourseForStudents(course)}
+                        title="Bấm để xem danh sách học viên"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-50 px-2.5 py-1 text-xs font-semibold text-cyan-700 border border-cyan-200/80 hover:bg-cyan-100 active:scale-95 transition-all cursor-pointer whitespace-nowrap shadow-xs"
+                      >
+                        <Users className="h-3.5 w-3.5 text-cyan-600" />
+                        <span>{course.studentCount ?? 0} học viên</span>
+                      </button>
+                    )}
                   </td>
 
                   {/* Status badge */}
@@ -346,6 +397,27 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
         isDeleting={isDeleting}
         onConfirm={handleConfirmDelete}
         onCancel={() => setCourseToDelete(null)}
+      />
+
+      {/* Incomplete Course Modal */}
+      <IncompleteCourseModal
+        isOpen={Boolean(incompleteCourse)}
+        onClose={() => setIncompleteCourse(null)}
+        courseTitle={incompleteCourse?.course.title || ''}
+        courseId={incompleteCourse?.course.courseId || 0}
+        missingItems={incompleteCourse?.missingItems || []}
+        onGoToLessons={() => {
+          if (incompleteCourse) {
+            navigate(`/instructor/courses/${incompleteCourse.course.courseId}/lessons`);
+            setIncompleteCourse(null);
+          }
+        }}
+      />
+      {/* Course Students Modal */}
+      <CourseStudentsModal
+        isOpen={Boolean(courseForStudents)}
+        onClose={() => setCourseForStudents(null)}
+        courseTitle={courseForStudents?.title}
       />
     </>
   );

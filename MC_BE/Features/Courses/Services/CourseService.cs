@@ -16,17 +16,33 @@ public class CourseService : ICourseService
 {
     private readonly IGenericRepository<Course> _courseRepository;
     private readonly IGenericRepository<Category> _categoryRepository;
+    private readonly IGenericRepository<Enrollment> _enrollmentRepository;
+    private readonly IGenericRepository<Lesson> _lessonRepository;
+    private readonly IGenericRepository<LessonProgress> _lessonProgressRepository;
+    private readonly IGenericRepository<Certificate> _certificateRepository;
+    private readonly IGenericRepository<Module> _moduleRepository;
     private readonly IUnitOfWork _unitOfWork;
 
     public CourseService(
         IGenericRepository<Course> courseRepository,
         IGenericRepository<Category> categoryRepository,
+        IGenericRepository<Enrollment> enrollmentRepository,
+        IGenericRepository<Lesson> lessonRepository,
+        IGenericRepository<LessonProgress> lessonProgressRepository,
+        IGenericRepository<Certificate> certificateRepository,
+        IGenericRepository<Module> moduleRepository,
         IUnitOfWork unitOfWork)
     {
         _courseRepository = courseRepository;
         _categoryRepository = categoryRepository;
+        _enrollmentRepository = enrollmentRepository;
+        _lessonRepository = lessonRepository;
+        _lessonProgressRepository = lessonProgressRepository;
+        _certificateRepository = certificateRepository;
+        _moduleRepository = moduleRepository;
         _unitOfWork = unitOfWork;
     }
+
 
 
     // -------------------------------------------------------------------------
@@ -85,29 +101,57 @@ public class CourseService : ICourseService
             .Include(c => c.ApprovedBy)
             .AsQueryable();
 
+        // Filter by instructor (for instructor's own courses view)
         if (instructorId.HasValue)
             query = query.Where(c => c.InstructorId == instructorId.Value);
 
+        // Filter by status (convert string → enum for comparison)
         if (!string.IsNullOrEmpty(status) && Enum.TryParse<CourseStatus>(status, true, out var parsedStatus))
             query = query.Where(c => c.Status == parsedStatus);
 
+        // Filter by category
         if (categoryId.HasValue)
             query = query.Where(c => c.CategoryId == categoryId.Value);
 
+        // Full-text search on Title
         if (!string.IsNullOrEmpty(search))
             query = query.Where(c => c.Title.ToLower().Contains(search.ToLower()));
 
-        return query.OrderByDescending(c => c.UpdatedAt).ToList();
+        return query.OrderByDescending(c => c.UpdatedAt);
     }
 
     // -------------------------------------------------------------------------
     // GET Instructor's own courses (paginated)
     // -------------------------------------------------------------------------
     public async Task<CourseListResponse> GetInstructorCoursesAsync(
-        int instructorId, int page, int limit, string? status, int? categoryId, string? search)
+       int instructorId, int page, int limit, string? status, int? categoryId, string? search)
     {
-        var courses = await FilterCoursesAsync(instructorId, status, categoryId, search);
-        return ExecutePaginatedList(courses, page, limit);
+        var query = BuildCourseQuery(instructorId, status, categoryId, search);
+        return await ExecutePaginatedQueryAsync(query, page, limit);
+    }
+    // -------------------------------------------------------------------------
+    // Execute pagination — shared between both list methods
+    // -------------------------------------------------------------------------
+    private static async Task<CourseListResponse> ExecutePaginatedQueryAsync(
+        IQueryable<Course> query, int page, int limit)
+    {
+        var total = await query.CountAsync();
+        var items = await query
+            .Skip((page - 1) * limit)
+            .Take(limit)
+            .ToListAsync();
+
+        return new CourseListResponse
+        {
+            Data = items.Select(MapToDto).ToList(),
+            Pagination = new PaginationMeta
+            {
+                Page = page,
+                Limit = limit,
+                Total = total,
+                TotalPages = (int)Math.Ceiling((double)total / limit),
+            }
+        };
     }
 
     // -------------------------------------------------------------------------
@@ -116,8 +160,12 @@ public class CourseService : ICourseService
     public async Task<CourseListResponse> GetAllCoursesAsync(
         int page, int limit, string? status, int? categoryId, string? search)
     {
-        var courses = await FilterCoursesAsync(null, status, categoryId, search);
-        return ExecutePaginatedList(courses, page, limit);
+        var query = BuildCourseQuery(null, status, categoryId, search);
+        if (string.IsNullOrEmpty(status))
+        {
+            query = query.Where(c => c.Status != CourseStatus.DRAFT);
+        }
+        return await ExecutePaginatedQueryAsync(query, page, limit);
     }
 
     // -------------------------------------------------------------------------
@@ -157,13 +205,39 @@ public class CourseService : ICourseService
             .Include(c => c.ApprovedBy)
             .FirstOrDefaultAsync(c => c.CourseId == courseId);
 
-        var course = courses.FirstOrDefault();
         return course is null ? null : MapToDto(course);
     }
 
     // -------------------------------------------------------------------------
     // CREATE course
     // -------------------------------------------------------------------------
+    private async Task ValidateCourseForApprovalAsync(int courseId, Course course)
+    {
+        var missingRequirements = new List<string>();
+
+        if (string.IsNullOrWhiteSpace(course.Title))
+            missingRequirements.Add("Tên khóa học");
+
+        if (!course.CategoryId.HasValue || course.CategoryId.Value <= 0)
+            missingRequirements.Add("Danh mục khóa học");
+
+        if (string.IsNullOrWhiteSpace(course.Description))
+            missingRequirements.Add("Mô tả khóa học");
+
+        var hasModules = await _moduleRepository.AnyAsync(m => m.CourseId == courseId);
+        if (!hasModules)
+            missingRequirements.Add("Chương học (Module)");
+
+        var hasLessons = await _lessonRepository.AnyAsync(l => l.CourseId == courseId);
+        if (!hasLessons)
+            missingRequirements.Add("Bài học (Lesson)");
+
+        if (missingRequirements.Any())
+        {
+            throw new InvalidOperationException($"Chưa thể gửi Admin duyệt. Khóa học còn thiếu: {string.Join(", ", missingRequirements)}.");
+        }
+    }
+
     public async Task<CourseDto?> CreateCourseAsync(int instructorId, CreateCourseRequest request)
     {
         // Validate the CategoryId FK if provided
@@ -173,7 +247,12 @@ public class CourseService : ICourseService
             if (!catExists) return null; // Let caller decide the error response
         }
 
-        var status = request.SubmitForApproval ? CourseStatus.PENDING_APPROVAL : request.Status;
+        if (request.SubmitForApproval)
+        {
+            throw new InvalidOperationException("Khóa học mới tạo chưa có Chương học và Bài học. Hãy tạo khóa học trước, sau đó thêm Chương & Bài học đầy đủ mới có thể gửi Admin duyệt.");
+        }
+
+        var status = request.Status;
 
         var course = new Course
         {
@@ -187,7 +266,7 @@ public class CourseService : ICourseService
             Level          = request.Level,
             Status         = status,
             SubmissionNote = request.SubmissionNote,
-            SubmittedAt    = status == CourseStatus.PENDING_APPROVAL ? DateTime.UtcNow : null,
+            SubmittedAt    = null,
             CreatedAt      = DateTime.UtcNow,
             UpdatedAt      = DateTime.UtcNow,
         };
@@ -226,10 +305,14 @@ public class CourseService : ICourseService
             // Instructors cannot directly publish courses; any edit defaults to DRAFT unless submitted for approval
             course.Status = request.Status.Value == CourseStatus.PUBLISHED ? CourseStatus.DRAFT : request.Status.Value;
         }
-        if (request.SubmitForApproval)
+
+        if (request.SubmitForApproval || (request.Status.HasValue && request.Status.Value == CourseStatus.PENDING_APPROVAL))
         {
+            await ValidateCourseForApprovalAsync(courseId, course);
             course.Status = CourseStatus.PENDING_APPROVAL;
             course.SubmittedAt = DateTime.UtcNow;
+            if (request.SubmissionNote is not null)
+                course.SubmissionNote = request.SubmissionNote;
         }
 
         course.UpdatedAt = DateTime.UtcNow;
@@ -265,9 +348,9 @@ public class CourseService : ICourseService
         if (!Enum.TryParse<CourseStatus>(newStatus, true, out var parsedStatus))
             return null; // Invalid status string
 
-        course.Status = parsedStatus;
         if (parsedStatus == CourseStatus.PENDING_APPROVAL)
         {
+            await ValidateCourseForApprovalAsync(courseId, course);
             course.SubmittedAt = DateTime.UtcNow;
         }
         else if (parsedStatus == CourseStatus.PUBLISHED)
@@ -284,6 +367,7 @@ public class CourseService : ICourseService
                 course.RejectionReason = reason;
         }
 
+        course.Status = parsedStatus;
         course.UpdatedAt = DateTime.UtcNow;
 
         _courseRepository.Update(course);
@@ -299,6 +383,8 @@ public class CourseService : ICourseService
         var course = await _courseRepository.GetByIdAsync(courseId);
         if (course is null || course.InstructorId != instructorId)
             return null;
+
+        await ValidateCourseForApprovalAsync(courseId, course);
 
         course.Status = CourseStatus.PENDING_APPROVAL;
         course.SubmittedAt = DateTime.UtcNow;

@@ -33,7 +33,7 @@ export const AdminCoursesTab: React.FC<AdminCoursesTabProps> = ({
   onToggleFeatured,
   onRefresh,
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'pending' | 'approved' | 'all'>('pending');
+  const [activeSubTab, setActiveSubTab] = useState<'pending' | 'approved'>('pending');
   const [searchTerm, setSearchTerm] = useState('');
   const [rejectingCourseId, setRejectingCourseId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
@@ -61,10 +61,7 @@ export const AdminCoursesTab: React.FC<AdminCoursesTabProps> = ({
     if (activeSubTab === 'pending') {
       return matchesSearch && c.status === 'pending';
     }
-    if (activeSubTab === 'approved') {
-      return matchesSearch && c.status === 'published';
-    }
-    return matchesSearch;
+    return matchesSearch && c.status === 'published';
   });
 
   const formatDate = (iso?: string) => {
@@ -144,20 +141,6 @@ export const AdminCoursesTab: React.FC<AdminCoursesTabProps> = ({
           <span>Khóa học Đã Duyệt</span>
           <span className="px-2 py-0.5 text-xs rounded-full bg-emerald-500/20 text-emerald-300 font-bold">
             {approvedCourses.length}
-          </span>
-        </button>
-
-        <button
-          onClick={() => setActiveSubTab('all')}
-          className={`flex items-center space-x-2 px-5 py-3 border-b-2 font-semibold text-sm transition cursor-pointer ${
-            activeSubTab === 'all'
-              ? 'border-purple-400 text-purple-400 bg-purple-500/10 rounded-t-xl'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <span>Tất cả hệ thống</span>
-          <span className="px-2 py-0.5 text-xs rounded-full bg-slate-800 text-slate-300 font-bold">
-            {courses.length}
           </span>
         </button>
       </div>

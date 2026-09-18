@@ -1,7 +1,6 @@
 import React from 'react';
 import { Routes, Route, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { ScreenType, Course, User } from '../types';
-import { HomeScreen } from '../features/courses/components/HomeScreen';
 import { CourseCatalogScreen } from '../features/courses/components/CourseCatalogScreen';
 import { CourseDetailScreen } from '../features/courses/components/CourseDetailScreen';
 import { LoginScreen } from '../features/auth/components/LoginScreen';
@@ -21,6 +20,7 @@ import { CertificateVerifyScreen } from '../features/courses/components/Certific
 import { MainLayout } from './layouts/MainLayout';
 import { InstructorLayout } from './layouts/InstructorLayout';
 import { ToastType } from './common/Toast';
+import { ProtectedRoute } from './common/ProtectedRoute';
 import { mockCourses } from '../data/mockData';
 import { HomeScreen } from '../features/courses/components/HomeScreen';
 
@@ -160,6 +160,7 @@ export const AppRouter: React.FC<AppRouterProps> = ({
         onSearchChange,
         activeCourse,
         withMainLayout,
+        withInstructorLayout,
         user,
         currentScreen,
         onToast,
@@ -169,6 +170,7 @@ export const AppRouter: React.FC<AppRouterProps> = ({
       {renderQuizRoutes({
         onNavigate: handleNavigate,
         withMainLayout,
+        withInstructorLayout,
         user,
         currentScreen,
         onToast,
@@ -222,62 +224,6 @@ export const AppRouter: React.FC<AppRouterProps> = ({
             onToast={onToast}
           >
             {withInstructorLayout(<InstructorDashboard />)}
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/instructor/courses"
-        element={
-          <ProtectedRoute
-            user={user}
-            allowedRoles={['instructor', 'admin']}
-            currentScreen={currentScreen}
-            onNavigate={handleNavigate}
-            onToast={onToast}
-          >
-            {withInstructorLayout(<CourseManagementPage />)}
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/instructor/courses/new"
-        element={
-          <ProtectedRoute
-            user={user}
-            allowedRoles={['instructor', 'admin']}
-            currentScreen={currentScreen}
-            onNavigate={handleNavigate}
-            onToast={onToast}
-          >
-            {withInstructorLayout(<CourseFormPage />)}
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/instructor/courses/:id/edit"
-        element={
-          <ProtectedRoute
-            user={user}
-            allowedRoles={['instructor', 'admin']}
-            currentScreen={currentScreen}
-            onNavigate={handleNavigate}
-            onToast={onToast}
-          >
-            {withInstructorLayout(<CourseFormPage />)}
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/instructor/courses/:id/lessons"
-        element={
-          <ProtectedRoute
-            user={user}
-            allowedRoles={['instructor', 'admin']}
-            currentScreen={currentScreen}
-            onNavigate={handleNavigate}
-            onToast={onToast}
-          >
-            {withInstructorLayout(<CourseLessonsPage />)}
           </ProtectedRoute>
         }
       />

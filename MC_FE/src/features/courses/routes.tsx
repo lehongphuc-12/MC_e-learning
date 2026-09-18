@@ -26,6 +26,7 @@ interface CourseRoutesProps {
   onSearchChange: (query: string) => void;
   activeCourse: Course | null;
   withMainLayout: (component: React.ReactNode, showFooter?: boolean) => React.ReactNode;
+  withInstructorLayout?: (component: React.ReactNode, showFooter?: boolean) => React.ReactNode;
   user: User | null;
   currentScreen: ScreenType;
   onToast?: (title: string, desc?: string, type?: ToastType) => void;
@@ -43,6 +44,7 @@ export const renderCourseRoutes = ({
   onSearchChange,
   activeCourse,
   withMainLayout,
+  withInstructorLayout = withMainLayout,
   user,
   currentScreen,
   onToast,
@@ -97,7 +99,7 @@ export const renderCourseRoutes = ({
       <Route path="/certificates/:certificateId" element={<CertificateScreen />} />
       <Route path="/verify-certificate" element={<CertificateVerifyScreen />} />
 
-      {/* Instructor Course Routes (Nested) */}
+      {/* Instructor Course Routes (Wrapped in dedicated InstructorLayout) */}
       <Route
         path="/instructor/courses"
         element={
@@ -108,7 +110,7 @@ export const renderCourseRoutes = ({
             onNavigate={onNavigate}
             onToast={onToast}
           >
-            {withMainLayout(<CourseManagementPage />)}
+            {withInstructorLayout(<CourseManagementPage />)}
           </ProtectedRoute>
         }
       />
@@ -122,7 +124,7 @@ export const renderCourseRoutes = ({
             onNavigate={onNavigate}
             onToast={onToast}
           >
-            {withMainLayout(<CourseFormPage />)}
+            {withInstructorLayout(<CourseFormPage />)}
           </ProtectedRoute>
         }
       />
@@ -136,7 +138,7 @@ export const renderCourseRoutes = ({
             onNavigate={onNavigate}
             onToast={onToast}
           >
-            {withMainLayout(<CourseFormPage />)}
+            {withInstructorLayout(<CourseFormPage />)}
           </ProtectedRoute>
         }
       />
@@ -150,7 +152,7 @@ export const renderCourseRoutes = ({
             onNavigate={onNavigate}
             onToast={onToast}
           >
-            {withMainLayout(<CourseLessonsPage />)}
+            {withInstructorLayout(<CourseLessonsPage />)}
           </ProtectedRoute>
         }
       />

@@ -23,12 +23,12 @@ public class CategoryService : ICategoryService
             .OrderBy(c => c.CategoryName)
             .Select(c => new CategoryDto
             {
-                CategoryId   = c.CategoryId,
+                CategoryId = c.CategoryId,
                 CategoryName = c.CategoryName,
-                Description  = c.Description,
-                Status       = c.Status.ToString(),
+                Description = c.Description,
+                Status = c.Status.ToString(),
             })
-            .ToList();
+            .ToListAsync(); 
     }
 
     public async Task<CategoryDto?> GetCategoryByIdAsync(int categoryId)

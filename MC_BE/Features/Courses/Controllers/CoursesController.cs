@@ -174,11 +174,18 @@ public class CoursesController : ControllerBase
         if (instructorId is null)
             return Unauthorized(ApiResponse<CourseDto>.FailureResponse("Unauthorized."));
 
-        var updated = await _courseService.UpdateCourseAsync(id, instructorId.Value, request);
-        if (updated is null)
-            return NotFound(ApiResponse<CourseDto>.FailureResponse("Course not found or you are not the owner."));
+        try
+        {
+            var updated = await _courseService.UpdateCourseAsync(id, instructorId.Value, request);
+            if (updated is null)
+                return NotFound(ApiResponse<CourseDto>.FailureResponse("Course not found or you are not the owner."));
 
-        return Ok(ApiResponse<CourseDto>.SuccessResponse(updated, "Course updated successfully."));
+            return Ok(ApiResponse<CourseDto>.SuccessResponse(updated, "Course updated successfully."));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<CourseDto>.FailureResponse(ex.Message));
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -213,13 +220,20 @@ public class CoursesController : ControllerBase
         if (instructorId is null)
             return Unauthorized(ApiResponse<CourseDto>.FailureResponse("Unauthorized."));
 
-        var updated = await _courseService.UpdateCourseStatusAsync(
-            id, instructorId.Value, request.Status.ToString(), request.Reason);
+        try
+        {
+            var updated = await _courseService.UpdateCourseStatusAsync(
+                id, instructorId.Value, request.Status.ToString(), request.Reason);
 
-        if (updated is null)
-            return NotFound(ApiResponse<CourseDto>.FailureResponse("Course not found or you are not the owner."));
+            if (updated is null)
+                return NotFound(ApiResponse<CourseDto>.FailureResponse("Course not found or you are not the owner."));
 
-        return Ok(ApiResponse<CourseDto>.SuccessResponse(updated, $"Course status updated to {request.Status}."));
+            return Ok(ApiResponse<CourseDto>.SuccessResponse(updated, $"Course status updated to {request.Status}."));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<CourseDto>.FailureResponse(ex.Message));
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -235,10 +249,17 @@ public class CoursesController : ControllerBase
         if (instructorId is null)
             return Unauthorized(ApiResponse<CourseDto>.FailureResponse("Unauthorized."));
 
-        var updated = await _courseService.SubmitForApprovalAsync(id, instructorId.Value, request.SubmissionNote);
-        if (updated is null)
-            return NotFound(ApiResponse<CourseDto>.FailureResponse("Course not found or you are not the owner."));
+        try
+        {
+            var updated = await _courseService.SubmitForApprovalAsync(id, instructorId.Value, request.SubmissionNote);
+            if (updated is null)
+                return NotFound(ApiResponse<CourseDto>.FailureResponse("Course not found or you are not the owner."));
 
-        return Ok(ApiResponse<CourseDto>.SuccessResponse(updated, "Khóa học đã được gửi cho Admin phê duyệt."));
+            return Ok(ApiResponse<CourseDto>.SuccessResponse(updated, "Khóa học đã được gửi cho Admin phê duyệt."));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<CourseDto>.FailureResponse(ex.Message));
+        }
     }
 }
