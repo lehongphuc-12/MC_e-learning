@@ -13,6 +13,9 @@ import { CourseForm, type CourseFormData } from './CourseForm';
 import { useCourseDetail, useCategoriesQuery } from '../../hooks/useInstructorCourses';
 import { useCreateCourse, useUpdateCourse } from '../../hooks/useCourseMutations';
 
+import { moduleApi } from '../../api/moduleApi';
+import { lessonApi } from '../../api/lessonApi';
+
 // Shape of the error thrown by request<T>() in services/api.ts
 interface ApiError {
   status?: number;
@@ -52,10 +55,39 @@ export const CourseFormPage: React.FC = () => {
   };
 
   // ── Submit handler ─────────────────────────────────────────────────────────
-  const handleSubmit = (formData: CourseFormData) => {
+  const handleSubmit = async (formData: CourseFormData & { submitForApproval?: boolean; submissionNote?: string }) => {
     // Clear previous error on each new attempt
     setSubmitError(null);
     setSubmitErrors([]);
+
+    if (formData.submitForApproval) {
+      if (!isEditMode) {
+        setSubmitError('Chưa thể gửi Admin duyệt: Khóa học mới tạo chưa có Chương học và Bài học. Hãy bấm "Lưu bản nháp" trước, sau đó thêm Bài học rồi mới gửi duyệt!');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+
+      // Check modules and lessons count for edit mode
+      try {
+        const [modules, lessons] = await Promise.all([
+          moduleApi.getModulesByCourseId(courseId),
+          lessonApi.getLessonsByCourseId(courseId),
+        ]);
+
+        const missing: string[] = [];
+        if (!modules || modules.length === 0) missing.push('Chưa tạo Chương học (Module) nào');
+        if (!lessons || lessons.length === 0) missing.push('Chưa tạo Bài học (Lesson) nào');
+
+        if (missing.length > 0) {
+          setSubmitError(`Chưa thể gửi Admin duyệt. Khóa học còn thiếu: ${missing.join(', ')}.`);
+          setSubmitErrors(missing);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          return;
+        }
+      } catch {
+        // Fallthrough if API fails
+      }
+    }
 
     const dto = {
       title: formData.title,
@@ -64,7 +96,9 @@ export const CourseFormPage: React.FC = () => {
       thumbnailUrl: formData.thumbnailUrl || undefined,
       price: formData.price,
       level: formData.level || undefined,
-      status: formData.status,
+      status: formData.submitForApproval ? 'PENDING_APPROVAL' : ('DRAFT' as const),
+      submissionNote: formData.submissionNote,
+      submitForApproval: formData.submitForApproval || false,
     };
 
     if (isEditMode) {
@@ -93,8 +127,8 @@ export const CourseFormPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50/60 pb-16">
-      <div className="mx-auto max-w-3xl px-4 py-8">
+    <div className="min-h-screen bg-slate-50/60 pb-16 font-sans">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
         {/* ── Page header ── */}
         <div className="mb-8 flex items-center gap-4">
           <button
@@ -157,24 +191,22 @@ export const CourseFormPage: React.FC = () => {
           </div>
         )}
 
-        {/* ── Form card ── */}
-        <div className="rounded-3xl border border-slate-200/80 bg-white p-8 shadow-sm">
-          {isCategoriesLoading ? (
-            <div className="animate-pulse space-y-5">
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="h-12 rounded-xl bg-slate-100" />
-              ))}
-            </div>
-          ) : (
-            <CourseForm
-              existingCourse={existingCourse}
-              categories={categories}
-              isSubmitting={isCreating || isUpdating}
-              onSubmit={handleSubmit}
-              onCancel={() => navigate('/instructor/courses')}
-            />
-          )}
-        </div>
+        {/* ── Form Body ── */}
+        {isCategoriesLoading ? (
+          <div className="rounded-3xl border border-slate-200/80 bg-white p-8 animate-pulse space-y-5">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="h-12 rounded-xl bg-slate-100" />
+            ))}
+          </div>
+        ) : (
+          <CourseForm
+            existingCourse={existingCourse}
+            categories={categories}
+            isSubmitting={isCreating || isUpdating}
+            onSubmit={handleSubmit}
+            onCancel={() => navigate('/instructor/courses')}
+          />
+        )}
       </div>
     </div>
   );

@@ -34,7 +34,7 @@ export const renderAuthRoutes = ({
               if (userObj.roleName === 'Admin' || userObj.role === 'admin') {
                 navigate('/admin');
               } else if (userObj.roleName === 'Instructor' || userObj.role === 'instructor') {
-                navigate('/instructor/courses');
+                navigate('/instructor');
               } else {
                 navigate('/courses');
               }

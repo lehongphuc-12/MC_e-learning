@@ -13,6 +13,7 @@ import { ToastType } from '../../components/common/Toast';
 interface QuizRoutesProps {
   onNavigate: (screen: ScreenType) => void;
   withMainLayout: (component: React.ReactNode, showFooter?: boolean) => React.ReactNode;
+  withInstructorLayout?: (component: React.ReactNode, showFooter?: boolean) => React.ReactNode;
   user: User | null;
   currentScreen: ScreenType;
   onToast?: (title: string, desc?: string, type?: ToastType) => void;
@@ -21,6 +22,7 @@ interface QuizRoutesProps {
 export const renderQuizRoutes = ({
   onNavigate,
   withMainLayout,
+  withInstructorLayout = withMainLayout,
   user,
   currentScreen,
   onToast,
@@ -38,7 +40,7 @@ export const renderQuizRoutes = ({
             onNavigate={onNavigate}
             onToast={onToast}
           >
-            {withMainLayout(<CreateQuizPage />)}
+            {withInstructorLayout(<CreateQuizPage />)}
           </ProtectedRoute>
         }
       />
@@ -52,7 +54,7 @@ export const renderQuizRoutes = ({
             onNavigate={onNavigate}
             onToast={onToast}
           >
-            {withMainLayout(<UpdateQuizPage />)}
+            {withInstructorLayout(<UpdateQuizPage />)}
           </ProtectedRoute>
         }
       />
@@ -66,7 +68,7 @@ export const renderQuizRoutes = ({
             onNavigate={onNavigate}
             onToast={onToast}
           >
-            {withMainLayout(<QuizDetailPage />)}
+            {withInstructorLayout(<QuizDetailPage />)}
           </ProtectedRoute>
         }
       />
@@ -80,7 +82,7 @@ export const renderQuizRoutes = ({
             onNavigate={onNavigate}
             onToast={onToast}
           >
-            {withMainLayout(<QuizManagementPage />)}
+            {withInstructorLayout(<QuizManagementPage />)}
           </ProtectedRoute>
         }
       />

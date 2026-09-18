@@ -20,13 +20,23 @@ interface CourseStatusBadgeProps {
 const STATUS_CONFIG: Record<CourseStatus, { label: string; className: string; dotColor: string }> = {
   DRAFT: {
     label: 'Bản nháp',
-    className: 'bg-amber-50 text-amber-700 border border-amber-200/80 shadow-xs',
-    dotColor: 'bg-amber-500',
+    className: 'bg-slate-100 text-slate-700 border border-slate-200/80 shadow-xs',
+    dotColor: 'bg-slate-400',
+  },
+  PENDING_APPROVAL: {
+    label: 'Chờ Admin duyệt',
+    className: 'bg-amber-50 text-amber-700 border border-amber-300 shadow-xs font-bold',
+    dotColor: 'bg-amber-500 animate-pulse',
   },
   PUBLISHED: {
     label: 'Đã xuất bản',
     className: 'bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-xs',
     dotColor: 'bg-emerald-500 animate-pulse',
+  },
+  REJECTED: {
+    label: 'Từ chối duyệt',
+    className: 'bg-rose-50 text-rose-700 border border-rose-200/80 shadow-xs font-semibold',
+    dotColor: 'bg-rose-500',
   },
   ARCHIVED: {
     label: 'Đã lưu trữ',
@@ -44,9 +54,9 @@ export const CourseStatusBadge: React.FC<CourseStatusBadgeProps> = ({
 
   return (
     <span
-      className={`inline-flex items-center rounded-full transition-colors ${sizeClass} ${config.className}`}
+      className={`inline-flex items-center rounded-full transition-colors whitespace-nowrap shrink-0 ${sizeClass} ${config.className}`}
     >
-      <span className={`mr-1.5 h-1.5 w-1.5 rounded-full ${config.dotColor}`} />
+      <span className={`mr-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${config.dotColor}`} />
       {config.label}
     </span>
   );

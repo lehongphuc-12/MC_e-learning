@@ -3,6 +3,7 @@ using MC_BE.Core.Enums;
 using MC_BE.Features.Courses.DTOs;
 using MC_BE.Features.Courses.Services.Interfaces;
 using MC_BE.Shared.Repositories.Interfaces;
+using Microsoft.EntityFrameworkCore;
 
 namespace MC_BE.Features.Courses.Services;
 
@@ -47,24 +48,22 @@ public class LessonService : ILessonService
 
     public async Task<List<LessonDto>> GetLessonsByCourseIdAsync(int courseId)
     {
-        var lessons = await _lessonRepository.FindAsync(
-            l => l.CourseId == courseId,
-            l => l.CourseMaterials);
-
-        return lessons
+        var lessons = await _lessonRepository.GetQueryable()
+            .Include(l => l.CourseMaterials)
+            .Where(l => l.CourseId == courseId)
             .OrderBy(l => l.OrderIndex)
             .ThenBy(l => l.LessonId)
-            .Select(MapToDto)
-            .ToList();
+            .ToListAsync();
+
+        return lessons.Select(MapToDto).ToList();
     }
 
     public async Task<LessonDto?> GetLessonByIdAsync(int lessonId)
     {
-        var lessons = await _lessonRepository.FindAsync(
-            l => l.LessonId == lessonId,
-            l => l.CourseMaterials);
+        var lesson = await _lessonRepository.GetQueryable()
+            .Include(l => l.CourseMaterials)
+            .FirstOrDefaultAsync(l => l.LessonId == lessonId);
 
-        var lesson = lessons.FirstOrDefault();
         return lesson is null ? null : MapToDto(lesson);
     }
 
@@ -128,14 +127,12 @@ public class LessonService : ILessonService
 
     public async Task<LessonDto?> UpdateLessonAsync(int lessonId, int instructorId, UpdateLessonRequest request)
     {
-        var lessons = await _lessonRepository.FindAsync(
-            l => l.LessonId == lessonId,
-            l => l.Course,
-            l => l.CourseMaterials);
+        var lesson = await _lessonRepository.GetQueryable()
+            .Include(l => l.Course)
+            .Include(l => l.CourseMaterials)
+            .FirstOrDefaultAsync(l => l.LessonId == lessonId);
 
-        var lesson = lessons.FirstOrDefault();
-
-        if (lesson is null || lesson.Course.InstructorId != instructorId)
+        if (lesson is null || lesson.Course == null || lesson.Course.InstructorId != instructorId)
             return null;
 
         if (request.ModuleId.HasValue) lesson.ModuleId = request.ModuleId.Value;
@@ -177,13 +174,11 @@ public class LessonService : ILessonService
 
     public async Task<bool> DeleteLessonAsync(int lessonId, int instructorId)
     {
-        var lessons = await _lessonRepository.FindAsync(
-            l => l.LessonId == lessonId,
-            l => l.Course);
+        var lesson = await _lessonRepository.GetQueryable()
+            .Include(l => l.Course)
+            .FirstOrDefaultAsync(l => l.LessonId == lessonId);
 
-        var lesson = lessons.FirstOrDefault();
-
-        if (lesson is null || lesson.Course.InstructorId != instructorId)
+        if (lesson is null || lesson.Course == null || lesson.Course.InstructorId != instructorId)
             return false;
 
         _lessonRepository.Remove(lesson);
