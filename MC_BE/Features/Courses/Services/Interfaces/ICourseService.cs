@@ -65,4 +65,9 @@ public interface ICourseService
     /// Bulk creates multiple courses in one operation.
     /// </summary>
     Task<List<CourseDto>> CreateCoursesBulkAsync(int instructorId, List<CreateCourseRequest> requests);
+
+    /// <summary>
+    /// Fetches courses enrolled by the specified learner along with learning progress.
+    /// </summary>
+    Task<List<LearnedCourseDto>> GetLearnedCoursesAsync(int learnerId);
 }

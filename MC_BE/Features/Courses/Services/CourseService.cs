@@ -14,17 +14,30 @@ public class CourseService : ICourseService
 {
     private readonly IGenericRepository<Course> _courseRepository;
     private readonly IGenericRepository<Category> _categoryRepository;
+    private readonly IGenericRepository<Enrollment> _enrollmentRepository;
+    private readonly IGenericRepository<Lesson> _lessonRepository;
+    private readonly IGenericRepository<LessonProgress> _lessonProgressRepository;
+    private readonly IGenericRepository<Certificate> _certificateRepository;
     private readonly IUnitOfWork _unitOfWork;
 
     public CourseService(
         IGenericRepository<Course> courseRepository,
         IGenericRepository<Category> categoryRepository,
+        IGenericRepository<Enrollment> enrollmentRepository,
+        IGenericRepository<Lesson> lessonRepository,
+        IGenericRepository<LessonProgress> lessonProgressRepository,
+        IGenericRepository<Certificate> certificateRepository,
         IUnitOfWork unitOfWork)
     {
         _courseRepository = courseRepository;
         _categoryRepository = categoryRepository;
+        _enrollmentRepository = enrollmentRepository;
+        _lessonRepository = lessonRepository;
+        _lessonProgressRepository = lessonProgressRepository;
+        _certificateRepository = certificateRepository;
         _unitOfWork = unitOfWork;
     }
+
 
     // -------------------------------------------------------------------------
     // Slug generation helper
@@ -262,5 +275,70 @@ public class CourseService : ICourseService
         }
         return createdList;
     }
+
+    // -------------------------------------------------------------------------
+    // GET Learned Courses (for enrolled learner)
+    // -------------------------------------------------------------------------
+    public async Task<List<LearnedCourseDto>> GetLearnedCoursesAsync(int learnerId)
+    {
+        var enrollments = await _enrollmentRepository.FindAsync(
+            e => e.LearnerId == learnerId && (e.Status == "ACTIVE" || e.Status == "COMPLETED" || e.Status == "EXPIRED"),
+            e => e.Course,
+            e => e.Course.Category,
+            e => e.Course.Instructor,
+            e => e.LessonProgresses);
+
+        var result = new List<LearnedCourseDto>();
+
+        foreach (var enrollment in enrollments.OrderByDescending(e => e.UpdatedAt))
+        {
+            if (enrollment.Course == null) continue;
+
+            var courseDto = MapToDto(enrollment.Course);
+
+            var lessons = await _lessonRepository.FindAsync(
+                l => l.CourseId == enrollment.CourseId && l.Status == LessonStatus.ACTIVE);
+            var totalLessonsCount = lessons.Count();
+
+            var progressList = enrollment.LessonProgresses ?? new List<LessonProgress>();
+            var completedProgresses = progressList.Where(p => p.IsCompleted || p.Status == LessonProgressStatus.COMPLETED).ToList();
+            var completedCount = completedProgresses.Count;
+
+            decimal progressPercent = totalLessonsCount > 0
+                ? Math.Round((decimal)completedCount / totalLessonsCount * 100, 2)
+                : Convert.ToDecimal(enrollment.CompletionPercentage);
+
+            var lastProgress = progressList.OrderByDescending(p => p.LastAccessedAt ?? p.UpdatedAt).FirstOrDefault();
+            string? lastLectureTitle = null;
+            if (lastProgress != null)
+            {
+                var lastLesson = lessons.FirstOrDefault(l => l.LessonId == lastProgress.LessonId);
+                lastLectureTitle = lastLesson?.Title;
+            }
+
+            var certs = await _certificateRepository.FindAsync(c => c.EnrollmentId == enrollment.EnrollmentId);
+            var cert = certs.FirstOrDefault();
+
+            bool isCompleted = progressPercent >= 100m || enrollment.Status == "COMPLETED";
+
+            result.Add(new LearnedCourseDto
+            {
+                EnrollmentId = enrollment.EnrollmentId,
+                CourseId = enrollment.CourseId,
+                Course = courseDto,
+                ProgressPercent = progressPercent,
+                CompletedLecturesCount = completedCount,
+                TotalLecturesCount = totalLessonsCount,
+                LastAccessedAt = lastProgress?.LastAccessedAt ?? enrollment.UpdatedAt,
+                LastLectureTitle = lastLectureTitle,
+                Status = isCompleted ? "completed" : "in-progress",
+                EnrolledDate = enrollment.EnrolledAt ?? enrollment.CreatedAt,
+                CertificateId = cert?.CertificateId
+            });
+        }
+
+        return result;
+    }
 }
+
 

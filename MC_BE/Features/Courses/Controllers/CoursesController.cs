@@ -80,6 +80,22 @@ public class CoursesController : ControllerBase
     }
 
     // -------------------------------------------------------------------------
+    // GET /api/courses/learned-courses
+    // Returns the authenticated learner's enrolled courses with progress & details.
+    // -------------------------------------------------------------------------
+    [HttpGet("learned-courses")]
+    public async Task<ActionResult<ApiResponse<List<LearnedCourseDto>>>> GetLearnedCourses()
+    {
+        var learnerId = GetCurrentUserId();
+        if (learnerId is null)
+            return Unauthorized(ApiResponse<List<LearnedCourseDto>>.FailureResponse("Unauthorized."));
+
+        var result = await _courseService.GetLearnedCoursesAsync(learnerId.Value);
+        return Ok(ApiResponse<List<LearnedCourseDto>>.SuccessResponse(result));
+    }
+
+
+    // -------------------------------------------------------------------------
     // GET /api/courses/{id}
     // Returns a single course (accessible to authenticated users)
     // -------------------------------------------------------------------------
