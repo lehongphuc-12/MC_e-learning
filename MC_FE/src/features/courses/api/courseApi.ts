@@ -27,6 +27,7 @@ import type {
   CreateCourseDto,
   UpdateCourseDto,
   CourseListParams,
+  LearnedCourse,
 } from '../types/courseTypes';
 
 // ---------------------------------------------------------------------------
@@ -74,6 +75,16 @@ function buildQuery(params?: Record<string, string | number | undefined>): strin
 
 export const courseApi = {
   // -------------------------------------------------------------------------
+  // READ — Public courses catalog
+  // GET /courses
+  // -------------------------------------------------------------------------
+  async getCourses(params?: CourseListParams): Promise<CourseListResult> {
+    const query = buildQuery(params as Record<string, string | number | undefined>);
+    const envelope = await request<ApiEnvelope<CourseListPayload>>(`/courses${query}`);
+    return envelope.data;
+  },
+
+  // -------------------------------------------------------------------------
   // READ — Instructor's own courses (paginated + filterable)
   // GET /courses/my-courses
   // -------------------------------------------------------------------------
@@ -83,6 +94,7 @@ export const courseApi = {
     const envelope = await request<ApiEnvelope<CourseListPayload>>(`/courses/my-courses${query}`);
     return envelope.data; // unwrap ApiEnvelope → CourseListPayload
   },
+  
 
   // -------------------------------------------------------------------------
   // READ — All courses (Admin-only view)
@@ -161,4 +173,24 @@ export const courseApi = {
     });
     return envelope.data;
   },
+
+  // -------------------------------------------------------------------------
+  // SUBMIT FOR APPROVAL — POST /courses/:id/submit-approval
+  // -------------------------------------------------------------------------
+  async submitForApproval(courseId: number, submissionNote?: string): Promise<Course> {
+    const envelope = await request<ApiEnvelope<Course>>(`/courses/${courseId}/submit-approval`, {
+      method: 'POST',
+      body: JSON.stringify({ submissionNote }),
+    });
+    return envelope.data;
+  },
+    // -------------------------------------------------------------------------
+  // READ — Learner's enrolled courses
+  // GET /courses/learned-courses
+  // -------------------------------------------------------------------------
+  async getLearnedCourses(): Promise<LearnedCourse[]> {
+    const envelope = await request<ApiEnvelope<LearnedCourse[]>>('/courses/learned-courses');
+    return envelope.data;
+  },
 };
+

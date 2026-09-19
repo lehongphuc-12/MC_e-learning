@@ -7,14 +7,14 @@ import {
   Menu,
   Mic2,
   Search,
+  Shield,
   ShoppingBag,
   Sparkles,
   UserCircle,
   UserPlus,
   X,
-  Shield,
 } from 'lucide-react';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Course, ScreenType, User } from '../types';
 
@@ -185,18 +185,7 @@ export const Header: React.FC<HeaderProps> = ({
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                   }`}
                 >
-                  Courses
-                </button>
-                <button
-                  id="nav-detail-btn"
-                  onClick={() => onNavigate('course-detail')}
-                  className={`px-3.5 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
-                    currentScreen === 'course-detail'
-                      ? 'text-blue-600 bg-blue-50/70 font-semibold'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                  }`}
-                >
-                  Course Detail
+                  Khóa học
                 </button>
                 {user?.role === 'admin' && (
                   <button
@@ -213,14 +202,24 @@ export const Header: React.FC<HeaderProps> = ({
                   </button>
                 )}
                 {user?.role === 'instructor' && (
-                  <button
-                    id="nav-instructor-dashboard-btn"
-                    onClick={() => navigate('/instructor/courses')}
-                    className="px-3.5 py-2 rounded-lg text-sm font-bold transition-colors cursor-pointer flex items-center gap-1.5 text-emerald-700 hover:text-emerald-900 hover:bg-emerald-50"
-                  >
-                    <LayoutDashboard className="w-4 h-4 text-emerald-600" />
-                    <span>My Courses</span>
-                  </button>
+                  <>
+                    <button
+                      id="nav-instructor-home-btn"
+                      onClick={() => navigate('/instructor')}
+                      className="px-3.5 py-2 rounded-lg text-sm font-bold transition-colors cursor-pointer flex items-center gap-1.5 text-blue-700 hover:text-blue-900 hover:bg-blue-50"
+                    >
+                      <LayoutDashboard className="w-4 h-4 text-blue-600" />
+                      <span>Trang Giảng viên</span>
+                    </button>
+                    <button
+                      id="nav-instructor-courses-btn"
+                      onClick={() => navigate('/instructor/courses')}
+                      className="px-3.5 py-2 rounded-lg text-sm font-bold transition-colors cursor-pointer flex items-center gap-1.5 text-emerald-700 hover:text-emerald-900 hover:bg-emerald-50"
+                    >
+                      <BookOpen className="w-4 h-4 text-emerald-600" />
+                      <span>Quản lý khóa học</span>
+                    </button>
+                  </>
                 )}
               </nav>
             </div>
@@ -320,17 +319,30 @@ export const Header: React.FC<HeaderProps> = ({
                         </button>
                       )}
                       {user.role === 'instructor' && (
-                        <button
-                          id="dropdown-instructor-dashboard-btn"
-                          onClick={() => {
-                            navigate('/instructor/courses');
-                            setIsUserMenuOpen(false);
-                          }}
-                          className="w-full text-left px-4 py-2 text-xs font-bold text-emerald-700 bg-emerald-50/80 hover:bg-emerald-100 flex items-center gap-2 cursor-pointer border-b border-emerald-100"
-                        >
-                          <LayoutDashboard className="w-4 h-4 text-emerald-600" />
-                          <span>My Courses Dashboard</span>
-                        </button>
+                        <>
+                          <button
+                            id="dropdown-instructor-dashboard-btn"
+                            onClick={() => {
+                              navigate('/instructor');
+                              setIsUserMenuOpen(false);
+                            }}
+                            className="w-full text-left px-4 py-2 text-xs font-bold text-blue-700 bg-blue-50/80 hover:bg-blue-100 flex items-center gap-2 cursor-pointer border-b border-blue-100"
+                          >
+                            <LayoutDashboard className="w-4 h-4 text-blue-600" />
+                            <span>Trang Tổng quan Giảng viên</span>
+                          </button>
+                          <button
+                            id="dropdown-instructor-courses-btn"
+                            onClick={() => {
+                              navigate('/instructor/courses');
+                              setIsUserMenuOpen(false);
+                            }}
+                            className="w-full text-left px-4 py-2 text-xs font-bold text-emerald-700 bg-emerald-50/80 hover:bg-emerald-100 flex items-center gap-2 cursor-pointer border-b border-emerald-100"
+                          >
+                            <BookOpen className="w-4 h-4 text-emerald-600" />
+                            <span>Quản lý Khóa học của tôi</span>
+                          </button>
+                        </>
                       )}
                       <button
                         onClick={() => {
@@ -344,13 +356,13 @@ export const Header: React.FC<HeaderProps> = ({
                       </button>
                       <button
                         onClick={() => {
-                          onNavigate('courses');
+                          onNavigate('my-courses');
                           setIsUserMenuOpen(false);
                         }}
                         className="w-full text-left px-4 py-2 text-xs font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-600 flex items-center gap-2 cursor-pointer"
                       >
                         <BookOpen className="w-4 h-4" />
-                        <span>Explore Courses</span>
+                        <span>Khóa học của tôi</span>
                       </button>
                       <button
                         onClick={() => {
@@ -433,17 +445,30 @@ export const Header: React.FC<HeaderProps> = ({
               </button>
             )}
             {user?.role === 'instructor' && (
-              <button
-                id="mobile-instructor-dashboard-btn"
-                onClick={() => {
-                  navigate('/instructor/courses');
-                  setIsMobileMenuOpen(false);
-                }}
-                className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2.5 bg-emerald-50 text-emerald-700 border border-emerald-200"
-              >
-                <span>📚</span>
-                <span>My Courses Dashboard</span>
-              </button>
+              <>
+                <button
+                  id="mobile-instructor-dashboard-btn"
+                  onClick={() => {
+                    navigate('/instructor');
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2.5 bg-blue-50 text-blue-700 border border-blue-200"
+                >
+                  <span>📊</span>
+                  <span>Trang Giảng viên</span>
+                </button>
+                <button
+                  id="mobile-instructor-courses-btn"
+                  onClick={() => {
+                    navigate('/instructor/courses');
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2.5 bg-emerald-50 text-emerald-700 border border-emerald-200"
+                >
+                  <span>📚</span>
+                  <span>Quản lý Khóa học của tôi</span>
+                </button>
+              </>
             )}
             {screensList.map((screen) => (
               <button

@@ -1,38 +1,39 @@
+using MC_BE.Core.Entities;
 using MC_BE.Core.Enums;
 using MC_BE.Features.Courses.DTOs;
 using MC_BE.Features.Courses.Services.Interfaces;
-using MC_BE.Shared.Data;
+using MC_BE.Shared.Repositories.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
 namespace MC_BE.Features.Courses.Services;
 
 public class CategoryService : ICategoryService
 {
-    private readonly SmartMcDbContext _context;
+    private readonly IGenericRepository<Category> _categoryRepository;
 
-    public CategoryService(SmartMcDbContext context)
+    public CategoryService(IGenericRepository<Category> categoryRepository)
     {
-        _context = context;
+        _categoryRepository = categoryRepository;
     }
 
     public async Task<List<CategoryDto>> GetAllCategoriesAsync()
     {
-        return await _context.Categories
+        return await _categoryRepository.GetQueryable()
             .Where(c => c.Status == CategoryStatus.ACTIVE)
             .OrderBy(c => c.CategoryName)
             .Select(c => new CategoryDto
             {
-                CategoryId   = c.CategoryId,
+                CategoryId = c.CategoryId,
                 CategoryName = c.CategoryName,
-                Description  = c.Description,
-                Status       = c.Status.ToString(),
+                Description = c.Description,
+                Status = c.Status.ToString(),
             })
-            .ToListAsync();
+            .ToListAsync(); 
     }
 
     public async Task<CategoryDto?> GetCategoryByIdAsync(int categoryId)
     {
-        var cat = await _context.Categories.FindAsync(categoryId);
+        var cat = await _categoryRepository.GetByIdAsync(categoryId);
         if (cat is null) return null;
 
         return new CategoryDto
@@ -44,3 +45,4 @@ public class CategoryService : ICategoryService
         };
     }
 }
+

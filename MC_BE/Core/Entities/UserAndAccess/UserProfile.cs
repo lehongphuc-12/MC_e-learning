@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace MC_BE.Core.Entities;
 
-[Table("USER_PROFILE")]
+[Table("user_profiles")]
 public class UserProfile
 {
     [Key]

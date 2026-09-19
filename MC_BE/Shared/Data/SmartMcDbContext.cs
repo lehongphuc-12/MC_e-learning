@@ -46,11 +46,13 @@ public class SmartMcDbContext : DbContext
         // Section 1: Auth & User
         modelBuilder.Entity<Role>(entity =>
         {
+            entity.ToTable("roles");
             entity.HasIndex(e => e.RoleName).IsUnique();
         });
 
         modelBuilder.Entity<User>(entity =>
         {
+            entity.ToTable("users");
             entity.HasIndex(e => e.Email).IsUnique();
             entity.Property(e => e.Status).HasDefaultValue("ACTIVE");
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
@@ -64,6 +66,7 @@ public class SmartMcDbContext : DbContext
 
         modelBuilder.Entity<UserProfile>(entity =>
         {
+            entity.ToTable("user_profiles");
             entity.HasIndex(e => e.UserId).IsUnique();
             entity.Property(e => e.PreferredLanguage).HasDefaultValue("en");
 
@@ -75,6 +78,7 @@ public class SmartMcDbContext : DbContext
 
         modelBuilder.Entity<PasswordResetToken>(entity =>
         {
+            entity.ToTable("password_reset_tokens");
             entity.HasIndex(e => e.Token);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
 
@@ -86,6 +90,7 @@ public class SmartMcDbContext : DbContext
 
         modelBuilder.Entity<RefreshToken>(entity =>
         {
+            entity.ToTable("refresh_tokens");
             entity.HasIndex(e => e.Token);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
 
@@ -98,6 +103,7 @@ public class SmartMcDbContext : DbContext
         // Section 2: Course & Learning
         modelBuilder.Entity<Category>(entity =>
         {
+            entity.ToTable("categories"); // Ghi đè tên bảng chữ thường tương thích Postgres
             entity.Property(e => e.Status)
                 .HasConversion<string>()
                 .HasDefaultValue(CategoryStatus.ACTIVE);
@@ -105,6 +111,9 @@ public class SmartMcDbContext : DbContext
 
         modelBuilder.Entity<Course>(entity =>
         {
+            // GHI ĐÈ [Table("COURSE")]: Chỉ định chính xác bảng trong PostgreSQL
+            entity.ToTable("courses");
+            entity.HasKey(e => e.CourseId);
             entity.HasIndex(e => e.Slug).IsUnique();
             entity.Property(e => e.Price).HasDefaultValue(0.00m);
             entity.Property(e => e.Level).HasConversion<string>();
@@ -127,6 +136,7 @@ public class SmartMcDbContext : DbContext
 
         modelBuilder.Entity<Module>(entity =>
         {
+            entity.ToTable("modules");
             entity.Property(e => e.OrderIndex).HasDefaultValue(1);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
@@ -139,6 +149,7 @@ public class SmartMcDbContext : DbContext
 
         modelBuilder.Entity<Lesson>(entity =>
         {
+            entity.ToTable("lessons");
             entity.Property(e => e.LessonType).HasConversion<string>();
             entity.Property(e => e.OrderIndex).HasDefaultValue(1);
             entity.Property(e => e.DurationMinutes).HasDefaultValue(0);
@@ -161,6 +172,7 @@ public class SmartMcDbContext : DbContext
 
         modelBuilder.Entity<CourseMaterial>(entity =>
         {
+            entity.ToTable("course_materials");
             entity.Property(e => e.MaterialType).HasConversion<string>();
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
 
@@ -183,7 +195,7 @@ public class SmartMcDbContext : DbContext
         // ENROLLMENT CONFIGURATION
         modelBuilder.Entity<Enrollment>(entity =>
         {
-            entity.ToTable("ENROLLMENT");
+            entity.ToTable("enrollments");
 
             entity.HasKey(e => e.EnrollmentId);
 
@@ -218,6 +230,7 @@ public class SmartMcDbContext : DbContext
 
         modelBuilder.Entity<LessonProgress>(entity =>
         {
+            entity.ToTable("lesson_progresses");
             entity.HasIndex(e => new { e.EnrollmentId, e.LessonId }).IsUnique();
             entity.Property(e => e.Status)
                 .HasConversion<string>()
@@ -237,7 +250,7 @@ public class SmartMcDbContext : DbContext
 
         modelBuilder.Entity<Certificate>(entity =>
         {
-            entity.ToTable("CERTIFICATE");
+            entity.ToTable("certificates");
             entity.HasIndex(e => e.CertificateCode).IsUnique();
             entity.HasIndex(e => e.EnrollmentId).IsUnique();
             entity.Property(e => e.CompletionPercentage).HasDefaultValue(100.00m);
@@ -253,7 +266,7 @@ public class SmartMcDbContext : DbContext
         // Section 3: Payment Configuration
         modelBuilder.Entity<Payment>(entity =>
         {
-            entity.ToTable("PAYMENT");
+            entity.ToTable("payments");
 
             entity.HasKey(e => e.PaymentId);
 
@@ -288,7 +301,7 @@ public class SmartMcDbContext : DbContext
         // PAYMENT_TRANSACTION CONFIGURATION
         modelBuilder.Entity<PaymentTransaction>(entity =>
         {
-            entity.ToTable("PAYMENT_TRANSACTION");
+            entity.ToTable("payment_transactions");
 
             entity.HasKey(e => e.TransactionId);
 
@@ -318,6 +331,7 @@ public class SmartMcDbContext : DbContext
         // Section 4: Quiz & Assessment Configuration
         modelBuilder.Entity<Quiz>(entity =>
         {
+            entity.ToTable("quizzes");
             entity.Property(e => e.TimeLimitMinutes).HasDefaultValue(0);
             entity.Property(e => e.PassingScore).HasDefaultValue(80.00m);
             entity.Property(e => e.MaxAttempts).HasDefaultValue(1);
@@ -344,6 +358,7 @@ public class SmartMcDbContext : DbContext
 
         modelBuilder.Entity<Question>(entity =>
         {
+            entity.ToTable("questions");
             entity.Property(e => e.QuestionType).HasConversion<string>();
             entity.Property(e => e.OrderIndex).HasDefaultValue(1);
 
@@ -355,6 +370,7 @@ public class SmartMcDbContext : DbContext
 
         modelBuilder.Entity<Choice>(entity =>
         {
+            entity.ToTable("choices");
             entity.Property(e => e.IsCorrect).HasDefaultValue(false);
             entity.Property(e => e.OrderIndex).HasDefaultValue(1);
 
@@ -366,6 +382,7 @@ public class SmartMcDbContext : DbContext
 
         modelBuilder.Entity<QuizAttempt>(entity =>
         {
+            entity.ToTable("quiz_attempts");
             entity.Property(e => e.AttemptNumber).HasDefaultValue(1);
             entity.Property(e => e.ResultStatus).HasConversion<string>();
             entity.Property(e => e.StartedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
@@ -383,6 +400,7 @@ public class SmartMcDbContext : DbContext
 
         modelBuilder.Entity<QuizAnswer>(entity =>
         {
+            entity.ToTable("quiz_answers");
             entity.Property(e => e.AnsweredAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
 
             entity.HasOne(d => d.Attempt)

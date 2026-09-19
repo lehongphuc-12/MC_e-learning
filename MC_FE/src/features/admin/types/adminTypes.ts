@@ -32,6 +32,12 @@ export interface AdminCourse {
   rating: number;
   studentsCount: number;
   submittedDate: string;
+  createdAt?: string;
+  updatedAt?: string;
+  submittedAt?: string;
+  approvedAt?: string;
+  approvedByName?: string;
+  submissionNote?: string;
   featured?: boolean;
   rejectReason?: string;
   sectionsCount?: number;

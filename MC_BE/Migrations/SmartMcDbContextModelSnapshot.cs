@@ -50,7 +50,7 @@ namespace MC_BE.Migrations
 
                     b.HasKey("CategoryId");
 
-                    b.ToTable("CATEGORY");
+                    b.ToTable("categories", (string)null);
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.Certificate", b =>
@@ -110,7 +110,7 @@ namespace MC_BE.Migrations
                     b.HasIndex("EnrollmentId")
                         .IsUnique();
 
-                    b.ToTable("CERTIFICATE", (string)null);
+                    b.ToTable("certificates", (string)null);
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.Choice", b =>
@@ -147,7 +147,7 @@ namespace MC_BE.Migrations
 
                     b.HasIndex("QuestionId");
 
-                    b.ToTable("CHOICE");
+                    b.ToTable("choices", (string)null);
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.Course", b =>
@@ -158,6 +158,14 @@ namespace MC_BE.Migrations
                         .HasColumnName("CourseID");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("CourseId"));
+
+                    b.Property<DateTime?>("ApprovedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ApprovedAt");
+
+                    b.Property<int?>("ApprovedById")
+                        .HasColumnType("integer")
+                        .HasColumnName("ApprovedByID");
 
                     b.Property<int?>("CategoryId")
                         .HasColumnType("integer")
@@ -187,6 +195,10 @@ namespace MC_BE.Migrations
                         .HasDefaultValue(0.00m)
                         .HasColumnName("Price");
 
+                    b.Property<string>("RejectionReason")
+                        .HasColumnType("text")
+                        .HasColumnName("RejectionReason");
+
                     b.Property<string>("Slug")
                         .IsRequired()
                         .HasMaxLength(255)
@@ -199,6 +211,14 @@ namespace MC_BE.Migrations
                         .HasColumnType("text")
                         .HasDefaultValue("DRAFT")
                         .HasColumnName("Status");
+
+                    b.Property<string>("SubmissionNote")
+                        .HasColumnType("text")
+                        .HasColumnName("SubmissionNote");
+
+                    b.Property<DateTime?>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("SubmittedAt");
 
                     b.Property<string>("ThumbnailUrl")
                         .HasMaxLength(255)
@@ -219,6 +239,8 @@ namespace MC_BE.Migrations
 
                     b.HasKey("CourseId");
 
+                    b.HasIndex("ApprovedById");
+
                     b.HasIndex("CategoryId");
 
                     b.HasIndex("InstructorId");
@@ -226,7 +248,7 @@ namespace MC_BE.Migrations
                     b.HasIndex("Slug")
                         .IsUnique();
 
-                    b.ToTable("COURSE");
+                    b.ToTable("courses", (string)null);
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.CourseMaterial", b =>
@@ -284,7 +306,7 @@ namespace MC_BE.Migrations
 
                     b.HasIndex("UploaderId");
 
-                    b.ToTable("COURSE_MATERIAL");
+                    b.ToTable("course_materials", (string)null);
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.Enrollment", b =>
@@ -351,7 +373,7 @@ namespace MC_BE.Migrations
 
                     b.HasIndex("LearnerId", "CourseId", "Status");
 
-                    b.ToTable("ENROLLMENT", (string)null);
+                    b.ToTable("enrollments", (string)null);
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.Lesson", b =>
@@ -422,7 +444,7 @@ namespace MC_BE.Migrations
 
                     b.HasIndex("ModuleId");
 
-                    b.ToTable("LESSON");
+                    b.ToTable("lessons", (string)null);
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.LessonProgress", b =>
@@ -486,7 +508,7 @@ namespace MC_BE.Migrations
                     b.HasIndex("EnrollmentId", "LessonId")
                         .IsUnique();
 
-                    b.ToTable("LESSON_PROGRESS");
+                    b.ToTable("lesson_progresses", (string)null);
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.Module", b =>
@@ -534,7 +556,7 @@ namespace MC_BE.Migrations
 
                     b.HasIndex("CourseId");
 
-                    b.ToTable("MODULE");
+                    b.ToTable("modules", (string)null);
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.PasswordResetToken", b =>
@@ -576,7 +598,7 @@ namespace MC_BE.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("PASSWORD_RESET_TOKEN");
+                    b.ToTable("password_reset_tokens", (string)null);
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.Payment", b =>
@@ -684,7 +706,7 @@ namespace MC_BE.Migrations
 
                     b.HasIndex("Status");
 
-                    b.ToTable("PAYMENT", (string)null);
+                    b.ToTable("payments", (string)null);
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.PaymentTransaction", b =>
@@ -762,7 +784,7 @@ namespace MC_BE.Migrations
 
                     b.HasIndex("Status");
 
-                    b.ToTable("PAYMENT_TRANSACTION", (string)null);
+                    b.ToTable("payment_transactions", (string)null);
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.Question", b =>
@@ -802,7 +824,7 @@ namespace MC_BE.Migrations
 
                     b.HasIndex("QuizId");
 
-                    b.ToTable("QUESTION");
+                    b.ToTable("questions", (string)null);
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.Quiz", b =>
@@ -875,7 +897,7 @@ namespace MC_BE.Migrations
 
                     b.HasIndex("LessonId");
 
-                    b.ToTable("QUIZ");
+                    b.ToTable("quizzes", (string)null);
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.QuizAnswer", b =>
@@ -917,7 +939,7 @@ namespace MC_BE.Migrations
 
                     b.HasIndex("SelectedChoiceId");
 
-                    b.ToTable("QUIZ_ANSWER");
+                    b.ToTable("quiz_answers", (string)null);
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.QuizAttempt", b =>
@@ -967,7 +989,7 @@ namespace MC_BE.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("QUIZ_ATTEMPT");
+                    b.ToTable("quiz_attempts", (string)null);
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.RefreshToken", b =>
@@ -1014,7 +1036,7 @@ namespace MC_BE.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("REFRESH_TOKEN");
+                    b.ToTable("refresh_tokens", (string)null);
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.Role", b =>
@@ -1041,7 +1063,7 @@ namespace MC_BE.Migrations
                     b.HasIndex("RoleName")
                         .IsUnique();
 
-                    b.ToTable("ROLE");
+                    b.ToTable("roles", (string)null);
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.User", b =>
@@ -1119,7 +1141,7 @@ namespace MC_BE.Migrations
 
                     b.HasIndex("RoleId");
 
-                    b.ToTable("USER");
+                    b.ToTable("users", (string)null);
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.UserProfile", b =>
@@ -1170,7 +1192,7 @@ namespace MC_BE.Migrations
                     b.HasIndex("UserId")
                         .IsUnique();
 
-                    b.ToTable("USER_PROFILE");
+                    b.ToTable("user_profiles", (string)null);
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.Certificate", b =>
@@ -1197,6 +1219,10 @@ namespace MC_BE.Migrations
 
             modelBuilder.Entity("MC_BE.Core.Entities.Course", b =>
                 {
+                    b.HasOne("MC_BE.Core.Entities.User", "ApprovedBy")
+                        .WithMany()
+                        .HasForeignKey("ApprovedById");
+
                     b.HasOne("MC_BE.Core.Entities.Category", "Category")
                         .WithMany("Courses")
                         .HasForeignKey("CategoryId")
@@ -1207,6 +1233,8 @@ namespace MC_BE.Migrations
                         .HasForeignKey("InstructorId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("ApprovedBy");
 
                     b.Navigation("Category");
 

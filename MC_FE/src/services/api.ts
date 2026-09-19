@@ -132,11 +132,16 @@ export async function request<T>(
       );
     }
 
-    throw {
-      status: response.status,
-      message: data?.message || data?.title || 'Something went wrong',
-      errors: normalizedErrors,
-    };
+    const error = new Error(
+  data?.message || data?.title || 'Something went wrong'
+);
+
+Object.assign(error, {
+  status: response.status,
+  errors: normalizedErrors,
+});
+
+throw error;
   }
 
   return data;

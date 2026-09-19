@@ -38,6 +38,24 @@ public class CoursesController : ControllerBase
     }
 
     // -------------------------------------------------------------------------
+    // GET /api/courses
+    // Public endpoint to get all courses (paginated, filtered, searched)
+    // Query params: page, limit, status, categoryId, search
+    // -------------------------------------------------------------------------
+    [HttpGet]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<CourseListResponse>>> GetCourses(
+        [FromQuery] int page = 1,
+        [FromQuery] int limit = 10,
+        [FromQuery] string? status = null,
+        [FromQuery] int? categoryId = null,
+        [FromQuery] string? search = null)
+    {
+        var result = await _courseService.GetAllCoursesAsync(page, limit, status, categoryId, search);
+        return Ok(ApiResponse<CourseListResponse>.SuccessResponse(result));
+    }
+
+    // -------------------------------------------------------------------------
     // GET /api/courses/my-courses
     // Returns the authenticated instructor's own courses.
     // Query params: page, limit, status, categoryId, search
@@ -60,6 +78,22 @@ public class CoursesController : ControllerBase
 
         return Ok(ApiResponse<CourseListResponse>.SuccessResponse(result));
     }
+
+    // -------------------------------------------------------------------------
+    // GET /api/courses/learned-courses
+    // Returns the authenticated learner's enrolled courses with progress & details.
+    // -------------------------------------------------------------------------
+    [HttpGet("learned-courses")]
+    public async Task<ActionResult<ApiResponse<List<LearnedCourseDto>>>> GetLearnedCourses()
+    {
+        var learnerId = GetCurrentUserId();
+        if (learnerId is null)
+            return Unauthorized(ApiResponse<List<LearnedCourseDto>>.FailureResponse("Unauthorized."));
+
+        var result = await _courseService.GetLearnedCoursesAsync(learnerId.Value);
+        return Ok(ApiResponse<List<LearnedCourseDto>>.SuccessResponse(result));
+    }
+
 
     // -------------------------------------------------------------------------
     // GET /api/courses/{id}
@@ -140,11 +174,18 @@ public class CoursesController : ControllerBase
         if (instructorId is null)
             return Unauthorized(ApiResponse<CourseDto>.FailureResponse("Unauthorized."));
 
-        var updated = await _courseService.UpdateCourseAsync(id, instructorId.Value, request);
-        if (updated is null)
-            return NotFound(ApiResponse<CourseDto>.FailureResponse("Course not found or you are not the owner."));
+        try
+        {
+            var updated = await _courseService.UpdateCourseAsync(id, instructorId.Value, request);
+            if (updated is null)
+                return NotFound(ApiResponse<CourseDto>.FailureResponse("Course not found or you are not the owner."));
 
-        return Ok(ApiResponse<CourseDto>.SuccessResponse(updated, "Course updated successfully."));
+            return Ok(ApiResponse<CourseDto>.SuccessResponse(updated, "Course updated successfully."));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<CourseDto>.FailureResponse(ex.Message));
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -179,12 +220,46 @@ public class CoursesController : ControllerBase
         if (instructorId is null)
             return Unauthorized(ApiResponse<CourseDto>.FailureResponse("Unauthorized."));
 
-        var updated = await _courseService.UpdateCourseStatusAsync(
-            id, instructorId.Value, request.Status.ToString());
+        try
+        {
+            var updated = await _courseService.UpdateCourseStatusAsync(
+                id, instructorId.Value, request.Status.ToString(), request.Reason);
 
-        if (updated is null)
-            return NotFound(ApiResponse<CourseDto>.FailureResponse("Course not found or you are not the owner."));
+            if (updated is null)
+                return NotFound(ApiResponse<CourseDto>.FailureResponse("Course not found or you are not the owner."));
 
-        return Ok(ApiResponse<CourseDto>.SuccessResponse(updated, $"Course status updated to {request.Status}."));
+            return Ok(ApiResponse<CourseDto>.SuccessResponse(updated, $"Course status updated to {request.Status}."));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<CourseDto>.FailureResponse(ex.Message));
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // POST /api/courses/{id}/submit-approval
+    // Instructor submits course for admin review with an optional note
+    // -------------------------------------------------------------------------
+    [HttpPost("{id:int}/submit-approval")]
+    [Authorize(Roles = "Instructor")]
+    public async Task<ActionResult<ApiResponse<CourseDto>>> SubmitForApproval(
+        int id, [FromBody] SubmitApprovalRequest request)
+    {
+        var instructorId = GetCurrentUserId();
+        if (instructorId is null)
+            return Unauthorized(ApiResponse<CourseDto>.FailureResponse("Unauthorized."));
+
+        try
+        {
+            var updated = await _courseService.SubmitForApprovalAsync(id, instructorId.Value, request.SubmissionNote);
+            if (updated is null)
+                return NotFound(ApiResponse<CourseDto>.FailureResponse("Course not found or you are not the owner."));
+
+            return Ok(ApiResponse<CourseDto>.SuccessResponse(updated, "Khóa học đã được gửi cho Admin phê duyệt."));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<CourseDto>.FailureResponse(ex.Message));
+        }
     }
 }

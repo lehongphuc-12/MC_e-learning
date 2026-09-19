@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { X, CheckCircle, XCircle, BookOpen, User, Tag, DollarSign, Layers } from 'lucide-react';
+import { X, CheckCircle, XCircle, BookOpen, User, Tag, DollarSign, Layers, Video, FileText, Play, Loader2 } from 'lucide-react';
 import { AdminCourse } from '../../types/adminTypes';
+import { useCourseModules } from '../../../courses/hooks/useModuleQueries';
 
 interface CourseReviewModalProps {
   isOpen: boolean;
@@ -19,6 +20,9 @@ export const CourseReviewModal: React.FC<CourseReviewModalProps> = ({
 }) => {
   const [rejectReason, setRejectReason] = useState('');
   const [showRejectForm, setShowRejectForm] = useState(false);
+
+  const numericCourseId = course ? Number(course.id) : 0;
+  const { data: modules, isLoading: isModulesLoading } = useCourseModules(numericCourseId);
 
   if (!isOpen || !course) return null;
 
@@ -61,6 +65,19 @@ export const CourseReviewModal: React.FC<CourseReviewModalProps> = ({
             <h2 className="text-xl font-bold text-white">{course.title}</h2>
           </div>
 
+          {/* Instructor Submission Note Box */}
+          {course.submissionNote && (
+            <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl space-y-1 text-amber-200 text-xs">
+              <div className="flex items-center space-x-2 font-bold text-amber-400 text-sm">
+                <BookOpen className="w-4 h-4" />
+                <span>Ghi chú thay đổi từ Giảng viên:</span>
+              </div>
+              <p className="italic text-slate-200 leading-relaxed bg-slate-950/60 p-2.5 rounded-lg border border-amber-500/20 mt-1">
+                "{course.submissionNote}"
+              </p>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-4 p-4 bg-slate-800/60 border border-slate-800 rounded-xl text-sm">
             <div className="flex items-center space-x-3">
               <User className="w-4 h-4 text-slate-400" />
@@ -86,7 +103,7 @@ export const CourseReviewModal: React.FC<CourseReviewModalProps> = ({
               <div>
                 <p className="text-xs text-slate-400">Cấu trúc bài học</p>
                 <p className="font-medium text-slate-200">
-                  {course.sectionsCount || 10} Chương • {course.lecturesCount || 60} Bài giảng
+                  {modules ? `${modules.length} Chương` : (course.sectionsCount ? `${course.sectionsCount} Chương` : 'Chưa cập nhật')}
                 </p>
               </div>
             </div>
@@ -94,10 +111,69 @@ export const CourseReviewModal: React.FC<CourseReviewModalProps> = ({
             <div className="flex items-center space-x-3">
               <Tag className="w-4 h-4 text-amber-400" />
               <div>
-                <p className="text-xs text-slate-400">Ngày gửi duyệt</p>
-                <p className="font-medium text-slate-200">{course.submittedDate}</p>
+                <p className="text-xs text-slate-400">Mốc thời gian gửi duyệt</p>
+                <p className="font-medium text-amber-300">{course.submittedAt || course.submittedDate}</p>
+                {course.approvedAt && (
+                  <p className="text-xs text-emerald-400 font-semibold mt-0.5">
+                    Đã duyệt: {course.approvedAt}
+                  </p>
+                )}
               </div>
             </div>
+          </div>
+
+          {/* Detailed Course Curriculum (Modules & Lessons Inspection) */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                <Video className="w-4 h-4 text-blue-400" />
+                <span>Nội dung chương học & bài giảng ({modules?.length || 0} Chương)</span>
+              </h4>
+              {isModulesLoading && <Loader2 className="w-4 h-4 animate-spin text-blue-400" />}
+            </div>
+
+            {modules && modules.length > 0 ? (
+              <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
+                {modules.map((mod, index) => (
+                  <div key={mod.moduleId} className="bg-slate-950/60 border border-slate-800 rounded-xl p-3 space-y-2">
+                    <div className="flex items-center justify-between font-semibold text-xs text-blue-300">
+                      <span>Chương {index + 1}: {mod.title}</span>
+                      <span className="text-[10px] text-slate-500 font-normal">{mod.lessons?.length || 0} bài học</span>
+                    </div>
+                    {mod.lessons && mod.lessons.length > 0 ? (
+                      <ul className="space-y-1 pl-2 border-l border-slate-800 text-xs">
+                        {mod.lessons.map((les) => (
+                          <li key={les.lessonId} className="flex items-center justify-between text-slate-300 py-1.5 px-2.5 rounded-lg bg-slate-900/50 hover:bg-slate-800/60 transition">
+                            <div className="flex items-center space-x-2 truncate">
+                              <FileText className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                              <span className="truncate">{les.title}</span>
+                              {les.videoUrl && (
+                                <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                                  Video MP4
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center space-x-2 shrink-0 text-[11px] text-slate-500">
+                              {les.videoUrl && (
+                                <a href={les.videoUrl} target="_blank" rel="noreferrer" className="text-blue-400 hover:underline flex items-center gap-1">
+                                  <Play className="w-3 h-3" /> Xem video
+                                </a>
+                              )}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-[11px] text-slate-500 italic pl-2">Chưa có bài học nào trong chương này</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="p-3 bg-slate-950/40 border border-slate-800/80 rounded-xl text-xs text-slate-500 italic">
+                {isModulesLoading ? 'Đang tải danh sách bài học...' : 'Khóa học này chưa được khởi tạo chương & bài học nào.'}
+              </div>
+            )}
           </div>
 
           {/* Curriculum Checklist */}
@@ -108,15 +184,11 @@ export const CourseReviewModal: React.FC<CourseReviewModalProps> = ({
             <ul className="space-y-2 text-xs text-slate-300 bg-slate-950/40 p-4 rounded-xl border border-slate-800">
               <li className="flex items-center space-x-2">
                 <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>Video tải lên có chất lượng 1080p, âm thanh rõ ràng.</span>
+                <span>Video tải lên có chất lượng rõ ràng, âm thanh chuẩn.</span>
               </li>
               <li className="flex items-center space-x-2">
                 <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
                 <span>Bài học không vi phạm bản quyền hoặc chứa nội dung nhạy cảm.</span>
-              </li>
-              <li className="flex items-center space-x-2">
-                <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>Có tài liệu tham khảo và mô tả đề cương chi tiết.</span>
               </li>
             </ul>
           </div>

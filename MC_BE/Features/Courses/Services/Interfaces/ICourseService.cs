@@ -59,10 +59,30 @@ public interface ICourseService
     /// <summary>
     /// Quick status change (DRAFT ↔ PUBLISHED ↔ ARCHIVED) without opening the full edit form.
     /// </summary>
-    Task<CourseDto?> UpdateCourseStatusAsync(int courseId, int instructorId, string newStatus);
+    Task<CourseDto?> UpdateCourseStatusAsync(int courseId, int currentUserId, string newStatus, string? reason = null);
+
+    /// <summary>
+    /// Instructor submits course for admin approval with a note describing changes.
+    /// </summary>
+    Task<CourseDto?> SubmitForApprovalAsync(int courseId, int instructorId, string? submissionNote);
+
+    /// <summary>
+    /// Admin approves course for public publishing.
+    /// </summary>
+    Task<CourseDto?> ApproveCourseAsync(int courseId, int adminId);
+
+    /// <summary>
+    /// Admin rejects course with feedback reason for instructor.
+    /// </summary>
+    Task<CourseDto?> RejectCourseAsync(int courseId, int adminId, string reason);
 
     /// <summary>
     /// Bulk creates multiple courses in one operation.
     /// </summary>
     Task<List<CourseDto>> CreateCoursesBulkAsync(int instructorId, List<CreateCourseRequest> requests);
+
+    /// <summary>
+    /// Fetches courses enrolled by the specified learner along with learning progress.
+    /// </summary>
+    Task<List<LearnedCourseDto>> GetLearnedCoursesAsync(int learnerId);
 }

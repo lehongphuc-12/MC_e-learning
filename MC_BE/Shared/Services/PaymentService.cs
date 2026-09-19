@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
@@ -58,17 +59,33 @@ public class PaymentService : IPaymentService
             return ApiResponse<CreatePaymentResponseDto>.FailureResponse("Khóa học không tồn tại.");
         }
 
+        // Tìm kiếm toàn bộ bản ghi thanh toán đã tồn tại của enrollment này (không phân biệt trạng thái để tránh trùng unique key)
         var existingPayment = await _context.Payments
-            .FirstOrDefaultAsync(p => p.EnrollmentId == enrollment.EnrollmentId && p.Status == "PENDING" && p.ExpiresAt > DateTime.UtcNow);
+            .FirstOrDefaultAsync(p => p.EnrollmentId == enrollment.EnrollmentId);
 
         Payment payment;
+        var txnRef = $"{DateTime.UtcNow:yyyyMMddHHmmss}_{enrollment.EnrollmentId}_{RandomNumberGenerator.GetInt32(1000, 9999)}";
+
         if (existingPayment != null)
         {
+            if (existingPayment.Status == "SUCCESS")
+            {
+                return ApiResponse<CreatePaymentResponseDto>.FailureResponse("Khóa học này đã được thanh toán thành công trước đó.");
+            }
+
+            // Tái sử dụng bản ghi cũ và cập nhật lại thông tin PENDING mới
             payment = existingPayment;
+            payment.Amount = course.Price;
+            payment.MerchantTxnRef = txnRef;
+            payment.Status = "PENDING";
+            payment.UpdatedAt = DateTime.UtcNow;
+            payment.ExpiresAt = DateTime.UtcNow.AddMinutes(15);
+
+            _context.Payments.Update(payment);
+            await _context.SaveChangesAsync();
         }
         else
         {
-            var txnRef = $"{DateTime.UtcNow:yyyyMMddHHmmss}_{enrollment.EnrollmentId}_{RandomNumberGenerator.GetInt32(1000, 9999)}";
             payment = new Payment
             {
                 LearnerId = currentUserId,
@@ -191,6 +208,66 @@ public class PaymentService : IPaymentService
 
         var course = await _courseCatalog.GetCourseByIdAsync(payment.CourseId);
         return ApiResponse<PaymentDetailsDto>.SuccessResponse(MapToDetailsDto(payment, course));
+    }
+
+    // ============================================================
+    // MỚI: LỊCH SỬ MUA KHÓA HỌC CỦA LEARNER (có phân trang, lọc)
+    // ============================================================
+    public async Task<ApiResponse<PagedResult<PaymentDetailsDto>>> GetMyPaymentHistoryAsync(
+        int currentUserId,
+        PaymentFilterRequest filter)
+    {
+        var query = _context.Payments
+            .AsNoTracking()
+            .Include(p => p.Learner)
+            .Include(p => p.Enrollment)
+            .Include(p => p.Transactions)
+            .Where(p => p.LearnerId == currentUserId)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(filter.Status))
+        {
+            query = query.Where(p => p.Status.ToUpper() == filter.Status.ToUpper());
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.Keyword))
+        {
+            var kw = filter.Keyword.Trim().ToLower();
+            query = query.Where(p =>
+                p.MerchantTxnRef.ToLower().Contains(kw) ||
+                (p.VnPayTransactionNo != null && p.VnPayTransactionNo.ToLower().Contains(kw))
+            );
+        }
+
+        var totalItems = await query.CountAsync();
+        var page = filter.Page < 1 ? 1 : filter.Page;
+        var pageSize = filter.PageSize < 1 ? 10 : filter.PageSize;
+        var totalPages = (int)Math.Ceiling(totalItems / (double)pageSize);
+
+        var paymentEntities = await query
+            .OrderByDescending(p => p.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        var items = new List<PaymentDetailsDto>();
+        foreach (var payment in paymentEntities)
+        {
+            var course = await _courseCatalog.GetCourseByIdAsync(payment.CourseId);
+            items.Add(MapToDetailsDto(payment, course));
+        }
+
+        var result = new PagedResult<PaymentDetailsDto>
+        {
+            Items = items,
+            TotalCount = totalItems,
+            TotalItems = totalItems,
+            TotalPages = totalPages,
+            Page = page,
+            PageSize = pageSize
+        };
+
+        return ApiResponse<PagedResult<PaymentDetailsDto>>.SuccessResponse(result);
     }
 
     private static PaymentDetailsDto MapToDetailsDto(Payment payment, CoursePaymentDto? course)
