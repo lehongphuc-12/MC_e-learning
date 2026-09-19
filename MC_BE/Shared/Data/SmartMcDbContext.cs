@@ -46,11 +46,13 @@ public class SmartMcDbContext : DbContext
         // Section 1: Auth & User
         modelBuilder.Entity<Role>(entity =>
         {
+            entity.ToTable("roles");
             entity.HasIndex(e => e.RoleName).IsUnique();
         });
 
         modelBuilder.Entity<User>(entity =>
         {
+            entity.ToTable("users");
             entity.HasIndex(e => e.Email).IsUnique();
             entity.Property(e => e.Status).HasDefaultValue("ACTIVE");
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
@@ -64,6 +66,7 @@ public class SmartMcDbContext : DbContext
 
         modelBuilder.Entity<UserProfile>(entity =>
         {
+            entity.ToTable("user_profiles");
             entity.HasIndex(e => e.UserId).IsUnique();
             entity.Property(e => e.PreferredLanguage).HasDefaultValue("en");
 
@@ -75,6 +78,7 @@ public class SmartMcDbContext : DbContext
 
         modelBuilder.Entity<PasswordResetToken>(entity =>
         {
+            entity.ToTable("password_reset_tokens");
             entity.HasIndex(e => e.Token);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
 
@@ -86,6 +90,7 @@ public class SmartMcDbContext : DbContext
 
         modelBuilder.Entity<RefreshToken>(entity =>
         {
+            entity.ToTable("refresh_tokens");
             entity.HasIndex(e => e.Token);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
 
@@ -245,7 +250,7 @@ public class SmartMcDbContext : DbContext
 
         modelBuilder.Entity<Certificate>(entity =>
         {
-            entity.ToTable("CERTIFICATE");
+            entity.ToTable("certificates");
             entity.HasIndex(e => e.CertificateCode).IsUnique();
             entity.HasIndex(e => e.EnrollmentId).IsUnique();
             entity.Property(e => e.CompletionPercentage).HasDefaultValue(100.00m);

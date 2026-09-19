@@ -3,6 +3,7 @@ using System;
 using MC_BE.Shared.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MC_BE.Migrations
 {
     [DbContext(typeof(SmartMcDbContext))]
-    partial class SmartMcDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260919034637_UpdateTableNamesToLowerCase")]
+    partial class UpdateTableNamesToLowerCase
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -598,7 +601,7 @@ namespace MC_BE.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("password_reset_tokens", (string)null);
+                    b.ToTable("PASSWORD_RESET_TOKEN");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.Payment", b =>
@@ -1036,7 +1039,7 @@ namespace MC_BE.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("refresh_tokens", (string)null);
+                    b.ToTable("REFRESH_TOKEN");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.Role", b =>
@@ -1063,7 +1066,7 @@ namespace MC_BE.Migrations
                     b.HasIndex("RoleName")
                         .IsUnique();
 
-                    b.ToTable("roles", (string)null);
+                    b.ToTable("ROLE");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.User", b =>
@@ -1141,7 +1144,7 @@ namespace MC_BE.Migrations
 
                     b.HasIndex("RoleId");
 
-                    b.ToTable("users", (string)null);
+                    b.ToTable("USER");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.UserProfile", b =>
@@ -1192,7 +1195,7 @@ namespace MC_BE.Migrations
                     b.HasIndex("UserId")
                         .IsUnique();
 
-                    b.ToTable("user_profiles", (string)null);
+                    b.ToTable("USER_PROFILE");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.Certificate", b =>

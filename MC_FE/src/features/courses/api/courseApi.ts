@@ -94,6 +94,7 @@ export const courseApi = {
     const envelope = await request<ApiEnvelope<CourseListPayload>>(`/courses/my-courses${query}`);
     return envelope.data; // unwrap ApiEnvelope → CourseListPayload
   },
+  
 
   // -------------------------------------------------------------------------
   // READ — All courses (Admin-only view)
@@ -181,6 +182,14 @@ export const courseApi = {
       method: 'POST',
       body: JSON.stringify({ submissionNote }),
     });
+    return envelope.data;
+  },
+    // -------------------------------------------------------------------------
+  // READ — Learner's enrolled courses
+  // GET /courses/learned-courses
+  // -------------------------------------------------------------------------
+  async getLearnedCourses(): Promise<LearnedCourse[]> {
+    const envelope = await request<ApiEnvelope<LearnedCourse[]>>('/courses/learned-courses');
     return envelope.data;
   },
 };

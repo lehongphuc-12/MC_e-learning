@@ -20,4 +20,10 @@ public interface IPaymentService
         int currentUserId,
         int paymentId
     );
+
+    // MỚI: Lịch sử mua khóa học của learner
+    Task<ApiResponse<PagedResult<PaymentDetailsDto>>> GetMyPaymentHistoryAsync(
+        int currentUserId,
+        PaymentFilterRequest filter
+    );
 }
