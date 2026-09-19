@@ -2,7 +2,7 @@
 // CourseLearningPage.tsx — Course Video Player / Learning Page
 // =============================================================================
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -24,7 +24,6 @@ import {
   Layers,
   ChevronDown,
   Award,
-  ShieldCheck,
 } from 'lucide-react';
 import { useCourseDetail } from '../hooks/useInstructorCourses';
 import { useCourseLessons } from '../hooks/useLessonQueries';
@@ -80,6 +79,52 @@ export const CourseLearningPage: React.FC = () => {
   const { data: certificate } = useCourseCertificate(courseId);
   const issueCertMutation = useIssueCertificate(courseId);
 
+  // Sort modules by orderIndex
+  const sortedModules = useMemo(() => {
+    return [...modules].sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0));
+  }, [modules]);
+
+  // Organize lessons by module and build a single sequential orderedLessons array
+  const { lessonsByModule, unassignedLessons, orderedLessons } = useMemo(() => {
+    const byMod: Record<number, Lesson[]> = {};
+    const unassigned: Lesson[] = [];
+
+    lessons.forEach((l) => {
+      if (l.moduleId) {
+        if (!byMod[l.moduleId]) byMod[l.moduleId] = [];
+        byMod[l.moduleId].push(l);
+      } else {
+        unassigned.push(l);
+      }
+    });
+
+    // Sort lessons inside each module by orderIndex
+    Object.keys(byMod).forEach((modIdKey) => {
+      const modId = Number(modIdKey);
+      byMod[modId].sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0));
+    });
+
+    unassigned.sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0));
+
+    // Construct flat ordered list following module sequence
+    const ordered: Lesson[] = [];
+    sortedModules.forEach((mod) => {
+      if (byMod[mod.moduleId]) {
+        ordered.push(...byMod[mod.moduleId]);
+      }
+    });
+    ordered.push(...unassigned);
+
+    // Fallback if modules aren't used yet
+    const finalOrdered = ordered.length > 0 ? ordered : [...lessons].sort((a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0));
+
+    return {
+      lessonsByModule: byMod,
+      unassignedLessons: unassigned,
+      orderedLessons: finalOrdered,
+    };
+  }, [lessons, sortedModules]);
+
   // Active state
   const [activeLesson, setActiveLesson] = useState<Lesson | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -89,6 +134,9 @@ export const CourseLearningPage: React.FC = () => {
   const [isCertModalOpen, setIsCertModalOpen] = useState(false);
   const [activeCert, setActiveCert] = useState<Certificate | null>(null);
 
+  // Accordion state for sidebar modules
+  const [collapsedModules, setCollapsedModules] = useState<Record<number, boolean>>({});
+
   // Sync activeCert from query
   useEffect(() => {
     if (certificate) {
@@ -96,19 +144,30 @@ export const CourseLearningPage: React.FC = () => {
     }
   }, [certificate]);
 
+  // LocalStorage storage key for persistent fallback progress
+  const storageKey = `mc_completed_lessons_${courseId}`;
 
-  // Accordion state for sidebar modules
-  const [collapsedModules, setCollapsedModules] = useState<Record<number, boolean>>({});
-
-  // Sync completed lesson IDs from backend progress
+  // Sync completed lesson IDs from LocalStorage & backend progress
   useEffect(() => {
-    if (progressData?.lessonProgresses) {
-      const completed = progressData.lessonProgresses
+    let savedLocal: number[] = [];
+    try {
+      const stored = localStorage.getItem(storageKey);
+      if (stored) savedLocal = JSON.parse(stored);
+    } catch (_) {}
+
+    if (progressData?.lessonProgresses && progressData.lessonProgresses.length > 0) {
+      const backendCompleted = progressData.lessonProgresses
         .filter((lp) => lp.isCompleted)
         .map((lp) => lp.lessonId);
-      setCompletedLessonIds(completed);
+      const merged = Array.from(new Set([...savedLocal, ...backendCompleted]));
+      setCompletedLessonIds(merged);
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(merged));
+      } catch (_) {}
+    } else if (savedLocal.length > 0) {
+      setCompletedLessonIds(savedLocal);
     }
-  }, [progressData]);
+  }, [progressData, courseId, storageKey]);
 
   const toggleModuleCollapse = (moduleId: number) => {
     setCollapsedModules((prev) => ({ ...prev, [moduleId]: !prev[moduleId] }));
@@ -130,26 +189,51 @@ export const CourseLearningPage: React.FC = () => {
 
   // Handle explicit lesson completion
   const handleMarkLessonComplete = (lessonId: number, isCompleted: boolean) => {
-    setCompletedLessonIds((prev) =>
-      isCompleted ? (prev.includes(lessonId) ? prev : [...prev, lessonId]) : prev.filter((id) => id !== lessonId)
-    );
+    setCompletedLessonIds((prev) => {
+      const nextCompleted = isCompleted
+        ? (prev.includes(lessonId) ? prev : [...prev, lessonId])
+        : prev.filter((id) => id !== lessonId);
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(nextCompleted));
+      } catch (_) {}
+      return nextCompleted;
+    });
+
     updateProgressMutation.mutate({
       lessonId,
       dto: { isCompleted },
     });
   };
 
-  // Detect video completion via window postMessage
+  // Detect video completion via window postMessage (YouTube Iframe API & Vimeo)
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       try {
-        if (typeof event.data === 'string' && event.data.includes('onStateChange')) {
-          const data = JSON.parse(event.data);
-          if (data.event === 'onStateChange' && data.info === 0) {
-            setIsVideoEnded(true);
-            if (activeLesson) {
-              handleMarkLessonComplete(activeLesson.lessonId, true);
-            }
+        let data = event.data;
+        if (typeof data === 'string') {
+          if (data.startsWith('{')) {
+            data = JSON.parse(data);
+          } else {
+            return;
+          }
+        }
+
+        if (!data || typeof data !== 'object') return;
+
+        // YouTube ENDED state (playerState === 0 or info === 0 or onStateChange)
+        const isYouTubeEnded =
+          (data.event === 'onStateChange' && data.info === 0) ||
+          (data.event === 'infoDelivery' && data.info?.playerState === 0) ||
+          data.info?.playerState === 0 ||
+          data.playerState === 0;
+
+        // Vimeo finish event
+        const isVimeoEnded = data.event === 'finish' || data.ended === true;
+
+        if (isYouTubeEnded || isVimeoEnded) {
+          setIsVideoEnded(true);
+          if (activeLesson) {
+            handleMarkLessonComplete(activeLesson.lessonId, true);
           }
         }
       } catch (_) {}
@@ -159,21 +243,21 @@ export const CourseLearningPage: React.FC = () => {
     return () => window.removeEventListener('message', handleMessage);
   }, [activeLesson?.lessonId]);
 
-  // Sync active lesson from URL or select first lesson by default
+  // Sync active lesson from URL or select first lesson from orderedLessons by default
   useEffect(() => {
-    if (lessons.length > 0) {
+    if (orderedLessons.length > 0) {
       if (initialLessonId) {
-        const found = lessons.find((l) => l.lessonId === initialLessonId);
+        const found = orderedLessons.find((l) => l.lessonId === initialLessonId);
         if (found) {
           setActiveLesson(found);
           return;
         }
       }
-      if (!activeLesson) {
-        setActiveLesson(lessons[0]);
+      if (!activeLesson || !orderedLessons.some((l) => l.lessonId === activeLesson.lessonId)) {
+        setActiveLesson(orderedLessons[0]);
       }
     }
-  }, [lessons, initialLessonId]);
+  }, [orderedLessons, initialLessonId]);
 
   // Handle lesson selection
   const handleSelectLesson = (lesson: Lesson) => {
@@ -183,7 +267,7 @@ export const CourseLearningPage: React.FC = () => {
   };
 
   // Handle video playback time updates (sends lastPositionSeconds & timeSpentSeconds)
-  const lastUpdatedSecRef = React.useRef<number>(0);
+  const lastUpdatedSecRef = useRef<number>(0);
   const handleVideoTimeUpdate = (currentTime: number) => {
     const currentSec = Math.floor(currentTime);
     if (activeLesson && currentSec > 0 && currentSec !== lastUpdatedSecRef.current && currentSec % 5 === 0) {
@@ -204,26 +288,13 @@ export const CourseLearningPage: React.FC = () => {
     handleMarkLessonComplete(lessonId, !isCurrentlyDone);
   };
 
-  // Navigation handlers
-  const currentIndex = lessons.findIndex((l) => l.lessonId === activeLesson?.lessonId);
-  const prevLesson = currentIndex > 0 ? lessons[currentIndex - 1] : null;
-  const nextLesson = currentIndex < lessons.length - 1 ? lessons[currentIndex + 1] : null;
+  // Sequential Navigation handlers based on orderedLessons
+  const currentIndex = orderedLessons.findIndex((l) => l.lessonId === activeLesson?.lessonId);
+  const prevLesson = currentIndex > 0 ? orderedLessons[currentIndex - 1] : null;
+  const nextLesson = currentIndex >= 0 && currentIndex < orderedLessons.length - 1 ? orderedLessons[currentIndex + 1] : null;
 
-  const totalDuration = lessons.reduce((sum, l) => sum + l.durationMinutes, 0);
+  const totalDuration = orderedLessons.reduce((sum, l) => sum + l.durationMinutes, 0);
   const embedUrl = getEmbedVideoUrl(activeLesson?.videoUrl);
-
-  // Group lessons by moduleId for playlist sidebar
-  const lessonsByModule: Record<number, Lesson[]> = {};
-  const unassignedLessons: Lesson[] = [];
-
-  lessons.forEach((l) => {
-    if (l.moduleId) {
-      if (!lessonsByModule[l.moduleId]) lessonsByModule[l.moduleId] = [];
-      lessonsByModule[l.moduleId].push(l);
-    } else {
-      unassignedLessons.push(l);
-    }
-  });
 
   if (isCourseLoading || isLessonsLoading) {
     return (
@@ -236,9 +307,10 @@ export const CourseLearningPage: React.FC = () => {
     );
   }
 
-  const localPercentage = lessons.length > 0 ? Math.round((completedLessonIds.length / lessons.length) * 100) : 0;
+  const totalLessonCount = orderedLessons.length;
+  const localPercentage = totalLessonCount > 0 ? Math.round((completedLessonIds.length / totalLessonCount) * 100) : 0;
   const completionPercentage = Math.max(progressData?.completionPercentage ?? 0, localPercentage);
-  const is100Percent = completionPercentage >= 100 || (lessons.length > 0 && completedLessonIds.length === lessons.length);
+  const is100Percent = completionPercentage >= 100 || (totalLessonCount > 0 && completedLessonIds.length >= totalLessonCount);
 
   const handleOpenCertificate = async () => {
     let certToDisplay = activeCert || certificate;
@@ -259,7 +331,7 @@ export const CourseLearningPage: React.FC = () => {
         certificateId: 1,
         enrollmentId: progressData?.enrollmentId || 1,
         learnerId: Number(user?.id) || 1,
-        learnerName: user?.name || 'heo',
+        learnerName: user?.name || 'Học viên',
         courseId: courseId,
         courseTitle: course?.title || 'Kỹ Thuật Xử Lý Kịch Bản MC & Biến Tấu Linh Hoạt',
         instructorName: 'Giảng Viên MSEEK Academy',
@@ -294,9 +366,9 @@ export const CourseLearningPage: React.FC = () => {
               <span>{course?.title ?? 'Chi tiết khóa học'}</span>
             </h1>
             <p className="text-[11px] text-slate-400 flex items-center gap-2">
-              <span>{modules.length} Chương</span>
+              <span>{sortedModules.length} Chương</span>
               <span>•</span>
-              <span>{lessons.length} bài học</span>
+              <span>{totalLessonCount} bài học</span>
               <span>•</span>
               <span>{totalDuration} phút</span>
             </p>
@@ -329,7 +401,7 @@ export const CourseLearningPage: React.FC = () => {
 
           <div className="hidden md:flex items-center gap-2 rounded-full bg-indigo-500/10 border border-indigo-500/20 px-3 py-1 text-xs text-indigo-400 font-semibold">
             <Sparkles className="h-3.5 w-3.5" />
-            <span>Bài {currentIndex >= 0 ? currentIndex + 1 : 1} / {lessons.length}</span>
+            <span>Bài {currentIndex >= 0 ? currentIndex + 1 : 1} / {totalLessonCount}</span>
           </div>
 
           <button
@@ -476,7 +548,7 @@ export const CourseLearningPage: React.FC = () => {
                 <div>
                   <div className="flex items-center gap-2 mb-1.5">
                     <span className="rounded-md bg-indigo-500/10 px-2 py-0.5 text-[11px] font-bold text-indigo-400 border border-indigo-500/20">
-                      Bài #{activeLesson?.orderIndex ?? 1}
+                      Bài #{activeLesson?.orderIndex ?? (currentIndex >= 0 ? currentIndex + 1 : 1)}
                     </span>
                     {activeLesson?.isPreview && (
                       <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 px-2 py-0.5 text-[11px] font-bold text-emerald-400 border border-emerald-500/20">
@@ -592,20 +664,20 @@ export const CourseLearningPage: React.FC = () => {
                   Lộ trình học tập
                 </h3>
                 <p className="text-[11px] text-slate-400 mt-0.5">
-                  {completedLessonIds.length}/{lessons.length} bài đã xem
+                  {completedLessonIds.length}/{totalLessonCount} bài đã xem
                 </p>
               </div>
             </div>
 
             {/* Lesson List grouped by Modules */}
             <div className="flex-1 overflow-y-auto p-2 space-y-2 scrollbar-thin scrollbar-thumb-slate-800">
-              {lessons.length === 0 ? (
+              {totalLessonCount === 0 ? (
                 <div className="p-6 text-center text-xs text-slate-500">
                   Chưa có bài học nào trong khóa học này.
                 </div>
-              ) : modules.length > 0 ? (
+              ) : sortedModules.length > 0 ? (
                 <>
-                  {modules.map((mod) => {
+                  {sortedModules.map((mod) => {
                     const modLessons = lessonsByModule[mod.moduleId] || [];
                     const isCollapsed = collapsedModules[mod.moduleId];
 
@@ -744,7 +816,7 @@ export const CourseLearningPage: React.FC = () => {
                 </>
               ) : (
                 /* Fallback flat list if no modules created yet */
-                lessons.map((lesson) => {
+                orderedLessons.map((lesson) => {
                   const isActive = lesson.lessonId === activeLesson?.lessonId;
                   const isCompleted = completedLessonIds.includes(lesson.lessonId);
 
@@ -796,7 +868,7 @@ export const CourseLearningPage: React.FC = () => {
         onClose={() => setIsCertModalOpen(false)}
         certificate={activeCert || certificate || null}
         courseTitle={course?.title}
-        learnerName={user?.name || 'heo'}
+        learnerName={user?.name || 'Học viên'}
       />
     </div>
   );
