@@ -240,14 +240,11 @@ public class CourseService : ICourseService
 
     public async Task<CourseDto?> CreateCourseAsync(int instructorId, CreateCourseRequest request)
     {
-        // Validate the CategoryId FK if provided. If not exists, set to null instead of failing completely.
+        // Validate the CategoryId FK if provided
         if (request.CategoryId.HasValue)
         {
             var catExists = await _categoryRepository.AnyAsync(c => c.CategoryId == request.CategoryId.Value);
-            if (!catExists)
-            {
-                request.CategoryId = null; // Default to unassigned category if invalid CategoryId provided
-            }
+            if (!catExists) return null; // Let caller decide the error response
         }
 
         if (request.SubmitForApproval)
@@ -255,8 +252,7 @@ public class CourseService : ICourseService
             throw new InvalidOperationException("Khóa học mới tạo chưa có Chương học và Bài học. Hãy tạo khóa học trước, sau đó thêm Chương & Bài học đầy đủ mới có thể gửi Admin duyệt.");
         }
 
-        // Force new/imported course status to DRAFT regardless of client request (must be approved by Admin to publish)
-        var status = CourseStatus.DRAFT;
+        var status = request.Status;
 
         var course = new Course
         {
@@ -449,8 +445,6 @@ public class CourseService : ICourseService
         var createdList = new List<CourseDto>();
         foreach (var req in requests)
         {
-            req.Status = CourseStatus.DRAFT;
-            req.SubmitForApproval = false;
             var created = await CreateCourseAsync(instructorId, req);
             if (created != null)
             {
