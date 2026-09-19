@@ -68,6 +68,39 @@ public class PaymentController : ControllerBase
     }
 
     // ============================================================
+    // LỊCH SỬ MUA KHÓA HỌC CỦA LEARNER (có phân trang, lọc)
+    // GET /api/v1/payments/my-history
+    // ============================================================
+
+    [HttpGet("my-history")]
+    [Authorize]
+    public async Task<
+        ActionResult<
+            ApiResponse<PagedResult<PaymentDetailsDto>>
+        >
+    > GetMyPaymentHistory(
+        [FromQuery] PaymentFilterRequest filter)
+    {
+        var userId =
+            int.Parse(
+                _currentUserService.GetUserId()
+            );
+
+        var response =
+            await _paymentService.GetMyPaymentHistoryAsync(
+                userId,
+                filter
+            );
+
+        if (!response.Success)
+        {
+            return BadRequest(response);
+        }
+
+        return Ok(response);
+    }
+
+    // ============================================================
     // GET MY PAYMENT
     // GET /api/v1/payments/{paymentId}
     // ============================================================
