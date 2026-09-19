@@ -4,6 +4,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+
 import {
   ArrowLeft,
   ChevronLeft,
@@ -25,6 +26,7 @@ import {
   ChevronDown,
   Award,
   ShieldCheck,
+  ClipboardList,
 } from 'lucide-react';
 import { useCourseDetail } from '../hooks/useInstructorCourses';
 import { useCourseLessons } from '../hooks/useLessonQueries';
@@ -33,7 +35,7 @@ import { useCourseProgress, useUpdateLessonProgress } from '../hooks/useLearning
 import { useCourseCertificate, useIssueCertificate } from '../hooks/useCertificateQueries';
 import { CertificateModal } from './CertificateModal';
 import type { Lesson } from '../types/lessonTypes';
-
+import { useQuizzesByCourse } from '../../quizzes/hooks/useQuiz';
 /**
  * Helper to convert various YouTube / Vimeo / Direct video URLs to embeddable iframe source.
  */
@@ -76,6 +78,10 @@ export const CourseLearningPage: React.FC = () => {
   const { data: course, isLoading: isCourseLoading } = useCourseDetail(courseId);
   const { data: lessons = [], isLoading: isLessonsLoading } = useCourseLessons(courseId);
   const { data: modules = [] } = useCourseModules(courseId);
+  const {
+  data: quizzes = [],
+  isLoading: isQuizzesLoading,
+} = useQuizzesByCourse(courseId);
 
   // Real progress & certificate queries
   const { data: progressData } = useCourseProgress(courseId);
@@ -205,21 +211,68 @@ export const CourseLearningPage: React.FC = () => {
 
   const totalDuration = lessons.reduce((sum, l) => sum + l.durationMinutes, 0);
   const embedUrl = getEmbedVideoUrl(activeLesson?.videoUrl);
+// Get the quiz belonging to a specific lesson.
+// Quiz follows the lesson through lessonId,
+// so changing lesson order does not break the relationship.
+const getQuizForLesson = (lessonId: number) => {
+  return quizzes.find(
+    (quiz: (typeof quizzes)[number]) =>
+      quiz.lessonId === lessonId &&
+      quiz.status === 'ACTIVE',
+  );
+};
 
+// Overall course quiz: lessonId === null
+const overallQuiz = quizzes.find(
+  (quiz: (typeof quizzes)[number]) =>
+    quiz.lessonId == null &&
+    quiz.status === 'ACTIVE',
+);
+const renderQuizButton = (lessonId: number) => {
+  const quiz = getQuizForLesson(lessonId);
+
+  if (!quiz) return null;
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        navigate(`/quizzes/${quiz.quizId}/take`);
+      }}
+      className="mt-1 ml-7 inline-flex items-center gap-1.5 rounded-lg bg-violet-600/20 px-2.5 py-1.5 text-[10px] font-bold text-violet-300 border border-violet-500/30 transition-all hover:bg-violet-600/30 hover:text-white active:scale-95"
+    >
+      <ClipboardList className="h-3 w-3" />
+      Làm Quiz
+    </button>
+  );
+};
   // Group lessons by moduleId for playlist sidebar
   const lessonsByModule: Record<number, Lesson[]> = {};
   const unassignedLessons: Lesson[] = [];
 
-  lessons.forEach((l) => {
-    if (l.moduleId) {
-      if (!lessonsByModule[l.moduleId]) lessonsByModule[l.moduleId] = [];
-      lessonsByModule[l.moduleId].push(l);
-    } else {
-      unassignedLessons.push(l);
+lessons.forEach((l) => {
+  if (l.moduleId) {
+    if (!lessonsByModule[l.moduleId]) {
+      lessonsByModule[l.moduleId] = [];
     }
-  });
 
-  if (isCourseLoading || isLessonsLoading) {
+    lessonsByModule[l.moduleId].push(l);
+  } else {
+    unassignedLessons.push(l);
+  }
+});
+
+Object.values(lessonsByModule).forEach((moduleLessons) => {
+  moduleLessons.sort(
+    (a, b) => a.orderIndex - b.orderIndex,
+  );
+});
+
+unassignedLessons.sort(
+  (a, b) => a.orderIndex - b.orderIndex,
+);
+
+ if (isCourseLoading ||isLessonsLoading ||isQuizzesLoading) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-slate-950 text-white">
         <div className="flex flex-col items-center gap-3">
@@ -610,57 +663,69 @@ export const CourseLearningPage: React.FC = () => {
                               </div>
                             ) : (
                               modLessons.map((lesson) => {
-                                const isActive = lesson.lessonId === activeLesson?.lessonId;
-                                const isCompleted = completedLessonIds.includes(lesson.lessonId);
+  const isActive = lesson.lessonId === activeLesson?.lessonId;
+  const isCompleted = completedLessonIds.includes(lesson.lessonId);
 
-                                return (
-                                  <button
-                                    key={lesson.lessonId}
-                                    onClick={() => handleSelectLesson(lesson)}
-                                    className={`w-full flex items-start gap-2.5 p-2.5 rounded-lg text-left text-xs transition-all cursor-pointer ${
-                                      isActive
-                                        ? 'bg-indigo-600/25 border border-indigo-500/40 text-white shadow-md'
-                                        : 'hover:bg-slate-800/60 text-slate-300 border border-transparent'
-                                    }`}
-                                  >
-                                    <div className="shrink-0 mt-0.5">
-                                      {isCompleted ? (
-                                        <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                                      ) : isActive ? (
-                                        <PlayCircle className="h-4 w-4 text-indigo-400 animate-pulse" />
-                                      ) : (
-                                        <span className="flex h-4 w-4 items-center justify-center text-[10px] font-bold text-slate-500">
-                                          #{lesson.orderIndex}
-                                        </span>
-                                      )}
-                                    </div>
+  return (
+    <div key={lesson.lessonId} className="space-y-1">
+      {/* Lesson */}
+      <button
+        type="button"
+        onClick={() => handleSelectLesson(lesson)}
+        className={`w-full flex items-start gap-2.5 p-2.5 rounded-lg text-left text-xs transition-all cursor-pointer ${
+          isActive
+            ? 'bg-indigo-600/25 border border-indigo-500/40 text-white shadow-md'
+            : 'hover:bg-slate-800/60 text-slate-300 border border-transparent'
+        }`}
+      >
+        <div className="shrink-0 mt-0.5">
+          {isCompleted ? (
+            <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+          ) : isActive ? (
+            <PlayCircle className="h-4 w-4 text-indigo-400 animate-pulse" />
+          ) : (
+            <span className="flex h-4 w-4 items-center justify-center text-[10px] font-bold text-slate-500">
+              #{lesson.orderIndex}
+            </span>
+          )}
+        </div>
 
-                                    <div className="flex-1 min-w-0">
-                                      <p className={`font-semibold line-clamp-2 ${isActive ? 'text-indigo-300' : 'text-slate-200'}`}>
-                                        {lesson.title}
-                                      </p>
-                                      <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-400">
-                                        <span className="flex items-center gap-1">
-                                          <Clock className="h-3 w-3" />
-                                          {lesson.durationMinutes} phút
-                                        </span>
-                                        {lesson.isPreview && (
-                                          <span className="rounded bg-emerald-500/20 px-1.5 py-0.2 text-emerald-400 font-bold">
-                                            Xem thử
-                                          </span>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </button>
-                                );
-                              })
+        <div className="flex-1 min-w-0">
+          <p
+            className={`font-semibold line-clamp-2 ${
+              isActive ? 'text-indigo-300' : 'text-slate-200'
+            }`}
+          >
+            {lesson.title}
+          </p>
+
+          <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-400">
+            <span className="flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              {lesson.durationMinutes} phút
+            </span>
+
+            {lesson.isPreview && (
+              <span className="rounded bg-emerald-500/20 px-1.5 py-0.2 text-emerald-400 font-bold">
+                Xem thử
+              </span>
+            )}
+          </div>
+        </div>
+      </button>
+
+      {/* Quiz của lesson */}
+      {renderQuizButton(lesson.lessonId)}
+    </div>
+  );
+})
                             )}
                           </div>
                         )}
                       </div>
                     );
                   })}
-
+                  
                   {/* Unassigned lessons in playlist */}
                   {unassignedLessons.length > 0 && (
                     <div className="rounded-xl border border-slate-800/80 overflow-hidden bg-slate-950/50">
@@ -673,41 +738,102 @@ export const CourseLearningPage: React.FC = () => {
                           const isCompleted = completedLessonIds.includes(lesson.lessonId);
 
                           return (
-                            <button
-                              key={lesson.lessonId}
-                              onClick={() => handleSelectLesson(lesson)}
-                              className={`w-full flex items-start gap-2.5 p-2.5 rounded-lg text-left text-xs transition-all cursor-pointer ${
-                                isActive
-                                  ? 'bg-amber-600/25 border border-amber-500/40 text-white shadow-md'
-                                  : 'hover:bg-slate-800/60 text-slate-300 border border-transparent'
-                              }`}
-                            >
-                              <div className="shrink-0 mt-0.5">
-                                {isCompleted ? (
-                                  <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                                ) : isActive ? (
-                                  <PlayCircle className="h-4 w-4 text-amber-400 animate-pulse" />
-                                ) : (
-                                  <span className="flex h-4 w-4 items-center justify-center text-[10px] font-bold text-slate-500">
-                                    #{lesson.orderIndex}
-                                  </span>
-                                )}
-                              </div>
+  <div key={lesson.lessonId} className="space-y-1">
+    <button
+      type="button"
+      onClick={() => handleSelectLesson(lesson)}
+      className={`w-full flex items-start gap-2.5 p-2.5 rounded-lg text-left text-xs transition-all cursor-pointer ${
+        isActive
+          ? 'bg-amber-600/25 border border-amber-500/40 text-white shadow-md'
+          : 'hover:bg-slate-800/60 text-slate-300 border border-transparent'
+      }`}
+    >
+      <div className="shrink-0 mt-0.5">
+        {isCompleted ? (
+          <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+        ) : isActive ? (
+          <PlayCircle className="h-4 w-4 text-amber-400 animate-pulse" />
+        ) : (
+          <span className="flex h-4 w-4 items-center justify-center text-[10px] font-bold text-slate-500">
+            #{lesson.orderIndex}
+          </span>
+        )}
+      </div>
 
-                              <div className="flex-1 min-w-0">
-                                <p className={`font-semibold line-clamp-2 ${isActive ? 'text-amber-300' : 'text-slate-200'}`}>
-                                  {lesson.title}
-                                </p>
-                                <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-400">
-                                  <span>{lesson.durationMinutes} phút</span>
-                                </div>
-                              </div>
-                            </button>
-                          );
+      <div className="flex-1 min-w-0">
+        <p
+          className={`font-semibold line-clamp-2 ${
+            isActive ? 'text-amber-300' : 'text-slate-200'
+          }`}
+        >
+          {lesson.title}
+        </p>
+
+        <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-400">
+          <span>{lesson.durationMinutes} phút</span>
+        </div>
+      </div>
+    </button>
+
+    {renderQuizButton(lesson.lessonId)}
+  </div>
+);
                         })}
                       </div>
+                      
                     </div>
                   )}
+                  {/* =====================================================
+    OVERALL COURSE QUIZ
+===================================================== */}
+{overallQuiz && (
+  <div className="mt-4 rounded-xl border border-violet-500/30 bg-gradient-to-br from-violet-950/60 via-indigo-950/40 to-slate-950/60 p-3">
+    <div className="flex items-start gap-3">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet-500/20 border border-violet-500/30">
+        <Award className="h-4 w-4 text-violet-300" />
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-bold text-violet-200">
+          Quiz tổng hợp khóa học
+        </p>
+
+        <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
+          Kiểm tra tổng hợp kiến thức của toàn bộ khóa học.
+        </p>
+
+        <div className="mt-2 flex items-center gap-2 text-[10px] text-slate-400">
+          <span>
+            {overallQuiz.questionCount ?? 0} câu hỏi
+          </span>
+
+          <span>•</span>
+
+          <span>
+            {overallQuiz.timeLimitMinutes ?? 0} phút
+          </span>
+
+          <span>•</span>
+
+          <span>
+            Đạt {overallQuiz.passingScore ?? 0}%
+          </span>
+        </div>
+
+        <button
+          type="button"
+          onClick={() =>
+            navigate(`/quizzes/${overallQuiz.quizId}/take`)
+          }
+          className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-3 py-2 text-[11px] font-bold text-white shadow-lg shadow-violet-600/20 transition-all hover:bg-violet-500 active:scale-[0.98]"
+        >
+          <ClipboardList className="h-3.5 w-3.5" />
+          Làm Quiz tổng hợp
+        </button>
+      </div>
+    </div>
+  </div>
+)}
                 </>
               ) : (
                 /* Fallback flat list if no modules created yet */
@@ -716,40 +842,49 @@ export const CourseLearningPage: React.FC = () => {
                   const isCompleted = completedLessonIds.includes(lesson.lessonId);
 
                   return (
-                    <button
-                      key={lesson.lessonId}
-                      onClick={() => handleSelectLesson(lesson)}
-                      className={`w-full flex items-start gap-3 p-3 rounded-xl text-left text-xs transition-all cursor-pointer ${
-                        isActive
-                          ? 'bg-indigo-600/20 border border-indigo-500/40 text-white shadow-md'
-                          : 'hover:bg-slate-800/60 text-slate-300 border border-transparent'
-                      }`}
-                    >
-                      <div className="shrink-0 mt-0.5">
-                        {isCompleted ? (
-                          <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                        ) : isActive ? (
-                          <PlayCircle className="h-4 w-4 text-indigo-400 animate-pulse" />
-                        ) : (
-                          <span className="flex h-4 w-4 items-center justify-center text-[10px] font-bold text-slate-500">
-                            #{lesson.orderIndex}
-                          </span>
-                        )}
-                      </div>
+  <div key={lesson.lessonId} className="space-y-1">
+    <button
+      type="button"
+      onClick={() => handleSelectLesson(lesson)}
+      className={`w-full flex items-start gap-3 p-3 rounded-xl text-left text-xs transition-all cursor-pointer ${
+        isActive
+          ? 'bg-indigo-600/20 border border-indigo-500/40 text-white shadow-md'
+          : 'hover:bg-slate-800/60 text-slate-300 border border-transparent'
+      }`}
+    >
+      <div className="shrink-0 mt-0.5">
+        {isCompleted ? (
+          <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+        ) : isActive ? (
+          <PlayCircle className="h-4 w-4 text-indigo-400 animate-pulse" />
+        ) : (
+          <span className="flex h-4 w-4 items-center justify-center text-[10px] font-bold text-slate-500">
+            #{lesson.orderIndex}
+          </span>
+        )}
+      </div>
 
-                      <div className="flex-1 min-w-0">
-                        <p className={`font-semibold line-clamp-2 ${isActive ? 'text-indigo-300' : 'text-slate-200'}`}>
-                          {lesson.title}
-                        </p>
-                        <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-400">
-                          <span className="flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            {lesson.durationMinutes} phút
-                          </span>
-                        </div>
-                      </div>
-                    </button>
-                  );
+      <div className="flex-1 min-w-0">
+        <p
+          className={`font-semibold line-clamp-2 ${
+            isActive ? 'text-indigo-300' : 'text-slate-200'
+          }`}
+        >
+          {lesson.title}
+        </p>
+
+        <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-400">
+          <span className="flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            {lesson.durationMinutes} phút
+          </span>
+        </div>
+      </div>
+    </button>
+
+    {renderQuizButton(lesson.lessonId)}
+  </div>
+);
                 })
               )}
             </div>

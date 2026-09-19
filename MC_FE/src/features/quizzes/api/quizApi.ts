@@ -157,4 +157,9 @@ async getQuizzesByCourse(
     method: 'GET',
   });
 },
+async getLatestQuizResult(quizId: number) {
+  return request(`/quizzes/${quizId}/latest-result`, {
+    method: "GET",
+  });
+},
 };
