@@ -7,6 +7,7 @@ using MC_BE.Core.Enums;
 using MC_BE.Features.Learning.DTOs;
 using MC_BE.Features.Learning.Services.Interfaces;
 using MC_BE.Shared.Repositories.Interfaces;
+using Microsoft.EntityFrameworkCore;
 
 namespace MC_BE.Features.Learning.Services;
 
@@ -135,9 +136,14 @@ public class LearningProgressService : ILearningProgressService
 
         if (enrollment == null) return null;
 
-        var progress = (enrollment.LessonProgresses ?? new List<LessonProgress>()).FirstOrDefault(lp => lp.LessonId == lessonId);
+        var existingProgresses = await _progressRepository.FindAsync(
+            lp => lp.EnrollmentId == enrollment.EnrollmentId && lp.LessonId == lessonId);
+        var progress = existingProgresses.FirstOrDefault();
+
+        bool isNew = false;
         if (progress == null)
         {
+            isNew = true;
             progress = new LessonProgress
             {
                 EnrollmentId = enrollment.EnrollmentId,
@@ -182,8 +188,19 @@ public class LearningProgressService : ILearningProgressService
         progress.LastAccessedAt = DateTime.UtcNow;
         progress.UpdatedAt = DateTime.UtcNow;
 
-        _progressRepository.Update(progress);
-        await _unitOfWork.SaveChangesAsync();
+        if (!isNew)
+        {
+            _progressRepository.Update(progress);
+        }
+
+        try
+        {
+            await _unitOfWork.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            // Suppress duplicate key error from concurrent requests
+        }
 
         // Calculate new course completion rate
         var allLessonsList = await _lessonRepository.FindAsync(

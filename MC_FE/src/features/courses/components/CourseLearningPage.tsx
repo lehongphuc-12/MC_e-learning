@@ -160,19 +160,29 @@ export const CourseLearningPage: React.FC = () => {
     try {
       const stored = localStorage.getItem(storageKey);
       if (stored) savedLocal = JSON.parse(stored);
-    } catch (_) {}
+    } catch (_) { }
 
-    if (progressData?.lessonProgresses && progressData.lessonProgresses.length > 0) {
-      const backendCompleted = progressData.lessonProgresses
-        .filter((lp) => lp.isCompleted)
-        .map((lp) => lp.lessonId);
-      const merged = Array.from(new Set([...savedLocal, ...backendCompleted]));
-      setCompletedLessonIds(merged);
-      try {
-        localStorage.setItem(storageKey, JSON.stringify(merged));
-      } catch (_) {}
-    } else if (savedLocal.length > 0) {
-      setCompletedLessonIds(savedLocal);
+    const backendCompleted = (progressData?.lessonProgresses ?? [])
+      .filter((lp) => lp.isCompleted)
+      .map((lp) => lp.lessonId);
+
+    const merged = Array.from(new Set([...savedLocal, ...backendCompleted]));
+    setCompletedLessonIds(merged);
+
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(merged));
+    } catch (_) { }
+
+    // Auto-sync local completions to backend if backend is missing them
+    if (savedLocal.length > 0 && progressData) {
+      savedLocal.forEach((id) => {
+        if (!backendCompleted.includes(id)) {
+          updateProgressMutation.mutate({
+            lessonId: id,
+            dto: { isCompleted: true },
+          });
+        }
+      });
     }
   }, [progressData, courseId, storageKey]);
 
@@ -194,15 +204,26 @@ export const CourseLearningPage: React.FC = () => {
     setIsVideoEnded(false);
   }, [activeLesson?.lessonId]);
 
+  const hasMarkedEndedRef = useRef<Record<number, boolean>>({});
+
   // Handle explicit lesson completion
   const handleMarkLessonComplete = (lessonId: number, isCompleted: boolean) => {
+    if (isCompleted && hasMarkedEndedRef.current[lessonId]) {
+      return;
+    }
+    if (isCompleted) {
+      hasMarkedEndedRef.current[lessonId] = true;
+    } else {
+      delete hasMarkedEndedRef.current[lessonId];
+    }
+
     setCompletedLessonIds((prev) => {
       const nextCompleted = isCompleted
         ? (prev.includes(lessonId) ? prev : [...prev, lessonId])
         : prev.filter((id) => id !== lessonId);
       try {
         localStorage.setItem(storageKey, JSON.stringify(nextCompleted));
-      } catch (_) {}
+      } catch (_) { }
       return nextCompleted;
     });
 
@@ -212,7 +233,94 @@ export const CourseLearningPage: React.FC = () => {
     });
   };
 
-  // Detect video completion via window postMessage (YouTube Iframe API & Vimeo)
+  const activeLessonRef = useRef<Lesson | null>(null);
+  useEffect(() => {
+    activeLessonRef.current = activeLesson;
+  }, [activeLesson]);
+
+  const embedUrl = getEmbedVideoUrl(activeLesson?.videoUrl);
+
+  // Load YouTube Iframe API script dynamically
+  useEffect(() => {
+    const win = window as any;
+    if (!win.YT) {
+      const tag = document.createElement('script');
+      tag.src = 'https://www.youtube.com/iframe_api';
+      const firstScriptTag = document.getElementsByTagName('script')[0];
+      firstScriptTag?.parentNode?.insertBefore(tag, firstScriptTag);
+    }
+  }, []);
+
+  // Track YouTube Player via window.YT.Player for exact state changes & scrubbing time
+  const ytPlayerRef = useRef<any>(null);
+  useEffect(() => {
+    if (!embedUrl || !embedUrl.includes('youtube.com')) return;
+
+    let intervalId: any = null;
+
+    const initYTPlayer = () => {
+      const win = window as any;
+      if (!win.YT || !win.YT.Player) return;
+
+      try {
+        if (ytPlayerRef.current) {
+          try { ytPlayerRef.current.destroy(); } catch (_) { }
+        }
+
+        ytPlayerRef.current = new win.YT.Player('video-player-iframe', {
+          events: {
+            onStateChange: (event: any) => {
+              // 0 means ENDED (100% finished) -> show completion overlay
+              if (event.data === 0) {
+                setIsVideoEnded(true);
+                if (activeLessonRef.current) {
+                  handleMarkLessonComplete(activeLessonRef.current.lessonId, true);
+                }
+              }
+            },
+          },
+        });
+
+        // Interval checking current time vs duration for 95% completion mark (without overlay)
+        intervalId = setInterval(() => {
+          if (ytPlayerRef.current && typeof ytPlayerRef.current.getCurrentTime === 'function') {
+            try {
+              const currentTime = ytPlayerRef.current.getCurrentTime();
+              const duration = ytPlayerRef.current.getDuration();
+              if (typeof currentTime === 'number' && typeof duration === 'number' && duration > 0) {
+                handleVideoTimeUpdate(currentTime);
+                if (duration - currentTime <= 4 || currentTime / duration >= 0.95) {
+                  // Only mark status as completed (button turns green), DO NOT block video with overlay
+                  if (activeLessonRef.current) {
+                    handleMarkLessonComplete(activeLessonRef.current.lessonId, true);
+                  }
+                }
+              }
+            } catch (_) { }
+          }
+        }, 1000);
+      } catch (_) { }
+    };
+
+    const win = window as any;
+    if (win.YT && win.YT.Player) {
+      initYTPlayer();
+    } else {
+      win.onYouTubeIframeAPIReady = () => {
+        initYTPlayer();
+      };
+    }
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+      if (ytPlayerRef.current) {
+        try { ytPlayerRef.current.destroy(); } catch (_) { }
+        ytPlayerRef.current = null;
+      }
+    };
+  }, [activeLesson?.lessonId, embedUrl]);
+
+  // Detect video completion via window postMessage (YouTube Iframe API & Vimeo fallback)
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       try {
@@ -227,30 +335,43 @@ export const CourseLearningPage: React.FC = () => {
 
         if (!data || typeof data !== 'object') return;
 
-        // YouTube ENDED state (playerState === 0 or info === 0 or onStateChange)
-        const isYouTubeEnded =
-          (data.event === 'onStateChange' && data.info === 0) ||
-          (data.event === 'infoDelivery' && data.info?.playerState === 0) ||
-          data.info?.playerState === 0 ||
-          data.playerState === 0;
+        const info = data.info || data;
+        const playerState = info?.playerState ?? data?.playerState;
+        const currentTime = info?.currentTime ?? data?.currentTime;
+        const duration = info?.duration ?? data?.duration;
 
-        // Vimeo finish event
-        const isVimeoEnded = data.event === 'finish' || data.ended === true;
+        const isEndedByState =
+          data.event === 'finish' ||
+          data.ended === true ||
+          (data.event === 'onStateChange' && (info === 0 || data.info === 0)) ||
+          playerState === 0;
 
-        if (isYouTubeEnded || isVimeoEnded) {
+        const isEndedByScrub =
+          typeof currentTime === 'number' &&
+          typeof duration === 'number' &&
+          duration > 0 &&
+          (duration - currentTime <= 5 || currentTime / duration >= 0.95);
+
+        if (isEndedByState) {
           setIsVideoEnded(true);
-          if (activeLesson) {
-            handleMarkLessonComplete(activeLesson.lessonId, true);
+          const currentTargetLesson = activeLessonRef.current;
+          if (currentTargetLesson) {
+            handleMarkLessonComplete(currentTargetLesson.lessonId, true);
+          }
+        } else if (isEndedByScrub) {
+          const currentTargetLesson = activeLessonRef.current;
+          if (currentTargetLesson) {
+            handleMarkLessonComplete(currentTargetLesson.lessonId, true);
           }
         }
-      } catch (_) {}
+      } catch (_) { }
     };
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [activeLesson?.lessonId]);
+  }, []);
 
-  // Sync active lesson from URL or select first lesson from orderedLessons by default
+  // Sync active lesson from URL or select first UNCOMPLETED lesson from orderedLessons by default
   useEffect(() => {
     if (orderedLessons.length > 0) {
       if (initialLessonId) {
@@ -261,10 +382,12 @@ export const CourseLearningPage: React.FC = () => {
         }
       }
       if (!activeLesson || !orderedLessons.some((l) => l.lessonId === activeLesson.lessonId)) {
-        setActiveLesson(orderedLessons[0]);
+        const firstUncompleted = orderedLessons.find((l) => !completedLessonIds.includes(l.lessonId));
+        const targetLesson = firstUncompleted || orderedLessons[0];
+        setActiveLesson(targetLesson);
       }
     }
-  }, [orderedLessons, initialLessonId]);
+  }, [orderedLessons, initialLessonId, completedLessonIds]);
 
   // Handle lesson selection
   const handleSelectLesson = (lesson: Lesson) => {
@@ -301,7 +424,6 @@ export const CourseLearningPage: React.FC = () => {
   const nextLesson = currentIndex >= 0 && currentIndex < orderedLessons.length - 1 ? orderedLessons[currentIndex + 1] : null;
 
   const totalDuration = orderedLessons.reduce((sum, l) => sum + l.durationMinutes, 0);
-  const embedUrl = getEmbedVideoUrl(activeLesson?.videoUrl);
 
   if (isCourseLoading || isLessonsLoading) {
     return (
@@ -338,7 +460,7 @@ export const CourseLearningPage: React.FC = () => {
         certificateId: 1,
         enrollmentId: progressData?.enrollmentId || 1,
         learnerId: Number(user?.id) || 1,
-        learnerName: user?.name || 'Học viên',
+        learnerName: user?.name || (user as any)?.fullName || 'Học viên',
         courseId: courseId,
         courseTitle: course?.title || 'Kỹ Thuật Xử Lý Kịch Bản MC & Biến Tấu Linh Hoạt',
         instructorName: 'Giảng Viên MSEEK Academy',
@@ -482,7 +604,13 @@ export const CourseLearningPage: React.FC = () => {
                     src={embedUrl}
                     controls
                     autoPlay
-                    onTimeUpdate={(e) => handleVideoTimeUpdate(e.currentTarget.currentTime)}
+                    onTimeUpdate={(e) => {
+                      const v = e.currentTarget;
+                      handleVideoTimeUpdate(v.currentTime);
+                      if (v.duration > 0 && (v.duration - v.currentTime <= 4 || v.currentTime / v.duration >= 0.95)) {
+                        if (activeLesson) handleMarkLessonComplete(activeLesson.lessonId, true);
+                      }
+                    }}
                     onPause={(e) => handleVideoTimeUpdate(e.currentTarget.currentTime)}
                     onEnded={() => {
                       setIsVideoEnded(true);
@@ -524,11 +652,10 @@ export const CourseLearningPage: React.FC = () => {
 
               <button
                 onClick={() => activeLesson && toggleComplete(activeLesson.lessonId)}
-                className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold transition-all cursor-pointer ${
-                  activeLesson && completedLessonIds.includes(activeLesson.lessonId)
+                className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold transition-all cursor-pointer ${activeLesson && completedLessonIds.includes(activeLesson.lessonId)
                     ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                     : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
-                }`}
+                  }`}
               >
                 <CheckCircle2 className="h-4 w-4" />
                 <span>
@@ -589,9 +716,8 @@ export const CourseLearningPage: React.FC = () => {
               <div className="border-b border-slate-800 flex items-center gap-6 text-xs font-semibold text-slate-400 pt-2">
                 <button
                   onClick={() => setActiveTab('overview')}
-                  className={`pb-2.5 transition-colors relative cursor-pointer ${
-                    activeTab === 'overview' ? 'text-indigo-400 font-bold' : 'hover:text-slate-200'
-                  }`}
+                  className={`pb-2.5 transition-colors relative cursor-pointer ${activeTab === 'overview' ? 'text-indigo-400 font-bold' : 'hover:text-slate-200'
+                    }`}
                 >
                   Mô tả bài học
                   {activeTab === 'overview' && (
@@ -600,9 +726,8 @@ export const CourseLearningPage: React.FC = () => {
                 </button>
                 <button
                   onClick={() => setActiveTab('notes')}
-                  className={`pb-2.5 transition-colors relative cursor-pointer ${
-                    activeTab === 'notes' ? 'text-indigo-400 font-bold' : 'hover:text-slate-200'
-                  }`}
+                  className={`pb-2.5 transition-colors relative cursor-pointer ${activeTab === 'notes' ? 'text-indigo-400 font-bold' : 'hover:text-slate-200'
+                    }`}
                 >
                   Tài liệu & Ghi chú
                   {activeTab === 'notes' && (
@@ -611,9 +736,8 @@ export const CourseLearningPage: React.FC = () => {
                 </button>
                 <button
                   onClick={() => setActiveTab('discussion')}
-                  className={`pb-2.5 transition-colors relative cursor-pointer ${
-                    activeTab === 'discussion' ? 'text-indigo-400 font-bold' : 'hover:text-slate-200'
-                  }`}
+                  className={`pb-2.5 transition-colors relative cursor-pointer ${activeTab === 'discussion' ? 'text-indigo-400 font-bold' : 'hover:text-slate-200'
+                    }`}
                 >
                   Thảo luận & Hỏi đáp
                   {activeTab === 'discussion' && (
@@ -729,11 +853,10 @@ export const CourseLearningPage: React.FC = () => {
                                   <button
                                     key={lesson.lessonId}
                                     onClick={() => handleSelectLesson(lesson)}
-                                    className={`w-full flex items-start gap-2.5 p-2.5 rounded-lg text-left text-xs transition-all cursor-pointer ${
-                                      isActive
+                                    className={`w-full flex items-start gap-2.5 p-2.5 rounded-lg text-left text-xs transition-all cursor-pointer ${isActive
                                         ? 'bg-indigo-600/25 border border-indigo-500/40 text-white shadow-md'
                                         : 'hover:bg-slate-800/60 text-slate-300 border border-transparent'
-                                    }`}
+                                      }`}
                                   >
                                     <div className="shrink-0 mt-0.5">
                                       {isCompleted ? (
@@ -788,11 +911,10 @@ export const CourseLearningPage: React.FC = () => {
                             <button
                               key={lesson.lessonId}
                               onClick={() => handleSelectLesson(lesson)}
-                              className={`w-full flex items-start gap-2.5 p-2.5 rounded-lg text-left text-xs transition-all cursor-pointer ${
-                                isActive
+                              className={`w-full flex items-start gap-2.5 p-2.5 rounded-lg text-left text-xs transition-all cursor-pointer ${isActive
                                   ? 'bg-amber-600/25 border border-amber-500/40 text-white shadow-md'
                                   : 'hover:bg-slate-800/60 text-slate-300 border border-transparent'
-                              }`}
+                                }`}
                             >
                               <div className="shrink-0 mt-0.5">
                                 {isCompleted ? (
@@ -831,11 +953,10 @@ export const CourseLearningPage: React.FC = () => {
                     <button
                       key={lesson.lessonId}
                       onClick={() => handleSelectLesson(lesson)}
-                      className={`w-full flex items-start gap-3 p-3 rounded-xl text-left text-xs transition-all cursor-pointer ${
-                        isActive
+                      className={`w-full flex items-start gap-3 p-3 rounded-xl text-left text-xs transition-all cursor-pointer ${isActive
                           ? 'bg-indigo-600/20 border border-indigo-500/40 text-white shadow-md'
                           : 'hover:bg-slate-800/60 text-slate-300 border border-transparent'
-                      }`}
+                        }`}
                     >
                       <div className="shrink-0 mt-0.5">
                         {isCompleted ? (
@@ -875,7 +996,7 @@ export const CourseLearningPage: React.FC = () => {
         onClose={() => setIsCertModalOpen(false)}
         certificate={activeCert || certificate || null}
         courseTitle={course?.title}
-        learnerName={user?.name || 'Học viên'}
+        learnerName={user?.name || (user as any)?.fullName || 'Học viên'}
       />
     </div>
   );

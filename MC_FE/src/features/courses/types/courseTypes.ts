@@ -71,6 +71,8 @@ export interface Course {
   // Joined/computed fields the backend may include in list responses
   categoryName?: string;      // Joined from CATEGORY.CategoryName
   instructorName?: string;    // Joined from USER.FullName
+  studentCount?: number;
+  studentsCount?: number;
 }
 
 // ---------------------------------------------------------------------------

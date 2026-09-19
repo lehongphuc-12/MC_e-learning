@@ -250,7 +250,24 @@ export const MyCoursesScreen: React.FC<MyCoursesScreenProps> = ({ onNavigate }) 
           </div>
         ) : (
           <div className="flex flex-col gap-5">
-            {paginatedCourses.map((item) => (
+            {paginatedCourses.map((item) => {
+              let localCount = 0;
+              try {
+                const stored = localStorage.getItem(`mc_completed_lessons_${item.course.id}`);
+                if (stored) {
+                  const arr = JSON.parse(stored);
+                  if (Array.isArray(arr)) localCount = arr.length;
+                }
+              } catch (_) {}
+
+              const totalCount = item.totalLecturesCount || 9;
+              const displayCompletedCount = Math.max(item.completedLecturesCount || 0, localCount);
+              const displayProgressPercent = totalCount > 0
+                ? Math.round((displayCompletedCount / totalCount) * 100)
+                : item.progressPercent;
+              const isItemCompleted = displayProgressPercent >= 100 || item.status === 'completed';
+
+              return (
               <div
                 key={item.id}
                 className="bg-white rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col sm:flex-row sm:h-56 group hover:border-blue-200"
@@ -266,7 +283,7 @@ export const MyCoursesScreen: React.FC<MyCoursesScreenProps> = ({ onNavigate }) 
 
                   {/* Status Badge */}
                   <div className="absolute top-3 left-3">
-                    {item.status === 'completed' ? (
+                    {isItemCompleted ? (
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500 text-white shadow-md">
                         <CheckCircle className="w-3.5 h-3.5" />
                         Hoàn thành
@@ -314,20 +331,20 @@ export const MyCoursesScreen: React.FC<MyCoursesScreenProps> = ({ onNavigate }) 
                   <div className="space-y-1.5 pt-2 border-t border-slate-100">
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-semibold text-slate-700">
-                        Tiến độ bài học ({item.completedLecturesCount}/{item.totalLecturesCount})
+                        Tiến độ bài học ({displayCompletedCount}/{totalCount})
                       </span>
-                      <span className="font-bold text-blue-600">{item.progressPercent}%</span>
+                      <span className="font-bold text-blue-600">{displayProgressPercent}%</span>
                     </div>
 
                     {/* Progress Bar */}
                     <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                       <div
                         className={`h-full rounded-full transition-all duration-500 ${
-                          item.status === 'completed'
+                          isItemCompleted
                             ? 'bg-gradient-to-r from-emerald-500 to-teal-400'
                             : 'bg-gradient-to-r from-blue-600 to-indigo-600'
                         }`}
-                        style={{ width: `${item.progressPercent}%` }}
+                        style={{ width: `${displayProgressPercent}%` }}
                       />
                     </div>
 
@@ -374,7 +391,8 @@ export const MyCoursesScreen: React.FC<MyCoursesScreenProps> = ({ onNavigate }) 
                 </div>
 
               </div>
-            ))}
+            );
+          })}
           </div>
         )}
 
