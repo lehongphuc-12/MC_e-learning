@@ -348,7 +348,7 @@ public async Task<ActionResult<ApiResponse<QuizResultDto>>> GetQuizResult(
     }
 }
 [HttpGet("course/{courseId}")]
-[Authorize(Roles = "Learner,Instructor,Admin")]
+[Authorize(Roles = "Instructor,Admin")]
 public async Task<IActionResult> GetQuizzesByCourse(int courseId)
 {
     try
@@ -383,36 +383,5 @@ public async Task<IActionResult> GetQuizzesByCourse(int courseId)
             Errors = new List<string>()
         });
     }
-}
-[HttpGet("{quizId}/latest-result")]
-[Authorize(Roles = "Learner")]
-public async Task<IActionResult> GetLatestQuizResult(int quizId)
-{
-    var userId = GetCurrentUserId();
-
-    if (userId is null)
-        return Unauthorized();
-
-    var attemptId = await _quizService.GetLatestQuizResultAsync(
-        quizId,
-        userId.Value);
-
-    if (attemptId is null)
-    {
-        return NotFound(new
-        {
-            success = false,
-            message = "Bạn chưa có kết quả Quiz."
-        });
-    }
-
-    return Ok(new
-    {
-        success = true,
-        data = new
-        {
-            attemptId = attemptId.Value
-        }
-    });
 }
 }

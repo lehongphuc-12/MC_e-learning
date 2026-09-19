@@ -6,8 +6,6 @@ import {
   useSubmitQuiz,
 } from '../hooks/useQuiz';
 
-import { quizApi } from '../api/quizApi';
-
 import { QuizHeader } from '../components/QuizHeader';
 import { QuizChoiceList } from '../components/QuizChoiceList';
 import { QuizQuestionNavigation } from '../components/QuizQuestionNavigation';
@@ -21,11 +19,9 @@ export const TakeQuizPage: React.FC = () => {
   const { quizId } = useParams<{ quizId: string }>();
 
   const parsedQuizId =
-    quizId &&
-    Number.isInteger(Number(quizId)) &&
-    Number(quizId) > 0
-      ? Number(quizId)
-      : null;
+  quizId && Number.isInteger(Number(quizId)) && Number(quizId) > 0
+    ? Number(quizId)
+    : null;
 
   // ============================================================
   // QUIZ DATA
@@ -71,8 +67,8 @@ export const TakeQuizPage: React.FC = () => {
   /**
    * Countdown.
    */
-  const [remainingSeconds, setRemainingSeconds] =
-    useState<number | null>(null);
+const [remainingSeconds, setRemainingSeconds] =
+  useState<number | null>(null);
 
   /**
    * Tránh auto submit nhiều lần khi timer = 0.
@@ -80,27 +76,21 @@ export const TakeQuizPage: React.FC = () => {
   const [autoSubmitted, setAutoSubmitted] =
     useState(false);
 
-  /**
-   * Loading khi lấy kết quả gần nhất.
-   */
-  const [isLoadingLatestResult, setIsLoadingLatestResult] =
-    useState(false);
-
   // ============================================================
   // INITIALIZE TIMER
   // ============================================================
 
-  useEffect(() => {
-    if (!quiz) return;
+useEffect(() => {
+  if (!quiz) return;
 
-    if (quiz.timeLimitMinutes > 0) {
-      setRemainingSeconds(
-        quiz.timeLimitMinutes * 60
-      );
-    } else {
-      setRemainingSeconds(null);
-    }
-  }, [quiz]);
+  if (quiz.timeLimitMinutes > 0) {
+    setRemainingSeconds(
+      quiz.timeLimitMinutes * 60
+    );
+  } else {
+    setRemainingSeconds(null);
+  }
+}, [quiz]);
 
   // ============================================================
   // CURRENT QUESTION
@@ -136,19 +126,19 @@ export const TakeQuizPage: React.FC = () => {
   // SELECT ANSWER
   // ============================================================
 
-  const handleSelectAnswer = (
-    questionId: number,
-    choiceId: number
-  ) => {
-    if (!currentQuestion || submitQuiz.isPending) {
-      return;
-    }
+const handleSelectAnswer = (
+  questionId: number,
+  choiceId: number
+) => {
+  if (!currentQuestion || submitQuiz.isPending) {
+    return;
+  }
 
-    setAnswers((prev) => ({
-      ...prev,
-      [questionId]: choiceId,
-    }));
-  };
+  setAnswers((prev) => ({
+    ...prev,
+    [questionId]: choiceId,
+  }));
+};
 
   // ============================================================
   // FLAG QUESTION
@@ -219,93 +209,6 @@ export const TakeQuizPage: React.FC = () => {
   };
 
   // ============================================================
-  // VIEW LATEST RESULT
-  // ============================================================
-
-  const handleViewLatestResult = async () => {
-    if (!parsedQuizId || isLoadingLatestResult) {
-      return;
-    }
-
-    try {
-      setIsLoadingLatestResult(true);
-
-      const response =
-        await quizApi.getLatestQuizResult(
-          parsedQuizId
-        );
-
-      console.log(
-        'Latest result response:',
-        response
-      );
-
-      /**
-       * Backend trả:
-       *
-       * {
-       *   success: true,
-       *   data: {
-       *     attemptId: 12
-       *   }
-       * }
-       *
-       * Nếu request() của project đã unwrap data,
-       * response sẽ là:
-       *
-       * {
-       *   attemptId: 12
-       * }
-       *
-       * Vì vậy kiểm tra cả 2 trường hợp.
-       */
-      const responseData =
-        response as {
-          success?: boolean;
-          data?: {
-            attemptId?: number;
-          };
-          attemptId?: number;
-        };
-
-      const attemptId =
-        responseData?.data?.attemptId ??
-        responseData?.attemptId;
-
-      if (!attemptId) {
-        console.error(
-          'Không tìm thấy attemptId từ latest-result.',
-          response
-        );
-
-        window.alert(
-          'Không tìm thấy kết quả Quiz gần nhất.'
-        );
-
-        return;
-      }
-
-      navigate(
-        `/quizzes/${parsedQuizId}/result/${attemptId}`
-      );
-    } catch (err) {
-      console.error(
-        'Không thể lấy kết quả Quiz gần nhất:',
-        err
-      );
-
-      const message =
-        err instanceof Error
-          ? err.message
-          : 'Không thể lấy kết quả Quiz.';
-
-      window.alert(message);
-    } finally {
-      setIsLoadingLatestResult(false);
-    }
-  };
-
-  // ============================================================
   // SUBMIT
   // ============================================================
 
@@ -351,61 +254,61 @@ export const TakeQuizPage: React.FC = () => {
     };
 
     submitQuiz.mutate(
-      {
-        quizId: quiz.quizId,
-        data: submitData,
-      },
-      {
-        onSuccess: (result) => {
-          /**
-           * LE16 - View Quiz Result
-           *
-           * Backend submit trả về attemptId.
-           *
-           * Route:
-           * /quizzes/:quizId/result/:attemptId
-           */
-          navigate(
-            `/quizzes/${quiz.quizId}/result/${result.attemptId}`
-          );
-        },
-      }
-    );
+  {
+    quizId: quiz.quizId,
+    data: submitData,
+  },
+  {
+    onSuccess: (result) => {
+      /**
+       * LE16 - View Quiz Result
+       *
+       * Backend submit trả về attemptId.
+       *
+       * Route:
+       * /quizzes/:quizId/result/:attemptId
+       */
+      navigate(
+        `/quizzes/${quiz.quizId}/result/${result.attemptId}`
+      );
+    },
+  }
+);
   };
 
   // ============================================================
   // TIMER
   // ============================================================
 
-  useEffect(() => {
-    if (!quiz) return;
-    if (quiz.timeLimitMinutes <= 0) return;
-    if (remainingSeconds === null) return;
-    if (autoSubmitted) return;
-    if (submitQuiz.isPending) return;
+useEffect(() => {
+  if (!quiz) return;
+  if (quiz.timeLimitMinutes <= 0) return;
+  if (remainingSeconds === null) return;
+  if (autoSubmitted) return;
+  if (submitQuiz.isPending) return;
 
-    if (remainingSeconds === 0) {
-      handleSubmit(true);
-      return;
-    }
+  if (remainingSeconds === 0) {
+    handleSubmit(true);
+    return;
+  }
 
-    const timer = window.setTimeout(() => {
-      setRemainingSeconds((prev) => {
-        if (prev === null) return null;
+  const timer = window.setTimeout(() => {
+    setRemainingSeconds((prev) => {
+      if (prev === null) return null;
 
-        return prev - 1;
-      });
-    }, 1000);
+      return prev - 1;
+    });
+  }, 1000);
 
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [
-    quiz,
-    remainingSeconds,
-    autoSubmitted,
-    submitQuiz.isPending,
-  ]);
+  return () => {
+    window.clearTimeout(timer);
+  };
+}, [
+  quiz,
+  remainingSeconds,
+  autoSubmitted,
+  submitQuiz.isPending,
+]);
 
   // ============================================================
   // LOADING
@@ -430,103 +333,42 @@ export const TakeQuizPage: React.FC = () => {
   // ============================================================
 
   if (
-    isError ||
-    !quiz ||
-    !currentQuestion
-  ) {
-    const errorMessage =
-      error instanceof Error
-        ? error.message
-        : '';
-
-    const isMaxAttemptsError =
-      errorMessage.includes(
-        'maximum number of attempts'
-      ) ||
-      errorMessage.includes(
-        'maximum attempts'
-      );
-
-    return (
-      <div className="min-h-[70vh] flex items-center justify-center px-6">
-        <div className="bg-white border border-slate-200 rounded-xl p-8 text-center max-w-md w-full shadow-sm">
-
-          {/* ICON */}
-
-          <div
-            className={`text-4xl mb-4 ${
-              isMaxAttemptsError
-                ? 'text-amber-500'
-                : 'text-red-500'
-            }`}
-          >
-            {isMaxAttemptsError
-              ? '✓'
-              : '!'}
-          </div>
-
-          {/* TITLE */}
-
-          <h2 className="text-xl font-bold text-slate-900 mb-2">
-            {isMaxAttemptsError
-              ? 'Đã hết lượt làm Quiz'
-              : 'Không thể tải bài kiểm tra'}
-          </h2>
-
-          {/* MESSAGE */}
-
-          <p className="text-slate-600 mb-6">
-            {isMaxAttemptsError
-              ? 'Bạn đã sử dụng hết số lần được phép làm bài kiểm tra này.'
-              : errorMessage ||
-                'Không tìm thấy bài kiểm tra.'}
-          </p>
-
-          {/* ACTIONS */}
-
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-
-            {/* XEM KẾT QUẢ */}
-
-            {isMaxAttemptsError && (
-              <button
-                type="button"
-                onClick={
-                  handleViewLatestResult
-                }
-                disabled={
-                  isLoadingLatestResult
-                }
-                className="px-5 py-2.5 rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isLoadingLatestResult
-                  ? 'Đang tải...'
-                  : 'Xem kết quả'}
-              </button>
-            )}
-
-            {/* QUAY LẠI */}
-
-            <button
-              type="button"
-              onClick={() => navigate(-1)}
-              className="px-5 py-2.5 rounded-lg bg-slate-800 text-white hover:bg-slate-700 transition"
-            >
-              Quay lại
-            </button>
-
-          </div>
-
-          {/* QUIZ ID */}
-
-          <p className="text-xs text-slate-400 mt-6">
-            Quiz ID: {parsedQuizId ?? 'null'}
-          </p>
-
+  isError ||
+  !quiz ||
+  !currentQuestion
+) {
+  return (
+    <div className="min-h-[70vh] flex items-center justify-center px-6">
+      <div className="bg-white border border-red-200 rounded-xl p-8 text-center max-w-md w-full shadow-sm">
+        <div className="text-red-500 text-4xl mb-4">
+          !
         </div>
+
+        <h2 className="text-xl font-bold text-slate-900 mb-2">
+          Không thể tải bài kiểm tra
+        </h2>
+
+        <p className="text-slate-600 mb-2">
+          {error instanceof Error
+            ? error.message
+            : 'Không tìm thấy bài kiểm tra.'}
+        </p>
+
+        <p className="text-xs text-slate-400 mb-6">
+          Quiz ID: {parsedQuizId ?? 'null'}
+        </p>
+
+        <button
+          type="button"
+          onClick={() => navigate(-1)}
+          className="px-5 py-2.5 rounded-lg bg-slate-800 text-white hover:bg-slate-700"
+        >
+          Quay lại
+        </button>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
   // ============================================================
   // CURRENT ANSWER
@@ -569,28 +411,16 @@ export const TakeQuizPage: React.FC = () => {
           HEADER COMPONENT
       ======================================================== */}
 
-      <QuizHeader
-        title={quiz.title}
-        attemptNumber={quiz.attemptNumber}
-        remainingSeconds={
-          remainingSeconds ?? 0
-        }
-        timeLimitMinutes={
-          quiz.timeLimitMinutes
-        }
-        answeredCount={
-          answeredCount
-        }
-        totalQuestions={
-          quiz.questions.length
-        }
-        onSubmit={() =>
-          handleSubmit(false)
-        }
-        submitting={
-          submitQuiz.isPending
-        }
-      />
+<QuizHeader
+  title={quiz.title}
+  attemptNumber={quiz.attemptNumber}
+  remainingSeconds={remainingSeconds ?? 0}
+  timeLimitMinutes={quiz.timeLimitMinutes}
+  answeredCount={answeredCount}
+  totalQuestions={quiz.questions.length}
+  onSubmit={() => handleSubmit(false)}
+  submitting={submitQuiz.isPending}
+/>
 
       {/* ========================================================
           MAIN
@@ -612,10 +442,8 @@ export const TakeQuizPage: React.FC = () => {
               <div className="flex items-center justify-between text-sm mb-2">
 
                 <span className="font-semibold text-slate-700">
-                  CÂU HỎI{' '}
-                  {currentIndex + 1}{' '}
-                  /{' '}
-                  {quiz.questions.length}
+                  CÂU HỎI {currentIndex + 1}{' '}
+                  / {quiz.questions.length}
                 </span>
 
                 <span className="text-slate-500">
@@ -676,9 +504,7 @@ export const TakeQuizPage: React.FC = () => {
                 </button>
 
                 <span className="text-xs px-3 py-1 rounded-full bg-blue-50 text-blue-700">
-                  {
-                    currentQuestion.questionType
-                  }
+                  {currentQuestion.questionType}
                 </span>
 
               </div>
@@ -686,9 +512,7 @@ export const TakeQuizPage: React.FC = () => {
               {/* Question */}
 
               <h1 className="text-xl font-semibold leading-relaxed text-slate-900 mb-7">
-                {
-                  currentQuestion.questionText
-                }
+                {currentQuestion.questionText}
               </h1>
 
               {/* ==================================================
@@ -816,7 +640,6 @@ export const TakeQuizPage: React.FC = () => {
 
             {flagged.size > 0 && (
               <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4">
-
                 <p className="text-sm font-semibold text-red-700">
                   Câu đã đánh dấu
                 </p>
@@ -832,7 +655,6 @@ export const TakeQuizPage: React.FC = () => {
                     )
                     .join(', ')}
                 </p>
-
               </div>
             )}
 

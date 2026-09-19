@@ -576,56 +576,23 @@ if (existingQuizzes.Any())
             throw new ArgumentException(
                 "This quiz is not available.");
 
-var userAttempts = await _attemptRepository.FindAsync(
-    a => a.QuizId == quizId &&
-         a.UserId == learnerId);
+        var userAttempts = await _attemptRepository.FindAsync(a => a.QuizId == quizId && a.UserId == learnerId);
+        var attemptCount = userAttempts.Count();
 
-var attempts = userAttempts.ToList();
+        if (attemptCount >= quiz.MaxAttempts)
+            throw new ArgumentException(
+                "You have reached the maximum number of attempts.");
 
-// =========================================================
-// 1. Check existing unfinished attempt
-// =========================================================
+        var attempt = new QuizAttempt
+        {
+            QuizId = quizId,
+            UserId = learnerId,
+            AttemptNumber = attemptCount + 1,
+            StartedAt = DateTime.UtcNow
+        };
 
-var unfinishedAttempt = attempts
-    .FirstOrDefault(a => !a.SubmittedAt.HasValue);
-
-QuizAttempt attempt;
-
-if (unfinishedAttempt is not null)
-{
-    // Learner đã bắt đầu Quiz nhưng chưa submit.
-    // Không tạo attempt mới khi refresh / mở lại Quiz.
-    attempt = unfinishedAttempt;
-}
-else
-{
-    // =====================================================
-    // 2. Check maximum attempts
-    // =====================================================
-
-    var attemptCount = attempts.Count;
-
-    if (attemptCount >= quiz.MaxAttempts)
-    {
-        throw new ArgumentException(
-            "You have reached the maximum number of attempts.");
-    }
-
-    // =====================================================
-    // 3. Create new attempt
-    // =====================================================
-
-    attempt = new QuizAttempt
-    {
-        QuizId = quizId,
-        UserId = learnerId,
-        AttemptNumber = attemptCount + 1,
-        StartedAt = DateTime.UtcNow
-    };
-
-    await _attemptRepository.AddAsync(attempt);
-    await _unitOfWork.SaveChangesAsync();
-}
+        await _attemptRepository.AddAsync(attempt);
+        await _unitOfWork.SaveChangesAsync();
 
         var questionIds = (quiz.Questions ?? new List<Question>()).Select(q => q.QuestionId).ToList();
         var choicesList = await _choiceRepository.FindAsync(c => questionIds.Contains(c.QuestionId));
@@ -994,21 +961,5 @@ private static void ValidateUpdateMultipleChoice(UpdateQuestionRequest question)
     }
 
     ValidateUpdateChoiceTexts(question.Choices);
-}
-public async Task<int?> GetLatestQuizResultAsync(
-    int quizId,
-    int learnerId)
-{
-    var attempts = await _attemptRepository.FindAsync(
-        a => a.QuizId == quizId &&
-             a.UserId == learnerId &&
-             a.SubmittedAt.HasValue
-    );
-
-    var latestAttempt = attempts
-        .OrderByDescending(a => a.AttemptNumber)
-        .FirstOrDefault();
-
-    return latestAttempt?.AttemptId;
 }
 }

@@ -28,12 +28,5 @@ public interface IQuizService
         int learnerId,
         int quizId,
         int attemptId);
-    Task<List<QuizListItemDto>> GetQuizzesByCourseAsync(
-        int courseId
-    );
-
-    Task<int?> GetLatestQuizResultAsync(
-        int quizId,
-        int learnerId
-    );
+        Task<List<QuizListItemDto>> GetQuizzesByCourseAsync(int courseId);
 }
