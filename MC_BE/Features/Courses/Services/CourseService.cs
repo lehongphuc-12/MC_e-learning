@@ -68,23 +68,23 @@ public class CourseService : ICourseService
     // -------------------------------------------------------------------------
     private static CourseDto MapToDto(Course course) => new()
     {
-        CourseId       = course.CourseId,
-        CategoryId     = course.CategoryId,
-        CategoryName   = course.Category?.CategoryName,
-        InstructorId   = course.InstructorId,
+        CourseId = course.CourseId,
+        CategoryId = course.CategoryId,
+        CategoryName = course.Category?.CategoryName,
+        InstructorId = course.InstructorId,
         InstructorName = course.Instructor?.FullName,
-        Title          = course.Title,
-        Slug           = course.Slug,
-        Description    = course.Description,
-        ThumbnailUrl   = course.ThumbnailUrl,
-        Price          = course.Price,
-        Level          = course.Level,
-        Status         = course.Status,
-        CreatedAt      = course.CreatedAt,
-        UpdatedAt      = course.UpdatedAt,
-        SubmittedAt    = course.SubmittedAt,
-        ApprovedAt     = course.ApprovedAt,
-        ApprovedById   = course.ApprovedById,
+        Title = course.Title,
+        Slug = course.Slug,
+        Description = course.Description,
+        ThumbnailUrl = course.ThumbnailUrl,
+        Price = course.Price,
+        Level = course.Level,
+        Status = course.Status,
+        CreatedAt = course.CreatedAt,
+        UpdatedAt = course.UpdatedAt,
+        SubmittedAt = course.SubmittedAt,
+        ApprovedAt = course.ApprovedAt,
+        ApprovedById = course.ApprovedById,
         ApprovedByName = course.ApprovedBy?.FullName,
         SubmissionNote = course.SubmissionNote,
         RejectionReason = course.RejectionReason,
@@ -186,9 +186,9 @@ public class CourseService : ICourseService
             Data = items.Select(MapToDto).ToList(),
             Pagination = new PaginationMeta
             {
-                Page       = page,
-                Limit      = limit,
-                Total      = total,
+                Page = page,
+                Limit = limit,
+                Total = total,
                 TotalPages = (int)Math.Ceiling((double)total / limit),
             }
         };
@@ -240,11 +240,14 @@ public class CourseService : ICourseService
 
     public async Task<CourseDto?> CreateCourseAsync(int instructorId, CreateCourseRequest request)
     {
-        // Validate the CategoryId FK if provided
+        // Validate the CategoryId FK if provided. If not exists, set to null instead of failing completely.
         if (request.CategoryId.HasValue)
         {
             var catExists = await _categoryRepository.AnyAsync(c => c.CategoryId == request.CategoryId.Value);
-            if (!catExists) return null; // Let caller decide the error response
+            if (!catExists)
+            {
+                request.CategoryId = null; // Default to unassigned category if invalid CategoryId provided
+            }
         }
 
         if (request.SubmitForApproval)
@@ -252,23 +255,24 @@ public class CourseService : ICourseService
             throw new InvalidOperationException("Khóa học mới tạo chưa có Chương học và Bài học. Hãy tạo khóa học trước, sau đó thêm Chương & Bài học đầy đủ mới có thể gửi Admin duyệt.");
         }
 
-        var status = request.Status;
+        // Force new/imported course status to DRAFT regardless of client request (must be approved by Admin to publish)
+        var status = CourseStatus.DRAFT;
 
         var course = new Course
         {
-            InstructorId   = instructorId,
-            CategoryId     = request.CategoryId,
-            Title          = request.Title,
-            Slug           = GenerateSlug(request.Title),
-            Description    = request.Description,
-            ThumbnailUrl   = request.ThumbnailUrl,
-            Price          = request.Price,
-            Level          = request.Level,
-            Status         = status,
+            InstructorId = instructorId,
+            CategoryId = request.CategoryId,
+            Title = request.Title,
+            Slug = GenerateSlug(request.Title),
+            Description = request.Description,
+            ThumbnailUrl = request.ThumbnailUrl,
+            Price = request.Price,
+            Level = request.Level,
+            Status = status,
             SubmissionNote = request.SubmissionNote,
-            SubmittedAt    = null,
-            CreatedAt      = DateTime.UtcNow,
-            UpdatedAt      = DateTime.UtcNow,
+            SubmittedAt = null,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
         };
 
         await _courseRepository.AddAsync(course);
@@ -293,13 +297,13 @@ public class CourseService : ICourseService
         if (request.Title is not null)
         {
             course.Title = request.Title;
-            course.Slug  = GenerateSlug(request.Title); // Re-generate slug when title changes
+            course.Slug = GenerateSlug(request.Title); // Re-generate slug when title changes
         }
         if (request.Description is not null) course.Description = request.Description;
-        if (request.CategoryId.HasValue)     course.CategoryId  = request.CategoryId;
+        if (request.CategoryId.HasValue) course.CategoryId = request.CategoryId;
         if (request.ThumbnailUrl is not null) course.ThumbnailUrl = request.ThumbnailUrl;
-        if (request.Price.HasValue)          course.Price       = request.Price.Value;
-        if (request.Level.HasValue)          course.Level       = request.Level;
+        if (request.Price.HasValue) course.Price = request.Price.Value;
+        if (request.Level.HasValue) course.Level = request.Level;
         if (request.Status.HasValue)
         {
             // Instructors cannot directly publish courses; any edit defaults to DRAFT unless submitted for approval
@@ -445,6 +449,8 @@ public class CourseService : ICourseService
         var createdList = new List<CourseDto>();
         foreach (var req in requests)
         {
+            req.Status = CourseStatus.DRAFT;
+            req.SubmitForApproval = false;
             var created = await CreateCourseAsync(instructorId, req);
             if (created != null)
             {
