@@ -4,6 +4,7 @@ import {
   BarChart2,
   CheckCircle2,
   ChevronRight,
+  CreditCard,
   ExternalLink,
   Lock,
   Settings,
@@ -17,8 +18,8 @@ import { PasswordForm } from './profile/PasswordForm';
 import { PreferencesForm } from './profile/PreferencesForm';
 import { ProfileInfoForm } from './profile/ProfileInfoForm';
 import { ProfileOverview } from './profile/ProfileOverview';
+import { PurchaseHistoryTab } from '../../payment/pages/Purchasehistorytab';
 import { useMyCertificates } from '../../courses/hooks/useCertificateQueries';
-
 import { ToastType } from '../../../components/common/Toast';
 
 interface ProfileScreenProps {
@@ -35,7 +36,7 @@ const roleColor: Record<string, string> = {
 };
 
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onNavigate, onUpdateUser, onToast }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'certificates' | 'profile' | 'password' | 'settings'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'certificates' | 'purchases' | 'profile' | 'password' | 'settings'>('overview');
   const { data: myCertificates = [], isLoading: isCertsLoading } = useMyCertificates();
   
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
@@ -155,6 +156,21 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onNavigate, 
                   <span>My Certificates</span>
                 </div>
                 <ChevronRight className={`w-4 h-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all text-slate-400 ${activeTab === 'certificates' ? 'opacity-100 text-amber-500' : ''}`} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('purchases')}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer group
+                  ${activeTab === 'purchases'
+                    ? 'bg-emerald-50 text-emerald-700 font-bold border border-emerald-200'
+                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
+              >
+                <div className="flex items-center gap-3">
+                  <CreditCard className="w-4 h-4 text-emerald-500" />
+                  <span>Lịch Sử Mua Khóa Học</span>
+                </div>
+                <ChevronRight className={`w-4 h-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all text-slate-400 ${activeTab === 'purchases' ? 'opacity-100 text-emerald-500' : ''}`} />
               </button>
 
               <button
@@ -290,6 +306,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onNavigate, 
                   </div>
                 )}
               </div>
+            )}
+
+            {activeTab === 'purchases' && (
+              <PurchaseHistoryTab />
             )}
 
             {activeTab === 'profile' && (
