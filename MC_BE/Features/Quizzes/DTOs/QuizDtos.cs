@@ -30,7 +30,11 @@ public class CreateQuizRequest
     [MinLength(1, ErrorMessage = "At least one question is required.")]
     public List<CreateQuestionRequest> Questions { get; set; } = new();
 }
-
+// export type QuizStatus =
+//   | 'DRAFT'
+//   | 'ACTIVE'
+//   | 'INACTIVE'
+//   | 'ARCHIVED';
 
 public class CreateQuestionRequest
 {
@@ -259,16 +263,12 @@ public class QuizListItemDto
     public int? CourseId { get; set; }
     public int? LessonId { get; set; }
 
+    public string? LessonTitle { get; set; } // THÊM
+
     public string Title { get; set; } = string.Empty;
     public string? Description { get; set; }
-
     public int TimeLimitMinutes { get; set; }
     public decimal PassingScore { get; set; }
     public int MaxAttempts { get; set; }
-
     public QuizStatus Status { get; set; }
-
-    public DateTime CreatedAt { get; set; }
-
-    public int QuestionCount { get; set; }
 }

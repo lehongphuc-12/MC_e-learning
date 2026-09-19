@@ -78,6 +78,25 @@ public class QuizService : IQuizService
                 throw new ArgumentException(
                     "The selected lesson does not belong to the selected course.");
         }
+        // =========================================================
+// 4. Check duplicate quiz
+// =========================================================
+
+var existingQuizzes = await _quizRepository.FindAsync(
+    q => q.CourseId == request.CourseId &&
+         q.LessonId == request.LessonId);
+
+if (existingQuizzes.Any())
+{
+    if (request.LessonId.HasValue)
+    {
+        throw new ArgumentException(
+            "This lesson already has a quiz.");
+    }
+
+    throw new ArgumentException(
+        "This course already has an overall quiz.");
+}
 
         // =========================================================
         // 4. Validate questions
@@ -557,23 +576,56 @@ public class QuizService : IQuizService
             throw new ArgumentException(
                 "This quiz is not available.");
 
-        var userAttempts = await _attemptRepository.FindAsync(a => a.QuizId == quizId && a.UserId == learnerId);
-        var attemptCount = userAttempts.Count();
+var userAttempts = await _attemptRepository.FindAsync(
+    a => a.QuizId == quizId &&
+         a.UserId == learnerId);
 
-        if (attemptCount >= quiz.MaxAttempts)
-            throw new ArgumentException(
-                "You have reached the maximum number of attempts.");
+var attempts = userAttempts.ToList();
 
-        var attempt = new QuizAttempt
-        {
-            QuizId = quizId,
-            UserId = learnerId,
-            AttemptNumber = attemptCount + 1,
-            StartedAt = DateTime.UtcNow
-        };
+// =========================================================
+// 1. Check existing unfinished attempt
+// =========================================================
 
-        await _attemptRepository.AddAsync(attempt);
-        await _unitOfWork.SaveChangesAsync();
+var unfinishedAttempt = attempts
+    .FirstOrDefault(a => !a.SubmittedAt.HasValue);
+
+QuizAttempt attempt;
+
+if (unfinishedAttempt is not null)
+{
+    // Learner đã bắt đầu Quiz nhưng chưa submit.
+    // Không tạo attempt mới khi refresh / mở lại Quiz.
+    attempt = unfinishedAttempt;
+}
+else
+{
+    // =====================================================
+    // 2. Check maximum attempts
+    // =====================================================
+
+    var attemptCount = attempts.Count;
+
+    if (attemptCount >= quiz.MaxAttempts)
+    {
+        throw new ArgumentException(
+            "You have reached the maximum number of attempts.");
+    }
+
+    // =====================================================
+    // 3. Create new attempt
+    // =====================================================
+
+    attempt = new QuizAttempt
+    {
+        QuizId = quizId,
+        UserId = learnerId,
+        AttemptNumber = attemptCount + 1,
+        StartedAt = DateTime.UtcNow
+    };
+
+    await _attemptRepository.AddAsync(attempt);
+    await _unitOfWork.SaveChangesAsync();
+}
 
         var questionIds = (quiz.Questions ?? new List<Question>()).Select(q => q.QuestionId).ToList();
         var choicesList = await _choiceRepository.FindAsync(c => questionIds.Contains(c.QuestionId));
@@ -805,30 +857,32 @@ public class QuizService : IQuizService
         };
     }
 
-    public async Task<List<QuizListItemDto>> GetQuizzesByCourseAsync(int courseId)
-    {
-        var quizzes = await _quizRepository.FindAsync(
-            q => q.CourseId == courseId,
-            q => q.Questions);
+public async Task<List<QuizListItemDto>> GetQuizzesByCourseAsync(int courseId)
+{
+    var quizzes = await _quizRepository.FindAsync(
+        q => q.CourseId == courseId,
+        q => q.Lesson);
 
-        return quizzes
-            .OrderByDescending(q => q.CreatedAt)
-            .Select(q => new QuizListItemDto
-            {
-                QuizId = q.QuizId,
-                CourseId = q.CourseId,
-                LessonId = q.LessonId,
-                Title = q.Title,
-                Description = q.Description,
-                TimeLimitMinutes = q.TimeLimitMinutes,
-                PassingScore = q.PassingScore,
-                MaxAttempts = q.MaxAttempts,
-                Status = q.Status,
-                CreatedAt = q.CreatedAt,
-                QuestionCount = q.Questions?.Count ?? 0
-            })
-            .ToList();
-    }
+    return quizzes
+        .Select(q => new QuizListItemDto
+        {
+            QuizId = q.QuizId,
+            CourseId = q.CourseId,
+            LessonId = q.LessonId,
+
+            LessonTitle = q.Lesson != null
+                ? q.Lesson.Title
+                : null,
+
+            Title = q.Title,
+            Description = q.Description,
+            TimeLimitMinutes = q.TimeLimitMinutes,
+            PassingScore = q.PassingScore,
+            MaxAttempts = q.MaxAttempts,
+            Status = q.Status
+        })
+        .ToList();
+}
 private static void ValidateUpdateQuestion(
     UpdateQuestionRequest question)
 {
@@ -940,5 +994,21 @@ private static void ValidateUpdateMultipleChoice(UpdateQuestionRequest question)
     }
 
     ValidateUpdateChoiceTexts(question.Choices);
+}
+public async Task<int?> GetLatestQuizResultAsync(
+    int quizId,
+    int learnerId)
+{
+    var attempts = await _attemptRepository.FindAsync(
+        a => a.QuizId == quizId &&
+             a.UserId == learnerId &&
+             a.SubmittedAt.HasValue
+    );
+
+    var latestAttempt = attempts
+        .OrderByDescending(a => a.AttemptNumber)
+        .FirstOrDefault();
+
+    return latestAttempt?.AttemptId;
 }
 }

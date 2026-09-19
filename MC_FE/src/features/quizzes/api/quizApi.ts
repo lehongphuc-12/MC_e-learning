@@ -39,6 +39,7 @@ export const quizApi = {
       method: 'POST',
       body: JSON.stringify(data),
     });
+    
   },
 
   // ============================================================
@@ -154,6 +155,11 @@ async getQuizzesByCourse(
 ): Promise<ApiResponse<QuizListItemDto[]>> {
   return request(`/quizzes/course/${courseId}`, {
     method: 'GET',
+  });
+},
+async getLatestQuizResult(quizId: number) {
+  return request(`/quizzes/${quizId}/latest-result`, {
+    method: "GET",
   });
 },
 };

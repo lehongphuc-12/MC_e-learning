@@ -10,6 +10,11 @@ import {
   UpdateQuestionRequest,
   UpdateChoiceRequest,
 } from '../types/quizTypes';
+import { ToastType } from '../../../components/common/Toast';
+
+interface UpdateQuizPageProps {
+  onToast?: (title: string, desc?: string, type?: ToastType) => void;
+}
 
 const QUIZ_STATUS_OPTIONS: {
   value: QuizStatus;
@@ -20,8 +25,12 @@ const QUIZ_STATUS_OPTIONS: {
     label: 'Nháp',
   },
   {
-    value: 'PUBLISHED',
+    value: 'ACTIVE',
     label: 'Đã xuất bản',
+  },
+  {
+    value: 'INACTIVE',
+    label: 'Ngừng hoạt động',
   },
   {
     value: 'ARCHIVED',
@@ -70,7 +79,7 @@ const createEmptyQuestion = (
   ],
 });
 
-export const UpdateQuizPage: React.FC = () => {
+export const UpdateQuizPage: React.FC<UpdateQuizPageProps> = ({ onToast }) => {
   const navigate = useNavigate();
 
   const { id } = useParams<{ id: string }>();
@@ -994,14 +1003,14 @@ export const UpdateQuizPage: React.FC = () => {
           behavior: 'smooth',
         });
 
+        onToast?.('Cập nhật thành công', 'Bài kiểm tra đã được cập nhật thành công.', 'success');
+
         // ------------------------------------------------------
-        // Navigate to detail
+        // Navigate back to previous page
         // ------------------------------------------------------
 
         setTimeout(() => {
-          navigate(
-            `/instructor/quizzes/${validQuizId}`,
-          );
+          navigate(-1);
         }, 800);
       } catch (err) {
         console.error(

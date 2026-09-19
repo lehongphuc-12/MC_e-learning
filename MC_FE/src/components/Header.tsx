@@ -174,7 +174,7 @@ export const Header: React.FC<HeaderProps> = ({
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                   }`}
                 >
-                  Home
+                  Trang chủ
                 </button>
                 <button
                   id="nav-courses-btn"
@@ -198,7 +198,7 @@ export const Header: React.FC<HeaderProps> = ({
                     }`}
                   >
                     <Shield className="w-4 h-4 text-purple-600" />
-                    <span>Admin Dashboard</span>
+                    <span>Bảng quản trị Admin</span>
                   </button>
                 )}
                 {user?.role === 'instructor' && (
@@ -237,7 +237,7 @@ export const Header: React.FC<HeaderProps> = ({
                       onNavigate('courses');
                     }
                   }}
-                  placeholder="Search masterclasses, MCing..."
+                  placeholder="Tìm kiếm khóa học, MC..."
                   className="w-full pl-9 pr-4 py-2 text-xs bg-slate-100/90 focus:bg-white rounded-xl border border-transparent focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all"
                 />
                 <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
@@ -250,7 +250,7 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 id="header-wishlist-btn"
                 onClick={() => onNavigate('courses')}
-                title="Your Saved Wishlist"
+                title="Danh sách yêu thích"
                 className="relative p-2.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
               >
                 <Heart className="w-5 h-5" />
@@ -265,7 +265,7 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 id="header-cart-btn"
                 onClick={onOpenCart}
-                title="View Shopping Cart"
+                title="Giỏ hàng"
                 className="relative p-2.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
               >
                 <ShoppingBag className="w-5 h-5" />
@@ -315,7 +315,7 @@ export const Header: React.FC<HeaderProps> = ({
                           className="w-full text-left px-4 py-2 text-xs font-bold text-purple-700 bg-purple-50/80 hover:bg-purple-100 flex items-center gap-2 cursor-pointer border-b border-purple-100"
                         >
                           <Shield className="w-4 h-4 text-purple-600" />
-                          <span>Admin Dashboard</span>
+                          <span>Bảng quản trị Admin</span>
                         </button>
                       )}
                       {user.role === 'instructor' && (
@@ -329,7 +329,7 @@ export const Header: React.FC<HeaderProps> = ({
                             className="w-full text-left px-4 py-2 text-xs font-bold text-blue-700 bg-blue-50/80 hover:bg-blue-100 flex items-center gap-2 cursor-pointer border-b border-blue-100"
                           >
                             <LayoutDashboard className="w-4 h-4 text-blue-600" />
-                            <span>Trang Tổng quan Giảng viên</span>
+                            <span>Trang Giảng viên</span>
                           </button>
                           <button
                             id="dropdown-instructor-courses-btn"
@@ -352,28 +352,20 @@ export const Header: React.FC<HeaderProps> = ({
                         className="w-full text-left px-4 py-2 text-xs font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-600 flex items-center gap-2 cursor-pointer"
                       >
                         <UserCircle className="w-4 h-4" />
-                        <span>My Profile</span>
+                        <span>Trang cá nhân</span>
                       </button>
-                      <button
-                        onClick={() => {
-                          onNavigate('my-courses');
-                          setIsUserMenuOpen(false);
-                        }}
-                        className="w-full text-left px-4 py-2 text-xs font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-600 flex items-center gap-2 cursor-pointer"
-                      >
-                        <BookOpen className="w-4 h-4" />
-                        <span>Khóa học của tôi</span>
-                      </button>
-                      <button
-                        onClick={() => {
-                          onNavigate('course-detail');
-                          setIsUserMenuOpen(false);
-                        }}
-                        className="w-full text-left px-4 py-2 text-xs font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-600 flex items-center gap-2 cursor-pointer"
-                      >
-                        <Sparkles className="w-4 h-4" />
-                        <span>Featured Masterclass</span>
-                      </button>
+                      {user.role === 'student' && (
+                        <button
+                          onClick={() => {
+                            onNavigate('my-courses');
+                            setIsUserMenuOpen(false);
+                          }}
+                          className="w-full text-left px-4 py-2 text-xs font-medium text-slate-700 hover:bg-blue-50 hover:text-blue-600 flex items-center gap-2 cursor-pointer"
+                        >
+                          <BookOpen className="w-4 h-4" />
+                          <span>Khóa học đã đăng ký</span>
+                        </button>
+                      )}
                       <div className="border-t border-slate-100 my-1" />
                       <button
                         onClick={() => {
@@ -383,7 +375,7 @@ export const Header: React.FC<HeaderProps> = ({
                         className="w-full text-left px-4 py-2 text-xs font-medium text-red-600 hover:bg-red-50 flex items-center gap-2 cursor-pointer"
                       >
                         <LogOut className="w-4 h-4" />
-                        <span>Sign Out</span>
+                        <span>Đăng xuất</span>
                       </button>
                     </div>
                   )}
@@ -395,7 +387,7 @@ export const Header: React.FC<HeaderProps> = ({
                     onClick={() => onNavigate('login')}
                     className="px-4 py-2 text-xs font-bold text-slate-700 hover:text-blue-600 hover:bg-slate-100 rounded-xl transition-all cursor-pointer"
                   >
-                    Sign In
+                    Đăng nhập
                   </button>
                   <button
                     id="header-register-btn"
@@ -403,7 +395,7 @@ export const Header: React.FC<HeaderProps> = ({
                     className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md shadow-blue-600/20 transition-all cursor-pointer flex items-center gap-1.5"
                   >
                     <UserPlus className="w-3.5 h-3.5" />
-                    <span>Register</span>
+                    <span>Đăng ký</span>
                   </button>
                 </div>
               )}
@@ -428,7 +420,7 @@ export const Header: React.FC<HeaderProps> = ({
                 type="text"
                 value={searchQuery}
                 onChange={(e) => onSearchChange(e.target.value)}
-                placeholder="Search courses..."
+                placeholder="Tìm kiếm khóa học..."
                 className="w-full pl-3 pr-3 py-2 text-xs bg-slate-100 rounded-lg"
               />
             </div>
@@ -441,7 +433,7 @@ export const Header: React.FC<HeaderProps> = ({
                 className="w-full text-left px-3 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2.5 bg-purple-50 text-purple-700 border border-purple-200"
               >
                 <span>🛡️</span>
-                <span>Admin Dashboard</span>
+                <span>Bảng quản trị Admin</span>
               </button>
             )}
             {user?.role === 'instructor' && (
@@ -470,21 +462,44 @@ export const Header: React.FC<HeaderProps> = ({
                 </button>
               </>
             )}
-            {screensList.map((screen) => (
+            <button
+              onClick={() => {
+                onNavigate('home');
+                setIsMobileMenuOpen(false);
+              }}
+              className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-semibold flex items-center gap-2.5 ${
+                currentScreen === 'home' ? 'bg-blue-50 text-blue-600' : 'text-slate-700'
+              }`}
+            >
+              <span>🏠</span>
+              <span>Trang chủ</span>
+            </button>
+            <button
+              onClick={() => {
+                onNavigate('courses');
+                setIsMobileMenuOpen(false);
+              }}
+              className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-semibold flex items-center gap-2.5 ${
+                currentScreen === 'courses' ? 'bg-blue-50 text-blue-600' : 'text-slate-700'
+              }`}
+            >
+              <span>📚</span>
+              <span>Khóa học</span>
+            </button>
+            {user?.role === 'student' && (
               <button
-                key={screen.id}
                 onClick={() => {
-                  onNavigate(screen.id);
+                  onNavigate('my-courses');
                   setIsMobileMenuOpen(false);
                 }}
                 className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-semibold flex items-center gap-2.5 ${
-                  currentScreen === screen.id ? 'bg-blue-50 text-blue-600' : 'text-slate-700'
+                  currentScreen === 'my-courses' ? 'bg-blue-50 text-blue-600' : 'text-slate-700'
                 }`}
               >
-                <span>{screen.icon}</span>
-                <span>{screen.label}</span>
+                <span>🎓</span>
+                <span>Khóa học đã đăng ký</span>
               </button>
-            ))}
+            )}
           </div>
         )}
       </header>
