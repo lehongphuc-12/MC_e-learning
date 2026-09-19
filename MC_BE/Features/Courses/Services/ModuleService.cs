@@ -2,6 +2,7 @@ using MC_BE.Core.Entities;
 using MC_BE.Features.Courses.DTOs;
 using MC_BE.Features.Courses.Services.Interfaces;
 using MC_BE.Shared.Repositories.Interfaces;
+using Microsoft.EntityFrameworkCore;
 
 namespace MC_BE.Features.Courses.Services;
 
@@ -29,7 +30,7 @@ public class ModuleService : IModuleService
 
     private static ModuleDto MapToDto(Module module)
     {
-        var lessons = (module.Lessons ?? new List<Lesson>())
+        var lessons = (module.Lessons ?? Enumerable.Empty<Lesson>())
             .OrderBy(l => l.OrderIndex)
             .Select(l => new LessonDto
             {
@@ -65,69 +66,29 @@ public class ModuleService : IModuleService
 
     public async Task<List<ModuleDto>> GetModulesByCourseIdAsync(int courseId)
     {
-        var modules = await _moduleRepository.FindAsync(
-            m => m.CourseId == courseId,
-            m => m.Lessons);
-
-        // Fetch lessons with materials for Mapping
-        var lessonIds = modules.SelectMany(m => m.Lessons ?? Enumerable.Empty<Lesson>()).Select(l => l.LessonId).ToList();
-        var lessonsWithMaterials = await _lessonRepository.FindAsync(
-            l => lessonIds.Contains(l.LessonId),
-            l => l.CourseMaterials);
-        var lessonMaterialDict = lessonsWithMaterials.ToDictionary(l => l.LessonId, l => l.CourseMaterials);
-
-        foreach (var mod in modules)
-        {
-            if (mod.Lessons != null)
-            {
-                foreach (var les in mod.Lessons)
-                {
-                    if (lessonMaterialDict.TryGetValue(les.LessonId, out var materials))
-                    {
-                        les.CourseMaterials = materials;
-                    }
-                }
-            }
-        }
-
-        return modules
+        var modules = await _moduleRepository.GetQueryable()
+            .Include(m => m.Lessons)
+                .ThenInclude(l => l.CourseMaterials)
+            .Where(m => m.CourseId == courseId)
             .OrderBy(m => m.OrderIndex)
-            .Select(MapToDto)
-            .ToList();
+            .ToListAsync();
+
+        return modules.Select(MapToDto).ToList();
     }
 
     public async Task<ModuleDto?> GetModuleByIdAsync(int moduleId)
     {
-        var modules = await _moduleRepository.FindAsync(
-            m => m.ModuleId == moduleId,
-            m => m.Lessons);
-
-        var module = modules.FirstOrDefault();
-        if (module == null) return null;
-
-        var lessonIds = (module.Lessons ?? new List<Lesson>()).Select(l => l.LessonId).ToList();
-        var lessonsWithMaterials = await _lessonRepository.FindAsync(
-            l => lessonIds.Contains(l.LessonId),
-            l => l.CourseMaterials);
-        var lessonMaterialDict = lessonsWithMaterials.ToDictionary(l => l.LessonId, l => l.CourseMaterials);
-
-        if (module.Lessons != null)
-        {
-            foreach (var les in module.Lessons)
-            {
-                if (lessonMaterialDict.TryGetValue(les.LessonId, out var materials))
-                {
-                    les.CourseMaterials = materials;
-                }
-            }
-        }
+        var module = await _moduleRepository.GetQueryable()
+            .Include(m => m.Lessons)
+                .ThenInclude(l => l.CourseMaterials)
+            .FirstOrDefaultAsync(m => m.ModuleId == moduleId);
 
         return MapToDto(module);
     }
 
     public async Task<ModuleDto?> CreateModuleAsync(int courseId, int instructorId, CreateModuleRequest request)
     {
-        var course = await _courseRepository.GetByIdAsync(courseId);
+        var course = await _courseRepository.FirstOrDefaultAsync(c => c.CourseId == courseId);
         if (course == null || course.InstructorId != instructorId) return null;
 
         var module = new Module
@@ -148,12 +109,13 @@ public class ModuleService : IModuleService
 
     public async Task<ModuleDto?> UpdateModuleAsync(int moduleId, int instructorId, UpdateModuleRequest request)
     {
-        var modules = await _moduleRepository.FindAsync(
-            m => m.ModuleId == moduleId,
-            m => m.Course,
-            m => m.Lessons);
+        var module = await _moduleRepository.GetQueryable()
+            .Include(m => m.Course)
+            .Include(m => m.Lessons)
+                .ThenInclude(l => l.CourseMaterials)
+            .FirstOrDefaultAsync(m => m.ModuleId == moduleId);
 
-        var module = modules.FirstOrDefault();
+        if (module == null || module.Course == null || module.Course.InstructorId != instructorId) return null;
 
         if (module == null || module.Course?.InstructorId != instructorId) return null;
 
@@ -170,22 +132,17 @@ public class ModuleService : IModuleService
 
     public async Task<bool> DeleteModuleAsync(int moduleId, int instructorId)
     {
-        var modules = await _moduleRepository.FindAsync(
-            m => m.ModuleId == moduleId,
-            m => m.Course,
-            m => m.Lessons);
+        var module = await _moduleRepository.GetQueryable()
+            .Include(m => m.Course)
+            .Include(m => m.Lessons)
+            .FirstOrDefaultAsync(m => m.ModuleId == moduleId);
 
-        var module = modules.FirstOrDefault();
-
-        if (module == null || module.Course?.InstructorId != instructorId) return false;
+        if (module == null || module.Course == null || module.Course.InstructorId != instructorId) return false;
 
         // Cascade delete all lessons belonging to this module
         if (module.Lessons != null && module.Lessons.Any())
         {
-            foreach (var lesson in module.Lessons)
-            {
-                _lessonRepository.Remove(lesson);
-            }
+            _lessonRepository.RemoveRange(module.Lessons);
         }
 
         _moduleRepository.Remove(module);
@@ -195,7 +152,7 @@ public class ModuleService : IModuleService
 
     public async Task<List<ModuleDto>> CreateModulesBulkAsync(int courseId, int instructorId, List<BulkImportModuleItemRequest> requests)
     {
-        var course = await _courseRepository.GetByIdAsync(courseId);
+        var course = await _courseRepository.FirstOrDefaultAsync(c => c.CourseId == courseId);
         if (course == null || course.InstructorId != instructorId) return new List<ModuleDto>();
 
         var createdModules = new List<Module>();

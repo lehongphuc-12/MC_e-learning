@@ -3,6 +3,7 @@ using MC_BE.Core.Enums;
 using MC_BE.Features.Courses.DTOs;
 using MC_BE.Features.Courses.Services.Interfaces;
 using MC_BE.Shared.Repositories.Interfaces;
+using Microsoft.EntityFrameworkCore;
 
 namespace MC_BE.Features.Courses.Services;
 
@@ -17,17 +18,17 @@ public class CategoryService : ICategoryService
 
     public async Task<List<CategoryDto>> GetAllCategoriesAsync()
     {
-        var categories = await _categoryRepository.FindAsync(c => c.Status == CategoryStatus.ACTIVE);
-        return categories
+        return await _categoryRepository.GetQueryable()
+            .Where(c => c.Status == CategoryStatus.ACTIVE)
             .OrderBy(c => c.CategoryName)
             .Select(c => new CategoryDto
             {
-                CategoryId   = c.CategoryId,
+                CategoryId = c.CategoryId,
                 CategoryName = c.CategoryName,
-                Description  = c.Description,
-                Status       = c.Status.ToString(),
+                Description = c.Description,
+                Status = c.Status.ToString(),
             })
-            .ToList();
+            .ToListAsync(); 
     }
 
     public async Task<CategoryDto?> GetCategoryByIdAsync(int categoryId)

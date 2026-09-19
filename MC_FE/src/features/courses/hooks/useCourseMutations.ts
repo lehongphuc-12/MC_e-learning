@@ -161,3 +161,25 @@ export function useBulkCreateCourses() {
     },
   });
 }
+
+// ---------------------------------------------------------------------------
+// Hook 6: useSubmitForApproval
+// ---------------------------------------------------------------------------
+export function useSubmitForApproval() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ courseId, note }: { courseId: number; note?: string }) =>
+      courseApi.submitForApproval(courseId, note),
+
+    onSuccess: (updatedCourse) => {
+      queryClient.setQueryData(
+        courseQueryKeys.instructorCourses.detail(updatedCourse.courseId),
+        updatedCourse
+      );
+      queryClient.invalidateQueries({
+        queryKey: courseQueryKeys.instructorCourses.all,
+      });
+    },
+  });
+}

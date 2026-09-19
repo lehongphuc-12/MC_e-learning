@@ -75,7 +75,16 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   // State loading flag per tab
   const [tabLoading, setTabLoading] = useState<boolean>(false);
 
-  // Lazy load data on activeTab change
+  // Fetch data on activeTab change or polling
+  const refreshCoursesData = async () => {
+    try {
+      const coursesRes = await adminApi.getCourses();
+      setCourses(coursesRes);
+    } catch (err) {
+      console.error('Lỗi tự động tải danh sách khóa học:', err);
+    }
+  };
+
   useEffect(() => {
     const fetchTabData = async () => {
       setTabLoading(true);
@@ -102,10 +111,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
             break;
 
           case 'courses':
-            if (!Array.isArray(courses) || courses.length === 0) {
-              const coursesRes = await adminApi.getCourses();
-              setCourses(Array.isArray(coursesRes) ? coursesRes : []);
-            }
+            // Always fetch fresh courses data on entering tab
+            await refreshCoursesData();
             break;
 
           case 'categories':
@@ -141,6 +148,15 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     };
 
     fetchTabData();
+
+    // Auto-polling every 10 seconds for real-time updates without F5
+    const interval = setInterval(() => {
+      if (activeTab === 'courses') {
+        refreshCoursesData();
+      }
+    }, 10000);
+
+    return () => clearInterval(interval);
   }, [activeTab]);
 
   const [isUsersLoading, setIsUsersLoading] = useState(false);
@@ -324,7 +340,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     onToast?.('Đã lưu cấu hình', 'Các thiết lập hệ thống đã được cập nhật.', 'success');
   };
 
-  const pendingApprovalsCount = (Array.isArray(courses) ? courses : []).filter((c) => c.status === 'pending').length;
+  const pendingApprovalsCount = Array.isArray(courses)
+    ? courses.filter((c) => c?.status === 'pending').length
+    : 0;
 
   return (
     <AdminLayout
@@ -369,6 +387,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
           onApproveCourse={handleApproveCourse}
           onRejectCourse={handleRejectCourse}
           onToggleFeatured={handleToggleFeatured}
+          onRefresh={refreshCoursesData}
         />
       )}
 

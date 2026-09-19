@@ -174,11 +174,13 @@ export const courseApi = {
   },
 
   // -------------------------------------------------------------------------
-  // READ — Enrolled courses with learning progress for current learner
-  // GET /courses/learned-courses
+  // SUBMIT FOR APPROVAL — POST /courses/:id/submit-approval
   // -------------------------------------------------------------------------
-  async getLearnedCourses(): Promise<LearnedCourse[]> {
-    const envelope = await request<ApiEnvelope<LearnedCourse[]>>('/courses/learned-courses');
+  async submitForApproval(courseId: number, submissionNote?: string): Promise<Course> {
+    const envelope = await request<ApiEnvelope<Course>>(`/courses/${courseId}/submit-approval`, {
+      method: 'POST',
+      body: JSON.stringify({ submissionNote }),
+    });
     return envelope.data;
   },
 };

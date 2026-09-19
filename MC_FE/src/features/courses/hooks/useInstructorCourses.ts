@@ -63,7 +63,8 @@ export function useInstructorCourses(params: CourseListParams = {}, enabled = tr
     queryFn: () => courseApi.getInstructorCourses(params),
     enabled,
     placeholderData: (prev) => prev,
-    staleTime: 1000 * 60 * 5,
+    staleTime: 5000,
+    refetchInterval: 10000, // Auto-refresh every 10 seconds to reflect Admin approval changes
   });
 }
 

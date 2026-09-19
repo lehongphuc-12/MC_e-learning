@@ -16,7 +16,7 @@
  *   PUBLISHED  = live and enrollable by learners
  *   ARCHIVED   = hidden from catalog, data preserved
  */
-export type CourseStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+export type CourseStatus = 'DRAFT' | 'PENDING_APPROVAL' | 'PUBLISHED' | 'REJECTED' | 'ARCHIVED';
 
 /**
  * Maps to the COURSE.Level column.
@@ -61,6 +61,12 @@ export interface Course {
   status: CourseStatus;       // COURSE.Status (DEFAULT 'DRAFT')
   createdAt: string;          // COURSE.CreatedAt (ISO 8601 string from backend)
   updatedAt: string;          // COURSE.UpdatedAt
+  submittedAt?: string | null;
+  approvedAt?: string | null;
+  approvedById?: number | null;
+  approvedByName?: string | null;
+  submissionNote?: string | null;
+  rejectionReason?: string | null;
 
   // Joined/computed fields the backend may include in list responses
   categoryName?: string;      // Joined from CATEGORY.CategoryName
@@ -84,6 +90,8 @@ export interface CreateCourseDto {
   price: number;              // Required: >= 0
   level?: CourseLevel;        // Optional
   status?: CourseStatus;      // Default: 'DRAFT'
+  submissionNote?: string;
+  submitForApproval?: boolean;
 }
 
 /**
@@ -152,7 +160,9 @@ export interface CourseFormValues {
   thumbnailUrl: string;
   price: string;           // Coerce to number on submit
   level: CourseLevel | '';
-  status: CourseStatus;    // 'DRAFT' | 'PUBLISHED' | 'ARCHIVED'
+  status: CourseStatus;    // 'DRAFT' | 'PENDING_APPROVAL' | 'PUBLISHED' | 'REJECTED' | 'ARCHIVED'
+  submissionNote?: string;
+  submitForApproval?: boolean;
 }
 
 // ---------------------------------------------------------------------------

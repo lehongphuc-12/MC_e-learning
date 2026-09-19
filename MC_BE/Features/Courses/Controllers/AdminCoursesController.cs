@@ -24,6 +24,12 @@ public class AdminCoursesController : ControllerBase
         _courseService = courseService;
     }
 
+    private int? GetCurrentAdminId()
+    {
+        var claim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        return int.TryParse(claim, out var id) ? id : null;
+    }
+
     // -------------------------------------------------------------------------
     // GET /api/admin/courses
     // Returns ALL courses with full pagination + filtering (Admin view)
@@ -38,5 +44,74 @@ public class AdminCoursesController : ControllerBase
     {
         var result = await _courseService.GetAllCoursesAsync(page, limit, status, categoryId, search);
         return Ok(ApiResponse<CourseListResponse>.SuccessResponse(result));
+    }
+
+    // -------------------------------------------------------------------------
+    // GET /api/admin/courses/pending
+    // Returns courses with PENDING_APPROVAL status (Admin Tab 1)
+    // -------------------------------------------------------------------------
+    [HttpGet("pending")]
+    public async Task<ActionResult<ApiResponse<CourseListResponse>>> GetPendingCourses(
+        [FromQuery] int page = 1,
+        [FromQuery] int limit = 10,
+        [FromQuery] int? categoryId = null,
+        [FromQuery] string? search = null)
+    {
+        var result = await _courseService.GetAllCoursesAsync(page, limit, "PENDING_APPROVAL", categoryId, search);
+        return Ok(ApiResponse<CourseListResponse>.SuccessResponse(result));
+    }
+
+    // -------------------------------------------------------------------------
+    // GET /api/admin/courses/approved
+    // Returns courses with PUBLISHED status (Admin Tab 2)
+    // -------------------------------------------------------------------------
+    [HttpGet("approved")]
+    public async Task<ActionResult<ApiResponse<CourseListResponse>>> GetApprovedCourses(
+        [FromQuery] int page = 1,
+        [FromQuery] int limit = 10,
+        [FromQuery] int? categoryId = null,
+        [FromQuery] string? search = null)
+    {
+        var result = await _courseService.GetAllCoursesAsync(page, limit, "PUBLISHED", categoryId, search);
+        return Ok(ApiResponse<CourseListResponse>.SuccessResponse(result));
+    }
+
+    // -------------------------------------------------------------------------
+    // POST /api/admin/courses/{id}/approve
+    // Approves and publishes the course
+    // -------------------------------------------------------------------------
+    [HttpPost("{id:int}/approve")]
+    public async Task<ActionResult<ApiResponse<CourseDto>>> ApproveCourse(int id)
+    {
+        var adminId = GetCurrentAdminId();
+        if (adminId is null)
+            return Unauthorized(ApiResponse<CourseDto>.FailureResponse("Unauthorized."));
+
+        var result = await _courseService.ApproveCourseAsync(id, adminId.Value);
+        if (result is null)
+            return NotFound(ApiResponse<CourseDto>.FailureResponse("Khóa học không tồn tại."));
+
+        return Ok(ApiResponse<CourseDto>.SuccessResponse(result, "Phê duyệt và xuất bản khóa học thành công."));
+    }
+
+    // -------------------------------------------------------------------------
+    // POST /api/admin/courses/{id}/reject
+    // Rejects the course with a mandatory reason
+    // -------------------------------------------------------------------------
+    [HttpPost("{id:int}/reject")]
+    public async Task<ActionResult<ApiResponse<CourseDto>>> RejectCourse(int id, [FromBody] RejectCourseRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Reason))
+            return BadRequest(ApiResponse<CourseDto>.FailureResponse("Lý do từ chối không được để trống."));
+
+        var adminId = GetCurrentAdminId();
+        if (adminId is null)
+            return Unauthorized(ApiResponse<CourseDto>.FailureResponse("Unauthorized."));
+
+        var result = await _courseService.RejectCourseAsync(id, adminId.Value, request.Reason);
+        if (result is null)
+            return NotFound(ApiResponse<CourseDto>.FailureResponse("Khóa học không tồn tại."));
+
+        return Ok(ApiResponse<CourseDto>.SuccessResponse(result, "Đã từ chối khóa học và gửi lý do cho Giảng viên."));
     }
 }

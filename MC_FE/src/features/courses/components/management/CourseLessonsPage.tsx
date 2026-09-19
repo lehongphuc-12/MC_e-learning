@@ -24,9 +24,15 @@ import {
   FolderPlus,
   Paperclip,
   ClipboardList,
-Plus,
+  Plus,
+  Users,
+  GripVertical,
+  Send,
 } from 'lucide-react';
+import { CourseStudentsModal } from './CourseStudentsModal';
+import { IncompleteCourseModal } from './IncompleteCourseModal';
 import { useCourseDetail } from '../../hooks/useInstructorCourses';
+import { useSubmitForApproval } from '../../hooks/useCourseMutations';
 import { useQuizzesByCourse } from "../../../quizzes/hooks/useQuiz";
 import {
   useCourseLessons,
@@ -66,6 +72,10 @@ export const CourseLessonsPage: React.FC = () => {
   // Accordion open state for modules
   const [collapsedModules, setCollapsedModules] = useState<Record<number, boolean>>({});
 
+  // Drag & drop state for lessons
+  const [draggedLesson, setDraggedLesson] = useState<Lesson | null>(null);
+  const [dragOverLessonId, setDragOverLessonId] = useState<number | null>(null);
+
   // Lesson modal states
   const [isLessonModalOpen, setIsLessonModalOpen] = useState(false);
   const [isLessonImportModalOpen, setIsLessonImportModalOpen] = useState(false);
@@ -82,6 +92,45 @@ export const CourseLessonsPage: React.FC = () => {
   // Material modal state
   const [materialTarget, setMaterialTarget] = useState<{ lessonId?: number | null; lessonTitle?: string | null } | null>(null);
 
+  // Submit for Approval Mutation & Incomplete State
+  const { mutate: submitForApproval, isPending: isSubmittingForApproval } = useSubmitForApproval();
+  const [isIncompleteModalOpen, setIsIncompleteModalOpen] = useState(false);
+  const [missingRequirements, setMissingRequirements] = useState<string[]>([]);
+  const [approvalSuccessMessage, setApprovalSuccessMessage] = useState<string | null>(null);
+
+  const handleSendForApproval = () => {
+    const missing: string[] = [];
+    if (!course?.title || !course.title.trim()) missing.push('Tên khóa học chưa điền');
+    if (!course?.categoryId) missing.push('Chưa chọn Danh mục khóa học');
+    if (!course?.description || !course.description.trim()) missing.push('Mô tả khóa học chưa có');
+    if (modules.length === 0) missing.push('Chưa tạo Chương học (Module) nào');
+    if (lessons.length === 0) missing.push('Chưa tạo Bài học (Lesson) nào');
+
+    if (missing.length > 0) {
+      setMissingRequirements(missing);
+      setIsIncompleteModalOpen(true);
+      return;
+    }
+
+    submitForApproval(
+      { courseId },
+      {
+        onSuccess: () => {
+          setApprovalSuccessMessage('Khóa học đã được gửi cho Admin phê duyệt thành công!');
+          setTimeout(() => setApprovalSuccessMessage(null), 5000);
+        },
+        onError: (err: any) => {
+          const msg = err?.message || 'Không thể gửi duyệt bài. Vui lòng kiểm tra lại.';
+          setMissingRequirements([msg]);
+          setIsIncompleteModalOpen(true);
+        },
+      }
+    );
+  };
+
+  // Student list modal state
+  const [isStudentsModalOpen, setIsStudentsModalOpen] = useState(false);
+
   // Lesson Mutations
   const { mutate: createLesson, isPending: isCreatingLesson } = useCreateLesson(courseId);
   const { mutate: updateLesson, isPending: isUpdatingLesson } = useUpdateLesson(courseId);
@@ -96,6 +145,82 @@ export const CourseLessonsPage: React.FC = () => {
 
   const toggleModuleCollapse = (moduleId: number) => {
     setCollapsedModules((prev) => ({ ...prev, [moduleId]: !prev[moduleId] }));
+  };
+
+  // Drag & Drop Lesson Handlers
+  const handleLessonDragStart = (e: React.DragEvent, lesson: Lesson) => {
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(lesson.lessonId));
+    setDraggedLesson(lesson);
+  };
+
+  const handleLessonDragOver = (e: React.DragEvent, targetLesson: Lesson) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverLessonId !== targetLesson.lessonId) {
+      setDragOverLessonId(targetLesson.lessonId);
+    }
+  };
+
+  const handleLessonDragEnd = () => {
+    setDraggedLesson(null);
+    setDragOverLessonId(null);
+  };
+
+  const handleLessonDrop = (e: React.DragEvent, targetLesson: Lesson) => {
+    e.preventDefault();
+    setDragOverLessonId(null);
+
+    if (!draggedLesson || draggedLesson.lessonId === targetLesson.lessonId) {
+      setDraggedLesson(null);
+      return;
+    }
+
+    const targetModuleId = targetLesson.moduleId;
+
+    // Get all lessons in target module sorted by current orderIndex
+    const moduleLessons = lessons
+      .filter((l) => l.moduleId === targetModuleId)
+      .sort((a, b) => a.orderIndex - b.orderIndex);
+
+    let reordered: Lesson[] = [...moduleLessons];
+
+    const draggedIdx = reordered.findIndex((l) => l.lessonId === draggedLesson.lessonId);
+    const targetIdx = reordered.findIndex((l) => l.lessonId === targetLesson.lessonId);
+
+    if (draggedIdx !== -1 && targetIdx !== -1) {
+      // Reorder within the same module
+      const [moved] = reordered.splice(draggedIdx, 1);
+      reordered.splice(targetIdx, 0, moved);
+    } else {
+      // Moving from another module into target module
+      const filtered = reordered.filter((l) => l.lessonId !== draggedLesson.lessonId);
+      const insertIdx = targetIdx !== -1 ? targetIdx : filtered.length;
+      filtered.splice(insertIdx, 0, { ...draggedLesson, moduleId: targetModuleId });
+      reordered = filtered;
+    }
+
+    // Update orderIndex for each lesson whose index or moduleId changed
+    reordered.forEach((l, index) => {
+      const newOrderIndex = index + 1;
+      if (l.orderIndex !== newOrderIndex || l.moduleId !== targetModuleId) {
+        updateLesson({
+          lessonId: l.lessonId,
+          dto: {
+            title: l.title,
+            description: l.description,
+            durationMinutes: l.durationMinutes,
+            isPreview: l.isPreview,
+            status: l.status,
+            videoUrl: l.videoUrl,
+            moduleId: targetModuleId,
+            orderIndex: newOrderIndex,
+          },
+        });
+      }
+    });
+
+    setDraggedLesson(null);
   };
 
   // Lesson actions
@@ -238,18 +363,18 @@ export const CourseLessonsPage: React.FC = () => {
                 <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
                   {course?.title}
                 </h1>
-                <div className="mt-2 flex items-center gap-3 text-xs text-indigo-100/80">
-                  <span className="flex items-center gap-1 font-semibold text-indigo-200">
+                <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-indigo-100/80">
+                  <span className="flex items-center gap-1 font-semibold text-indigo-200 whitespace-nowrap">
                     <Layers className="h-3.5 w-3.5" />
                     {modules.length} Chương
                   </span>
                   <span>•</span>
-                  <span className="flex items-center gap-1">
+                  <span className="flex items-center gap-1 font-semibold text-indigo-200 whitespace-nowrap">
                     <BookOpen className="h-3.5 w-3.5" />
                     {lessons.length} Bài học
                   </span>
                   <span>•</span>
-                  <span className="flex items-center gap-1">
+                  <span className="flex items-center gap-1 font-semibold text-indigo-200 whitespace-nowrap">
                     <Clock className="h-3.5 w-3.5" />
                     {totalDuration} phút
                   </span>
@@ -264,52 +389,70 @@ export const CourseLessonsPage: React.FC = () => {
             </div>
 
             {/* Action Buttons */}
-            <div className="flex flex-wrap items-center gap-2.5">
-              <button
-                onClick={() => navigate(`/courses/${courseId}/learn`)}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600/90 backdrop-blur-md border border-emerald-400/30 px-4 py-2.5 text-xs font-semibold text-white hover:bg-emerald-500 active:scale-95 transition-all cursor-pointer shadow-lg shadow-emerald-600/20"
-              >
-                <PlayCircle className="h-4 w-4" />
-                Vào xem video bài học
-              </button>
-              <button
-                onClick={() => setMaterialTarget({ lessonId: null })}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-500/20 backdrop-blur-md border border-amber-400/30 px-3.5 py-2.5 text-xs font-semibold text-amber-200 hover:bg-amber-500/30 active:scale-95 transition-all cursor-pointer"
-              >
-                <Paperclip className="h-4 w-4 text-amber-300" />
-                Tài liệu khóa học
-              </button>
-              <button
-                onClick={() => setIsModuleImportModalOpen(true)}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 px-3.5 py-2.5 text-xs font-semibold text-white hover:bg-white/20 active:scale-95 transition-all cursor-pointer"
-              >
-                <FileSpreadsheet className="h-4 w-4 text-indigo-300" />
-                Nhập từ CSV
-              </button>
+            <div className="flex flex-wrap items-center gap-2 max-w-2xl justify-start xl:justify-end">
+              {(course?.status === 'DRAFT' || course?.status === 'REJECTED') && (
+                <button
+                  onClick={handleSendForApproval}
+                  disabled={isSubmittingForApproval}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-3.5 py-2 text-xs font-semibold text-white shadow-md shadow-amber-500/30 hover:from-amber-400 hover:to-orange-400 active:scale-95 transition-all cursor-pointer whitespace-nowrap shrink-0 disabled:opacity-50"
+                >
+                  <Send className="h-4 w-4" />
+                  <span>Gửi Admin duyệt</span>
+                </button>
+              )}
 
               <button
                 onClick={handleOpenCreateModule}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-semibold text-white shadow-lg shadow-indigo-500/30 hover:bg-indigo-500 active:scale-95 transition-all cursor-pointer"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-3.5 py-2 text-xs font-semibold text-white shadow-md shadow-indigo-600/30 hover:bg-indigo-500 active:scale-95 transition-all cursor-pointer whitespace-nowrap shrink-0"
               >
                 <FolderPlus className="h-4 w-4" />
-                Thêm Chương mới
+                <span>Thêm Chương mới</span>
               </button>
-              <button
-  onClick={() => navigate(`/instructor/courses/${courseId}/quizzes`)}
-  className="inline-flex items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-xs font-semibold text-white shadow-lg shadow-violet-500/20 hover:bg-violet-500 active:scale-95 transition-all cursor-pointer"
->
-  <FileSpreadsheet className="h-4 w-4" />
-  Quản lý Quiz
-</button>
               {modules.length > 0 && (
                 <button
                   onClick={() => handleOpenCreateLesson(modules[0]?.moduleId)}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 px-4 py-2.5 text-xs font-semibold text-white shadow-lg shadow-blue-500/30 hover:from-blue-400 hover:to-indigo-400 active:scale-95 transition-all cursor-pointer"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white shadow-md shadow-blue-600/30 hover:bg-blue-500 active:scale-95 transition-all cursor-pointer whitespace-nowrap shrink-0"
                 >
                   <PlusCircle className="h-4 w-4" />
-                  Thêm Bài học
+                  <span>Thêm Bài học</span>
                 </button>
               )}
+              <button
+                onClick={() => navigate(`/courses/${courseId}/learn`)}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-semibold text-white shadow-md shadow-emerald-600/30 hover:bg-emerald-500 active:scale-95 transition-all cursor-pointer whitespace-nowrap shrink-0"
+              >
+                <PlayCircle className="h-4 w-4" />
+                <span>Vào xem video bài học</span>
+              </button>
+
+              <button
+                onClick={() => setIsStudentsModalOpen(true)}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 px-3.5 py-2 text-xs font-semibold text-white hover:bg-white/20 active:scale-95 transition-all cursor-pointer whitespace-nowrap shrink-0"
+              >
+                <Users className="h-4 w-4 text-cyan-300" />
+                <span>Danh sách học viên</span>
+              </button>
+              <button
+                onClick={() => navigate(`/instructor/courses/${courseId}/quizzes`)}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 px-3.5 py-2 text-xs font-semibold text-white hover:bg-white/20 active:scale-95 transition-all cursor-pointer whitespace-nowrap shrink-0"
+              >
+                <ClipboardList className="h-4 w-4 text-violet-300" />
+                <span>Quản lý Quiz</span>
+              </button>
+              <button
+                onClick={() => setMaterialTarget({ lessonId: null })}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 px-3.5 py-2 text-xs font-semibold text-white hover:bg-white/20 active:scale-95 transition-all cursor-pointer whitespace-nowrap shrink-0"
+              >
+                <Paperclip className="h-4 w-4 text-amber-300" />
+                <span>Tài liệu khóa học</span>
+              </button>
+              <button
+                onClick={() => setIsModuleImportModalOpen(true)}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 px-3.5 py-2 text-xs font-semibold text-white hover:bg-white/20 active:scale-95 transition-all cursor-pointer whitespace-nowrap shrink-0"
+              >
+                <FileSpreadsheet className="h-4 w-4 text-emerald-300" />
+                <span>Nhập từ CSV</span>
+              </button>
             </div>
           </div>
         </div>
@@ -700,92 +843,121 @@ export const CourseLessonsPage: React.FC = () => {
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                              {moduleLessons.map((lesson) => (
-                                <tr key={lesson.lessonId} className="group hover:bg-indigo-50/20 transition-colors">
-                                  <td className="px-6 py-3.5 font-bold text-slate-700">#{lesson.orderIndex}</td>
-                                  <td className="px-6 py-3.5">
-                                    <button
-                                      onClick={() => navigate(`/courses/${courseId}/learn?lessonId=${lesson.lessonId}`)}
-                                      className="group/title text-left flex items-start gap-2.5 cursor-pointer"
-                                    >
-                                      <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 group-hover/title:bg-indigo-600 group-hover/title:text-white transition-all shadow-xs">
-                                        <PlayCircle className="h-3.5 w-3.5" />
+                              {moduleLessons.map((lesson) => {
+                                const isDragging = draggedLesson?.lessonId === lesson.lessonId;
+                                const isDragOver = dragOverLessonId === lesson.lessonId && !isDragging;
+
+                                return (
+                                  <tr
+                                    key={lesson.lessonId}
+                                    draggable
+                                    onDragStart={(e) => handleLessonDragStart(e, lesson)}
+                                    onDragOver={(e) => handleLessonDragOver(e, lesson)}
+                                    onDragEnd={handleLessonDragEnd}
+                                    onDrop={(e) => handleLessonDrop(e, lesson)}
+                                    className={`group transition-all duration-150 ${
+                                      isDragging
+                                        ? 'opacity-40 bg-indigo-50/60 border-2 border-dashed border-indigo-400'
+                                        : isDragOver
+                                        ? 'border-t-2 border-indigo-600 bg-indigo-100/50 shadow-xs'
+                                        : 'hover:bg-indigo-50/20'
+                                    }`}
+                                  >
+                                    <td className="px-5 py-3.5 font-bold text-slate-700">
+                                      <div className="flex items-center gap-1.5">
+                                        <div
+                                          className="p-1 text-slate-300 group-hover:text-slate-500 hover:text-indigo-600 cursor-grab active:cursor-grabbing transition-colors"
+                                          title="Nhấp giữ & kéo thả để thay đổi thứ tự bài học"
+                                        >
+                                          <GripVertical className="h-4 w-4" />
+                                        </div>
+                                        <span>#{lesson.orderIndex}</span>
                                       </div>
-                                      <div>
-                                        <p className="font-semibold text-slate-900 group-hover/title:text-indigo-600 transition-colors text-sm line-clamp-1">
-                                          {lesson.title}
-                                        </p>
-                                        {lesson.description && (
-                                          <p className="text-xs text-slate-500 line-clamp-1 mt-0.5">
-                                            {lesson.description}
+                                    </td>
+                                    <td className="px-6 py-3.5">
+                                      <button
+                                        onClick={() => navigate(`/courses/${courseId}/learn?lessonId=${lesson.lessonId}`)}
+                                        className="group/title text-left flex items-start gap-2.5 cursor-pointer"
+                                      >
+                                        <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 group-hover/title:bg-indigo-600 group-hover/title:text-white transition-all shadow-xs">
+                                          <PlayCircle className="h-3.5 w-3.5" />
+                                        </div>
+                                        <div>
+                                          <p className="font-semibold text-slate-900 group-hover/title:text-indigo-600 transition-colors text-sm line-clamp-1">
+                                            {lesson.title}
                                           </p>
-                                        )}
-                                      </div>
-                                    </button>
-                                  </td>
-                                  <td className="px-4 py-3.5 font-medium text-slate-700">
-                                    {lesson.durationMinutes} phút
-                                  </td>
-                                  <td className="px-4 py-3.5">
-                                    {lesson.isPreview ? (
-                                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 font-semibold text-emerald-700 border border-emerald-200/80 text-[11px]">
-                                        <Eye className="h-3 w-3" /> Xem thử
-                                      </span>
-                                    ) : (
-                                      <span className="text-slate-400 font-medium">—</span>
-                                    )}
-                                  </td>
-                                  <td className="px-4 py-3.5">
-                                    {lesson.videoUrl ? (
-                                      <div className="flex items-center gap-2">
+                                          {lesson.description && (
+                                            <p className="text-xs text-slate-500 line-clamp-1 mt-0.5">
+                                              {lesson.description}
+                                            </p>
+                                          )}
+                                        </div>
+                                      </button>
+                                    </td>
+                                    <td className="px-4 py-3.5 font-medium text-slate-700">
+                                      {lesson.durationMinutes} phút
+                                    </td>
+                                    <td className="px-4 py-3.5">
+                                      {lesson.isPreview ? (
+                                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 font-semibold text-emerald-700 border border-emerald-200/80 text-[11px]">
+                                          <Eye className="h-3 w-3" /> Xem thử
+                                        </span>
+                                      ) : (
+                                        <span className="text-slate-400 font-medium">—</span>
+                                      )}
+                                    </td>
+                                    <td className="px-4 py-3.5">
+                                      {lesson.videoUrl ? (
+                                        <div className="flex items-center gap-2">
+                                          <button
+                                            onClick={() => navigate(`/courses/${courseId}/learn?lessonId=${lesson.lessonId}`)}
+                                            className="inline-flex items-center gap-1 rounded-xl bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-100 border border-blue-200/80 transition-all cursor-pointer"
+                                          >
+                                            <PlayCircle className="h-3 w-3 text-blue-600" />
+                                            <span>Xem video</span>
+                                          </button>
+                                          <a
+                                            href={lesson.videoUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            title="Mở link YouTube bên ngoài"
+                                            className="p-1 text-slate-400 hover:text-blue-600 transition-colors"
+                                          >
+                                            <ExternalLink className="h-3.5 w-3.5" />
+                                          </a>
+                                        </div>
+                                      ) : (
+                                        <span className="text-slate-400">Chưa gắn video</span>
+                                      )}
+                                    </td>
+                                    <td className="px-6 py-3.5 text-right">
+                                      <div className="flex items-center justify-end gap-1.5">
                                         <button
-                                          onClick={() => navigate(`/courses/${courseId}/learn?lessonId=${lesson.lessonId}`)}
-                                          className="inline-flex items-center gap-1 rounded-xl bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-100 border border-blue-200/80 transition-all cursor-pointer"
+                                          onClick={() => setMaterialTarget({ lessonId: lesson.lessonId, lessonTitle: lesson.title })}
+                                          title="Tài liệu bài học"
+                                          className="rounded-xl p-1.5 text-slate-400 hover:bg-amber-50 hover:text-amber-600 active:scale-95 transition-all cursor-pointer"
                                         >
-                                          <PlayCircle className="h-3 w-3 text-blue-600" />
-                                          <span>Xem video</span>
+                                          <Paperclip className="h-4 w-4" />
                                         </button>
-                                        <a
-                                          href={lesson.videoUrl}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          title="Mở link YouTube bên ngoài"
-                                          className="p-1 text-slate-400 hover:text-blue-600 transition-colors"
+                                        <button
+                                          onClick={() => handleOpenEditLesson(lesson)}
+                                          title="Chỉnh sửa bài học"
+                                          className="rounded-xl p-1.5 text-slate-400 hover:bg-blue-50 hover:text-blue-600 active:scale-95 transition-all cursor-pointer"
                                         >
-                                          <ExternalLink className="h-3.5 w-3.5" />
-                                        </a>
+                                          <Edit2 className="h-4 w-4" />
+                                        </button>
+                                        <button
+                                          onClick={() => setLessonToDelete(lesson)}
+                                          title="Xóa bài học"
+                                          className="rounded-xl p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500 active:scale-95 transition-all cursor-pointer"
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </button>
                                       </div>
-                                    ) : (
-                                      <span className="text-slate-400">Chưa gắn video</span>
-                                    )}
-                                  </td>
-                                  <td className="px-6 py-3.5 text-right">
-                                    <div className="flex items-center justify-end gap-1.5">
-                                      <button
-                                        onClick={() => setMaterialTarget({ lessonId: lesson.lessonId, lessonTitle: lesson.title })}
-                                        title="Tài liệu bài học"
-                                        className="rounded-xl p-1.5 text-slate-400 hover:bg-amber-50 hover:text-amber-600 active:scale-95 transition-all cursor-pointer"
-                                      >
-                                        <Paperclip className="h-4 w-4" />
-                                      </button>
-                                      <button
-                                        onClick={() => handleOpenEditLesson(lesson)}
-                                        title="Chỉnh sửa bài học"
-                                        className="rounded-xl p-1.5 text-slate-400 hover:bg-blue-50 hover:text-blue-600 active:scale-95 transition-all cursor-pointer"
-                                      >
-                                        <Edit2 className="h-4 w-4" />
-                                      </button>
-                                      <button
-                                        onClick={() => setLessonToDelete(lesson)}
-                                        title="Xóa bài học"
-                                        className="rounded-xl p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500 active:scale-95 transition-all cursor-pointer"
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                      </button>
-                                    </div>
-                                  </td>
-                                </tr>
-                              ))}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
                             </tbody>
                           </table>
                         </div>
@@ -826,9 +998,37 @@ export const CourseLessonsPage: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {unassignedLessons.map((lesson) => (
-                        <tr key={lesson.lessonId} className="group hover:bg-amber-50/20 transition-colors">
-                          <td className="px-6 py-3.5 font-bold text-slate-700">#{lesson.orderIndex}</td>
+                      {unassignedLessons.map((lesson) => {
+                        const isDragging = draggedLesson?.lessonId === lesson.lessonId;
+                        const isDragOver = dragOverLessonId === lesson.lessonId && !isDragging;
+
+                        return (
+                          <tr
+                            key={lesson.lessonId}
+                            draggable
+                            onDragStart={(e) => handleLessonDragStart(e, lesson)}
+                            onDragOver={(e) => handleLessonDragOver(e, lesson)}
+                            onDragEnd={handleLessonDragEnd}
+                            onDrop={(e) => handleLessonDrop(e, lesson)}
+                            className={`group transition-all duration-150 ${
+                              isDragging
+                                ? 'opacity-40 bg-amber-50/60 border-2 border-dashed border-amber-400'
+                                : isDragOver
+                                ? 'border-t-2 border-amber-600 bg-amber-100/50 shadow-xs'
+                                : 'hover:bg-amber-50/20'
+                            }`}
+                          >
+                            <td className="px-5 py-3.5 font-bold text-slate-700">
+                              <div className="flex items-center gap-1.5">
+                                <div
+                                  className="p-1 text-slate-300 group-hover:text-slate-500 hover:text-amber-600 cursor-grab active:cursor-grabbing transition-colors"
+                                  title="Nhấp giữ & kéo thả để thay đổi thứ tự bài học"
+                                >
+                                  <GripVertical className="h-4 w-4" />
+                                </div>
+                                <span>#{lesson.orderIndex}</span>
+                              </div>
+                            </td>
                           <td className="px-6 py-3.5">
                             <button
                               onClick={() => navigate(`/courses/${courseId}/learn?lessonId=${lesson.lessonId}`)}
@@ -902,7 +1102,8 @@ export const CourseLessonsPage: React.FC = () => {
                             </div>
                           </td>
                         </tr>
-                      ))}
+                      );
+                    })}
                     </tbody>
                   </table>
                 </div>
@@ -1016,6 +1217,31 @@ export const CourseLessonsPage: React.FC = () => {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Enrolled Students Modal */}
+      <CourseStudentsModal
+        isOpen={isStudentsModalOpen}
+        onClose={() => setIsStudentsModalOpen(false)}
+        courseTitle={course?.title}
+      />
+
+      {/* Incomplete Course Modal */}
+      <IncompleteCourseModal
+        isOpen={isIncompleteModalOpen}
+        onClose={() => setIsIncompleteModalOpen(false)}
+        courseTitle={course?.title || ''}
+        courseId={courseId}
+        missingItems={missingRequirements}
+        onGoToLessons={() => setIsIncompleteModalOpen(false)}
+      />
+
+      {/* Approval Success Banner */}
+      {approvalSuccessMessage && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-2xl bg-emerald-600 px-5 py-4 text-white shadow-2xl animate-in fade-in slide-in-from-bottom-5">
+          <Sparkles className="h-5 w-5 text-emerald-200" />
+          <p className="text-xs font-bold">{approvalSuccessMessage}</p>
         </div>
       )}
     </div>
