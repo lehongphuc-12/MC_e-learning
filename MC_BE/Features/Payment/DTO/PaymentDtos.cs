@@ -58,25 +58,33 @@ public class PaymentTransactionDto
 public class PaymentDetailsDto
 {
     public int PaymentId { get; set; }
+
     public int LearnerId { get; set; }
     public string LearnerName { get; set; } = string.Empty;
     public string LearnerEmail { get; set; } = string.Empty;
+
     public int CourseId { get; set; }
     public string CourseTitle { get; set; } = string.Empty;
     public string CourseThumbnailUrl { get; set; } = string.Empty;
     public string CourseDescription { get; set; } = string.Empty;
+
     public int EnrollmentId { get; set; }
     public string EnrollmentStatus { get; set; } = string.Empty;
+
     public decimal Amount { get; set; }
     public string Currency { get; set; } = "VND";
     public string PaymentMethod { get; set; } = "VNPAY";
     public string PaymentStatus { get; set; } = string.Empty;
+
     public string MerchantTxnRef { get; set; } = string.Empty;
+
     public string? VnPayTransactionNo { get; set; }
     public string? VnPayResponseCode { get; set; }
     public string? VnPayTransactionStatus { get; set; }
+
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+
     public PaymentTransactionDto? LatestTransaction { get; set; }
 }
 
@@ -101,25 +109,6 @@ public class VnPayQueryResultDto
     public string? BankCode { get; set; }
     public decimal? Amount { get; set; }
     public string? RawResponse { get; set; }
-}
-
-public class EnrollmentDto
-{
-    public int EnrollmentId { get; set; }
-    public int LearnerId { get; set; }
-    public int CourseId { get; set; }
-    public int? PaymentId { get; set; }
-    public string Status { get; set; } = string.Empty;
-    public decimal CompletionPercentage { get; set; }
-    public DateTime? EnrolledAt { get; set; }
-    public DateTime? ExpiresAt { get; set; }
-    public DateTime CreatedAt { get; set; }
-}
-
-public class RevokeEnrollmentRequest
-{
-    public string Reason { get; set; } = string.Empty;
-    public bool IsRefunded { get; set; }
 }
 
 public class CoursePaymentDto
