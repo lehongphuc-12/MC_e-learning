@@ -7,12 +7,17 @@
 // ENUMS
 // ============================================================
 
-export type QuizStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+export type QuizStatus =
+  | 'DRAFT'
+  | 'ACTIVE'
+  | 'INACTIVE'
+  | 'ARCHIVED';
 
 export type QuestionType =
   | 'SINGLE_CHOICE'
   | 'MULTIPLE_CHOICE'
-  | 'TRUE_FALSE';
+  | 'TRUE_FALSE'
+  | 'ESSAY';
 
 // ============================================================
 // CHOICE
@@ -86,7 +91,7 @@ export interface CreateQuestionRequest {
 
 export interface CreateQuizRequest {
   courseId: number;
-  lessonId?: number | null;
+  lessonId: number | null;
 
   title: string;
   description?: string | null;
@@ -242,14 +247,18 @@ export interface ApiResponse<T> {
 }
 export interface QuizListItemDto {
   quizId: number;
-  courseId?: number | null;
-  lessonId?: number | null;
+  courseId: number;
+  lessonId: number | null;
+
   title: string;
   description?: string | null;
+
   timeLimitMinutes: number;
   passingScore: number;
   maxAttempts: number;
+
   status: QuizStatus;
   createdAt: string;
+
   questionCount?: number;
 }
