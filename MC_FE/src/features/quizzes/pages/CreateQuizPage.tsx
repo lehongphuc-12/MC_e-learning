@@ -7,7 +7,6 @@ import { QuizQuestionEditor } from '../components/QuizQuestionEditor';
 import {
   CreateQuestionRequest,
   CreateQuizRequest,
-  QuestionType,
   QuizStatus,
 } from '../types/quizTypes';
 
@@ -41,11 +40,8 @@ export const CreateQuizPage: React.FC = () => {
   // =========================
   // COURSE / LESSON
   // =========================
-  const courseIdParam =
-    searchParams.get('courseId');
-
-  const lessonIdParam =
-    searchParams.get('lessonId');
+  const courseIdParam = searchParams.get('courseId');
+  const lessonIdParam = searchParams.get('lessonId');
 
   const courseId = courseIdParam
     ? Number(courseIdParam)
@@ -56,11 +52,26 @@ export const CreateQuizPage: React.FC = () => {
     : null;
 
   // =========================
+  // QUIZ SCOPE
+  // =========================
+  const isLessonQuiz =
+    lessonId !== null &&
+    Number.isInteger(lessonId) &&
+    lessonId > 0;
+
+  const quizScopeTitle = isLessonQuiz
+    ? 'Tạo Quiz cho bài học'
+    : 'Tạo Quiz tổng khóa học';
+
+  const quizScopeDescription = isLessonQuiz
+    ? 'Tạo bài kiểm tra kiến thức cho bài học này.'
+    : 'Tạo bài kiểm tra tổng hợp kiến thức của toàn bộ khóa học.';
+
+  // =========================
   // QUIZ INFORMATION
   // =========================
   const [title, setTitle] = useState('');
-  const [description, setDescription] =
-    useState('');
+  const [description, setDescription] = useState('');
 
   const [timeLimitMinutes, setTimeLimitMinutes] =
     useState(0);
@@ -87,6 +98,13 @@ export const CreateQuizPage: React.FC = () => {
   // =========================
   const [errorMessage, setErrorMessage] =
     useState('');
+
+  // =========================
+  // BACK
+  // =========================
+  const handleBack = () => {
+    navigate(`/instructor/courses/${courseId}`);
+  };
 
   // =========================
   // ADD QUESTION
@@ -253,10 +271,12 @@ export const CreateQuizPage: React.FC = () => {
 
     if (validationError) {
       setErrorMessage(validationError);
+
       window.scrollTo({
         top: 0,
         behavior: 'smooth',
       });
+
       return;
     }
 
@@ -269,36 +289,60 @@ export const CreateQuizPage: React.FC = () => {
 
     const payload: CreateQuizRequest = {
       courseId,
+
+      /*
+       * Quiz tổng khóa học:
+       * lessonId = null
+       *
+       * Quiz bài học:
+       * lessonId = ID của lesson
+       */
       lessonId:
         lessonId !== null &&
         Number.isInteger(lessonId) &&
         lessonId > 0
           ? lessonId
           : null,
+
       title: title.trim(),
+
       description:
         description.trim() || null,
+
       timeLimitMinutes,
+
       passingScore,
+
       maxAttempts,
+
       status,
+
       questions: questions.map(
         (question, questionIndex) => ({
           ...question,
+
           questionText:
             question.questionText.trim(),
+
           explanation:
-            question.explanation?.trim() || null,
-          orderIndex: questionIndex + 1,
-          choices: question.choices.map(
-            (choice, choiceIndex) => ({
-              ...choice,
-              choiceText:
-                choice.choiceText.trim(),
-              orderIndex:
-                choiceIndex + 1,
-            })
-          ),
+            question.explanation?.trim() ||
+            null,
+
+          orderIndex:
+            questionIndex + 1,
+
+          choices:
+            question.choices.map(
+              (choice, choiceIndex) => ({
+                ...choice,
+
+                choiceText:
+                  choice.choiceText.trim(),
+
+                orderIndex:
+                  choiceIndex + 1,
+              })
+            ),
         })
       ),
     };
@@ -309,8 +353,10 @@ export const CreateQuizPage: React.FC = () => {
           payload
         );
 
-      // Sau khi tạo thành công,
-      // chuyển tới quiz detail.
+      /*
+       * Tạo thành công
+       * → chuyển tới trang chi tiết Quiz
+       */
       navigate(
         `/quiz-detail?id=${createdQuiz.quizId}`
       );
@@ -371,25 +417,39 @@ export const CreateQuizPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+
         {/* =========================
             PAGE HEADER
         ========================= */}
         <div className="mb-6">
           <button
             type="button"
-            onClick={() => navigate(-1)}
-            className="mb-4 text-sm font-medium text-slate-500 hover:text-slate-700"
+            onClick={handleBack}
+            className="mb-4 text-sm font-medium text-slate-500 transition hover:text-slate-700"
           >
-            ← Quay lại
+            ← Quay lại khóa học
           </button>
 
-          <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">
-            Tạo Quiz
-          </h1>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">
+              {quizScopeTitle}
+            </h1>
+
+            <span
+              className={`w-fit rounded-full px-3 py-1 text-xs font-semibold ${
+                isLessonQuiz
+                  ? 'bg-violet-50 text-violet-600'
+                  : 'bg-blue-50 text-blue-600'
+              }`}
+            >
+              {isLessonQuiz
+                ? 'Quiz bài học'
+                : 'Quiz tổng khóa học'}
+            </span>
+          </div>
 
           <p className="mt-2 text-sm text-slate-500">
-            Tạo bài kiểm tra và thêm các câu hỏi
-            cho học viên.
+            {quizScopeDescription}
           </p>
         </div>
 
@@ -398,7 +458,7 @@ export const CreateQuizPage: React.FC = () => {
         ========================= */}
         {errorMessage && (
           <div className="mb-6 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4">
-            <div className="mt-0.5 text-red-500">
+            <div className="mt-0.5 font-bold text-red-500">
               !
             </div>
 
@@ -430,6 +490,7 @@ export const CreateQuizPage: React.FC = () => {
           </div>
 
           <div className="space-y-5">
+
             {/* TITLE */}
             <div>
               <label className="mb-2 block text-sm font-medium text-slate-700">
@@ -446,7 +507,11 @@ export const CreateQuizPage: React.FC = () => {
                 onChange={(event) =>
                   setTitle(event.target.value)
                 }
-                placeholder="Ví dụ: MC Basic Knowledge Quiz"
+                placeholder={
+                  isLessonQuiz
+                    ? 'Ví dụ: Quiz bài học Lễ Vu Quy'
+                    : 'Ví dụ: Quiz tổng kết MC Đám Cưới'
+                }
                 className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               />
 
@@ -471,7 +536,11 @@ export const CreateQuizPage: React.FC = () => {
                     event.target.value
                   )
                 }
-                placeholder="Nhập mô tả cho bài quiz..."
+                placeholder={
+                  isLessonQuiz
+                    ? 'Nhập mô tả cho bài quiz của bài học...'
+                    : 'Nhập mô tả cho bài quiz tổng khóa học...'
+                }
                 rows={3}
                 className="w-full resize-none rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               />
@@ -479,6 +548,7 @@ export const CreateQuizPage: React.FC = () => {
 
             {/* SETTINGS */}
             <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+
               {/* TIME */}
               <div>
                 <label className="mb-2 block text-sm font-medium text-slate-700">
@@ -586,7 +656,7 @@ export const CreateQuizPage: React.FC = () => {
                   Nháp
                 </option>
 
-                <option value="PUBLISHED">
+                <option value="ACTIVE">
                   Đã xuất bản
                 </option>
 
@@ -659,9 +729,11 @@ export const CreateQuizPage: React.FC = () => {
             ACTIONS
         ========================= */}
         <div className="mt-8 flex flex-col-reverse gap-3 border-t border-slate-200 pt-6 sm:flex-row sm:justify-end">
+
+          {/* CANCEL */}
           <button
             type="button"
-            onClick={() => navigate(-1)}
+            onClick={handleBack}
             disabled={
               createQuizMutation.isPending
             }
@@ -670,17 +742,24 @@ export const CreateQuizPage: React.FC = () => {
             Hủy
           </button>
 
+          {/* CREATE */}
           <button
             type="button"
             onClick={handleCreateQuiz}
             disabled={
               createQuizMutation.isPending
             }
-            className="rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+            className={`rounded-xl px-6 py-3 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60 ${
+              isLessonQuiz
+                ? 'bg-violet-600 hover:bg-violet-700'
+                : 'bg-blue-600 hover:bg-blue-700'
+            }`}
           >
             {createQuizMutation.isPending
               ? 'Đang tạo quiz...'
-              : 'Tạo Quiz'}
+              : isLessonQuiz
+                ? 'Tạo Quiz bài học'
+                : 'Tạo Quiz tổng khóa học'}
           </button>
         </div>
       </div>
