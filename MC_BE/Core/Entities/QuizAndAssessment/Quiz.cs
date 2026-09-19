@@ -15,6 +15,9 @@ public class Quiz
     [Column("CourseID")]
     public int? CourseId { get; set; }
 
+    [Column("ModuleID")]
+    public int? ModuleId { get; set; }
+
     [Column("LessonID")]
     public int? LessonId { get; set; }
 
