@@ -845,51 +845,36 @@ export const MyCoursesScreen: React.FC<MyCoursesScreenProps> = ({ onNavigate }) 
                   </div>
                 </div>
 
-            <div className="flex justify-center">
-              {totalPages > 1 && (
-                <nav className="flex items-center gap-1.5" aria-label="Phân trang">
+                {/* ── Section 3: Action Buttons ── */}
+                <div className="p-4 sm:p-5 border-t sm:border-t-0 sm:border-l border-slate-100 flex sm:flex-col justify-center items-center gap-2.5 shrink-0 sm:w-48 bg-slate-50/50">
                   <button
-                    disabled={safePage === 1}
-                    onClick={() => goToPage(Math.max(safePage - 1, 1))}
-                    className="cursor-pointer rounded-lg border border-slate-200 p-2 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-                    title="Trang trước"
-                    aria-label="Trang trước"
+                    onClick={() => navigate(`/courses/${item.course.id}/learn`)}
+                    className={`w-full inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl text-xs font-bold text-white transition active:scale-[0.98] ${
+                      isItemCompleted ? 'bg-[#0B1437] hover:bg-[#16308f]' : 'bg-blue-600 hover:bg-blue-700'
+                    }`}
                   >
-                    <ChevronLeft className="h-4 w-4" />
+                    {isItemCompleted ? <RotateCcw className="h-4 w-4" /> : <PlayCircle className="h-4 w-4" />}
+                    {isItemCompleted ? 'Học lại' : 'Tiếp tục học'}
                   </button>
 
-                  {getPageItems(safePage, totalPages).map((p, idx) =>
-                    p === '…' ? (
-                      <span key={`gap-${idx}`} className="px-1 text-xs text-slate-400">
-                        …
-                      </span>
-                    ) : (
-                      <button
-                        key={p}
-                        onClick={() => goToPage(p)}
-                        aria-current={safePage === p ? 'page' : undefined}
-                        className={`h-8 min-w-[32px] cursor-pointer rounded-lg px-2 text-xs font-semibold transition ${
-                          safePage === p
-                            ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30'
-                            : 'border border-slate-200 text-slate-600 hover:bg-slate-100'
-                        }`}
-                      >
-                        {p}
-                      </button>
-                    ),
+                  {item.certificateId ? (
+                    <button
+                      onClick={() => navigate('/certificates')}
+                      className="w-full inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl bg-violet-50 text-xs font-bold text-violet-700 transition hover:bg-violet-100 active:scale-[0.98]"
+                    >
+                      <Award className="h-4 w-4" />
+                      Chứng chỉ
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => navigate(`/courses/${item.course.id}`)}
+                      className="w-full inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 transition hover:bg-slate-50 active:scale-[0.98]"
+                    >
+                      Chi tiết
+                      <ArrowUpRight className="h-4 w-4" />
+                    </button>
                   )}
-
-                  <button
-                    disabled={safePage === totalPages}
-                    onClick={() => goToPage(Math.min(safePage + 1, totalPages))}
-                    className="cursor-pointer rounded-lg border border-slate-200 p-2 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-                    title="Trang sau"
-                    aria-label="Trang sau"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
                 </div>
-
               </div>
             );
           })}
@@ -906,6 +891,51 @@ export const MyCoursesScreen: React.FC<MyCoursesScreenProps> = ({ onNavigate }) 
                 <span className="font-semibold text-slate-800">{totalItems}</span> khóa học
               </span>
             </div>
+
+            {totalPages > 1 && (
+              <nav className="flex items-center gap-1.5" aria-label="Phân trang">
+                <button
+                  disabled={safePage === 1}
+                  onClick={() => goToPage(Math.max(safePage - 1, 1))}
+                  className="cursor-pointer rounded-lg border border-slate-200 p-2 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  title="Trang trước"
+                  aria-label="Trang trước"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+
+                {getPageItems(safePage, totalPages).map((p, idx) =>
+                  p === '…' ? (
+                    <span key={`gap-${idx}`} className="px-1 text-xs text-slate-400">
+                      …
+                    </span>
+                  ) : (
+                    <button
+                      key={p}
+                      onClick={() => goToPage(p)}
+                      aria-current={safePage === p ? 'page' : undefined}
+                      className={`h-8 min-w-[32px] cursor-pointer rounded-lg px-2 text-xs font-semibold transition ${
+                        safePage === p
+                          ? 'bg-blue-600 text-[#fff] shadow-sm shadow-blue-600/30'
+                          : 'border border-slate-200 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  ),
+                )}
+
+                <button
+                  disabled={safePage === totalPages}
+                  onClick={() => goToPage(Math.min(safePage + 1, totalPages))}
+                  className="cursor-pointer rounded-lg border border-slate-200 p-2 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  title="Trang sau"
+                  aria-label="Trang sau"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </nav>
+            )}
 
             <p className="hidden text-right text-xs font-medium text-slate-500 sm:block">
               Trang <span className="font-semibold text-slate-800">{safePage}</span> / {totalPages}
