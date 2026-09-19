@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace MC_BE.Core.Entities;
 
-[Table("PASSWORD_RESET_TOKEN")]
+[Table("password_reset_tokens")]
 public class PasswordResetToken
 {
     [Key]
