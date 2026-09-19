@@ -10,6 +10,11 @@ import {
   UpdateQuestionRequest,
   UpdateChoiceRequest,
 } from '../types/quizTypes';
+import { ToastType } from '../../../components/common/Toast';
+
+interface UpdateQuizPageProps {
+  onToast?: (title: string, desc?: string, type?: ToastType) => void;
+}
 
 const QUIZ_STATUS_OPTIONS: {
   value: QuizStatus;
@@ -74,7 +79,7 @@ const createEmptyQuestion = (
   ],
 });
 
-export const UpdateQuizPage: React.FC = () => {
+export const UpdateQuizPage: React.FC<UpdateQuizPageProps> = ({ onToast }) => {
   const navigate = useNavigate();
 
   const { id } = useParams<{ id: string }>();
@@ -997,6 +1002,8 @@ export const UpdateQuizPage: React.FC = () => {
           top: 0,
           behavior: 'smooth',
         });
+
+        onToast?.('Cập nhật thành công', 'Bài kiểm tra đã được cập nhật thành công.', 'success');
 
         // ------------------------------------------------------
         // Navigate back to previous page

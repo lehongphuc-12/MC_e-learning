@@ -9,6 +9,11 @@ import {
   CreateQuizRequest,
   QuizStatus,
 } from '../types/quizTypes';
+import { ToastType } from '../../../components/common/Toast';
+
+interface CreateQuizPageProps {
+  onToast?: (title: string, desc?: string, type?: ToastType) => void;
+}
 
 const createEmptyQuestion = (
   orderIndex: number
@@ -31,7 +36,7 @@ const createEmptyQuestion = (
   ],
 });
 
-export const CreateQuizPage: React.FC = () => {
+export const CreateQuizPage: React.FC<CreateQuizPageProps> = ({ onToast }) => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -357,6 +362,7 @@ export const CreateQuizPage: React.FC = () => {
        * Tạo thành công
        * → quay về trang trước đó (ví dụ: trang quản lý khóa học / bài học)
        */
+      onToast?.('Tạo Quiz thành công', 'Bài kiểm tra đã được khởi tạo thành công.', 'success');
       navigate(-1);
     } catch (error) {
       console.error(
