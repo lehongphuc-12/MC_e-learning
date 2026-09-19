@@ -13,44 +13,44 @@ namespace MC_BE.Migrations
         {
             migrationBuilder.AddColumn<DateTime>(
                 name: "ApprovedAt",
-                table: "courses",
+                table: "COURSE",
                 type: "timestamp with time zone",
                 nullable: true);
 
             migrationBuilder.AddColumn<int>(
                 name: "ApprovedByID",
-                table: "courses",
+                table: "COURSE",
                 type: "integer",
                 nullable: true);
 
             migrationBuilder.AddColumn<string>(
                 name: "RejectionReason",
-                table: "courses",
+                table: "COURSE",
                 type: "text",
                 nullable: true);
 
             migrationBuilder.AddColumn<string>(
                 name: "SubmissionNote",
-                table: "courses",
+                table: "COURSE",
                 type: "text",
                 nullable: true);
 
             migrationBuilder.AddColumn<DateTime>(
                 name: "SubmittedAt",
-                table: "courses",
+                table: "COURSE",
                 type: "timestamp with time zone",
                 nullable: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_courses_ApprovedByID",
-                table: "courses",
+                name: "IX_COURSE_ApprovedByID",
+                table: "COURSE",
                 column: "ApprovedByID");
 
             migrationBuilder.AddForeignKey(
-                name: "FK_courses_users_ApprovedByID",
-                table: "courses",
+                name: "FK_COURSE_USER_ApprovedByID",
+                table: "COURSE",
                 column: "ApprovedByID",
-                principalTable: "users",
+                principalTable: "USER",
                 principalColumn: "UserID");
         }
 
@@ -58,32 +58,32 @@ namespace MC_BE.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropForeignKey(
-                name: "FK_courses_users_ApprovedByID",
-                table: "courses");
+                name: "FK_COURSE_USER_ApprovedByID",
+                table: "COURSE");
 
             migrationBuilder.DropIndex(
-                name: "IX_courses_ApprovedByID",
-                table: "courses");
+                name: "IX_COURSE_ApprovedByID",
+                table: "COURSE");
 
             migrationBuilder.DropColumn(
                 name: "ApprovedAt",
-                table: "courses");
+                table: "COURSE");
 
             migrationBuilder.DropColumn(
                 name: "ApprovedByID",
-                table: "courses");
+                table: "COURSE");
 
             migrationBuilder.DropColumn(
                 name: "RejectionReason",
-                table: "courses");
+                table: "COURSE");
 
             migrationBuilder.DropColumn(
                 name: "SubmissionNote",
-                table: "courses");
+                table: "COURSE");
 
             migrationBuilder.DropColumn(
                 name: "SubmittedAt",
-                table: "courses");
+                table: "COURSE");
         }
     }
 }
