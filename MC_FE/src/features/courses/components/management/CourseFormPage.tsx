@@ -96,7 +96,9 @@ export const CourseFormPage: React.FC = () => {
       thumbnailUrl: formData.thumbnailUrl || undefined,
       price: formData.price,
       level: formData.level || undefined,
-      status: formData.submitForApproval ? 'PENDING_APPROVAL' : ('DRAFT' as const),
+      status: formData.submitForApproval
+  ? ('PENDING_APPROVAL' as const)
+  : ('DRAFT' as const),
       submissionNote: formData.submissionNote,
       submitForApproval: formData.submitForApproval || false,
     };

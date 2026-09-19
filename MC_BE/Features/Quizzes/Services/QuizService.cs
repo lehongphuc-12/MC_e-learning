@@ -78,6 +78,25 @@ public class QuizService : IQuizService
                 throw new ArgumentException(
                     "The selected lesson does not belong to the selected course.");
         }
+        // =========================================================
+// 4. Check duplicate quiz
+// =========================================================
+
+var existingQuizzes = await _quizRepository.FindAsync(
+    q => q.CourseId == request.CourseId &&
+         q.LessonId == request.LessonId);
+
+if (existingQuizzes.Any())
+{
+    if (request.LessonId.HasValue)
+    {
+        throw new ArgumentException(
+            "This lesson already has a quiz.");
+    }
+
+    throw new ArgumentException(
+        "This course already has an overall quiz.");
+}
 
         // =========================================================
         // 4. Validate questions
@@ -805,30 +824,32 @@ public class QuizService : IQuizService
         };
     }
 
-    public async Task<List<QuizListItemDto>> GetQuizzesByCourseAsync(int courseId)
-    {
-        var quizzes = await _quizRepository.FindAsync(
-            q => q.CourseId == courseId,
-            q => q.Questions);
+public async Task<List<QuizListItemDto>> GetQuizzesByCourseAsync(int courseId)
+{
+    var quizzes = await _quizRepository.FindAsync(
+        q => q.CourseId == courseId,
+        q => q.Lesson);
 
-        return quizzes
-            .OrderByDescending(q => q.CreatedAt)
-            .Select(q => new QuizListItemDto
-            {
-                QuizId = q.QuizId,
-                CourseId = q.CourseId,
-                LessonId = q.LessonId,
-                Title = q.Title,
-                Description = q.Description,
-                TimeLimitMinutes = q.TimeLimitMinutes,
-                PassingScore = q.PassingScore,
-                MaxAttempts = q.MaxAttempts,
-                Status = q.Status,
-                CreatedAt = q.CreatedAt,
-                QuestionCount = q.Questions?.Count ?? 0
-            })
-            .ToList();
-    }
+    return quizzes
+        .Select(q => new QuizListItemDto
+        {
+            QuizId = q.QuizId,
+            CourseId = q.CourseId,
+            LessonId = q.LessonId,
+
+            LessonTitle = q.Lesson != null
+                ? q.Lesson.Title
+                : null,
+
+            Title = q.Title,
+            Description = q.Description,
+            TimeLimitMinutes = q.TimeLimitMinutes,
+            PassingScore = q.PassingScore,
+            MaxAttempts = q.MaxAttempts,
+            Status = q.Status
+        })
+        .ToList();
+}
 private static void ValidateUpdateQuestion(
     UpdateQuestionRequest question)
 {
