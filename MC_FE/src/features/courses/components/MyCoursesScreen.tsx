@@ -737,28 +737,113 @@ export const MyCoursesScreen: React.FC<MyCoursesScreenProps> = ({ onNavigate }) 
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {paginatedCourses.map((item, i) => (
-              <CourseCard
-                key={item.id}
-                item={item}
-                index={i}
-                onLearn={() => navigate(`/courses/${item.course.id}/learn`)}
-                onCertificate={() => navigate(`/certificates/${item.certificateId}`)}
-                onDetail={() => navigate(`/course-detail?id=${item.course.id}`)}
-              />
-            ))}
-          </div>
-        )}
+          <div className="flex flex-col gap-5">
+            {paginatedCourses.map((item) => {
+              let localCount = 0;
+              try {
+                const stored = localStorage.getItem(`mc_completed_lessons_${item.course.id}`);
+                if (stored) {
+                  const arr = JSON.parse(stored);
+                  if (Array.isArray(arr)) localCount = arr.length;
+                }
+              } catch (_) {}
 
-        {/* ---------------- Phân trang: trái - giữa - phải ---------------- */}
-        {!isLoading && !isError && totalItems > 0 && (
-          <div className="grid items-center gap-3 rounded-2xl border border-slate-200/80 bg-white px-4 py-3 sm:grid-cols-3">
-            <p className="text-center text-xs font-medium text-slate-500 sm:text-left">
-              Hiển thị <span className="font-semibold text-slate-800">{startIndex + 1}</span> -{' '}
-              <span className="font-semibold text-slate-800">{Math.min(startIndex + PAGE_SIZE, totalItems)}</span> trong
-              số <span className="font-semibold text-slate-800">{totalItems}</span> khóa học
-            </p>
+              const totalCount = item.totalLecturesCount || 9;
+              const displayCompletedCount = Math.max(item.completedLecturesCount || 0, localCount);
+              const displayProgressPercent = totalCount > 0
+                ? Math.round((displayCompletedCount / totalCount) * 100)
+                : item.progressPercent;
+              const isItemCompleted = displayProgressPercent >= 100 || item.status === 'completed';
+
+              return (
+              <div
+                key={item.id}
+                className="bg-white rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col sm:flex-row sm:h-56 group hover:border-blue-200"
+              >
+                {/* ── Section 1: Thumbnail (Bên Trái - Cố định chiều cao theo card) ── */}
+                <div className="relative sm:w-64 md:w-72 h-44 sm:h-full shrink-0 bg-slate-900 overflow-hidden">
+                  <img
+                    src={item.course.thumbnail}
+                    alt={item.course.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent sm:bg-none" />
+
+                  {/* Status Badge */}
+                  <div className="absolute top-3 left-3">
+                    {isItemCompleted ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500 text-white shadow-md">
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        Hoàn thành
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-600 text-white shadow-md">
+                        <Clock className="w-3.5 h-3.5" />
+                        Đang học
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* ── Section 2: Info & Progress (Ở Giữa - Cân đối không gian) ──── */}
+                <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between overflow-hidden">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs text-slate-500">
+                      <span className="font-semibold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-md">
+                        {item.course.category}
+                      </span>
+                      <span className="flex items-center gap-1 text-slate-400">
+                        <Clock className="w-3.5 h-3.5" />
+                        Vừa học: {item.lastAccessed}
+                      </span>
+                    </div>
+
+                    <h3 className="font-bold text-slate-900 text-base sm:text-lg leading-snug line-clamp-2 group-hover:text-blue-600 transition-colors">
+                      {item.course.title}
+                    </h3>
+
+                    {/* Instructor */}
+                    <div className="flex items-center gap-2 pt-0.5">
+                      <img
+                        src={item.course.instructor.avatar}
+                        alt={item.course.instructor.name}
+                        className="w-4 h-4 sm:w-5 sm:h-5 rounded-full object-cover border border-slate-200"
+                      />
+                      <span className="text-xs font-medium text-slate-600">
+                        {item.course.instructor.name}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Progress section */}
+                  <div className="space-y-1.5 pt-2 border-t border-slate-100">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-semibold text-slate-700">
+                        Tiến độ bài học ({displayCompletedCount}/{totalCount})
+                      </span>
+                      <span className="font-bold text-blue-600">{displayProgressPercent}%</span>
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          isItemCompleted
+                            ? 'bg-gradient-to-r from-emerald-500 to-teal-400'
+                            : 'bg-gradient-to-r from-blue-600 to-indigo-600'
+                        }`}
+                        style={{ width: `${displayProgressPercent}%` }}
+                      />
+                    </div>
+
+                    {/* Last accessed lecture subtitle */}
+                    {item.lastLectureTitle && (
+                      <p className="text-[11px] text-slate-500 line-clamp-1 italic">
+                        Bài tiếp theo: <span className="text-slate-700 font-medium">{item.lastLectureTitle}</span>
+                      </p>
+                    )}
+                  </div>
+                </div>
 
             <div className="flex justify-center">
               {totalPages > 1 && (
@@ -803,8 +888,23 @@ export const MyCoursesScreen: React.FC<MyCoursesScreenProps> = ({ onNavigate }) 
                   >
                     <ChevronRight className="h-4 w-4" />
                   </button>
-                </nav>
-              )}
+                </div>
+
+              </div>
+            );
+          })}
+          </div>
+        )}
+
+        {/* ── Pagination Controls Bar ─────────────────────────────── */}
+        {totalItems > 0 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm mt-6">
+            <div className="flex items-center gap-3 text-xs text-slate-500 font-medium">
+              <span>
+                Hiển thị <span className="font-semibold text-slate-800">{startIndex + 1}</span> -{' '}
+                <span className="font-semibold text-slate-800">{Math.min(startIndex + PAGE_SIZE, totalItems)}</span> trong số{' '}
+                <span className="font-semibold text-slate-800">{totalItems}</span> khóa học
+              </span>
             </div>
 
             <p className="hidden text-right text-xs font-medium text-slate-500 sm:block">

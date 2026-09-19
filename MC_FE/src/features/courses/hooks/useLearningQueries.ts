@@ -28,6 +28,9 @@ export function useUpdateLessonProgress(courseId: number) {
           queryKey: learningQueryKeys.courseProgress(courseId),
         });
       }
+      queryClient.invalidateQueries({
+        queryKey: ['courses', 'learned'],
+      });
     },
   });
 }

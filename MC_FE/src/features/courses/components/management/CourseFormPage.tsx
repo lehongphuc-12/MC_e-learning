@@ -15,6 +15,7 @@ import { useCreateCourse, useUpdateCourse } from '../../hooks/useCourseMutations
 
 import { moduleApi } from '../../api/moduleApi';
 import { lessonApi } from '../../api/lessonApi';
+import type { CourseStatus } from '../../types/courseTypes';
 
 // Shape of the error thrown by request<T>() in services/api.ts
 interface ApiError {
@@ -96,9 +97,7 @@ export const CourseFormPage: React.FC = () => {
       thumbnailUrl: formData.thumbnailUrl || undefined,
       price: formData.price,
       level: formData.level || undefined,
-      status: formData.submitForApproval
-  ? ('PENDING_APPROVAL' as const)
-  : ('DRAFT' as const),
+      status: (formData.submitForApproval ? 'PENDING_APPROVAL' : 'DRAFT') as CourseStatus,
       submissionNote: formData.submissionNote,
       submitForApproval: formData.submitForApproval || false,
     };

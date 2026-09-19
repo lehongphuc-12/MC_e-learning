@@ -107,7 +107,7 @@ export const CertificateScreen: React.FC = () => {
 
             <div className="inline-flex items-center gap-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 px-4 py-1.5 text-xs font-semibold text-emerald-400 print:text-emerald-800">
               <CheckCircle className="h-4 w-4" />
-              <span>Xếp loại: Xuất sắc (Grade: EXCELLENT) • Kết quả: 100% Complete</span>
+              <span>Xếp loại: Xuất sắc</span>
             </div>
           </div>
 
