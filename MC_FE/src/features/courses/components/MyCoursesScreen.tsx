@@ -737,75 +737,205 @@ export const MyCoursesScreen: React.FC<MyCoursesScreenProps> = ({ onNavigate }) 
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {paginatedCourses.map((item, i) => (
-              <CourseCard
+          <div className="flex flex-col gap-5">
+            {paginatedCourses.map((item) => {
+              let localCount = 0;
+              try {
+                const stored = localStorage.getItem(`mc_completed_lessons_${item.course.id}`);
+                if (stored) {
+                  const arr = JSON.parse(stored);
+                  if (Array.isArray(arr)) localCount = arr.length;
+                }
+              } catch (_) {}
+
+              const totalCount = item.totalLecturesCount || 9;
+              const displayCompletedCount = Math.max(item.completedLecturesCount || 0, localCount);
+              const displayProgressPercent = totalCount > 0
+                ? Math.round((displayCompletedCount / totalCount) * 100)
+                : item.progressPercent;
+              const isItemCompleted = displayProgressPercent >= 100 || item.status === 'completed';
+
+              return (
+              <div
                 key={item.id}
-                item={item}
-                index={i}
-                onLearn={() => navigate(`/courses/${item.course.id}/learn`)}
-                onCertificate={() => navigate(`/certificates/${item.certificateId}`)}
-                onDetail={() => navigate(`/course-detail?id=${item.course.id}`)}
-              />
-            ))}
+                className="bg-white rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col sm:flex-row sm:h-56 group hover:border-blue-200"
+              >
+                {/* ── Section 1: Thumbnail (Bên Trái - Cố định chiều cao theo card) ── */}
+                <div className="relative sm:w-64 md:w-72 h-44 sm:h-full shrink-0 bg-slate-900 overflow-hidden">
+                  <img
+                    src={item.course.thumbnail}
+                    alt={item.course.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent sm:bg-none" />
+
+                  {/* Status Badge */}
+                  <div className="absolute top-3 left-3">
+                    {isItemCompleted ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500 text-white shadow-md">
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        Hoàn thành
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-600 text-white shadow-md">
+                        <Clock className="w-3.5 h-3.5" />
+                        Đang học
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* ── Section 2: Info & Progress (Ở Giữa - Cân đối không gian) ──── */}
+                <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between overflow-hidden">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs text-slate-500">
+                      <span className="font-semibold text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-md">
+                        {item.course.category}
+                      </span>
+                      <span className="flex items-center gap-1 text-slate-400">
+                        <Clock className="w-3.5 h-3.5" />
+                        Vừa học: {item.lastAccessed}
+                      </span>
+                    </div>
+
+                    <h3 className="font-bold text-slate-900 text-base sm:text-lg leading-snug line-clamp-2 group-hover:text-blue-600 transition-colors">
+                      {item.course.title}
+                    </h3>
+
+                    {/* Instructor */}
+                    <div className="flex items-center gap-2 pt-0.5">
+                      <img
+                        src={item.course.instructor.avatar}
+                        alt={item.course.instructor.name}
+                        className="w-4 h-4 sm:w-5 sm:h-5 rounded-full object-cover border border-slate-200"
+                      />
+                      <span className="text-xs font-medium text-slate-600">
+                        {item.course.instructor.name}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Progress section */}
+                  <div className="space-y-1.5 pt-2 border-t border-slate-100">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-semibold text-slate-700">
+                        Tiến độ bài học ({displayCompletedCount}/{totalCount})
+                      </span>
+                      <span className="font-bold text-blue-600">{displayProgressPercent}%</span>
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          isItemCompleted
+                            ? 'bg-gradient-to-r from-emerald-500 to-teal-400'
+                            : 'bg-gradient-to-r from-blue-600 to-indigo-600'
+                        }`}
+                        style={{ width: `${displayProgressPercent}%` }}
+                      />
+                    </div>
+
+                    {/* Last accessed lecture subtitle */}
+                    {item.lastLectureTitle && (
+                      <p className="text-[11px] text-slate-500 line-clamp-1 italic">
+                        Bài tiếp theo: <span className="text-slate-700 font-medium">{item.lastLectureTitle}</span>
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* ── Section 3: Action Buttons ── */}
+                <div className="p-4 sm:p-5 border-t sm:border-t-0 sm:border-l border-slate-100 flex sm:flex-col justify-center items-center gap-2.5 shrink-0 sm:w-48 bg-slate-50/50">
+                  <button
+                    onClick={() => navigate(`/courses/${item.course.id}/learn`)}
+                    className={`w-full inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl text-xs font-bold text-white transition active:scale-[0.98] ${
+                      isItemCompleted ? 'bg-[#0B1437] hover:bg-[#16308f]' : 'bg-blue-600 hover:bg-blue-700'
+                    }`}
+                  >
+                    {isItemCompleted ? <RotateCcw className="h-4 w-4" /> : <PlayCircle className="h-4 w-4" />}
+                    {isItemCompleted ? 'Học lại' : 'Tiếp tục học'}
+                  </button>
+
+                  {item.certificateId ? (
+                    <button
+                      onClick={() => navigate('/certificates')}
+                      className="w-full inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl bg-violet-50 text-xs font-bold text-violet-700 transition hover:bg-violet-100 active:scale-[0.98]"
+                    >
+                      <Award className="h-4 w-4" />
+                      Chứng chỉ
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => navigate(`/courses/${item.course.id}`)}
+                      className="w-full inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 transition hover:bg-slate-50 active:scale-[0.98]"
+                    >
+                      Chi tiết
+                      <ArrowUpRight className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
           </div>
         )}
 
-        {/* ---------------- Phân trang: trái - giữa - phải ---------------- */}
-        {!isLoading && !isError && totalItems > 0 && (
-          <div className="grid items-center gap-3 rounded-2xl border border-slate-200/80 bg-white px-4 py-3 sm:grid-cols-3">
-            <p className="text-center text-xs font-medium text-slate-500 sm:text-left">
-              Hiển thị <span className="font-semibold text-slate-800">{startIndex + 1}</span> -{' '}
-              <span className="font-semibold text-slate-800">{Math.min(startIndex + PAGE_SIZE, totalItems)}</span> trong
-              số <span className="font-semibold text-slate-800">{totalItems}</span> khóa học
-            </p>
-
-            <div className="flex justify-center">
-              {totalPages > 1 && (
-                <nav className="flex items-center gap-1.5" aria-label="Phân trang">
-                  <button
-                    disabled={safePage === 1}
-                    onClick={() => goToPage(Math.max(safePage - 1, 1))}
-                    className="cursor-pointer rounded-lg border border-slate-200 p-2 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-                    title="Trang trước"
-                    aria-label="Trang trước"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </button>
-
-                  {getPageItems(safePage, totalPages).map((p, idx) =>
-                    p === '…' ? (
-                      <span key={`gap-${idx}`} className="px-1 text-xs text-slate-400">
-                        …
-                      </span>
-                    ) : (
-                      <button
-                        key={p}
-                        onClick={() => goToPage(p)}
-                        aria-current={safePage === p ? 'page' : undefined}
-                        className={`h-8 min-w-[32px] cursor-pointer rounded-lg px-2 text-xs font-semibold transition ${
-                          safePage === p
-                            ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30'
-                            : 'border border-slate-200 text-slate-600 hover:bg-slate-100'
-                        }`}
-                      >
-                        {p}
-                      </button>
-                    ),
-                  )}
-
-                  <button
-                    disabled={safePage === totalPages}
-                    onClick={() => goToPage(Math.min(safePage + 1, totalPages))}
-                    className="cursor-pointer rounded-lg border border-slate-200 p-2 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-                    title="Trang sau"
-                    aria-label="Trang sau"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-                </nav>
-              )}
+        {/* ── Pagination Controls Bar ─────────────────────────────── */}
+        {totalItems > 0 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm mt-6">
+            <div className="flex items-center gap-3 text-xs text-slate-500 font-medium">
+              <span>
+                Hiển thị <span className="font-semibold text-slate-800">{startIndex + 1}</span> -{' '}
+                <span className="font-semibold text-slate-800">{Math.min(startIndex + PAGE_SIZE, totalItems)}</span> trong số{' '}
+                <span className="font-semibold text-slate-800">{totalItems}</span> khóa học
+              </span>
             </div>
+
+            {totalPages > 1 && (
+              <nav className="flex items-center gap-1.5" aria-label="Phân trang">
+                <button
+                  disabled={safePage === 1}
+                  onClick={() => goToPage(Math.max(safePage - 1, 1))}
+                  className="cursor-pointer rounded-lg border border-slate-200 p-2 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  title="Trang trước"
+                  aria-label="Trang trước"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+
+                {getPageItems(safePage, totalPages).map((p, idx) =>
+                  p === '…' ? (
+                    <span key={`gap-${idx}`} className="px-1 text-xs text-slate-400">
+                      …
+                    </span>
+                  ) : (
+                    <button
+                      key={p}
+                      onClick={() => goToPage(p)}
+                      aria-current={safePage === p ? 'page' : undefined}
+                      className={`h-8 min-w-[32px] cursor-pointer rounded-lg px-2 text-xs font-semibold transition ${
+                        safePage === p
+                          ? 'bg-blue-600 text-[#fff] shadow-sm shadow-blue-600/30'
+                          : 'border border-slate-200 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  ),
+                )}
+
+                <button
+                  disabled={safePage === totalPages}
+                  onClick={() => goToPage(Math.min(safePage + 1, totalPages))}
+                  className="cursor-pointer rounded-lg border border-slate-200 p-2 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                  title="Trang sau"
+                  aria-label="Trang sau"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </nav>
+            )}
 
             <p className="hidden text-right text-xs font-medium text-slate-500 sm:block">
               Trang <span className="font-semibold text-slate-800">{safePage}</span> / {totalPages}
