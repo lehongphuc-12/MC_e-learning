@@ -4,7 +4,7 @@
 
 import React, { useState } from 'react';
 import { Download, FileSpreadsheet, Upload, X, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
-import type { CreateCourseDto, CourseLevel, CourseStatus } from '../../types/courseTypes';
+import type { CreateCourseDto, CourseLevel } from '../../types/courseTypes';
 import { useBulkCreateCourses } from '../../hooks/useCourseMutations';
 
 interface ImportCourseModalProps {
@@ -26,9 +26,9 @@ interface ParsedCourseRow {
 const downloadSampleTemplate = () => {
   const csvContent =
     'title,description,category_id,price,level,status,thumbnail_url\n' +
-    '"Khóa học MC Đám Cưới Chuyên Nghiệp","Hướng dẫn kỹ năng dẫn chương trình tiệc cưới sang trọng.",1,199,BEGINNER,PUBLISHED,"https://images.unsplash.com/photo-1519741497674-611481863552"\n' +
-    '"Khóa học MC Sự Kiện & Hội Nghị","Kỹ năng đọc kịch bản, xử lý tình huống sân khấu.",1,299,INTERMEDIATE,DRAFT,"https://images.unsplash.com/photo-1475721027785-f74eccf877e2"\n' +
-    '"Kỹ Thuật Luyện Giọng Nói & Phát Âm Chuẩn","Phương pháp lấy hơi bụng, mở khẩu hình và phát âm tròn vành rõ chữ.",2,150,ALL_LEVELS,PUBLISHED,"https://images.unsplash.com/photo-1590602847861-f357a9332bbc"';
+    '"Khóa học MC Đám Cưới Chuyên Nghiệp","Hướng dẫn kỹ năng dẫn chương trình tiệc cưới sang trọng.",1,199000,BEGINNER,DRAFT,"https://images.unsplash.com/photo-1519741497674-611481863552"\n' +
+    '"Khóa học MC Sự Kiện & Hội Nghị","Kỹ năng đọc kịch bản, xử lý tình huống sân khấu.",1,2990000,INTERMEDIATE,DRAFT,"https://images.unsplash.com/photo-1475721027785-f74eccf877e2"\n' +
+    '"Kỹ Thuật Luyện Giọng Nói & Phát Âm Chuẩn","Phương pháp lấy hơi bụng, mở khẩu hình và phát âm tròn vành rõ chữ.",2,150000,ALL_LEVELS,DRAFT,"https://images.unsplash.com/photo-1590602847861-f357a9332bbc"';
 
   const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
@@ -40,24 +40,62 @@ const downloadSampleTemplate = () => {
   document.body.removeChild(link);
 };
 
-// Simple CSV Line Parser handling quotes & commas
-function parseCsvLine(line: string): string[] {
-  const result: string[] = [];
-  let cur = '';
+// Full CSV Parser supporting quoted multiline strings
+function parseFullCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let currentRow: string[] = [];
+  let currentCell = '';
   let inQuotes = false;
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    const nextChar = text[i + 1];
+
     if (char === '"') {
-      inQuotes = !inQuotes;
+      if (inQuotes && nextChar === '"') {
+        currentCell += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
     } else if (char === ',' && !inQuotes) {
-      result.push(cur.trim().replace(/^"(.*)"$/, '$1'));
-      cur = '';
+      currentRow.push(currentCell.trim());
+      currentCell = '';
+    } else if ((char === '\r' || char === '\n') && !inQuotes) {
+      if (char === '\r' && nextChar === '\n') {
+        i++;
+      }
+      currentRow.push(currentCell.trim());
+      if (currentRow.some((c) => c.length > 0)) {
+        rows.push(currentRow);
+      }
+      currentRow = [];
+      currentCell = '';
     } else {
-      cur += char;
+      currentCell += char;
     }
   }
-  result.push(cur.trim().replace(/^"(.*)"$/, '$1'));
-  return result;
+
+  if (currentCell || currentRow.length > 0) {
+    currentRow.push(currentCell.trim());
+    if (currentRow.some((c) => c.length > 0)) {
+      rows.push(currentRow);
+    }
+  }
+
+  return rows;
+}
+
+function findHeaderValue(rowData: Record<string, string>, possibleKeys: string[]): string {
+  for (const key of possibleKeys) {
+    for (const [headerKey, val] of Object.entries(rowData)) {
+      const cleanHeader = headerKey.toLowerCase().trim();
+      if (cleanHeader === key || cleanHeader.includes(key)) {
+        return val;
+      }
+    }
+  }
+  return '';
 }
 
 export const ImportCourseModal: React.FC<ImportCourseModalProps> = ({
@@ -90,17 +128,17 @@ export const ImportCourseModal: React.FC<ImportCourseModalProps> = ({
           return;
         }
 
-        const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
-        if (lines.length < 2) {
+        const rawRows = parseFullCsv(text);
+        if (rawRows.length < 2) {
           setErrorMsg('Tệp CSV cần ít nhất 1 dòng tiêu đề và 1 dòng dữ liệu.');
           return;
         }
 
-        const headers = parseCsvLine(lines[0]).map((h) => h.toLowerCase());
+        const headers = rawRows[0].map((h) => h.toLowerCase().trim());
         const rows: ParsedCourseRow[] = [];
 
-        for (let i = 1; i < lines.length; i++) {
-          const values = parseCsvLine(lines[i]);
+        for (let i = 1; i < rawRows.length; i++) {
+          const values = rawRows[i];
           if (values.length === 0 || (values.length === 1 && !values[0])) continue;
 
           const rowData: Record<string, string> = {};
@@ -108,13 +146,12 @@ export const ImportCourseModal: React.FC<ImportCourseModalProps> = ({
             rowData[h] = values[idx] ?? '';
           });
 
-          const title = rowData['title'] || rowData['tên khóa học'] || '';
-          const description = rowData['description'] || rowData['mô tả'] || '';
-          const categoryIdRaw = rowData['category_id'] || rowData['danh mục id'] || '';
-          const priceRaw = rowData['price'] || rowData['học phí'] || '0';
-          const levelRaw = (rowData['level'] || rowData['cấp độ'] || '').toUpperCase();
-          const statusRaw = (rowData['status'] || rowData['trạng thái'] || 'DRAFT').toUpperCase();
-          const thumbnailUrl = rowData['thumbnail_url'] || rowData['ảnh đại diện'] || '';
+          const title = findHeaderValue(rowData, ['title', 'tên khóa học', 'tên khóa', 'tên']);
+          const description = findHeaderValue(rowData, ['description', 'mô tả', 'nội dung']);
+          const categoryIdRaw = findHeaderValue(rowData, ['category_id', 'danh mục id', 'categoryid', 'danh mục']);
+          const priceRaw = findHeaderValue(rowData, ['price', 'học phí', 'giá']);
+          const levelRaw = findHeaderValue(rowData, ['level', 'cấp độ', 'trình độ']).toUpperCase();
+          const thumbnailUrl = findHeaderValue(rowData, ['thumbnail_url', 'ảnh đại diện', 'thumbnail', 'link ảnh', 'url']);
 
           const price = parseFloat(priceRaw);
           const isPriceValid = !isNaN(price) && price >= 0;
@@ -125,14 +162,9 @@ export const ImportCourseModal: React.FC<ImportCourseModalProps> = ({
             level = levelRaw as CourseLevel;
           }
 
-          let status: CourseStatus = 'DRAFT';
-          if (['DRAFT', 'PUBLISHED', 'ARCHIVED'].includes(statusRaw)) {
-            status = statusRaw as CourseStatus;
-          }
-
           let errorReason = '';
           if (!isTitleValid) errorReason = 'Tên khóa học phải >= 3 ký tự';
-          else if (!isPriceValid) errorReason = 'Học phí không hợp lệ';
+          else if (!isPriceValid) errorReason = 'Học phí không hợp lệ (phải >= 0)';
 
           rows.push({
             rowNum: i,
@@ -142,7 +174,7 @@ export const ImportCourseModal: React.FC<ImportCourseModalProps> = ({
               categoryId: categoryIdRaw ? parseInt(categoryIdRaw, 10) : undefined,
               price: isPriceValid ? price : 0,
               level,
-              status,
+              status: 'DRAFT', // FORCED: All imported courses are DRAFT until Admin approves
               thumbnailUrl: thumbnailUrl.trim() || undefined,
             },
             isValid: isTitleValid && isPriceValid,
@@ -162,15 +194,20 @@ export const ImportCourseModal: React.FC<ImportCourseModalProps> = ({
 
   const handleSubmit = () => {
     if (validRows.length === 0) return;
+    setErrorMsg(null);
     bulkCreate(
       validRows.map((r) => r.dto),
       {
-        onSuccess: () => {
+        onSuccess: (resData: any) => {
+          if (Array.isArray(resData) && resData.length === 0 && validRows.length > 0) {
+            setErrorMsg('Không thể tạo khóa học. Vui lòng kiểm tra lại Danh mục ID hoặc kết nối hệ thống.');
+            return;
+          }
           onSuccess?.();
           onClose();
         },
         onError: (err: any) => {
-          setErrorMsg(err?.message || 'Có lỗi xảy ra khi nhập dữ liệu.');
+          setErrorMsg(err?.message || 'Có lỗi xảy ra khi nhập dữ liệu. Vui lòng kiểm tra lại thông tin.');
         },
       }
     );
@@ -196,13 +233,13 @@ export const ImportCourseModal: React.FC<ImportCourseModalProps> = ({
                 Nhập danh sách khóa học từ file CSV / Excel
               </h2>
               <p className="text-xs text-slate-500">
-                Thêm nhanh nhiều khóa học cùng lúc chỉ với 1 thao tác
+                Thêm nhanh nhiều khóa học cùng lúc. Tất cả khóa học nhập lên sẽ được lưu dưới dạng <span className="font-semibold text-amber-600">Bản nháp (DRAFT)</span> để gửi Admin duyệt.
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all"
+            className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all cursor-pointer"
           >
             <X className="h-5 w-5" />
           </button>
@@ -220,12 +257,12 @@ export const ImportCourseModal: React.FC<ImportCourseModalProps> = ({
                   Bước 1: Tải tệp CSV mẫu
                 </h3>
                 <p className="mt-1.5 text-xs text-slate-600 leading-relaxed">
-                  Tải file dữ liệu mẫu đã được thiết lập sẵn các cột tiêu chuẩn (Tên khóa học, Mô tả, Danh mục ID, Học phí, Cấp độ, Trạng thái).
+                  Tải file dữ liệu mẫu chuẩn (Tên khóa học, Mô tả, Danh mục ID, Học phí, Cấp độ).
                 </p>
               </div>
               <button
                 onClick={downloadSampleTemplate}
-                className="mt-4 inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 active:scale-95 transition-all shadow-xs"
+                className="mt-4 inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-xs font-semibold text-blue-600 hover:bg-blue-50 active:scale-95 transition-all shadow-xs cursor-pointer"
               >
                 <Download className="h-4 w-4" />
                 Tải file CSV mẫu (.csv)
@@ -255,11 +292,14 @@ export const ImportCourseModal: React.FC<ImportCourseModalProps> = ({
             </div>
           </div>
 
-          {/* Error Message */}
+          {/* Detailed Error Message Box */}
           {errorMsg && (
-            <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-xs font-semibold text-red-700 flex items-center gap-2">
-              <AlertCircle className="h-4 w-4 text-red-500 shrink-0" />
-              {errorMsg}
+            <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-xs font-semibold text-red-700 flex items-center gap-2.5 shadow-xs">
+              <AlertCircle className="h-5 w-5 text-red-500 shrink-0" />
+              <div className="space-y-0.5">
+                <p className="font-bold">Lỗi khi tải hoặc nhập dữ liệu:</p>
+                <p className="font-normal text-red-600">{errorMsg}</p>
+              </div>
             </div>
           )}
 
@@ -276,11 +316,11 @@ export const ImportCourseModal: React.FC<ImportCourseModalProps> = ({
                 <table className="w-full text-xs text-left">
                   <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold sticky top-0">
                     <tr>
-                      <th className="px-3 py-2.5">Trạng thái</th>
+                      <th className="px-3 py-2.5">Trạng thái dòng</th>
                       <th className="px-3 py-2.5">Tên khóa học</th>
                       <th className="px-3 py-2.5">Học phí</th>
                       <th className="px-3 py-2.5">Cấp độ</th>
-                      <th className="px-3 py-2.5">Trạng thái</th>
+                      <th className="px-3 py-2.5">Trạng thái lưu</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -303,8 +343,12 @@ export const ImportCourseModal: React.FC<ImportCourseModalProps> = ({
                         <td className="px-3 py-2 font-medium">
                           {r.dto.price === 0 ? 'Miễn phí' : `${r.dto.price.toLocaleString('vi-VN')} VNĐ`}
                         </td>
-                        <td className="px-3 py-2 text-slate-600">{r.dto.level || 'ALL_LEVELS'}</td>
-                        <td className="px-3 py-2 text-slate-600">{r.dto.status}</td>
+                        <td className="px-3 py-2 text-slate-600">{r.dto.level || 'Mọi cấp độ'}</td>
+                        <td className="px-3 py-2">
+                          <span className="inline-flex items-center rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-700 border border-amber-200">
+                            Bản nháp (DRAFT)
+                          </span>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -319,14 +363,14 @@ export const ImportCourseModal: React.FC<ImportCourseModalProps> = ({
           <button
             onClick={onClose}
             disabled={isSubmitting}
-            className="rounded-xl border border-slate-200 px-5 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 active:scale-95 transition-all"
+            className="rounded-xl border border-slate-200 px-5 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 active:scale-95 transition-all cursor-pointer"
           >
             Hủy bỏ
           </button>
           <button
             onClick={handleSubmit}
             disabled={isSubmitting || validRows.length === 0}
-            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-2.5 text-xs font-semibold text-white shadow-md shadow-blue-500/20 hover:from-blue-700 hover:to-indigo-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-2.5 text-xs font-semibold text-white shadow-md shadow-blue-500/20 hover:from-blue-700 hover:to-indigo-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
           >
             {isSubmitting ? (
               <>
@@ -345,3 +389,4 @@ export const ImportCourseModal: React.FC<ImportCourseModalProps> = ({
     </div>
   );
 };
+
