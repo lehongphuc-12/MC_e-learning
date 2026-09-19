@@ -355,11 +355,9 @@ export const CreateQuizPage: React.FC = () => {
 
       /*
        * Tạo thành công
-       * → chuyển tới trang chi tiết Quiz
+       * → quay về trang trước đó (ví dụ: trang quản lý khóa học / bài học)
        */
-      navigate(
-        `/quiz-detail?id=${createdQuiz.quizId}`
-      );
+      navigate(-1);
     } catch (error) {
       console.error(
         'Create quiz failed:',

@@ -20,8 +20,12 @@ const QUIZ_STATUS_OPTIONS: {
     label: 'Nháp',
   },
   {
-    value: 'PUBLISHED',
+    value: 'ACTIVE',
     label: 'Đã xuất bản',
+  },
+  {
+    value: 'INACTIVE',
+    label: 'Ngừng hoạt động',
   },
   {
     value: 'ARCHIVED',
@@ -995,13 +999,11 @@ export const UpdateQuizPage: React.FC = () => {
         });
 
         // ------------------------------------------------------
-        // Navigate to detail
+        // Navigate back to previous page
         // ------------------------------------------------------
 
         setTimeout(() => {
-          navigate(
-            `/instructor/quizzes/${validQuizId}`,
-          );
+          navigate(-1);
         }, 800);
       } catch (err) {
         console.error(
