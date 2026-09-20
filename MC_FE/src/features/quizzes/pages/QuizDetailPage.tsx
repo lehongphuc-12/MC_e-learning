@@ -1,31 +1,174 @@
 import React from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import {
+  useLocation,
+  useNavigate,
+  useParams,
+} from 'react-router-dom';
+
 import { useQuiz } from '../hooks/useQuiz';
 
- const QuizDetailPage: React.FC = () => {
-  const navigate = useNavigate();
-  const { id } = useParams<{ id: string }>();
+interface QuizNavigationState {
+  returnTo?: string;
+}
 
-  const quizId = id ? Number(id) : null;
+const QuizDetailPage: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const { id } = useParams<{
+    id: string;
+  }>();
+
+  // ============================================================
+  // NAVIGATION STATE
+  // ============================================================
+
+  const navigationState =
+    location.state as QuizNavigationState | null;
+
+  const returnTo =
+    navigationState?.returnTo;
+
+  // ============================================================
+  // QUIZ ID
+  // ============================================================
+
+  const quizId = id
+    ? Number(id)
+    : null;
+
+  const validQuizId =
+    quizId !== null &&
+    Number.isInteger(quizId) &&
+    quizId > 0
+      ? quizId
+      : null;
+
+  // ============================================================
+  // GET QUIZ
+  // ============================================================
 
   const {
     data: quiz,
     isLoading,
     isError,
     error,
-  } = useQuiz(quizId);
+  } = useQuiz(validQuizId);
 
-  if (!quizId || Number.isNaN(quizId)) {
+  // ============================================================
+  // BACK
+  // ============================================================
+
+  /**
+   * Ưu tiên returnTo được truyền từ trang trước.
+   *
+   * Ví dụ:
+   *
+   * CourseLessons#quiz-management
+   *        ↓
+   * QuizDetail
+   *
+   * returnTo:
+   * /instructor/courses/{courseId}/lessons#quiz-management
+   *
+   * Nếu không có returnTo nhưng đã load được Quiz,
+   * sử dụng courseId của Quiz để quay về đúng Course.
+   *
+   * Cuối cùng fallback về danh sách Course.
+   */
+  const handleBack = () => {
+    if (returnTo) {
+      navigate(returnTo, {
+        replace: true,
+      });
+
+      return;
+    }
+
+    if (
+      quiz?.courseId !== null &&
+      quiz?.courseId !== undefined &&
+      Number.isInteger(quiz.courseId) &&
+      quiz.courseId > 0
+    ) {
+      navigate(
+        `/instructor/courses/${quiz.courseId}/lessons#quiz-management`,
+        {
+          replace: true,
+        }
+      );
+
+      return;
+    }
+
+    navigate('/instructor/courses', {
+      replace: true,
+    });
+  };
+
+  // ============================================================
+  // EDIT QUIZ
+  // ============================================================
+
+  /**
+   * Khi đi từ Detail -> Edit,
+   * tiếp tục truyền returnTo.
+   *
+   * Nhờ vậy:
+   *
+   * CourseLessons
+   *      ↓
+   * QuizDetail
+   *      ↓
+   * UpdateQuiz
+   *      ↓
+   * QuizDetail
+   *      ↓
+   * CourseLessons
+   *
+   * vẫn giữ đúng nguồn ban đầu.
+   */
+  const handleEditQuiz = () => {
+    if (!quiz) {
+      return;
+    }
+
+    const fallbackReturnTo =
+      quiz.courseId !== null &&
+      quiz.courseId !== undefined &&
+      Number.isInteger(quiz.courseId) &&
+      quiz.courseId > 0
+        ? `/instructor/courses/${quiz.courseId}/lessons#quiz-management`
+        : undefined;
+
+    navigate(
+      `/instructor/quizzes/${quiz.quizId}/edit`,
+      {
+        state: {
+          returnTo:
+            returnTo ??
+            fallbackReturnTo,
+        },
+      }
+    );
+  };
+
+  // ============================================================
+  // INVALID QUIZ ID
+  // ============================================================
+
+  if (validQuizId === null) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
         <div className="text-center">
           <h2 className="text-xl font-semibold text-slate-900">
             Quiz ID không hợp lệ
           </h2>
 
           <button
-            onClick={() => navigate(-1)}
-            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            type="button"
+            onClick={handleBack}
+            className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-white transition hover:bg-blue-700"
           >
             Quay lại
           </button>
@@ -34,9 +177,13 @@ import { useQuiz } from '../hooks/useQuiz';
     );
   }
 
+  // ============================================================
+  // LOADING
+  // ============================================================
+
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
         <div className="text-slate-600">
           Đang tải thông tin Quiz...
         </div>
@@ -44,9 +191,13 @@ import { useQuiz } from '../hooks/useQuiz';
     );
   }
 
+  // ============================================================
+  // ERROR
+  // ============================================================
+
   if (isError || !quiz) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
         <div className="text-center">
           <h2 className="text-xl font-semibold text-red-600">
             Không thể tải Quiz
@@ -59,8 +210,9 @@ import { useQuiz } from '../hooks/useQuiz';
           </p>
 
           <button
-            onClick={() => navigate(-1)}
-            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            type="button"
+            onClick={handleBack}
+            className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-white transition hover:bg-blue-700"
           >
             Quay lại
           </button>
@@ -71,14 +223,19 @@ import { useQuiz } from '../hooks/useQuiz';
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <div className="bg-white border-b border-slate-200">
-        <div className="max-w-6xl mx-auto px-6 py-5">
+
+      {/* ======================================================
+          HEADER
+      ====================================================== */}
+
+      <div className="border-b border-slate-200 bg-white">
+        <div className="mx-auto max-w-6xl px-6 py-5">
           <div className="flex items-center justify-between gap-4">
             <div>
               <button
-                onClick={() => navigate(-1)}
-                className="text-sm text-slate-500 hover:text-slate-700 mb-2"
+                type="button"
+                onClick={handleBack}
+                className="mb-2 text-sm text-slate-500 transition hover:text-slate-700"
               >
                 ← Quay lại
               </button>
@@ -89,10 +246,9 @@ import { useQuiz } from '../hooks/useQuiz';
             </div>
 
             <button
-              onClick={() =>
-                navigate(`/instructor/quizzes/${quiz.quizId}/edit`)
-              }
-              className="px-5 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition"
+              type="button"
+              onClick={handleEditQuiz}
+              className="rounded-lg bg-blue-600 px-5 py-2.5 font-medium text-white transition hover:bg-blue-700"
             >
               Chỉnh sửa Quiz
             </button>
@@ -100,9 +256,17 @@ import { useQuiz } from '../hooks/useQuiz';
         </div>
       </div>
 
-      <main className="max-w-6xl mx-auto px-6 py-8">
-        {/* Quiz Information */}
-        <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+      {/* ======================================================
+          CONTENT
+      ====================================================== */}
+
+      <main className="mx-auto max-w-6xl px-6 py-8">
+
+        {/* ====================================================
+            QUIZ INFORMATION
+        ==================================================== */}
+
+        <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex items-start justify-between gap-4">
             <div>
               <h2 className="text-xl font-bold text-slate-900">
@@ -117,28 +281,33 @@ import { useQuiz } from '../hooks/useQuiz';
             </div>
 
             <span
-              className={`px-3 py-1 rounded-full text-sm font-medium ${
+              className={`rounded-full px-3 py-1 text-sm font-medium ${
                 quiz.status === 'PUBLISHED'
                   ? 'bg-green-50 text-green-700'
                   : quiz.status === 'ARCHIVED'
-                  ? 'bg-slate-100 text-slate-600'
-                  : 'bg-yellow-50 text-yellow-700'
+                    ? 'bg-slate-100 text-slate-600'
+                    : 'bg-yellow-50 text-yellow-700'
               }`}
             >
               {quiz.status}
             </span>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+          {/* MAIN INFORMATION */}
+
+          <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-4">
             <InfoItem
               label="Quiz ID"
-              value={String(quiz.quizId)}
+              value={String(
+                quiz.quizId
+              )}
             />
 
             <InfoItem
               label="Thời gian"
               value={
-                quiz.timeLimitMinutes > 0
+                quiz.timeLimitMinutes >
+                0
                   ? `${quiz.timeLimitMinutes} phút`
                   : 'Không giới hạn'
               }
@@ -151,16 +320,24 @@ import { useQuiz } from '../hooks/useQuiz';
 
             <InfoItem
               label="Số lần làm tối đa"
-              value={String(quiz.maxAttempts)}
+              value={String(
+                quiz.maxAttempts
+              )}
             />
           </div>
 
-          <div className="mt-5 pt-5 border-t border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* COURSE / LESSON */}
+
+          <div className="mt-5 grid grid-cols-1 gap-4 border-t border-slate-100 pt-5 md:grid-cols-2">
             <InfoItem
               label="Course ID"
               value={
-                quiz.courseId !== null && quiz.courseId !== undefined
-                  ? String(quiz.courseId)
+                quiz.courseId !== null &&
+                quiz.courseId !==
+                  undefined
+                  ? String(
+                      quiz.courseId
+                    )
                   : 'Không có'
               }
             />
@@ -168,43 +345,67 @@ import { useQuiz } from '../hooks/useQuiz';
             <InfoItem
               label="Lesson ID"
               value={
-                quiz.lessonId !== null && quiz.lessonId !== undefined
-                  ? String(quiz.lessonId)
+                quiz.lessonId !== null &&
+                quiz.lessonId !==
+                  undefined
+                  ? String(
+                      quiz.lessonId
+                    )
                   : 'Không có'
               }
             />
           </div>
         </section>
 
-        {/* Questions */}
+        {/* ====================================================
+            QUESTIONS
+        ==================================================== */}
+
         <section className="mt-6">
-          <div className="flex items-center justify-between mb-4">
+          <div className="mb-4 flex items-center justify-between">
             <h2 className="text-xl font-bold text-slate-900">
               Câu hỏi
             </h2>
 
             <span className="text-sm text-slate-500">
-              {quiz.questions.length} câu hỏi
+              {quiz.questions.length}{' '}
+              câu hỏi
             </span>
           </div>
 
-          {quiz.questions.length === 0 ? (
-            <div className="bg-white border border-slate-200 rounded-xl p-8 text-center">
+          {quiz.questions.length ===
+          0 ? (
+            <div className="rounded-xl border border-slate-200 bg-white p-8 text-center">
               <p className="text-slate-500">
                 Quiz chưa có câu hỏi.
               </p>
             </div>
           ) : (
             <div className="space-y-5">
-              {quiz.questions
-                .sort((a, b) => a.orderIndex - b.orderIndex)
-                .map((question, index) => (
-                  <QuestionCard
-                    key={question.questionId}
-                    questionNumber={index + 1}
-                    question={question}
-                  />
-                ))}
+              {[...quiz.questions]
+                .sort(
+                  (a, b) =>
+                    a.orderIndex -
+                    b.orderIndex
+                )
+                .map(
+                  (
+                    question,
+                    index
+                  ) => (
+                    <QuestionCard
+                      key={
+                        question.questionId
+                      }
+                      questionNumber={
+                        index + 1
+                      }
+                      question={
+                        question
+                      }
+                    />
+                  )
+                )}
             </div>
           )}
         </section>
@@ -213,15 +414,24 @@ import { useQuiz } from '../hooks/useQuiz';
   );
 };
 
+// ============================================================
+// INFO ITEM
+// ============================================================
+
 interface InfoItemProps {
   label: string;
   value: string;
 }
 
-const InfoItem: React.FC<InfoItemProps> = ({ label, value }) => {
+const InfoItem: React.FC<
+  InfoItemProps
+> = ({
+  label,
+  value,
+}) => {
   return (
-    <div className="bg-slate-50 rounded-lg p-4">
-      <div className="text-xs text-slate-500 mb-1">
+    <div className="rounded-lg bg-slate-50 p-4">
+      <div className="mb-1 text-xs text-slate-500">
         {label}
       </div>
 
@@ -232,13 +442,19 @@ const InfoItem: React.FC<InfoItemProps> = ({ label, value }) => {
   );
 };
 
+// ============================================================
+// QUESTION CARD
+// ============================================================
+
 interface QuestionCardProps {
   questionNumber: number;
+
   question: {
     questionId: number;
     questionText: string;
     questionType: string;
     explanation?: string | null;
+
     choices: {
       choiceId: number;
       choiceText: string;
@@ -248,74 +464,108 @@ interface QuestionCardProps {
   };
 }
 
-const QuestionCard: React.FC<QuestionCardProps> = ({
+const QuestionCard: React.FC<
+  QuestionCardProps
+> = ({
   questionNumber,
   question,
 }) => {
   return (
-    <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <div className="p-6">
         <div className="flex items-start gap-4">
-          <div className="w-9 h-9 rounded-full bg-blue-50 text-blue-700 flex items-center justify-center font-bold shrink-0">
+
+          {/* QUESTION NUMBER */}
+
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-50 font-bold text-blue-700">
             {questionNumber}
           </div>
 
           <div className="flex-1">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-slate-100 text-slate-600">
+
+            {/* QUESTION TYPE */}
+
+            <div className="mb-2 flex items-center gap-2">
+              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
                 {question.questionType}
               </span>
             </div>
+
+            {/* QUESTION TEXT */}
 
             <h3 className="text-base font-semibold text-slate-900">
               {question.questionText}
             </h3>
 
-            {/* Choices */}
+            {/* ==================================================
+                CHOICES
+            ================================================== */}
+
             <div className="mt-4 space-y-2">
-              {question.choices
-                .sort((a, b) => a.orderIndex - b.orderIndex)
-                .map((choice, index) => (
-                  <div
-                    key={choice.choiceId}
-                    className={`flex items-center gap-3 p-3 rounded-lg border ${
-                      choice.isCorrect
-                        ? 'border-green-300 bg-green-50'
-                        : 'border-slate-200 bg-white'
-                    }`}
-                  >
+              {[...question.choices]
+                .sort(
+                  (a, b) =>
+                    a.orderIndex -
+                    b.orderIndex
+                )
+                .map(
+                  (
+                    choice,
+                    index
+                  ) => (
                     <div
-                      className={`w-7 h-7 rounded-full flex items-center justify-center text-sm font-medium ${
+                      key={
+                        choice.choiceId
+                      }
+                      className={`flex items-center gap-3 rounded-lg border p-3 ${
                         choice.isCorrect
-                          ? 'bg-green-600 text-white'
-                          : 'bg-slate-100 text-slate-600'
+                          ? 'border-green-300 bg-green-50'
+                          : 'border-slate-200 bg-white'
                       }`}
                     >
-                      {String.fromCharCode(65 + index)}
-                    </div>
+                      <div
+                        className={`flex h-7 w-7 items-center justify-center rounded-full text-sm font-medium ${
+                          choice.isCorrect
+                            ? 'bg-green-600 text-white'
+                            : 'bg-slate-100 text-slate-600'
+                        }`}
+                      >
+                        {String.fromCharCode(
+                          65 +
+                            index
+                        )}
+                      </div>
 
-                    <span className="flex-1 text-sm text-slate-800">
-                      {choice.choiceText}
-                    </span>
-
-                    {choice.isCorrect && (
-                      <span className="text-xs font-semibold text-green-700">
-                        Đáp án đúng
+                      <span className="flex-1 text-sm text-slate-800">
+                        {
+                          choice.choiceText
+                        }
                       </span>
-                    )}
-                  </div>
-                ))}
+
+                      {choice.isCorrect && (
+                        <span className="text-xs font-semibold text-green-700">
+                          Đáp án đúng
+                        </span>
+                      )}
+                    </div>
+                  )
+                )}
             </div>
 
-            {/* Explanation */}
+            {/* ==================================================
+                EXPLANATION
+            ================================================== */}
+
             {question.explanation && (
-              <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-                <div className="text-xs font-semibold text-blue-700 mb-1">
+              <div className="mt-4 rounded-lg bg-blue-50 p-4">
+                <div className="mb-1 text-xs font-semibold text-blue-700">
                   Giải thích
                 </div>
 
                 <p className="text-sm text-blue-900">
-                  {question.explanation}
+                  {
+                    question.explanation
+                  }
                 </p>
               </div>
             )}
@@ -326,5 +576,4 @@ const QuestionCard: React.FC<QuestionCardProps> = ({
   );
 };
 
-export default QuizDetailPage;
 export { QuizDetailPage };
