@@ -160,11 +160,21 @@ export const useSubmitQuiz = () => {
       return response.data;
     },
 
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: ['take-quiz', variables.quizId],
-      });
-    },
+onSuccess: (_, variables) => {
+  queryClient.invalidateQueries({
+    queryKey: [
+      'take-quiz',
+      variables.quizId,
+    ],
+  });
+
+  queryClient.invalidateQueries({
+    queryKey: [
+      'quiz-latest-result',
+      variables.quizId,
+    ],
+  });
+},
   });
 };
 
@@ -228,5 +238,49 @@ export const useQuizzesByCourse = (
     },
 
     enabled: !!courseId,
+  });
+};
+// =========================
+// GET LATEST QUIZ RESULT
+// Learner only
+// =========================
+export const useLatestQuizResult = (
+  quizId: number | null
+) => {
+  return useQuery({
+    queryKey: [
+      'quiz-latest-result',
+      quizId,
+    ],
+
+    queryFn: async () => {
+      if (!quizId) {
+        throw new Error(
+          'Quiz ID is required.'
+        );
+      }
+
+      const response =
+        await quizApi.getLatestQuizResult(
+          quizId
+        );
+
+      /**
+       * Learner chưa từng làm Quiz.
+       *
+       * Tùy backend, nếu trường hợp này trả
+       * success = true, data = null
+       * thì return null bình thường.
+       */
+      if (!response.success) {
+        return null;
+      }
+
+      return response.data ?? null;
+    },
+
+    enabled: !!quizId,
+
+    retry: false,
   });
 };

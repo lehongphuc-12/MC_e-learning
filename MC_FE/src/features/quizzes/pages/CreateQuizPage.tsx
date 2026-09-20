@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import {
+  useNavigate,
+  useSearchParams,
+} from 'react-router-dom';
 
 import { useCreateQuiz } from '../hooks/useQuiz';
 import { QuizQuestionEditor } from '../components/QuizQuestionEditor';
@@ -9,11 +12,20 @@ import {
   CreateQuizRequest,
   QuizStatus,
 } from '../types/quizTypes';
+
 import { ToastType } from '../../../components/common/Toast';
 
 interface CreateQuizPageProps {
-  onToast?: (title: string, desc?: string, type?: ToastType) => void;
+  onToast?: (
+    title: string,
+    desc?: string,
+    type?: ToastType
+  ) => void;
 }
+
+// ============================================================
+// CREATE EMPTY QUESTION
+// ============================================================
 
 const createEmptyQuestion = (
   orderIndex: number
@@ -36,17 +48,23 @@ const createEmptyQuestion = (
   ],
 });
 
-export const CreateQuizPage: React.FC<CreateQuizPageProps> = ({ onToast }) => {
+export const CreateQuizPage: React.FC<
+  CreateQuizPageProps
+> = ({ onToast }) => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
   const createQuizMutation = useCreateQuiz();
 
-  // =========================
+  // ============================================================
   // COURSE / LESSON
-  // =========================
-  const courseIdParam = searchParams.get('courseId');
-  const lessonIdParam = searchParams.get('lessonId');
+  // ============================================================
+
+  const courseIdParam =
+    searchParams.get('courseId');
+
+  const lessonIdParam =
+    searchParams.get('lessonId');
 
   const courseId = courseIdParam
     ? Number(courseIdParam)
@@ -56,9 +74,15 @@ export const CreateQuizPage: React.FC<CreateQuizPageProps> = ({ onToast }) => {
     ? Number(lessonIdParam)
     : null;
 
-  // =========================
+  const isValidCourseId =
+    courseId !== null &&
+    Number.isInteger(courseId) &&
+    courseId > 0;
+
+  // ============================================================
   // QUIZ SCOPE
-  // =========================
+  // ============================================================
+
   const isLessonQuiz =
     lessonId !== null &&
     Number.isInteger(lessonId) &&
@@ -72,48 +96,92 @@ export const CreateQuizPage: React.FC<CreateQuizPageProps> = ({ onToast }) => {
     ? 'Tạo bài kiểm tra kiến thức cho bài học này.'
     : 'Tạo bài kiểm tra tổng hợp kiến thức của toàn bộ khóa học.';
 
-  // =========================
+  // ============================================================
   // QUIZ INFORMATION
-  // =========================
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
+  // ============================================================
 
-  const [timeLimitMinutes, setTimeLimitMinutes] =
-    useState(0);
+  const [title, setTitle] =
+    useState('');
 
-  const [passingScore, setPassingScore] =
-    useState(80);
+  const [description, setDescription] =
+    useState('');
 
-  const [maxAttempts, setMaxAttempts] =
-    useState(1);
+  const [
+    timeLimitMinutes,
+    setTimeLimitMinutes,
+  ] = useState(0);
+
+  const [
+    passingScore,
+    setPassingScore,
+  ] = useState(80);
+
+  const [
+    maxAttempts,
+    setMaxAttempts,
+  ] = useState(1);
 
   const [status, setStatus] =
     useState<QuizStatus>('DRAFT');
 
-  // =========================
+  // ============================================================
   // QUESTIONS
-  // =========================
+  // ============================================================
+
   const [questions, setQuestions] =
     useState<CreateQuestionRequest[]>([
       createEmptyQuestion(1),
     ]);
 
-  // =========================
+  // ============================================================
   // VALIDATION
-  // =========================
-  const [errorMessage, setErrorMessage] =
-    useState('');
+  // ============================================================
 
-  // =========================
+  const [
+    errorMessage,
+    setErrorMessage,
+  ] = useState('');
+
+  // ============================================================
   // BACK
-  // =========================
+  // ============================================================
+
+  /**
+   * Không dùng navigate(-1).
+   *
+   * Create Quiz luôn được mở từ màn quản lý
+   * Lessons / Quiz của Instructor.
+   *
+   * Vì vậy Back / Cancel / Create Success
+   * đều quay về đúng:
+   *
+   * /instructor/courses/{courseId}/lessons#quiz-management
+   */
   const handleBack = () => {
-    navigate(`/instructor/courses/${courseId}`);
+    if (isValidCourseId) {
+      navigate(
+        `/instructor/courses/${courseId}/lessons#quiz-management`,
+        {
+          replace: true,
+        }
+      );
+
+      return;
+    }
+
+    /**
+     * Fallback nếu URL Create Quiz
+     * không có Course ID hợp lệ.
+     */
+    navigate('/instructor/courses', {
+      replace: true,
+    });
   };
 
-  // =========================
+  // ============================================================
   // ADD QUESTION
-  // =========================
+  // ============================================================
+
   const handleAddQuestion = () => {
     setQuestions((current) => [
       ...current,
@@ -125,27 +193,30 @@ export const CreateQuizPage: React.FC<CreateQuizPageProps> = ({ onToast }) => {
     setErrorMessage('');
   };
 
-  // =========================
+  // ============================================================
   // UPDATE QUESTION
-  // =========================
+  // ============================================================
+
   const handleQuestionChange = (
     index: number,
     question: CreateQuestionRequest
   ) => {
     setQuestions((current) =>
-      current.map((item, itemIndex) =>
-        itemIndex === index
-          ? question
-          : item
+      current.map(
+        (item, itemIndex) =>
+          itemIndex === index
+            ? question
+            : item
       )
     );
 
     setErrorMessage('');
   };
 
-  // =========================
+  // ============================================================
   // REMOVE QUESTION
-  // =========================
+  // ============================================================
+
   const handleRemoveQuestion = (
     index: number
   ) => {
@@ -159,239 +230,278 @@ export const CreateQuizPage: React.FC<CreateQuizPageProps> = ({ onToast }) => {
           (_, itemIndex) =>
             itemIndex !== index
         )
-        .map((question, itemIndex) => ({
-          ...question,
-          orderIndex: itemIndex + 1,
-        }))
+        .map(
+          (
+            question,
+            itemIndex
+          ) => ({
+            ...question,
+            orderIndex:
+              itemIndex + 1,
+          })
+        )
     );
 
     setErrorMessage('');
   };
 
-  // =========================
+  // ============================================================
   // VALIDATE FORM
-  // =========================
-  const validateForm = (): string | null => {
-    if (
-      courseId === null ||
-      !Number.isInteger(courseId) ||
-      courseId <= 0
-    ) {
-      return 'Không tìm thấy Course ID hợp lệ.';
-    }
+  // ============================================================
 
-    if (!title.trim()) {
-      return 'Vui lòng nhập tiêu đề quiz.';
-    }
-
-    if (title.trim().length > 255) {
-      return 'Tiêu đề quiz không được vượt quá 255 ký tự.';
-    }
-
-    if (timeLimitMinutes < 0) {
-      return 'Thời gian làm bài không hợp lệ.';
-    }
-
-    if (
-      passingScore < 0 ||
-      passingScore > 100
-    ) {
-      return 'Điểm đạt phải nằm trong khoảng từ 0 đến 100.';
-    }
-
-    if (maxAttempts < 1) {
-      return 'Số lần làm bài phải lớn hơn hoặc bằng 1.';
-    }
-
-    if (questions.length < 1) {
-      return 'Quiz phải có ít nhất một câu hỏi.';
-    }
-
-    for (
-      let questionIndex = 0;
-      questionIndex < questions.length;
-      questionIndex++
-    ) {
-      const question =
-        questions[questionIndex];
-
-      const questionNumber =
-        questionIndex + 1;
-
-      if (!question.questionText.trim()) {
-        return `Vui lòng nhập nội dung câu hỏi ${questionNumber}.`;
+  const validateForm =
+    (): string | null => {
+      if (!isValidCourseId) {
+        return 'Không tìm thấy Course ID hợp lệ.';
       }
 
-      if (question.choices.length < 2) {
-        return `Câu hỏi ${questionNumber} phải có ít nhất 2 đáp án.`;
-      }
-
-      const hasEmptyChoice =
-        question.choices.some(
-          (choice) =>
-            !choice.choiceText.trim()
-        );
-
-      if (hasEmptyChoice) {
-        return `Vui lòng nhập đầy đủ đáp án cho câu hỏi ${questionNumber}.`;
-      }
-
-      const correctChoices =
-        question.choices.filter(
-          (choice) => choice.isCorrect
-        );
-
-      if (correctChoices.length === 0) {
-        return `Vui lòng chọn đáp án đúng cho câu hỏi ${questionNumber}.`;
+      if (!title.trim()) {
+        return 'Vui lòng nhập tiêu đề quiz.';
       }
 
       if (
-        question.questionType !==
-          'MULTIPLE_CHOICE' &&
-        correctChoices.length > 1
+        title.trim().length > 255
       ) {
-        return `Câu hỏi ${questionNumber} chỉ được có một đáp án đúng.`;
+        return 'Tiêu đề quiz không được vượt quá 255 ký tự.';
+      }
+
+      if (timeLimitMinutes < 0) {
+        return 'Thời gian làm bài không hợp lệ.';
       }
 
       if (
-        question.questionType ===
-          'MULTIPLE_CHOICE' &&
-        correctChoices.length < 1
+        passingScore < 0 ||
+        passingScore > 100
       ) {
-        return `Câu hỏi ${questionNumber} phải có ít nhất một đáp án đúng.`;
+        return 'Điểm đạt phải nằm trong khoảng từ 0 đến 100.';
       }
-    }
 
-    return null;
-  };
+      if (maxAttempts < 1) {
+        return 'Số lần làm bài phải lớn hơn hoặc bằng 1.';
+      }
 
-  // =========================
-  // CREATE QUIZ
-  // =========================
-  const handleCreateQuiz = async () => {
-    setErrorMessage('');
+      if (questions.length < 1) {
+        return 'Quiz phải có ít nhất một câu hỏi.';
+      }
 
-    const validationError =
-      validateForm();
+      for (
+        let questionIndex = 0;
+        questionIndex <
+        questions.length;
+        questionIndex++
+      ) {
+        const question =
+          questions[
+            questionIndex
+          ];
 
-    if (validationError) {
-      setErrorMessage(validationError);
+        const questionNumber =
+          questionIndex + 1;
 
-      window.scrollTo({
-        top: 0,
-        behavior: 'smooth',
-      });
+        if (
+          !question.questionText.trim()
+        ) {
+          return `Vui lòng nhập nội dung câu hỏi ${questionNumber}.`;
+        }
 
-      return;
-    }
+        if (
+          question.choices.length <
+          2
+        ) {
+          return `Câu hỏi ${questionNumber} phải có ít nhất 2 đáp án.`;
+        }
 
-    if (
-      courseId === null ||
-      !Number.isInteger(courseId)
-    ) {
-      return;
-    }
+        const hasEmptyChoice =
+          question.choices.some(
+            (choice) =>
+              !choice.choiceText.trim()
+          );
 
-    const payload: CreateQuizRequest = {
-      courseId,
+        if (hasEmptyChoice) {
+          return `Vui lòng nhập đầy đủ đáp án cho câu hỏi ${questionNumber}.`;
+        }
 
-      /*
-       * Quiz tổng khóa học:
-       * lessonId = null
-       *
-       * Quiz bài học:
-       * lessonId = ID của lesson
-       */
-      lessonId:
-        lessonId !== null &&
-        Number.isInteger(lessonId) &&
-        lessonId > 0
-          ? lessonId
-          : null,
+        const correctChoices =
+          question.choices.filter(
+            (choice) =>
+              choice.isCorrect
+          );
 
-      title: title.trim(),
+        if (
+          correctChoices.length ===
+          0
+        ) {
+          return `Vui lòng chọn đáp án đúng cho câu hỏi ${questionNumber}.`;
+        }
 
-      description:
-        description.trim() || null,
+        if (
+          question.questionType !==
+            'MULTIPLE_CHOICE' &&
+          correctChoices.length > 1
+        ) {
+          return `Câu hỏi ${questionNumber} chỉ được có một đáp án đúng.`;
+        }
 
-      timeLimitMinutes,
+        if (
+          question.questionType ===
+            'MULTIPLE_CHOICE' &&
+          correctChoices.length < 1
+        ) {
+          return `Câu hỏi ${questionNumber} phải có ít nhất một đáp án đúng.`;
+        }
+      }
 
-      passingScore,
-
-      maxAttempts,
-
-      status,
-
-      questions: questions.map(
-        (question, questionIndex) => ({
-          ...question,
-
-          questionText:
-            question.questionText.trim(),
-
-          explanation:
-            question.explanation?.trim() ||
-            null,
-
-          orderIndex:
-            questionIndex + 1,
-
-          choices:
-            question.choices.map(
-              (choice, choiceIndex) => ({
-                ...choice,
-
-                choiceText:
-                  choice.choiceText.trim(),
-
-                orderIndex:
-                  choiceIndex + 1,
-              })
-            ),
-        })
-      ),
+      return null;
     };
 
-    try {
-      const createdQuiz =
+  // ============================================================
+  // CREATE QUIZ
+  // ============================================================
+
+  const handleCreateQuiz =
+    async () => {
+      setErrorMessage('');
+
+      const validationError =
+        validateForm();
+
+      if (validationError) {
+        setErrorMessage(
+          validationError
+        );
+
+        window.scrollTo({
+          top: 0,
+          behavior: 'smooth',
+        });
+
+        return;
+      }
+
+      if (!isValidCourseId) {
+        return;
+      }
+
+      const payload: CreateQuizRequest =
+        {
+          courseId,
+
+          /**
+           * Quiz tổng khóa học:
+           * lessonId = null
+           *
+           * Quiz bài học:
+           * lessonId = ID của lesson
+           */
+          lessonId:
+            lessonId !== null &&
+            Number.isInteger(
+              lessonId
+            ) &&
+            lessonId > 0
+              ? lessonId
+              : null,
+
+          title: title.trim(),
+
+          description:
+            description.trim() ||
+            null,
+
+          timeLimitMinutes,
+
+          passingScore,
+
+          maxAttempts,
+
+          status,
+
+          questions:
+            questions.map(
+              (
+                question,
+                questionIndex
+              ) => ({
+                ...question,
+
+                questionText:
+                  question.questionText.trim(),
+
+                explanation:
+                  question.explanation?.trim() ||
+                  null,
+
+                orderIndex:
+                  questionIndex +
+                  1,
+
+                choices:
+                  question.choices.map(
+                    (
+                      choice,
+                      choiceIndex
+                    ) => ({
+                      ...choice,
+
+                      choiceText:
+                        choice.choiceText.trim(),
+
+                      orderIndex:
+                        choiceIndex +
+                        1,
+                    })
+                  ),
+              })
+            ),
+        };
+
+      try {
         await createQuizMutation.mutateAsync(
           payload
         );
 
-      /*
-       * Tạo thành công
-       * → quay về trang trước đó (ví dụ: trang quản lý khóa học / bài học)
-       */
-      onToast?.('Tạo Quiz thành công', 'Bài kiểm tra đã được khởi tạo thành công.', 'success');
-      navigate(-1);
-    } catch (error) {
-      console.error(
-        'Create quiz failed:',
-        error
-      );
+        // ======================================================
+        // SUCCESS
+        // ======================================================
 
-      const message =
-        error instanceof Error
-          ? error.message
-          : 'Không thể tạo quiz. Vui lòng thử lại.';
+        onToast?.(
+          'Tạo Quiz thành công',
+          'Bài kiểm tra đã được khởi tạo thành công.',
+          'success'
+        );
 
-      setErrorMessage(message);
+        /**
+         * Không dùng navigate(-1).
+         *
+         * Sau khi tạo thành công quay thẳng
+         * về Quiz Management của Course.
+         */
+        handleBack();
+      } catch (error) {
+        console.error(
+          'Create quiz failed:',
+          error
+        );
 
-      window.scrollTo({
-        top: 0,
-        behavior: 'smooth',
-      });
-    }
-  };
+        const message =
+          error instanceof Error
+            ? error.message
+            : 'Không thể tạo quiz. Vui lòng thử lại.';
 
-  // =========================
+        setErrorMessage(message);
+
+        window.scrollTo({
+          top: 0,
+          behavior: 'smooth',
+        });
+      }
+    };
+
+  // ============================================================
   // INVALID COURSE
-  // =========================
-  if (
-    courseId === null ||
-    !Number.isInteger(courseId) ||
-    courseId <= 0
-  ) {
+  // ============================================================
+
+  if (!isValidCourseId) {
     return (
       <div className="min-h-[60vh] bg-slate-50 px-4 py-10">
         <div className="mx-auto max-w-3xl">
@@ -401,13 +511,13 @@ export const CreateQuizPage: React.FC<CreateQuizPageProps> = ({ onToast }) => {
             </h1>
 
             <p className="mt-2 text-sm text-slate-500">
-              Course ID không hợp lệ hoặc
-              chưa được cung cấp.
+              Course ID không hợp lệ
+              hoặc chưa được cung cấp.
             </p>
 
             <button
               type="button"
-              onClick={() => navigate(-1)}
+              onClick={handleBack}
               className="mt-5 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
             >
               Quay lại
@@ -422,16 +532,17 @@ export const CreateQuizPage: React.FC<CreateQuizPageProps> = ({ onToast }) => {
     <div className="min-h-screen bg-slate-50">
       <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
 
-        {/* =========================
+        {/* ====================================================
             PAGE HEADER
-        ========================= */}
+        ==================================================== */}
+
         <div className="mb-6">
           <button
             type="button"
             onClick={handleBack}
             className="mb-4 text-sm font-medium text-slate-500 transition hover:text-slate-700"
           >
-            ← Quay lại khóa học
+            ← Quay lại quản lý Quiz
           </button>
 
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -457,9 +568,10 @@ export const CreateQuizPage: React.FC<CreateQuizPageProps> = ({ onToast }) => {
           </p>
         </div>
 
-        {/* =========================
+        {/* ====================================================
             ERROR
-        ========================= */}
+        ==================================================== */}
+
         {errorMessage && (
           <div className="mb-6 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4">
             <div className="mt-0.5 font-bold text-red-500">
@@ -478,9 +590,10 @@ export const CreateQuizPage: React.FC<CreateQuizPageProps> = ({ onToast }) => {
           </div>
         )}
 
-        {/* =========================
+        {/* ====================================================
             QUIZ INFORMATION
-        ========================= */}
+        ==================================================== */}
+
         <div className="rounded-2xl bg-white p-6 shadow-sm">
           <div className="mb-5">
             <h2 className="text-lg font-semibold text-slate-900">
@@ -488,17 +601,19 @@ export const CreateQuizPage: React.FC<CreateQuizPageProps> = ({ onToast }) => {
             </h2>
 
             <p className="mt-1 text-sm text-slate-500">
-              Thiết lập thông tin cơ bản cho bài
-              kiểm tra.
+              Thiết lập thông tin cơ bản
+              cho bài kiểm tra.
             </p>
           </div>
 
           <div className="space-y-5">
 
             {/* TITLE */}
+
             <div>
               <label className="mb-2 block text-sm font-medium text-slate-700">
                 Tiêu đề
+
                 <span className="ml-1 text-red-500">
                   *
                 </span>
@@ -509,7 +624,9 @@ export const CreateQuizPage: React.FC<CreateQuizPageProps> = ({ onToast }) => {
                 value={title}
                 maxLength={255}
                 onChange={(event) =>
-                  setTitle(event.target.value)
+                  setTitle(
+                    event.target.value
+                  )
                 }
                 placeholder={
                   isLessonQuiz
@@ -525,9 +642,11 @@ export const CreateQuizPage: React.FC<CreateQuizPageProps> = ({ onToast }) => {
             </div>
 
             {/* DESCRIPTION */}
+
             <div>
               <label className="mb-2 block text-sm font-medium text-slate-700">
                 Mô tả
+
                 <span className="ml-1 text-xs font-normal text-slate-400">
                   (không bắt buộc)
                 </span>
@@ -551,9 +670,11 @@ export const CreateQuizPage: React.FC<CreateQuizPageProps> = ({ onToast }) => {
             </div>
 
             {/* SETTINGS */}
+
             <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
 
               {/* TIME */}
+
               <div>
                 <label className="mb-2 block text-sm font-medium text-slate-700">
                   Thời gian làm bài
@@ -563,13 +684,16 @@ export const CreateQuizPage: React.FC<CreateQuizPageProps> = ({ onToast }) => {
                   <input
                     type="number"
                     min={0}
-                    value={timeLimitMinutes}
+                    value={
+                      timeLimitMinutes
+                    }
                     onChange={(event) =>
                       setTimeLimitMinutes(
                         Math.max(
                           0,
                           Number(
-                            event.target.value
+                            event.target
+                              .value
                           )
                         )
                       )
@@ -588,6 +712,7 @@ export const CreateQuizPage: React.FC<CreateQuizPageProps> = ({ onToast }) => {
               </div>
 
               {/* PASSING SCORE */}
+
               <div>
                 <label className="mb-2 block text-sm font-medium text-slate-700">
                   Điểm đạt
@@ -603,7 +728,8 @@ export const CreateQuizPage: React.FC<CreateQuizPageProps> = ({ onToast }) => {
                     onChange={(event) =>
                       setPassingScore(
                         Number(
-                          event.target.value
+                          event.target
+                            .value
                         )
                       )
                     }
@@ -617,6 +743,7 @@ export const CreateQuizPage: React.FC<CreateQuizPageProps> = ({ onToast }) => {
               </div>
 
               {/* MAX ATTEMPTS */}
+
               <div>
                 <label className="mb-2 block text-sm font-medium text-slate-700">
                   Số lần làm tối đa
@@ -631,7 +758,8 @@ export const CreateQuizPage: React.FC<CreateQuizPageProps> = ({ onToast }) => {
                       Math.max(
                         1,
                         Number(
-                          event.target.value
+                          event.target
+                            .value
                         )
                       )
                     )
@@ -642,6 +770,7 @@ export const CreateQuizPage: React.FC<CreateQuizPageProps> = ({ onToast }) => {
             </div>
 
             {/* STATUS */}
+
             <div>
               <label className="mb-2 block text-sm font-medium text-slate-700">
                 Trạng thái
@@ -651,7 +780,8 @@ export const CreateQuizPage: React.FC<CreateQuizPageProps> = ({ onToast }) => {
                 value={status}
                 onChange={(event) =>
                   setStatus(
-                    event.target.value as QuizStatus
+                    event.target
+                      .value as QuizStatus
                   )
                 }
                 className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:max-w-sm"
@@ -672,9 +802,10 @@ export const CreateQuizPage: React.FC<CreateQuizPageProps> = ({ onToast }) => {
           </div>
         </div>
 
-        {/* =========================
+        {/* ====================================================
             QUESTIONS
-        ========================= */}
+        ==================================================== */}
+
         <div className="mt-6">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -683,8 +814,8 @@ export const CreateQuizPage: React.FC<CreateQuizPageProps> = ({ onToast }) => {
               </h2>
 
               <p className="mt-1 text-sm text-slate-500">
-                Thêm câu hỏi và thiết lập đáp án
-                đúng.
+                Thêm câu hỏi và thiết lập
+                đáp án đúng.
               </p>
             </div>
 
@@ -695,12 +826,21 @@ export const CreateQuizPage: React.FC<CreateQuizPageProps> = ({ onToast }) => {
 
           <div className="space-y-5">
             {questions.map(
-              (question, index) => (
+              (
+                question,
+                index
+              ) => (
                 <QuizQuestionEditor
                   key={`question-${index}`}
-                  question={question}
-                  questionNumber={index + 1}
-                  onChange={(updatedQuestion) =>
+                  question={
+                    question
+                  }
+                  questionNumber={
+                    index + 1
+                  }
+                  onChange={(
+                    updatedQuestion
+                  ) =>
                     handleQuestionChange(
                       index,
                       updatedQuestion
@@ -712,7 +852,8 @@ export const CreateQuizPage: React.FC<CreateQuizPageProps> = ({ onToast }) => {
                     )
                   }
                   canRemove={
-                    questions.length > 1
+                    questions.length >
+                    1
                   }
                 />
               )
@@ -720,21 +861,26 @@ export const CreateQuizPage: React.FC<CreateQuizPageProps> = ({ onToast }) => {
           </div>
 
           {/* ADD QUESTION */}
+
           <button
             type="button"
-            onClick={handleAddQuestion}
+            onClick={
+              handleAddQuestion
+            }
             className="mt-5 flex w-full items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-white px-5 py-4 text-sm font-semibold text-blue-600 transition hover:border-blue-300 hover:bg-blue-50"
           >
             + Thêm câu hỏi
           </button>
         </div>
 
-        {/* =========================
+        {/* ====================================================
             ACTIONS
-        ========================= */}
+        ==================================================== */}
+
         <div className="mt-8 flex flex-col-reverse gap-3 border-t border-slate-200 pt-6 sm:flex-row sm:justify-end">
 
           {/* CANCEL */}
+
           <button
             type="button"
             onClick={handleBack}
@@ -747,9 +893,12 @@ export const CreateQuizPage: React.FC<CreateQuizPageProps> = ({ onToast }) => {
           </button>
 
           {/* CREATE */}
+
           <button
             type="button"
-            onClick={handleCreateQuiz}
+            onClick={
+              handleCreateQuiz
+            }
             disabled={
               createQuizMutation.isPending
             }

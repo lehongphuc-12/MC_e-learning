@@ -25,7 +25,6 @@ import {
   Layers,
   ChevronDown,
   Award,
-  ShieldCheck,
   ClipboardList,
 } from 'lucide-react';
 
@@ -434,6 +433,45 @@ export const CourseLearningPage: React.FC = () => {
       quiz.status === 'ACTIVE',
   );
 
+  // ===========================================================================
+  // Quiz navigation
+  //
+  // Khi mở Quiz, lưu lại chính xác CourseLearningPage hiện tại.
+  // TakeQuizPage sẽ forward returnTo này sang QuizResultPage.
+  // QuizResultPage dùng returnTo để quay lại CourseLearning thay vì navigate(-1).
+  // ===========================================================================
+
+  const getQuizReturnTo = (lessonId?: number) => {
+    if (!courseId) {
+      return '/';
+    }
+
+    if (lessonId) {
+      return `/courses/${courseId}/learn?lessonId=${lessonId}`;
+    }
+
+    if (activeLesson?.lessonId) {
+      return `/courses/${courseId}/learn?lessonId=${activeLesson.lessonId}`;
+    }
+
+    return `/courses/${courseId}/learn`;
+  };
+
+  const handleTakeQuiz = (
+    quizId: number,
+    lessonId?: number,
+  ) => {
+    navigate(
+      `/quizzes/${quizId}/take`,
+      {
+        state: {
+          returnTo:
+            getQuizReturnTo(lessonId),
+        },
+      },
+    );
+  };
+
   const renderQuizButton = (
     lessonId: number,
   ) => {
@@ -444,11 +482,12 @@ export const CourseLearningPage: React.FC = () => {
     return (
       <button
         type="button"
-        onClick={() => {
-          navigate(
-            `/quizzes/${quiz.quizId}/take`,
-          );
-        }}
+        onClick={() =>
+          handleTakeQuiz(
+            quiz.quizId,
+            lessonId,
+          )
+        }
         className="mt-1 ml-7 inline-flex items-center gap-1.5 rounded-lg bg-violet-600/20 px-2.5 py-1.5 text-[10px] font-bold text-violet-300 border border-violet-500/30 transition-all hover:bg-violet-600/30 hover:text-white active:scale-95"
       >
         <ClipboardList className="h-3 w-3" />
@@ -1907,8 +1946,9 @@ export const CourseLearningPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() =>
-                              navigate(
-                                `/quizzes/${overallQuiz.quizId}/take`,
+                              handleTakeQuiz(
+                                overallQuiz.quizId,
+                                activeLesson?.lessonId,
                               )
                             }
                             className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-3 py-2 text-[11px] font-bold text-white shadow-lg shadow-violet-600/20 transition-all hover:bg-violet-500 active:scale-[0.98]"
