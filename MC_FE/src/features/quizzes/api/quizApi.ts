@@ -8,6 +8,7 @@ import {
   QuizDto,
   QuizListItemDto,
   ApiResponse,
+  LatestQuizResultDto,
 } from '../types/quizTypes';
 
 /**
@@ -159,7 +160,7 @@ async getQuizzesByCourse(
 },
 async getLatestQuizResult(
   quizId: number
-): Promise<ApiResponse<QuizResultDto | null>> {
+): Promise<ApiResponse<LatestQuizResultDto | null>> {
   return request(
     `/quizzes/${quizId}/latest-result`,
     {

@@ -260,15 +260,27 @@ public class QuizAnswerResultDto
 public class QuizListItemDto
 {
     public int QuizId { get; set; }
+
     public int? CourseId { get; set; }
+
     public int? LessonId { get; set; }
 
-    public string? LessonTitle { get; set; } // THÊM
+    public string? LessonTitle { get; set; }
 
     public string Title { get; set; } = string.Empty;
+
     public string? Description { get; set; }
+
     public int TimeLimitMinutes { get; set; }
+
     public decimal PassingScore { get; set; }
+
     public int MaxAttempts { get; set; }
+
     public QuizStatus Status { get; set; }
+
+    public DateTime CreatedAt { get; set; }
+
+    // Số câu hỏi hiện có trong Quiz
+    public int QuestionCount { get; set; }
 }
