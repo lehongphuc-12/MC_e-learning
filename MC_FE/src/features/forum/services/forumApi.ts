@@ -9,9 +9,18 @@ import {
   CreateReportPayload,
   ForumReport,
   ForumPostQuery,
+  ForumUserProfile,
 } from '../types/forumTypes';
 
 export const forumApi = {
+  // User Profile
+  async getUserProfile(userId: number): Promise<ForumUserProfile | null> {
+    try {
+      const res = await request<{ success: boolean; data: ForumUserProfile }>(`/forum/users/${userId}/profile`);
+      if (res.success && res.data) return res.data;
+    } catch (_) {}
+    return null;
+  },
   // Topics
   async getTopics(): Promise<ForumTopic[]> {
     try {

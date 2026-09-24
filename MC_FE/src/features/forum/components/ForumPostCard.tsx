@@ -8,9 +8,10 @@ interface ForumPostCardProps {
   post: ForumPost;
   onClick: () => void;
   onReact: (postId: number, type: 'LIKE' | 'LOVE' | 'HELPFUL') => void;
+  onAuthorClick?: (authorId: number) => void;
 }
 
-export const ForumPostCard: React.FC<ForumPostCardProps> = ({ post, onClick, onReact }) => {
+export const ForumPostCard: React.FC<ForumPostCardProps> = ({ post, onClick, onReact, onAuthorClick }) => {
   const isHidden = post.status === 'HIDDEN_BY_REPORTS' || post.status === 'HIDDEN_BY_ADMIN';
 
   return (
@@ -26,7 +27,15 @@ export const ForumPostCard: React.FC<ForumPostCardProps> = ({ post, onClick, onR
     >
       {/* Header: Author Info & Badges */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
+        <div
+          onClick={(e) => {
+            if (!post.isAnonymous && post.authorId && onAuthorClick) {
+              e.stopPropagation();
+              onAuthorClick(post.authorId);
+            }
+          }}
+          className={`flex items-center gap-3 ${!post.isAnonymous && post.authorId ? 'cursor-pointer hover:opacity-90' : ''}`}
+        >
           <div className="h-10 w-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center overflow-hidden shrink-0">
             {post.isAnonymous ? (
               <EyeOff className="h-5 w-5 text-cyan-400" />

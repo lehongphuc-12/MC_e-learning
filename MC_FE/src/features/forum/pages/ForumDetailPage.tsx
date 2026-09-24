@@ -9,6 +9,7 @@ import { ForumCommentForm } from '../components/ForumCommentForm';
 import { ForumCommentItem } from '../components/ForumCommentItem';
 import { ForumReportModal } from '../components/ForumReportModal';
 import { ForumPostFormModal } from '../components/ForumPostFormModal';
+import { ForumUserProfileModal } from '../components/ForumUserProfileModal';
 import { User } from '../../../types';
 import { ToastType } from '../../../components/common/Toast';
 
@@ -28,6 +29,13 @@ export const ForumDetailPage: React.FC<ForumDetailPageProps> = ({ user, onToast 
 
   const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState<boolean>(false);
+  const [selectedUserProfileUserId, setSelectedUserProfileUserId] = useState<number | null>(null);
+  const [isUserProfileModalOpen, setIsUserProfileModalOpen] = useState<boolean>(false);
+
+  const handleAuthorClick = (authorId: number) => {
+    setSelectedUserProfileUserId(authorId);
+    setIsUserProfileModalOpen(true);
+  };
 
   const postIdNumber = Number(id);
 
@@ -324,7 +332,16 @@ export const ForumDetailPage: React.FC<ForumDetailPageProps> = ({ user, onToast 
           </h1>
 
           {/* Author info */}
-          <div className="flex items-center gap-3 pb-4 border-b border-slate-800">
+          <div
+            onClick={() => {
+              if (!post.isAnonymous && post.authorId) {
+                handleAuthorClick(post.authorId);
+              }
+            }}
+            className={`flex items-center gap-3 pb-4 border-b border-slate-800 ${
+              !post.isAnonymous && post.authorId ? 'cursor-pointer hover:opacity-90' : ''
+            }`}
+          >
             <div className="h-10 w-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center overflow-hidden shrink-0">
               {post.isAnonymous ? (
                 <EyeOff className="h-5 w-5 text-cyan-400" />
@@ -336,7 +353,7 @@ export const ForumDetailPage: React.FC<ForumDetailPageProps> = ({ user, onToast 
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-white">
+                <span className="text-sm font-bold text-white hover:text-cyan-400 transition-colors">
                   {post.isAnonymous ? 'Học viên ẩn danh' : post.authorName}
                 </span>
                 {post.isAnonymous && (
@@ -422,6 +439,7 @@ export const ForumDetailPage: React.FC<ForumDetailPageProps> = ({ user, onToast 
                   onDelete={handleDeleteComment}
                   onReact={handleReactComment}
                   onReport={handleReportComment}
+                  onAuthorClick={handleAuthorClick}
                 />
               ))
             )}
@@ -453,6 +471,14 @@ export const ForumDetailPage: React.FC<ForumDetailPageProps> = ({ user, onToast 
             if (onToast) onToast('Lỗi', res.message || 'Không thể báo cáo.', 'error');
           }
         }}
+      />
+
+      {/* User Profile Info Modal */}
+      <ForumUserProfileModal
+        userId={selectedUserProfileUserId}
+        isOpen={isUserProfileModalOpen}
+        onClose={() => setIsUserProfileModalOpen(false)}
+        onToast={(title, desc, type) => onToast && onToast(title, desc, type)}
       />
     </div>
   );

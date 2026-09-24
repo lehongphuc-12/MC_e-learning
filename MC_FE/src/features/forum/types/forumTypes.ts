@@ -122,3 +122,13 @@ export interface ForumPostQuery {
   search?: string;
   sortBy?: 'latest' | 'hot' | 'most_commented';
 }
+
+export interface ForumUserProfile {
+  userId: number;
+  fullName: string;
+  avatarUrl?: string;
+  roleName: string;
+  joinedAt: string;
+  postsCount: number;
+  commentsCount: number;
+}

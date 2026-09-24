@@ -6,6 +6,7 @@ import { forumApi } from '../services/forumApi';
 import { ForumFilterBar } from '../components/ForumFilterBar';
 import { ForumPostCard } from '../components/ForumPostCard';
 import { ForumPostFormModal } from '../components/ForumPostFormModal';
+import { ForumUserProfileModal } from '../components/ForumUserProfileModal';
 import { User } from '../../../types';
 import { ToastType } from '../../../components/common/Toast';
 
@@ -27,6 +28,13 @@ export const ForumListPage: React.FC<ForumListPageProps> = ({ user, onToast }) =
   const [loading, setLoading] = useState<boolean>(true);
 
   const [isFormModalOpen, setIsFormModalOpen] = useState<boolean>(false);
+  const [selectedUserProfileUserId, setSelectedUserProfileUserId] = useState<number | null>(null);
+  const [isUserProfileModalOpen, setIsUserProfileModalOpen] = useState<boolean>(false);
+
+  const handleAuthorClick = (authorId: number) => {
+    setSelectedUserProfileUserId(authorId);
+    setIsUserProfileModalOpen(true);
+  };
 
   // Fetch topics
   useEffect(() => {
@@ -223,6 +231,7 @@ export const ForumListPage: React.FC<ForumListPageProps> = ({ user, onToast }) =
                     post={post}
                     onClick={() => navigate(`/forum/posts/${post.postId}`)}
                     onReact={handleReactPost}
+                    onAuthorClick={handleAuthorClick}
                   />
                 ))}
               </div>
@@ -305,6 +314,14 @@ export const ForumListPage: React.FC<ForumListPageProps> = ({ user, onToast }) =
         topics={topics}
         onClose={() => setIsFormModalOpen(false)}
         onSubmit={handleCreatePost}
+      />
+
+      {/* User Profile Info Modal */}
+      <ForumUserProfileModal
+        userId={selectedUserProfileUserId}
+        isOpen={isUserProfileModalOpen}
+        onClose={() => setIsUserProfileModalOpen(false)}
+        onToast={(title, desc, type) => onToast && onToast(title, desc, type)}
       />
     </div>
   );

@@ -13,6 +13,7 @@ interface ForumCommentItemProps {
   onDelete: (commentId: number) => Promise<void>;
   onReact: (commentId: number, type: 'LIKE' | 'LOVE' | 'HELPFUL') => void;
   onReport: (commentId: number, reason: string, details?: string) => Promise<void>;
+  onAuthorClick?: (authorId: number) => void;
 }
 
 export const ForumCommentItem: React.FC<ForumCommentItemProps> = ({
@@ -22,6 +23,7 @@ export const ForumCommentItem: React.FC<ForumCommentItemProps> = ({
   onDelete,
   onReact,
   onReport,
+  onAuthorClick,
 }) => {
   const [isReplying, setIsReplying] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
@@ -53,7 +55,14 @@ export const ForumCommentItem: React.FC<ForumCommentItemProps> = ({
       >
         {/* Header: Author, Badges, Actions */}
         <div className="flex items-center justify-between gap-2 mb-2">
-          <div className="flex items-center gap-2.5">
+          <div
+            onClick={() => {
+              if (!comment.isAnonymous && comment.authorId && onAuthorClick) {
+                onAuthorClick(comment.authorId);
+              }
+            }}
+            className={`flex items-center gap-2.5 ${!comment.isAnonymous && comment.authorId ? 'cursor-pointer hover:opacity-90' : ''}`}
+          >
             <div className="h-8 w-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center overflow-hidden shrink-0">
               {comment.isAnonymous ? (
                 <EyeOff className="h-4 w-4 text-cyan-400" />
@@ -66,7 +75,7 @@ export const ForumCommentItem: React.FC<ForumCommentItemProps> = ({
 
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-white">
+                <span className="text-xs font-bold text-white hover:text-cyan-400 transition-colors">
                   {comment.isAnonymous ? 'Học viên ẩn danh' : comment.authorName}
                 </span>
 
@@ -235,6 +244,7 @@ export const ForumCommentItem: React.FC<ForumCommentItemProps> = ({
               onDelete={onDelete}
               onReact={onReact}
               onReport={onReport}
+              onAuthorClick={onAuthorClick}
             />
           ))}
         </div>
