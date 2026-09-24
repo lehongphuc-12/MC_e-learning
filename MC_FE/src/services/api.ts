@@ -1,14 +1,17 @@
-import { useAuthStore } from '../store/useAuthStore';
+import { useAuthStore } from "../store/useAuthStore";
 
-export const API_BASE_URL = 'http://localhost:5239/api';
+export const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ||
+  "http://localhost:5239/api";
 
 let isRefreshing = false;
+
 let failedQueue: Array<{
-  resolve: (value?: any) => void;
-  reject: (reason?: any) => void;
+  resolve: () => void;
+  reject: (reason?: unknown) => void;
 }> = [];
 
-const processQueue = (error: any = null) => {
+const processQueue = (error: unknown = null) => {
   failedQueue.forEach((promise) => {
     if (error) {
       promise.reject(error);
@@ -16,133 +19,302 @@ const processQueue = (error: any = null) => {
       promise.resolve();
     }
   });
+
   failedQueue = [];
 };
+
+async function parseResponse(response: Response): Promise<any> {
+  // 204 / 205 không có body
+  if (
+    response.status === 204 ||
+    response.status === 205
+  ) {
+    return undefined;
+  }
+
+  const text = await response.text();
+
+  // Body rỗng
+  if (!text.trim()) {
+    return undefined;
+  }
+
+  const contentType =
+    response.headers.get("content-type") || "";
+
+  // JSON
+  if (
+    contentType.includes("application/json") ||
+    contentType.includes("+json")
+  ) {
+    try {
+      return JSON.parse(text);
+    } catch {
+      throw new Error(
+        `Server trả về JSON không hợp lệ. HTTP ${response.status}`
+      );
+    }
+  }
+
+  // Plain text / HTML
+  return text;
+}
+
+function createHeaders(
+  options: RequestInit,
+  token?: string | null
+) {
+  const headers = new Headers(options.headers);
+
+  if (
+    !headers.has("Content-Type") &&
+    !(options.body instanceof FormData)
+  ) {
+    headers.set(
+      "Content-Type",
+      "application/json"
+    );
+  }
+
+  if (
+    token &&
+    !headers.has("Authorization")
+  ) {
+    headers.set(
+      "Authorization",
+      `Bearer ${token}`
+    );
+  }
+
+  return headers;
+}
+
+function shouldRefresh(endpoint: string) {
+  return (
+    !endpoint.includes("/auth/login") &&
+    !endpoint.includes("/auth/register") &&
+    !endpoint.includes("/auth/refresh-token") &&
+    !endpoint.includes("/auth/google-login")
+  );
+}
 
 export async function request<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const headers = new Headers(options.headers);
-  if (!headers.has('Content-Type') && !(options.body instanceof FormData)) {
-    headers.set('Content-Type', 'application/json');
-  }
+  const token =
+    useAuthStore.getState().token;
 
-  const token = useAuthStore.getState().token;
-  if (token && !headers.has('Authorization')) {
-    headers.set('Authorization', `Bearer ${token}`);
-  }
+  let headers =
+    createHeaders(options, token);
 
-  const requestOptions: RequestInit = {
-    ...options,
-    credentials: 'include',
-    headers,
-  };
+  let response = await fetch(
+    `${API_BASE_URL}${endpoint}`,
+    {
+      ...options,
+      credentials: "include",
+      headers,
+    }
+  );
 
-  let response = await fetch(`${API_BASE_URL}${endpoint}`, requestOptions);
+  // ============================================================
+  // ACCESS TOKEN EXPIRED
+  // ============================================================
 
   if (
     response.status === 401 &&
-    !endpoint.includes('/auth/login') &&
-    !endpoint.includes('/auth/register') &&
-    !endpoint.includes('/auth/refresh-token') &&
-    !endpoint.includes('/auth/google-login')
+    shouldRefresh(endpoint)
   ) {
     if (isRefreshing) {
-      return new Promise<T>((resolve, reject) => {
-        failedQueue.push({
-          resolve: () => {
-            const newToken = useAuthStore.getState().token;
-            const retryHeaders = new Headers(options.headers);
-            if (!retryHeaders.has('Content-Type') && !(options.body instanceof FormData)) {
-              retryHeaders.set('Content-Type', 'application/json');
-            }
-            if (newToken) {
-              retryHeaders.set('Authorization', `Bearer ${newToken}`);
-            }
-            fetch(`${API_BASE_URL}${endpoint}`, {
-              ...options,
-              credentials: 'include',
-              headers: retryHeaders,
-            })
-              .then((res) => res.json())
-              .then((data) => resolve(data))
-              .catch((err) => reject(err));
-          },
-          reject: (err) => reject(err),
-        });
-      });
-    }
+      await new Promise<void>(
+        (resolve, reject) => {
+          failedQueue.push({
+            resolve,
+            reject,
+          });
+        }
+      );
 
-    isRefreshing = true;
+      const newToken =
+        useAuthStore.getState().token;
 
-    try {
-      const refreshResponse = await fetch(`${API_BASE_URL}/auth/refresh-token`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-      });
+      const retryHeaders =
+        createHeaders(
+          options,
+          newToken
+        );
 
-      const refreshData = await refreshResponse.json();
-
-      if (refreshResponse.ok && refreshData.success && refreshData.data?.accessToken) {
-        const newAccessToken = refreshData.data.accessToken;
-        useAuthStore.getState().setAccessToken(newAccessToken);
-
-        processQueue(null);
-
-        // Retry original request with new access token
-        headers.set('Authorization', `Bearer ${newAccessToken}`);
-        response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      response = await fetch(
+        `${API_BASE_URL}${endpoint}`,
+        {
           ...options,
-          credentials: 'include',
-          headers,
-        });
-      } else {
-        processQueue(new Error('Session expired'));
-        useAuthStore.getState().logout();
-        throw {
-          status: 401,
-          message: 'Session expired. Please log in again.',
-        };
+          credentials: "include",
+          headers: retryHeaders,
+        }
+      );
+    } else {
+      isRefreshing = true;
+
+      try {
+        const refreshResponse =
+          await fetch(
+            `${API_BASE_URL}/auth/refresh-token`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+              credentials: "include",
+            }
+          );
+
+        const refreshData =
+          await parseResponse(
+            refreshResponse
+          );
+
+        if (
+          refreshResponse.ok &&
+          refreshData?.success &&
+          refreshData?.data?.accessToken
+        ) {
+          const newAccessToken =
+            refreshData.data.accessToken;
+
+          useAuthStore
+            .getState()
+            .setAccessToken(
+              newAccessToken
+            );
+
+          processQueue();
+
+          headers =
+            createHeaders(
+              options,
+              newAccessToken
+            );
+
+          response = await fetch(
+            `${API_BASE_URL}${endpoint}`,
+            {
+              ...options,
+              credentials: "include",
+              headers,
+            }
+          );
+        } else {
+          const error =
+            new Error(
+              "Session expired. Please log in again."
+            );
+
+          Object.assign(error, {
+            status: 401,
+          });
+
+          processQueue(error);
+
+          useAuthStore
+            .getState()
+            .logout();
+
+          throw error;
+        }
+      } catch (error) {
+        processQueue(error);
+
+        useAuthStore
+          .getState()
+          .logout();
+
+        throw error;
+      } finally {
+        isRefreshing = false;
       }
-    } catch (refreshErr) {
-      processQueue(refreshErr);
-      useAuthStore.getState().logout();
-      throw {
-        status: 401,
-        message: 'Session expired. Please log in again.',
-      };
-    } finally {
-      isRefreshing = false;
     }
   }
 
-  const data = await response.json();
+  // ============================================================
+  // PARSE RESPONSE
+  // ============================================================
+
+  const data =
+    await parseResponse(response);
+
+  // ============================================================
+  // HTTP ERROR
+  // ============================================================
 
   if (!response.ok) {
     let normalizedErrors: string[] = [];
-    if (Array.isArray(data?.errors)) {
-      normalizedErrors = data.errors;
-    } else if (data?.errors && typeof data.errors === 'object') {
-      normalizedErrors = Object.entries(data.errors).flatMap(([field, msgs]) =>
-        Array.isArray(msgs)
-          ? msgs.map((m) => `${field}: ${m}`)
-          : [`${field}: ${String(msgs)}`]
-      );
+
+    if (
+      typeof data === "object" &&
+      data !== null
+    ) {
+      if (Array.isArray(data.errors)) {
+        normalizedErrors =
+          data.errors.map(String);
+      } else if (
+        data.errors &&
+        typeof data.errors === "object"
+      ) {
+        normalizedErrors =
+          Object.entries(
+            data.errors
+          ).flatMap(
+            ([field, messages]) => {
+              if (
+                Array.isArray(messages)
+              ) {
+                return messages.map(
+                  (message) =>
+                    `${field}: ${String(
+                      message
+                    )}`
+                );
+              }
+
+              return [
+                `${field}: ${String(
+                  messages
+                )}`,
+              ];
+            }
+          );
+      }
     }
 
-    const error = new Error(
-  data?.message || data?.title || 'Something went wrong'
-);
+    let message =
+      `Request failed (${response.status})`;
 
-Object.assign(error, {
-  status: response.status,
-  errors: normalizedErrors,
-});
+    if (
+      typeof data === "object" &&
+      data !== null
+    ) {
+      message =
+        data.message ||
+        data.title ||
+        message;
+    } else if (
+      typeof data === "string" &&
+      data.trim()
+    ) {
+      message = data;
+    }
 
-throw error;
+    const error =
+      new Error(message);
+
+    Object.assign(error, {
+      status: response.status,
+      errors: normalizedErrors,
+    });
+
+    throw error;
   }
 
-  return data;
+  return data as T;
 }
