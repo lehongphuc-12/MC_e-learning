@@ -7,6 +7,7 @@ import { AdminCoursesTab } from '../components/AdminCoursesTab';
 import { AdminCategoriesTab } from '../components/AdminCategoriesTab';
 import { AdminFinancialsTab } from '../components/AdminFinancialsTab';
 import { AdminSettingsTab } from '../components/AdminSettingsTab';
+import { AdminForumTab } from '../components/AdminForumTab';
 import { UserEditModal } from '../components/modals/UserEditModal';
 import { CourseReviewModal } from '../components/modals/CourseReviewModal';
 import { CategoryModal } from '../components/modals/CategoryModal';
@@ -41,7 +42,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const VALID_TABS: AdminTabType[] = ['overview', 'users', 'courses', 'categories', 'financials', 'settings'];
+  const VALID_TABS: AdminTabType[] = ['overview', 'users', 'courses', 'categories', 'financials', 'settings', 'forum'];
   const tabFromUrl = searchParams.get('tab') as AdminTabType | null;
   const [activeTab, setActiveTab] = useState<AdminTabType>(
     tabFromUrl && VALID_TABS.includes(tabFromUrl) ? tabFromUrl : 'overview'
@@ -436,6 +437,10 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
 
       {activeTab === 'settings' && settings && (
         <AdminSettingsTab settings={settings} onSaveSettings={handleSaveSettings} />
+      )}
+
+      {activeTab === 'forum' && (
+        <AdminForumTab onToast={onToast} />
       )}
 
       {/* Modals */}

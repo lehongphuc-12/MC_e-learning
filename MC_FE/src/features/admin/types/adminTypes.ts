@@ -1,4 +1,4 @@
-export type AdminTabType = 'overview' | 'users' | 'courses' | 'categories' | 'financials' | 'settings';
+export type AdminTabType = 'overview' | 'users' | 'courses' | 'categories' | 'financials' | 'settings' | 'forum';
 
 export type UserRole = 'student' | 'instructor' | 'admin';
 

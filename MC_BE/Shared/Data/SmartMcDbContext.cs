@@ -39,6 +39,13 @@ public class SmartMcDbContext : DbContext
     public DbSet<QuizAttempt> QuizAttempts { get; set; } = null!;
     public DbSet<QuizAnswer> QuizAnswers { get; set; } = null!;
 
+    // Section 5: Forum
+    public DbSet<ForumTopic> ForumTopics { get; set; } = null!;
+    public DbSet<ForumPost> ForumPosts { get; set; } = null!;
+    public DbSet<ForumComment> ForumComments { get; set; } = null!;
+    public DbSet<ForumReaction> ForumReactions { get; set; } = null!;
+    public DbSet<ForumReport> ForumReports { get; set; } = null!;
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -417,6 +424,122 @@ public class SmartMcDbContext : DbContext
                 .WithMany(p => p.QuizAnswers)
                 .HasForeignKey(d => d.SelectedChoiceId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // Section 5: Forum Configuration
+        modelBuilder.Entity<ForumTopic>(entity =>
+        {
+            entity.ToTable("forum_topics");
+            entity.HasIndex(e => e.Slug).IsUnique();
+            entity.Property(e => e.Status).HasDefaultValue("ACTIVE");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+        });
+
+        modelBuilder.Entity<ForumPost>(entity =>
+        {
+            entity.ToTable("forum_posts");
+            entity.HasIndex(e => e.TopicId);
+            entity.HasIndex(e => e.AuthorId);
+            entity.HasIndex(e => e.Status);
+            entity.Property(e => e.Status).HasDefaultValue("PUBLISHED");
+            entity.Property(e => e.ViewsCount).HasDefaultValue(0);
+            entity.Property(e => e.ReactionsCount).HasDefaultValue(0);
+            entity.Property(e => e.CommentsCount).HasDefaultValue(0);
+            entity.Property(e => e.ReportsCount).HasDefaultValue(0);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasOne(d => d.Topic)
+                .WithMany(p => p.Posts)
+                .HasForeignKey(d => d.TopicId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(d => d.Author)
+                .WithMany()
+                .HasForeignKey(d => d.AuthorId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ForumComment>(entity =>
+        {
+            entity.ToTable("forum_comments");
+            entity.HasIndex(e => e.PostId);
+            entity.HasIndex(e => e.AuthorId);
+            entity.HasIndex(e => e.ParentCommentId);
+            entity.HasIndex(e => e.Status);
+            entity.Property(e => e.DepthLevel).HasDefaultValue(1);
+            entity.Property(e => e.IsAnonymous).HasDefaultValue(false);
+            entity.Property(e => e.Status).HasDefaultValue("ACTIVE");
+            entity.Property(e => e.ReactionsCount).HasDefaultValue(0);
+            entity.Property(e => e.ReportsCount).HasDefaultValue(0);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasOne(d => d.Post)
+                .WithMany(p => p.Comments)
+                .HasForeignKey(d => d.PostId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(d => d.Author)
+                .WithMany()
+                .HasForeignKey(d => d.AuthorId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(d => d.ParentComment)
+                .WithMany(p => p.Replies)
+                .HasForeignKey(d => d.ParentCommentId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ForumReaction>(entity =>
+        {
+            entity.ToTable("forum_reactions");
+            entity.HasIndex(e => new { e.UserId, e.TargetType, e.PostId, e.CommentId }).IsUnique();
+            entity.Property(e => e.ReactionType).HasDefaultValue("LIKE");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasOne(d => d.User)
+                .WithMany()
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(d => d.Post)
+                .WithMany(p => p.Reactions)
+                .HasForeignKey(d => d.PostId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(d => d.Comment)
+                .WithMany(p => p.Reactions)
+                .HasForeignKey(d => d.CommentId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ForumReport>(entity =>
+        {
+            entity.ToTable("forum_reports");
+            entity.HasIndex(e => new { e.ReporterId, e.TargetType, e.PostId, e.CommentId }).IsUnique();
+            entity.Property(e => e.Status).HasDefaultValue("PENDING");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasOne(d => d.Reporter)
+                .WithMany()
+                .HasForeignKey(d => d.ReporterId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(d => d.ResolvedBy)
+                .WithMany()
+                .HasForeignKey(d => d.ResolvedById)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(d => d.Post)
+                .WithMany(p => p.Reports)
+                .HasForeignKey(d => d.PostId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(d => d.Comment)
+                .WithMany(p => p.Reports)
+                .HasForeignKey(d => d.CommentId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

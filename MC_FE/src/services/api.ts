@@ -65,7 +65,10 @@ export async function request<T>(
               credentials: 'include',
               headers: retryHeaders,
             })
-              .then((res) => res.json())
+              .then(async (res) => {
+                const text = await res.text();
+                return text ? JSON.parse(text) : {};
+              })
               .then((data) => resolve(data))
               .catch((err) => reject(err));
           },
@@ -83,7 +86,8 @@ export async function request<T>(
         credentials: 'include',
       });
 
-      const refreshData = await refreshResponse.json();
+      const refreshText = await refreshResponse.text();
+      const refreshData = refreshText ? JSON.parse(refreshText) : {};
 
       if (refreshResponse.ok && refreshData.success && refreshData.data?.accessToken) {
         const newAccessToken = refreshData.data.accessToken;
@@ -118,7 +122,15 @@ export async function request<T>(
     }
   }
 
-  const data = await response.json();
+  const rawText = await response.text();
+  let data: any = {};
+  if (rawText) {
+    try {
+      data = JSON.parse(rawText);
+    } catch (_) {
+      data = { message: rawText };
+    }
+  }
 
   if (!response.ok) {
     let normalizedErrors: string[] = [];
@@ -133,15 +145,15 @@ export async function request<T>(
     }
 
     const error = new Error(
-  data?.message || data?.title || 'Something went wrong'
-);
+      data?.message || data?.title || `Yêu cầu thất bại với mã lỗi ${response.status}`
+    );
 
-Object.assign(error, {
-  status: response.status,
-  errors: normalizedErrors,
-});
+    Object.assign(error, {
+      status: response.status,
+      errors: normalizedErrors,
+    });
 
-throw error;
+    throw error;
   }
 
   return data;

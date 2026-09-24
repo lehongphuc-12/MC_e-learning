@@ -33,6 +33,7 @@ import { renderQuizRoutes } from '../features/quizzes/routes';
 import { renderProfileRoutes } from '../features/profile/routes';
 import { renderAdminRoutes } from '../features/admin/routes';
 import { renderPaymentRoutes } from '../features/payment/routes';
+import { renderForumRoutes } from '../features/forum/routes';
 
 interface AppRouterProps {
   selectedCourse: Course | null;
@@ -127,6 +128,7 @@ export const AppRouter: React.FC<AppRouterProps> = ({
     if (path === '/my-courses') return 'my-courses';
     if (path.startsWith('/courses')) return 'courses';
     if (path.startsWith('/course-detail')) return 'course-detail';
+    if (path.startsWith('/forum')) return 'forum';
     if (path === '/profile') return 'profile';
     if (path === '/login') return 'login';
     if (path === '/register') return 'register';
@@ -242,6 +244,13 @@ export const AppRouter: React.FC<AppRouterProps> = ({
 
       {/* ── 6. Payment Result Route (/payment-result) ── */}
       {renderPaymentRoutes()}
+
+      {/* ── 7. Forum Routes (/forum, /forum/posts/:id) ── */}
+      {renderForumRoutes({
+        withMainLayout,
+        user,
+        onToast,
+      })}
 
       {/* ── FE:03 Instructor Course Management Routes ────────────────────── */}
       <Route
