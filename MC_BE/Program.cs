@@ -66,6 +66,7 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserProfileService, UserProfileService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
+builder.Services.AddScoped<IAdminStatsService, AdminStatsService>();
 
 // Course Management Services
 builder.Services.AddScoped<ICourseService, CourseService>();
