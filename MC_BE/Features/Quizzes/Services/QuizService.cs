@@ -857,13 +857,16 @@ else
         };
     }
 
-public async Task<List<QuizListItemDto>> GetQuizzesByCourseAsync(int courseId)
+public async Task<List<QuizListItemDto>> GetQuizzesByCourseAsync(
+    int courseId)
 {
     var quizzes = await _quizRepository.FindAsync(
         q => q.CourseId == courseId,
-        q => q.Lesson);
+        q => q.Lesson,
+        q => q.Questions);
 
     return quizzes
+        .OrderBy(q => q.CreatedAt)
         .Select(q => new QuizListItemDto
         {
             QuizId = q.QuizId,
@@ -876,10 +879,24 @@ public async Task<List<QuizListItemDto>> GetQuizzesByCourseAsync(int courseId)
 
             Title = q.Title,
             Description = q.Description,
-            TimeLimitMinutes = q.TimeLimitMinutes,
-            PassingScore = q.PassingScore,
-            MaxAttempts = q.MaxAttempts,
-            Status = q.Status
+
+            TimeLimitMinutes =
+                q.TimeLimitMinutes,
+
+            PassingScore =
+                q.PassingScore,
+
+            MaxAttempts =
+                q.MaxAttempts,
+
+            Status =
+                q.Status,
+
+            CreatedAt =
+                q.CreatedAt,
+
+            QuestionCount =
+                q.Questions?.Count ?? 0
         })
         .ToList();
 }

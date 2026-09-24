@@ -1,5 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import {
+  useLocation,
+  useNavigate,
+  useParams,
+} from 'react-router-dom';
 
 import {
   useTakeQuiz,
@@ -16,8 +20,14 @@ import {
   TakeQuestionDto,
 } from '../types/quizTypes';
 
+interface QuizNavigationState {
+  returnTo?: string;
+}
+
 export const TakeQuizPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+
   const { quizId } = useParams<{ quizId: string }>();
 
   const parsedQuizId =
@@ -26,6 +36,48 @@ export const TakeQuizPage: React.FC = () => {
     Number(quizId) > 0
       ? Number(quizId)
       : null;
+
+  // ============================================================
+  // NAVIGATION STATE
+  // ============================================================
+
+  /**
+   * CourseLearningPage truyền vào:
+   *
+   * {
+   *   returnTo: '/courses/12/learn?lessonId=35'
+   * }
+   *
+   * TakeQuizPage giữ lại giá trị này và forward tiếp
+   * sang QuizResultPage.
+   */
+  const navigationState =
+    location.state as QuizNavigationState | null;
+
+  const returnTo =
+    navigationState?.returnTo;
+
+  /**
+   * Không dùng navigate(-1).
+   *
+   * Nếu Quiz được mở từ CourseLearningPage thì quay đúng
+   * về course/lesson trước đó.
+   *
+   * Nếu người dùng truy cập trực tiếp URL Quiz thì fallback
+   * về danh sách khóa học đã đăng ký.
+   */
+  const handleBack = () => {
+    if (returnTo) {
+      navigate(returnTo, {
+        replace: true,
+      });
+      return;
+    }
+
+    navigate('/my-courses', {
+      replace: true,
+    });
+  };
 
   // ============================================================
   // QUIZ DATA
@@ -85,6 +137,36 @@ export const TakeQuizPage: React.FC = () => {
    */
   const [isLoadingLatestResult, setIsLoadingLatestResult] =
     useState(false);
+
+  /**
+   * Modal xác nhận nộp bài.
+   */
+  const [showSubmitConfirm, setShowSubmitConfirm] =
+    useState(false);
+
+  /**
+   * Notification thay cho window.alert().
+   */
+  const [notification, setNotification] = useState<{
+    message: string;
+    type: 'success' | 'error';
+  } | null>(null);
+
+  // ============================================================
+  // NOTIFICATION AUTO CLOSE
+  // ============================================================
+
+  useEffect(() => {
+    if (!notification) return;
+
+    const timer = window.setTimeout(() => {
+      setNotification(null);
+    }, 3500);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [notification]);
 
   // ============================================================
   // INITIALIZE TIMER
@@ -278,15 +360,29 @@ export const TakeQuizPage: React.FC = () => {
           response
         );
 
-        window.alert(
-          'Không tìm thấy kết quả Quiz gần nhất.'
-        );
+        setNotification({
+          message:
+            'Không tìm thấy kết quả Quiz gần nhất.',
+          type: 'error',
+        });
 
         return;
       }
 
+      /**
+       * Forward returnTo sang QuizResultPage.
+       *
+       * replace: true để trang lỗi/hết lượt của TakeQuiz
+       * không nằm ngay phía sau Result trong history.
+       */
       navigate(
-        `/quizzes/${parsedQuizId}/result/${attemptId}`
+        `/quizzes/${parsedQuizId}/result/${attemptId}`,
+        {
+          replace: true,
+          state: {
+            returnTo,
+          },
+        }
       );
     } catch (err) {
       console.error(
@@ -299,7 +395,10 @@ export const TakeQuizPage: React.FC = () => {
           ? err.message
           : 'Không thể lấy kết quả Quiz.';
 
-      window.alert(message);
+      setNotification({
+        message,
+        type: 'error',
+      });
     } finally {
       setIsLoadingLatestResult(false);
     }
@@ -320,16 +419,10 @@ export const TakeQuizPage: React.FC = () => {
       return;
     }
 
-    if (!autoSubmit) {
-      const confirmed = window.confirm(
-        'Bạn có chắc chắn muốn nộp bài không?'
-      );
-
-      if (!confirmed) {
-        return;
-      }
-    }
-
+    /**
+     * Nếu hết giờ thì tự động submit.
+     * Không hiển thị modal xác nhận.
+     */
     if (autoSubmit) {
       setAutoSubmitted(true);
     }
@@ -360,13 +453,28 @@ export const TakeQuizPage: React.FC = () => {
           /**
            * LE16 - View Quiz Result
            *
-           * Backend submit trả về attemptId.
+           * Sau khi submit:
            *
-           * Route:
-           * /quizzes/:quizId/result/:attemptId
+           * CourseLearning
+           *      ↓
+           * TakeQuiz
+           *      ↓
+           * QuizResult
+           *
+           * replace: true loại TakeQuiz khỏi vị trí hiện tại
+           * trong history.
+           *
+           * returnTo được forward sang QuizResultPage để
+           * nút "Quay lại" biết phải về đâu.
            */
           navigate(
-            `/quizzes/${quiz.quizId}/result/${result.attemptId}`
+            `/quizzes/${quiz.quizId}/result/${result.attemptId}`,
+            {
+              replace: true,
+              state: {
+                returnTo,
+              },
+            }
           );
         },
       }
@@ -393,7 +501,7 @@ export const TakeQuizPage: React.FC = () => {
       setRemainingSeconds((prev) => {
         if (prev === null) return null;
 
-        return prev - 1;
+        return Math.max(0, prev - 1);
       });
     }, 1000);
 
@@ -509,7 +617,7 @@ export const TakeQuizPage: React.FC = () => {
 
             <button
               type="button"
-              onClick={() => navigate(-1)}
+              onClick={handleBack}
               className="px-5 py-2.5 rounded-lg bg-slate-800 text-white hover:bg-slate-700 transition"
             >
               Quay lại
@@ -566,6 +674,57 @@ export const TakeQuizPage: React.FC = () => {
     <div className="min-h-screen bg-slate-50 text-slate-900">
 
       {/* ========================================================
+          NOTIFICATION
+      ======================================================== */}
+
+      {notification && (
+        <div className="fixed right-5 top-5 z-[9999] w-[calc(100%-2.5rem)] max-w-sm">
+          <div
+            className={`flex items-start gap-3 rounded-xl border bg-white p-4 shadow-xl ${
+              notification.type === 'error'
+                ? 'border-red-200'
+                : 'border-emerald-200'
+            }`}
+          >
+            <div
+              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full font-bold ${
+                notification.type === 'error'
+                  ? 'bg-red-100 text-red-600'
+                  : 'bg-emerald-100 text-emerald-600'
+              }`}
+            >
+              {notification.type === 'error'
+                ? '!'
+                : '✓'}
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-slate-900">
+                {notification.type === 'error'
+                  ? 'Có lỗi xảy ra'
+                  : 'Thành công'}
+              </p>
+
+              <p className="mt-1 text-sm leading-5 text-slate-600">
+                {notification.message}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              aria-label="Đóng thông báo"
+              onClick={() =>
+                setNotification(null)
+              }
+              className="text-lg leading-none text-slate-400 transition hover:text-slate-700"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
           HEADER COMPONENT
       ======================================================== */}
 
@@ -585,7 +744,7 @@ export const TakeQuizPage: React.FC = () => {
           quiz.questions.length
         }
         onSubmit={() =>
-          handleSubmit(false)
+          setShowSubmitConfirm(true)
         }
         submitting={
           submitQuiz.isPending
@@ -771,7 +930,7 @@ export const TakeQuizPage: React.FC = () => {
                       submitQuiz.isPending
                     }
                     onClick={() =>
-                      handleSubmit(false)
+                      setShowSubmitConfirm(true)
                     }
                     className="px-6 py-2.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
                   >
@@ -841,6 +1000,122 @@ export const TakeQuizPage: React.FC = () => {
         </div>
 
       </main>
+
+      {/* ========================================================
+          SUBMIT CONFIRM MODAL
+      ======================================================== */}
+
+      {showSubmitConfirm && (
+        <div className="fixed inset-0 z-[9998] flex items-center justify-center px-4">
+
+          {/* BACKDROP */}
+
+          <button
+            type="button"
+            aria-label="Đóng"
+            disabled={submitQuiz.isPending}
+            onClick={() =>
+              setShowSubmitConfirm(false)
+            }
+            className="absolute inset-0 bg-slate-950/40 backdrop-blur-[2px]"
+          />
+
+          {/* MODAL */}
+
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="submit-confirm-title"
+            className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl"
+          >
+
+            {/* ICON */}
+
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-xl font-bold text-blue-600">
+              ?
+            </div>
+
+            {/* TITLE */}
+
+            <h2
+              id="submit-confirm-title"
+              className="mt-4 text-xl font-bold text-slate-900"
+            >
+              Xác nhận nộp bài
+            </h2>
+
+            {/* DESCRIPTION */}
+
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Bạn đã trả lời{' '}
+              <span className="font-semibold text-slate-900">
+                {answeredCount}/
+                {quiz.questions.length}
+              </span>{' '}
+              câu hỏi.
+            </p>
+
+            {/* UNANSWERED WARNING */}
+
+            {answeredCount <
+              quiz.questions.length && (
+              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                <p className="text-sm leading-5 text-amber-700">
+                  Bạn vẫn còn{' '}
+                  <strong>
+                    {quiz.questions.length -
+                      answeredCount}
+                  </strong>{' '}
+                  câu chưa trả lời.
+                </p>
+              </div>
+            )}
+
+            <p className="mt-4 text-sm leading-6 text-slate-500">
+              Sau khi nộp bài, hệ thống sẽ
+              chấm điểm và hiển thị kết quả
+              của bạn.
+            </p>
+
+            {/* ACTIONS */}
+
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+
+              <button
+                type="button"
+                disabled={
+                  submitQuiz.isPending
+                }
+                onClick={() =>
+                  setShowSubmitConfirm(false)
+                }
+                className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Tiếp tục làm
+              </button>
+
+              <button
+                type="button"
+                disabled={
+                  submitQuiz.isPending
+                }
+                onClick={() => {
+                  setShowSubmitConfirm(false);
+                  handleSubmit(false);
+                }}
+                className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {submitQuiz.isPending
+                  ? 'Đang nộp...'
+                  : 'Nộp bài'}
+              </button>
+
+            </div>
+
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

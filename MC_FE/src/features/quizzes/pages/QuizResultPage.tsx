@@ -1,23 +1,88 @@
 import React from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import {
+  useLocation,
+  useNavigate,
+  useParams,
+} from 'react-router-dom';
 
 import { useQuizResult } from '../hooks/useQuiz';
 
+interface QuizNavigationState {
+  returnTo?: string;
+}
+
 export const QuizResultPage: React.FC = () => {
   const navigate = useNavigate();
-  const { quizId: quizIdParam, attemptId: attemptIdParam } =
-  useParams<{
+  const location = useLocation();
+
+  const {
+    quizId: quizIdParam,
+    attemptId: attemptIdParam,
+  } = useParams<{
     quizId: string;
     attemptId: string;
   }>();
 
-const quizId = quizIdParam
-  ? Number(quizIdParam)
-  : null;
+  // =========================
+  // NAVIGATION STATE
+  // =========================
 
-const attemptId = attemptIdParam
-  ? Number(attemptIdParam)
-  : null;
+  /**
+   * Flow:
+   *
+   * CourseLearningPage
+   *    ↓ state.returnTo
+   * TakeQuizPage
+   *    ↓ state.returnTo
+   * QuizResultPage
+   *
+   * Ví dụ:
+   * returnTo = "/courses/12/learn?lessonId=35"
+   */
+  const navigationState =
+    location.state as QuizNavigationState | null;
+
+  const returnTo =
+    navigationState?.returnTo;
+
+  /**
+   * Không sử dụng navigate(-1) tại Result.
+   *
+   * Nếu dùng navigate(-1), browser history có thể đưa
+   * người dùng quay lại TakeQuizPage vừa nộp xong.
+   *
+   * Thay vào đó quay trực tiếp về CourseLearningPage
+   * đã được lưu trong returnTo.
+   */
+  const handleBack = () => {
+    if (returnTo) {
+      navigate(returnTo, {
+        replace: true,
+      });
+
+      return;
+    }
+
+    /**
+     * Fallback khi user truy cập trực tiếp URL Result
+     * hoặc refresh làm mất navigation state.
+     */
+    navigate('/my-courses', {
+      replace: true,
+    });
+  };
+
+  // =========================
+  // PARAMS
+  // =========================
+
+  const quizId = quizIdParam
+    ? Number(quizIdParam)
+    : null;
+
+  const attemptId = attemptIdParam
+    ? Number(attemptIdParam)
+    : null;
 
   const validQuizId =
     quizId !== null &&
@@ -36,6 +101,7 @@ const attemptId = attemptIdParam
   // =========================
   // GET QUIZ RESULT
   // =========================
+
   const {
     data: result,
     isLoading,
@@ -49,6 +115,7 @@ const attemptId = attemptIdParam
   // =========================
   // INVALID PARAMS
   // =========================
+
   if (
     validQuizId === null ||
     validAttemptId === null
@@ -67,7 +134,7 @@ const attemptId = attemptIdParam
 
             <button
               type="button"
-              onClick={() => navigate(-1)}
+              onClick={handleBack}
               className="mt-5 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
             >
               Quay lại
@@ -81,6 +148,7 @@ const attemptId = attemptIdParam
   // =========================
   // LOADING
   // =========================
+
   if (isLoading) {
     return (
       <div className="min-h-[60vh] bg-slate-50 px-4 py-10">
@@ -100,6 +168,7 @@ const attemptId = attemptIdParam
   // =========================
   // ERROR
   // =========================
+
   if (isError || !result) {
     return (
       <div className="min-h-[60vh] bg-slate-50 px-4 py-10">
@@ -121,7 +190,7 @@ const attemptId = attemptIdParam
 
             <button
               type="button"
-              onClick={() => navigate(-1)}
+              onClick={handleBack}
               className="mt-5 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
             >
               Quay lại
@@ -135,6 +204,7 @@ const attemptId = attemptIdParam
   // =========================
   // STATISTICS
   // =========================
+
   const totalQuestions =
     result.answers.length;
 
@@ -152,18 +222,10 @@ const attemptId = attemptIdParam
         answer.selectedChoiceId !== null
     ).length;
 
-  const percentage =
-    totalQuestions > 0
-      ? Math.round(
-          (correctAnswers /
-            totalQuestions) *
-            100
-        )
-      : 0;
-
   // =========================
   // DATE FORMAT
   // =========================
+
   const formatDate = (
     value: string | null
   ) => {
@@ -180,16 +242,47 @@ const attemptId = attemptIdParam
     );
   };
 
+  // =========================
+  // RETAKE QUIZ
+  // =========================
+
+  /**
+   * Khi làm lại Quiz, tiếp tục giữ returnTo.
+   *
+   * Flow:
+   *
+   * Result
+   *   ↓ Làm lại
+   * TakeQuiz
+   *   ↓ Submit
+   * Result
+   *   ↓ Quay lại
+   * CourseLearning
+   */
+  const handleRetakeQuiz = () => {
+    navigate(
+      `/quizzes/${result.quizId}/take`,
+      {
+        replace: true,
+        state: {
+          returnTo,
+        },
+      }
+    );
+  };
+
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+
         {/* =========================
             HEADER
         ========================= */}
+
         <div className="mb-6">
           <button
             type="button"
-            onClick={() => navigate(-1)}
+            onClick={handleBack}
             className="mb-4 text-sm font-medium text-slate-500 transition hover:text-slate-700"
           >
             ← Quay lại
@@ -207,9 +300,12 @@ const attemptId = attemptIdParam
         {/* =========================
             RESULT SUMMARY
         ========================= */}
+
         <div className="rounded-2xl bg-white p-6 shadow-sm">
           <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+
             {/* SCORE */}
+
             <div className="flex flex-col items-center justify-center rounded-2xl bg-slate-50 p-6 text-center">
               <p className="text-sm font-medium text-slate-500">
                 Điểm số
@@ -225,6 +321,7 @@ const attemptId = attemptIdParam
             </div>
 
             {/* PASS STATUS */}
+
             <div
               className={`flex flex-col items-center justify-center rounded-2xl p-6 text-center ${
                 result.isPassed
@@ -264,6 +361,7 @@ const attemptId = attemptIdParam
             </div>
 
             {/* CORRECT ANSWERS */}
+
             <div className="flex flex-col items-center justify-center rounded-2xl bg-blue-50 p-6 text-center">
               <p className="text-sm font-medium text-slate-500">
                 Câu trả lời đúng
@@ -282,6 +380,7 @@ const attemptId = attemptIdParam
           {/* =========================
               STATISTICS
           ========================= */}
+
           <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
             <div className="rounded-xl border border-slate-200 p-4">
               <p className="text-xs text-slate-500">
@@ -328,6 +427,7 @@ const attemptId = attemptIdParam
         {/* =========================
             ATTEMPT INFORMATION
         ========================= */}
+
         <div className="mt-6 rounded-2xl bg-white p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-slate-900">
             Thông tin lần làm bài
@@ -373,6 +473,7 @@ const attemptId = attemptIdParam
         {/* =========================
             ANSWER REVIEW
         ========================= */}
+
         <div className="mt-6">
           <div className="mb-4">
             <h2 className="text-lg font-semibold text-slate-900">
@@ -397,6 +498,7 @@ const attemptId = attemptIdParam
                   }`}
                 >
                   {/* QUESTION */}
+
                   <div className="flex gap-3">
                     <div
                       className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${
@@ -428,6 +530,7 @@ const attemptId = attemptIdParam
                   </div>
 
                   {/* SELECTED ANSWER */}
+
                   <div className="mt-4 rounded-xl bg-slate-50 p-4">
                     <p className="text-xs font-medium text-slate-500">
                       Câu trả lời của bạn
@@ -446,6 +549,7 @@ const attemptId = attemptIdParam
                   </div>
 
                   {/* CORRECT ANSWER */}
+
                   {!answer.isCorrect && (
                     <div className="mt-3 rounded-xl bg-green-50 p-4">
                       <p className="text-xs font-medium text-green-600">
@@ -467,12 +571,11 @@ const attemptId = attemptIdParam
         {/* =========================
             ACTIONS
         ========================= */}
+
         <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
           <button
             type="button"
-            onClick={() =>
-  navigate(`/quizzes/${result.quizId}/take`)
-}
+            onClick={handleRetakeQuiz}
             className="rounded-xl border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
           >
             Làm lại Quiz
@@ -480,7 +583,7 @@ const attemptId = attemptIdParam
 
           <button
             type="button"
-            onClick={() => navigate(-1)}
+            onClick={handleBack}
             className="rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
           >
             Quay lại

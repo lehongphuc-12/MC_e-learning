@@ -232,7 +232,9 @@ export interface QuizResultDto {
 
   answers: QuizAnswerResultDto[];
 }
-
+export interface LatestQuizResultDto {
+  attemptId: number;
+}
 
 // ============================================================
 // API RESPONSE
