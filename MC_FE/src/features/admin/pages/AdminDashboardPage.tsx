@@ -245,34 +245,57 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   };
 
   const handleApproveCourse = async (courseId: string) => {
-    await adminApi.updateCourseStatus(courseId, 'published');
-    setCourses((prev) =>
-      prev.map((c) => (c.id === courseId ? { ...c, status: 'published' } : c))
-    );
-    if (stats) {
-      setStats({
-        ...stats,
-        pendingCourseApprovals: Math.max(0, stats.pendingCourseApprovals - 1),
-        totalCourses: stats.totalCourses + 1,
-      });
+    const res = await adminApi.approveCourse(courseId);
+    if (res.success) {
+      setCourses((prev) =>
+        prev.map((c) => (c.id === courseId ? { ...c, status: 'published' } : c))
+      );
+      onToast?.('Đã phê duyệt', 'Khóa học đã được xuất bản công khai!', 'success');
+      refreshCoursesData();
+    } else {
+      onToast?.('Lỗi phê duyệt', res.message || 'Không thể phê duyệt khóa học.', 'error');
     }
-    onToast?.('Đã phê duyệt', 'Khóa học đã được xuất bản công khai!', 'success');
   };
 
   const handleRejectCourse = async (courseId: string, reason: string) => {
-    await adminApi.updateCourseStatus(courseId, 'rejected', reason);
-    setCourses((prev) =>
-      prev.map((c) =>
-        c.id === courseId ? { ...c, status: 'rejected', rejectReason: reason } : c
-      )
-    );
-    if (stats) {
-      setStats({
-        ...stats,
-        pendingCourseApprovals: Math.max(0, stats.pendingCourseApprovals - 1),
-      });
+    const res = await adminApi.rejectCourse(courseId, reason);
+    if (res.success) {
+      setCourses((prev) =>
+        prev.map((c) =>
+          c.id === courseId ? { ...c, status: 'rejected', rejectReason: reason } : c
+        )
+      );
+      onToast?.('Đã từ chối', 'Đã gửi thông báo cho Giảng viên khắc phục.', 'info');
+      refreshCoursesData();
+    } else {
+      onToast?.('Lỗi từ chối', res.message || 'Không thể từ chối khóa học.', 'error');
     }
-    onToast?.('Đã từ chối', 'Đã gửi thông báo cho Giảng viên khắc phục.', 'info');
+  };
+
+  const handleHideCourse = async (courseId: string) => {
+    const res = await adminApi.hideCourse(courseId);
+    if (res.success) {
+      setCourses((prev) =>
+        prev.map((c) => (c.id === courseId ? { ...c, status: 'hidden' } : c))
+      );
+      onToast?.('Đã ẩn khóa học', 'Khóa học đã được chuyển sang trạng thái Đã ẩn.', 'info');
+      refreshCoursesData();
+    } else {
+      onToast?.('Lỗi', res.message || 'Không thể ẩn khóa học. Vui lòng thử lại.', 'error');
+    }
+  };
+
+  const handleUnhideCourse = async (courseId: string) => {
+    const res = await adminApi.unhideCourse(courseId);
+    if (res.success) {
+      setCourses((prev) =>
+        prev.map((c) => (c.id === courseId ? { ...c, status: 'published' } : c))
+      );
+      onToast?.('Đã xuất bản lại', 'Khóa học đã xuất hiện trở lại trên danh sách công khai.', 'success');
+      refreshCoursesData();
+    } else {
+      onToast?.('Lỗi', res.message || 'Không thể xuất bản lại khóa học. Vui lòng thử lại.', 'error');
+    }
   };
 
   const handleToggleFeatured = async (courseId: string, currentFeatured: boolean) => {
@@ -335,8 +358,9 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   };
 
   // --- Handlers for Settings ---
-  const handleSaveSettings = (newSettings: PlatformSettings) => {
+  const handleSaveSettings = async (newSettings: PlatformSettings) => {
     setSettings(newSettings);
+    await adminApi.updatePlatformSettings(newSettings);
     onToast?.('Đã lưu cấu hình', 'Các thiết lập hệ thống đã được cập nhật.', 'success');
   };
 
@@ -386,6 +410,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
           onReviewCourse={handleReviewCourse}
           onApproveCourse={handleApproveCourse}
           onRejectCourse={handleRejectCourse}
+          onHideCourse={handleHideCourse}
+          onUnhideCourse={handleUnhideCourse}
           onToggleFeatured={handleToggleFeatured}
           onRefresh={refreshCoursesData}
         />
@@ -426,6 +452,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         course={selectedCourse}
         onApprove={handleApproveCourse}
         onReject={handleRejectCourse}
+        onHide={handleHideCourse}
+        onUnhide={handleUnhideCourse}
       />
 
       <CategoryModal

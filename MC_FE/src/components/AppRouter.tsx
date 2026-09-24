@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Routes, Route, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { ScreenType, Course, User } from '../types';
 import { CourseCatalogScreen } from '../features/courses/components/CourseCatalogScreen';
@@ -21,6 +21,8 @@ import { MainLayout } from './layouts/MainLayout';
 import { InstructorLayout } from './layouts/InstructorLayout';
 import { ToastType } from './common/Toast';
 import { ProtectedRoute } from './common/ProtectedRoute';
+import { MaintenanceScreen } from './common/MaintenanceScreen';
+import { adminApi } from '../features/admin/services/adminApi';
 import { mockCourses } from '../data/mockData';
 import { HomeScreen } from '../features/courses/components/HomeScreen';
 
@@ -74,6 +76,49 @@ export const AppRouter: React.FC<AppRouterProps> = ({
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
+
+  const [isMaintenanceMode, setIsMaintenanceMode] = useState<boolean>(() => {
+    const cached = localStorage.getItem('mseek_maintenance_mode');
+    return cached ? JSON.parse(cached) : false;
+  });
+
+  useEffect(() => {
+    const checkMaintenance = async () => {
+      const settings = await adminApi.getPublicSettings();
+      setIsMaintenanceMode(settings.maintenanceMode);
+    };
+    checkMaintenance();
+
+    const handleSettingsChanged = () => {
+      const cached = localStorage.getItem('mseek_maintenance_mode');
+      if (cached !== null) {
+        try {
+          setIsMaintenanceMode(cached === 'true' || JSON.parse(cached) === true);
+        } catch (_) {
+          setIsMaintenanceMode(cached === 'true');
+        }
+      } else {
+        checkMaintenance();
+      }
+    };
+
+    window.addEventListener('mseek_settings_changed', handleSettingsChanged);
+    window.addEventListener('storage', handleSettingsChanged);
+
+    return () => {
+      window.removeEventListener('mseek_settings_changed', handleSettingsChanged);
+      window.removeEventListener('storage', handleSettingsChanged);
+    };
+  }, []);
+
+  // Check maintenance mode: block non-admin users from public routes
+  const isUserAdmin = user?.role === 'admin';
+  const path = location.pathname;
+  const isBypassPath = path === '/login' || path.startsWith('/admin');
+
+  if (isMaintenanceMode && !isUserAdmin && !isBypassPath) {
+    return <MaintenanceScreen onLoginClick={() => navigate('/login')} />;
+  }
 
   // Map react-router path to ScreenType for layout compatibility
   const currentScreen: ScreenType = (() => {
