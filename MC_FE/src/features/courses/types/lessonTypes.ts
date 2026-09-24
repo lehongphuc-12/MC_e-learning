@@ -4,7 +4,7 @@ export interface Lesson {
   moduleId?: number;
   title: string;
   description?: string;
-  lessonType?: 'VIDEO' | 'DOCUMENT' | 'QUIZ';
+  lessonType?: 'VIDEO' | 'DOCUMENT' | 'QUIZ' | 'ASSIGNMENT';
   orderIndex: number;
   durationMinutes: number;
   isPreview: boolean;
@@ -17,7 +17,7 @@ export interface CreateLessonDto {
   moduleId?: number;
   title: string;
   description?: string;
-  lessonType?: 'VIDEO' | 'DOCUMENT' | 'QUIZ';
+  lessonType?: 'VIDEO' | 'DOCUMENT' | 'QUIZ' | 'ASSIGNMENT';
   orderIndex?: number;
   durationMinutes?: number;
   isPreview?: boolean;
@@ -29,7 +29,7 @@ export interface UpdateLessonDto {
   moduleId?: number;
   title?: string;
   description?: string;
-  lessonType?: 'VIDEO' | 'DOCUMENT' | 'QUIZ';
+  lessonType?: 'VIDEO' | 'DOCUMENT' | 'QUIZ' | 'ASSIGNMENT';
   orderIndex?: number;
   durationMinutes?: number;
   isPreview?: boolean;
