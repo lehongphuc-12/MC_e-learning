@@ -44,6 +44,7 @@ public class SmartMcDbContext : DbContext
     public DbSet<Enrollment> Enrollments { get; set; } = null!;
     public DbSet<LessonProgress> LessonProgresses { get; set; } = null!;
     public DbSet<Certificate> Certificates { get; set; } = null!;
+    public DbSet<SpeakingSubmission> SpeakingSubmissions { get; set; } = null!;
 
     // ============================================================
     // Section 3: Payment
@@ -383,6 +384,38 @@ public class SmartMcDbContext : DbContext
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
+        modelBuilder.Entity<SpeakingSubmission>(entity =>
+        {
+            entity.ToTable("speaking_submissions");
+            entity.HasKey(e => e.SubmissionId);
+
+            entity.HasIndex(e => new { e.LearnerId, e.LessonId });
+            entity.HasIndex(e => e.Status);
+
+            entity.Property(e => e.Status)
+                .HasConversion<string>()
+                .HasDefaultValue(SpeakingSubmissionStatus.SUBMITTED);
+
+            entity.Property(e => e.SubmittedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasOne(d => d.Lesson)
+                .WithMany()
+                .HasForeignKey(d => d.LessonId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(d => d.Learner)
+                .WithMany()
+                .HasForeignKey(d => d.LearnerId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(d => d.GradedBy)
+                .WithMany()
+                .HasForeignKey(d => d.GradedById)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // Section 3: Payment Configuration
         // ============================================================
         // CHAT
         // ============================================================
