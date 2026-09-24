@@ -165,7 +165,7 @@ export function ConversationList({
                   event.target.value
                 )
               }
-              placeholder="Tìm kiếm trên Messenger"
+              placeholder="Tìm kiếm trên MSeek Chat"
               className="
                 min-w-0 flex-1
                 bg-transparent
@@ -545,47 +545,7 @@ function ConversationItem({
         </div>
       </div>
 
-      {/* RIGHT SIDE */}
-      <div className="ml-1 flex shrink-0 items-center">
-        {unread ? (
-          <span
-            className="
-              flex h-3 w-3
-              rounded-full
-              bg-blue-500
-            "
-          />
-        ) : (
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-            }}
-            aria-label="Tùy chọn"
-            className="
-              flex h-9 w-9
-              translate-x-2
-              items-center
-              justify-center
-              rounded-full
-              border border-slate-200
-              bg-white
-              text-slate-600
-              opacity-0
-              shadow-sm
-              transition-all
-              duration-150
-              group-hover:translate-x-0
-              group-hover:opacity-100
-              hover:bg-slate-50
-            "
-          >
-            <MoreHorizontal
-              size={18}
-            />
-          </button>
-        )}
-      </div>
+      
     </button>
   );
 }
