@@ -11,6 +11,10 @@ using MC_BE.Features.Courses.Services;
 using MC_BE.Features.Courses.Services.Interfaces;
 using MC_BE.Features.Users.Services;
 using MC_BE.Features.Users.Services.Interfaces;
+using MC_BE.Features.Learning.Repositories;
+using MC_BE.Features.Learning.Repositories.Interfaces;
+using MC_BE.Features.Learning.Services;
+using MC_BE.Features.Learning.Services.Interfaces;
 using MC_BE.Shared.Data;
 using MC_BE.Shared.Middleware;
 using MC_BE.Shared.Repositories;
@@ -30,8 +34,6 @@ using Microsoft.OpenApi.Models;
 // 08.Quiz Management
 using MC_BE.Features.Quizzes.Services;
 using MC_BE.Features.Quizzes.Services.Interfaces;
-using MC_BE.Features.Learning.Services;
-using MC_BE.Features.Learning.Services.Interfaces;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -79,6 +81,8 @@ builder.Services.AddScoped<IQuizService, QuizService>();
 // Learning & Certification Services
 builder.Services.AddScoped<ICertificateService, CertificateService>();
 builder.Services.AddScoped<ILearningProgressService, LearningProgressService>();
+builder.Services.AddScoped<ISpeakingSubmissionRepository, SpeakingSubmissionRepository>();
+builder.Services.AddScoped<ISpeakingSubmissionService, SpeakingSubmissionService>();
 
 // Register Email & Cloudinary Services
 builder.Services.AddScoped<IEmailService, EmailService>();
