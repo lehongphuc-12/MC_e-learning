@@ -12,4 +12,5 @@ public interface IForumPostService
     Task<ForumPostDto> CreatePostAsync(int authorId, CreatePostRequest request);
     Task<ForumPostDto?> UpdatePostAsync(int postId, int userId, UpdatePostRequest request);
     Task<bool> DeletePostAsync(int postId, int userId, bool isAdmin);
+    Task<ForumUserProfileDto?> GetUserProfileAsync(int userId);
 }

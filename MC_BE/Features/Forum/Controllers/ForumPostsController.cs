@@ -308,4 +308,24 @@ public class ForumPostsController : ControllerBase
         var baseUrl = $"{req.Scheme}://{req.Host}";
         return $"{baseUrl}/uploads/forum/{fileName}";
     }
+
+    // GET /api/forum/users/{userId:int}/profile
+    [HttpGet("users/{userId:int}/profile")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<ForumUserProfileDto>>> GetUserProfile(int userId)
+    {
+        try
+        {
+            var profile = await _postService.GetUserProfileAsync(userId);
+            if (profile is null)
+            {
+                return NotFound(ApiResponse<ForumUserProfileDto>.FailureResponse("Người dùng không tồn tại."));
+            }
+            return Ok(ApiResponse<ForumUserProfileDto>.SuccessResponse(profile, "Lấy thông tin người dùng thành công."));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ApiResponse<ForumUserProfileDto>.FailureResponse(ex.Message));
+        }
+    }
 }

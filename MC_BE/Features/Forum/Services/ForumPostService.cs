@@ -337,4 +337,31 @@ public class ForumPostService : IForumPostService
         await _context.SaveChangesAsync();
         return true;
     }
+
+    public async Task<ForumUserProfileDto?> GetUserProfileAsync(int userId)
+    {
+        var user = await _context.Users
+            .Include(u => u.Role)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.UserId == userId);
+
+        if (user is null) return null;
+
+        var postsCount = await _context.ForumPosts
+            .CountAsync(p => p.AuthorId == userId && p.Status == "PUBLISHED");
+
+        var commentsCount = await _context.ForumComments
+            .CountAsync(c => c.AuthorId == userId && c.Status == "ACTIVE");
+
+        return new ForumUserProfileDto
+        {
+            UserId = user.UserId,
+            FullName = user.FullName,
+            AvatarUrl = user.AvatarUrl,
+            RoleName = user.Role?.RoleName ?? "Learner",
+            JoinedAt = user.CreatedAt,
+            PostsCount = postsCount,
+            CommentsCount = commentsCount
+        };
+    }
 }

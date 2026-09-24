@@ -218,3 +218,14 @@ public class UpdateItemStatusRequest
     [Required]
     public string Status { get; set; } = "PUBLISHED"; // PUBLISHED/ACTIVE, HIDDEN_BY_ADMIN, DELETED
 }
+
+public class ForumUserProfileDto
+{
+    public int UserId { get; set; }
+    public string FullName { get; set; } = string.Empty;
+    public string? AvatarUrl { get; set; }
+    public string RoleName { get; set; } = "Learner";
+    public DateTime JoinedAt { get; set; }
+    public int PostsCount { get; set; }
+    public int CommentsCount { get; set; }
+}
