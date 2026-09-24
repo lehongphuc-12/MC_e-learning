@@ -160,19 +160,23 @@ export const InstructorDashboard: React.FC = () => {
                   <Users className="h-3.5 w-3.5" />
                 </div>
               </div>
-              <p className="mt-2 text-2xl font-black text-cyan-200">1,280</p>
-              <p className="text-[10px] text-cyan-200/80 mt-1">Học viên ghi danh (UI)</p>
+              <p className="mt-2 text-2xl font-black text-cyan-200">
+                {isLoading ? '...' : courses.reduce((sum, c) => sum + ((c as any).studentsCount || 0), 0)}
+              </p>
+              <p className="text-[10px] text-cyan-200/80 mt-1">Tổng lượt đăng ký</p>
             </div>
 
             <div className="rounded-2xl bg-white/10 backdrop-blur-md p-4 border border-white/10 shadow-sm">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] text-slate-300 font-semibold uppercase tracking-wider">Tổng doanh thu</span>
+                <span className="text-[11px] text-slate-300 font-semibold uppercase tracking-wider">Doanh thu tạm tính</span>
                 <div className="h-7 w-7 rounded-lg bg-pink-500/20 text-pink-300 flex items-center justify-center">
                   <TrendingUp className="h-3.5 w-3.5" />
                 </div>
               </div>
-              <p className="mt-2 text-lg font-black text-pink-200 truncate">25.500.000 ₫</p>
-              <p className="text-[10px] text-pink-200/80 mt-1">Doanh thu tạm tính (UI)</p>
+              <p className="mt-2 text-lg font-black text-pink-200 truncate">
+                {isLoading ? '...' : formatVND(courses.reduce((sum, c) => sum + (((c as any).studentsCount || 0) * (c.price || 0)), 0))}
+              </p>
+              <p className="text-[10px] text-pink-200/80 mt-1">Từ các khóa học đã bán</p>
             </div>
           </div>
         </div>
