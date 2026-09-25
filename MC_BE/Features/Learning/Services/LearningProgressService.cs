@@ -17,10 +17,6 @@ public class LearningProgressService : ILearningProgressService
     private readonly IGenericRepository<Lesson> _lessonRepository;
     private readonly IGenericRepository<LessonProgress> _progressRepository;
     private readonly IGenericRepository<Certificate> _certificateRepository;
-    private readonly IGenericRepository<ForumPost> _forumPostRepository;
-    private readonly IGenericRepository<ForumComment> _forumCommentRepository;
-    private readonly IGenericRepository<ForumReaction> _forumReactionRepository;
-    private readonly IGenericRepository<SpeakingSubmission> _submissionRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICertificateService _certificateService;
 
@@ -29,10 +25,6 @@ public class LearningProgressService : ILearningProgressService
         IGenericRepository<Lesson> lessonRepository,
         IGenericRepository<LessonProgress> progressRepository,
         IGenericRepository<Certificate> certificateRepository,
-        IGenericRepository<ForumPost> forumPostRepository,
-        IGenericRepository<ForumComment> forumCommentRepository,
-        IGenericRepository<ForumReaction> forumReactionRepository,
-        IGenericRepository<SpeakingSubmission> submissionRepository,
         IUnitOfWork unitOfWork,
         ICertificateService certificateService)
     {
@@ -40,10 +32,6 @@ public class LearningProgressService : ILearningProgressService
         _lessonRepository = lessonRepository;
         _progressRepository = progressRepository;
         _certificateRepository = certificateRepository;
-        _forumPostRepository = forumPostRepository;
-        _forumCommentRepository = forumCommentRepository;
-        _forumReactionRepository = forumReactionRepository;
-        _submissionRepository = submissionRepository;
         _unitOfWork = unitOfWork;
         _certificateService = certificateService;
     }
@@ -200,7 +188,10 @@ public class LearningProgressService : ILearningProgressService
         progress.LastAccessedAt = DateTime.UtcNow;
         progress.UpdatedAt = DateTime.UtcNow;
 
-        // EF Core tracks this entity so we don't need to call Update() explicitly
+        if (!isNew)
+        {
+            _progressRepository.Update(progress);
+        }
 
         try
         {
@@ -232,7 +223,7 @@ public class LearningProgressService : ILearningProgressService
         enrollment.CompletionPercentage = newPercentage;
         enrollment.UpdatedAt = DateTime.UtcNow;
 
-        // EF Core tracks this entity so we don't need to call Update() explicitly
+        _enrollmentRepository.Update(enrollment);
         await _unitOfWork.SaveChangesAsync();
 
         // Auto-issue certificate if 100% completed
@@ -250,203 +241,5 @@ public class LearningProgressService : ILearningProgressService
 
         return await GetCourseProgressAsync(learnerId, lesson.CourseId);
     }
-    public async Task<List<ActivityLogDto>> GetRecentActivitiesAsync(int learnerId, int limit = 10)
-    {
-        var activities = new List<ActivityLogDto>();
-
-        // 1. Get completed lessons
-        var completedLessons = await _progressRepository.FindAsync(
-            p => p.Enrollment.LearnerId == learnerId && (p.IsCompleted || p.Status == LessonProgressStatus.COMPLETED),
-            p => p.Lesson, p => p.Enrollment.Course);
-            
-        foreach (var progress in completedLessons)
-        {
-            if (progress.CompletedAt.HasValue)
-            {
-                activities.Add(new ActivityLogDto
-                {
-                    Emoji = "✅",
-                    Text = $"Completed \"{progress.Lesson?.Title}\" in {progress.Enrollment?.Course?.Title}",
-                    CreatedAt = progress.CompletedAt.Value,
-                    Accent = "text-blue-600 bg-blue-50",
-                    Link = $"/courses/{progress.Enrollment?.CourseId}/learn"
-                });
-            }
-        }
-
-        // 2. Get earned certificates
-        var certificates = await _certificateRepository.FindAsync(
-            c => c.Enrollment.LearnerId == learnerId,
-            c => c.Enrollment.Course);
-
-        foreach (var cert in certificates)
-        {
-            activities.Add(new ActivityLogDto
-            {
-                Emoji = "🏆",
-                Text = $"Earned {cert.Enrollment?.Course?.Title} Certificate",
-                CreatedAt = cert.IssuedAt,
-                Accent = "text-amber-600 bg-amber-50",
-                Link = "/profile"
-            });
-        }
-
-        // 3. Get new enrollments
-        var enrollments = await _enrollmentRepository.FindAsync(
-            e => e.LearnerId == learnerId,
-            e => e.Course);
-
-        foreach (var e in enrollments)
-        {
-            activities.Add(new ActivityLogDto
-            {
-                Emoji = "🌟",
-                Text = $"Enrolled in {e.Course?.Title}",
-                CreatedAt = e.EnrolledAt ?? e.CreatedAt,
-                Accent = "text-emerald-600 bg-emerald-50",
-                Link = $"/courses/{e.CourseId}/learn"
-            });
-        }
-
-        // 4. Get forum posts
-        var forumPosts = await _forumPostRepository.FindAsync(
-            p => p.AuthorId == learnerId);
-            
-        foreach (var post in forumPosts)
-        {
-            activities.Add(new ActivityLogDto
-            {
-                Emoji = "📝",
-                Text = $"Posted new discussion: {post.Title}",
-                CreatedAt = post.CreatedAt,
-                Accent = "text-indigo-600 bg-indigo-50",
-                Link = $"/forum/posts/{post.PostId}"
-            });
-        }
-
-        // 5. Get forum comments
-        var forumComments = await _forumCommentRepository.FindAsync(
-            c => c.AuthorId == learnerId,
-            c => c.Post);
-            
-        foreach (var comment in forumComments)
-        {
-            activities.Add(new ActivityLogDto
-            {
-                Emoji = "💬",
-                Text = $"Commented on discussion: {comment.Post?.Title}",
-                CreatedAt = comment.CreatedAt,
-                Accent = "text-cyan-600 bg-cyan-50",
-                Link = $"/forum/posts/{comment.PostId}"
-            });
-        }
-
-        // 6. Get forum reactions
-        var forumReactions = await _forumReactionRepository.FindAsync(
-            r => r.UserId == learnerId,
-            r => r.Post, r => r.Comment, r => r.Comment!.Post);
-
-        foreach (var reaction in forumReactions)
-        {
-            var targetTitle = reaction.TargetType == "POST" ? reaction.Post?.Title : "a comment";
-            var link = reaction.TargetType == "POST" 
-                ? $"/forum/posts/{reaction.PostId}"
-                : $"/forum/posts/{reaction.Comment?.PostId}";
-
-            activities.Add(new ActivityLogDto
-            {
-                Emoji = "👍",
-                Text = $"Reacted {reaction.ReactionType.ToLower()} to {targetTitle}",
-                CreatedAt = reaction.CreatedAt,
-                Accent = "text-pink-600 bg-pink-50",
-                Link = link
-            });
-        }
-
-        // 7. Get speaking submissions
-        var speakingSubmissions = await _submissionRepository.FindAsync(
-            s => s.LearnerId == learnerId,
-            s => s.Lesson);
-
-        foreach (var sub in speakingSubmissions)
-        {
-            activities.Add(new ActivityLogDto
-            {
-                Emoji = "🎙️",
-                Text = $"Submitted practice for {sub.Lesson?.Title}",
-                CreatedAt = sub.SubmittedAt,
-                Accent = "text-violet-600 bg-violet-50",
-                Link = $"/courses/{sub.Lesson?.CourseId}/learn"
-            });
-        }
-
-        // Sort by date descending and take top N
-        return activities
-            .OrderByDescending(a => a.CreatedAt)
-            .Take(limit)
-            .Select(a => 
-            {
-                var timeSpan = DateTime.UtcNow - a.CreatedAt;
-                if (timeSpan.TotalMinutes < 60)
-                    a.Time = $"{(int)timeSpan.TotalMinutes}m ago";
-                else if (timeSpan.TotalHours < 24)
-                    a.Time = $"{(int)timeSpan.TotalHours}h ago";
-                else
-                    a.Time = $"{(int)timeSpan.TotalDays}d ago";
-                
-                return a;
-            })
-            .ToList();
-    }
-    public async Task<LearningStreakDto> GetLearningStreakAsync(int learnerId)
-    {
-        var completedLessons = await _progressRepository.FindAsync(
-            p => p.Enrollment.LearnerId == learnerId && (p.CompletedAt.HasValue || p.IsCompleted));
-
-        var dates = completedLessons
-            .Select(p => (p.CompletedAt ?? p.UpdatedAt).AddHours(7).Date) // Convert to Vietnam time (UTC+7)
-            .Distinct()
-            .OrderBy(d => d)
-            .ToList();
-
-        int currentStreak = 0;
-        int longestStreak = 0;
-        var todayVn = DateTime.UtcNow.AddHours(7).Date;
-
-        if (dates.Count > 0)
-        {
-            currentStreak = 1;
-            longestStreak = 1;
-
-            for (int i = 1; i < dates.Count; i++)
-            {
-                if ((dates[i] - dates[i - 1]).TotalDays == 1)
-                {
-                    currentStreak++;
-                }
-                else
-                {
-                    currentStreak = 1; // Reset streak
-                }
-
-                if (currentStreak > longestStreak)
-                {
-                    longestStreak = currentStreak;
-                }
-            }
-
-            // Check if current streak is still active
-            // If the last date they learned is before yesterday, streak is broken.
-            if ((todayVn - dates.Last()).TotalDays > 1)
-            {
-                currentStreak = 0;
-            }
-        }
-
-        return new LearningStreakDto
-        {
-            CurrentStreak = currentStreak,
-            LongestStreak = longestStreak
-        };
-    }
 }
+

@@ -70,37 +70,4 @@ public class LearningController : ControllerBase
 
         return Ok(ApiResponse<CourseLearningProgressDto>.SuccessResponse(updatedProgress, "Lesson progress updated successfully."));
     }
-
-    /// <summary>
-    /// GET /api/learning/activity-logs
-    /// Get recent learning activities for the user
-    /// </summary>
-    [HttpGet("activity-logs")]
-    public async Task<ActionResult<ApiResponse<List<ActivityLogDto>>>> GetActivityLogs([FromQuery] int limit = 10)
-    {
-        var learnerId = GetCurrentUserId();
-        if (learnerId == null)
-        {
-            return Unauthorized(ApiResponse<List<ActivityLogDto>>.FailureResponse("Unauthorized."));
-        }
-
-        var activities = await _learningProgressService.GetRecentActivitiesAsync(learnerId.Value, limit);
-        return Ok(ApiResponse<List<ActivityLogDto>>.SuccessResponse(activities, "Retrieved activity logs successfully."));
-    }
-    /// <summary>
-    /// GET /api/learning/streak
-    /// Get learning streak for the user
-    /// </summary>
-    [HttpGet("streak")]
-    public async Task<ActionResult<ApiResponse<LearningStreakDto>>> GetLearningStreak()
-    {
-        var learnerId = GetCurrentUserId();
-        if (learnerId == null)
-        {
-            return Unauthorized(ApiResponse<LearningStreakDto>.FailureResponse("Unauthorized."));
-        }
-
-        var streak = await _learningProgressService.GetLearningStreakAsync(learnerId.Value);
-        return Ok(ApiResponse<LearningStreakDto>.SuccessResponse(streak, "Retrieved streak successfully."));
-    }
 }

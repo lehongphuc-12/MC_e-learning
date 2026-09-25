@@ -4,27 +4,7 @@ import type { UpdateLessonProgressDto } from '../types/learningTypes';
 
 export const learningQueryKeys = {
   courseProgress: (courseId: number) => ['course-progress', courseId] as const,
-  activityLogs: () => ['activity-logs'] as const,
-  streak: () => ['learning-streak'] as const,
 };
-
-export function useLearningStreakQuery() {
-  return useQuery({
-    queryKey: learningQueryKeys.streak(),
-    queryFn: () => learningApi.getLearningStreak(),
-    staleTime: 0,
-    refetchOnMount: 'always',
-  });
-}
-
-export function useActivityLogsQuery(limit = 50) {
-  return useQuery({
-    queryKey: learningQueryKeys.activityLogs(),
-    queryFn: () => learningApi.getActivityLogs(limit),
-    staleTime: 0,
-    refetchOnMount: 'always',
-  });
-}
 
 export function useCourseProgress(courseId: number) {
   return useQuery({
