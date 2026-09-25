@@ -199,7 +199,6 @@ export function ChatPanel({ onClose, calls }: Props) {
         </div>
       ) : (
         <>
-          {/* HEADER */}
           <div className="relative z-30 shrink-0 overflow-hidden border-b border-slate-200/60 bg-white/90 backdrop-blur-2xl">
             <div className="pointer-events-none absolute inset-0 overflow-hidden">
               <div className="absolute -left-16 -top-20 h-36 w-36 rounded-full bg-blue-300/15 blur-[55px]" />
@@ -271,7 +270,6 @@ export function ChatPanel({ onClose, calls }: Props) {
             </div>
           </div>
 
-          {/* MESSAGE AREA */}
           <div className="relative min-h-0 flex-1 overflow-hidden bg-[#f7f9ff]">
             <div className="pointer-events-none absolute inset-0 overflow-hidden">
               <div className="absolute -left-32 top-0 h-[280px] w-[280px] rounded-full bg-blue-200/15 blur-[90px]" />
@@ -338,6 +336,7 @@ export function ChatPanel({ onClose, calls }: Props) {
 
                     return (
                       <div key={message.messageId} className={isLastInGroup ? "mb-4" : "mb-0.5"}>
+
                         <MessageBubble
                           message={message}
                           showTimeSeparator={showTimeSeparator}
