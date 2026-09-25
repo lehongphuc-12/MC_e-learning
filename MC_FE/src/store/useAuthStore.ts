@@ -1,6 +1,9 @@
-import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import { User } from '../types';
+import { create } from "zustand";
+import {
+  createJSONStorage,
+  persist,
+} from "zustand/middleware";
+import { User } from "../types";
 
 export interface AuthState {
   user: User | null;
@@ -18,6 +21,7 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       token: null,
       isAuthenticated: false,
+
       setAuth: (user: User, token: string) => {
         set({
           user,
@@ -25,17 +29,25 @@ export const useAuthStore = create<AuthState>()(
           isAuthenticated: true,
         });
       },
+
       setAccessToken: (token: string) => {
         set((state) => ({
           token,
           isAuthenticated: !!state.user && !!token,
         }));
       },
+
       updateUser: (updatedUser: Partial<User>) => {
         set((state) => ({
-          user: state.user ? { ...state.user, ...updatedUser } : null,
+          user: state.user
+            ? {
+                ...state.user,
+                ...updatedUser,
+              }
+            : null,
         }));
       },
+
       logout: () => {
         set({
           user: null,
@@ -45,9 +57,14 @@ export const useAuthStore = create<AuthState>()(
       },
     }),
     {
-      name: 'mc-auth-storage',
+      name: "mc-auth-storage",
       storage: createJSONStorage(() => localStorage),
-      partialize: (state) => ({ user: state.user, token: state.token, isAuthenticated: state.isAuthenticated }),
+
+      partialize: (state) => ({
+        user: state.user,
+        token: state.token,
+        isAuthenticated: state.isAuthenticated,
+      }),
     }
   )
 );

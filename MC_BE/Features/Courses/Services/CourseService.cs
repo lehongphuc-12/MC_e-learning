@@ -228,6 +228,10 @@ public class CourseService : ICourseService
         if (!hasLessons)
             missingRequirements.Add("Bài học (Lesson)");
 
+        var hasSpeakingAssignment = await _lessonRepository.AnyAsync(l => l.CourseId == courseId && l.LessonType == LessonType.ASSIGNMENT);
+        if (!hasSpeakingAssignment)
+            missingRequirements.Add("Bài tập nói cuối khóa (Speaking Assignment)");
+
         if (missingRequirements.Any())
         {
             throw new InvalidOperationException($"Chưa thể gửi Admin duyệt. Khóa học còn thiếu: {string.Join(", ", missingRequirements)}.");

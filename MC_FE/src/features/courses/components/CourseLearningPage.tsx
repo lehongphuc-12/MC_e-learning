@@ -26,6 +26,12 @@ import {
   ChevronDown,
   Award,
   ClipboardList,
+  Mic,
+  Square,
+  Send,
+  Volume2,
+  AlertCircle,
+  Sliders,
 } from 'lucide-react';
 
 import { useCourseDetail } from '../hooks/useInstructorCourses';
@@ -46,6 +52,569 @@ import type { Lesson } from '../types/lessonTypes';
 import type { Certificate } from '../types/learningTypes';
 
 import { useQuizzesByCourse } from '../../quizzes/hooks/useQuiz';
+import { speakingApi, SpeakingSubmissionDto } from '../api/speakingApi';
+
+// =============================================================================
+// LearnerSpeakingWorkspace — Voice Recording & Submission for Learners
+// =============================================================================
+
+interface LearnerSpeakingWorkspaceProps {
+  lesson: Lesson;
+  courseId: number;
+  onMarkComplete?: (lessonId: number) => void;
+}
+
+const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
+  lesson,
+  courseId,
+  onMarkComplete,
+}) => {
+  const [submission, setSubmission] = useState<SpeakingSubmissionDto | null>(null);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isRecording, setIsRecording] = useState<boolean>(false);
+  const [recordingTime, setRecordingTime] = useState<number>(0);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [learnerNote, setLearnerNote] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isReRecording, setIsReRecording] = useState<boolean>(false);
+
+  // Audio Device Selection
+  const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
+
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Enumerate connected audio input devices (microphones)
+  const loadAudioDevices = async () => {
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+        return;
+      }
+      let devices = await navigator.mediaDevices.enumerateDevices();
+      let audioInputs = devices.filter((d) => d.kind === 'audioinput');
+
+      // If device labels are hidden (privacy restriction before user gesture/permission),
+      // prompt for temp permission to populate human readable device labels
+      if (audioInputs.length > 0 && audioInputs.some((d) => !d.label)) {
+        try {
+          const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          tempStream.getTracks().forEach((track) => track.stop());
+          devices = await navigator.mediaDevices.enumerateDevices();
+          audioInputs = devices.filter((d) => d.kind === 'audioinput');
+        } catch (e) {
+          console.log('Permission pending for device labels');
+        }
+      }
+
+      setAudioDevices(audioInputs);
+      if (audioInputs.length > 0 && !selectedDeviceId) {
+        setSelectedDeviceId(audioInputs[0].deviceId);
+      }
+    } catch (err) {
+      console.error('Error enumerating audio devices:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadAudioDevices();
+    if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
+      navigator.mediaDevices.addEventListener('devicechange', loadAudioDevices);
+      return () => {
+        navigator.mediaDevices.removeEventListener('devicechange', loadAudioDevices);
+      };
+    }
+  }, []);
+
+  // Fetch current student's submission for this lesson
+  const fetchSubmission = async () => {
+    setIsLoading(true);
+    setErrorMsg(null);
+    try {
+      const res = await speakingApi.getLatestSubmissionByLesson(lesson.lessonId);
+      if (res.success && res.data) {
+        setSubmission(res.data);
+        if (res.data.status === 'GRADED' && onMarkComplete) {
+          onMarkComplete(lesson.lessonId);
+        }
+      } else {
+        setSubmission(null);
+      }
+    } catch (err) {
+      console.log('No prior submission found or error fetching submission');
+      setSubmission(null);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSubmission();
+    // Reset local recording states
+    setIsRecording(false);
+    setRecordingTime(0);
+    setAudioBlob(null);
+    if (audioUrl) {
+      URL.revokeObjectURL(audioUrl);
+      setAudioUrl(null);
+    }
+    setLearnerNote('');
+    setIsReRecording(false);
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [lesson.lessonId]);
+
+  // Start microphone recording with selected device
+  const handleStartRecording = async () => {
+    setErrorMsg(null);
+    try {
+      const constraints: MediaStreamConstraints = {
+        audio: selectedDeviceId
+          ? { deviceId: { exact: selectedDeviceId } }
+          : true,
+      };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const url = URL.createObjectURL(blob);
+        setAudioBlob(blob);
+        setAudioUrl(url);
+
+        // Stop all audio tracks to release mic
+        stream.getTracks().forEach((track) => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+      setRecordingTime(0);
+
+      timerRef.current = setInterval(() => {
+        setRecordingTime((prev) => prev + 1);
+      }, 1000);
+    } catch (err: any) {
+      console.error('Error opening microphone:', err);
+      setErrorMsg('Không thể truy cập Micrô! Vui lòng kiểm tra và cấp quyền sử dụng micrô trên trình duyệt của bạn.');
+    }
+  };
+
+  // Stop recording
+  const handleStopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    }
+  };
+
+  // Reset local recording
+  const handleResetRecording = () => {
+    setAudioBlob(null);
+    if (audioUrl) {
+      URL.revokeObjectURL(audioUrl);
+      setAudioUrl(null);
+    }
+    setRecordingTime(0);
+  };
+
+  // Format seconds to MM:SS
+  const formatTime = (secs: number) => {
+    const mins = Math.floor(secs / 60);
+    const remainder = secs % 60;
+    return `${mins.toString().padStart(2, '0')}:${remainder.toString().padStart(2, '0')}`;
+  };
+
+  // Submit audio assignment to backend
+  const handleSubmitAssignment = async () => {
+    if (!audioBlob) return;
+    setIsSubmitting(true);
+    setErrorMsg(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('LessonId', lesson.lessonId.toString());
+      formData.append('AudioFile', audioBlob, `speaking_record_${Date.now()}.webm`);
+      if (learnerNote.trim()) {
+        formData.append('Note', learnerNote.trim());
+      }
+
+      const res = await speakingApi.submitSpeakingAssignment(formData);
+      if (res.success && res.data) {
+        setSubmission(res.data);
+        setIsReRecording(false);
+        setAudioBlob(null);
+        if (audioUrl) {
+          URL.revokeObjectURL(audioUrl);
+          setAudioUrl(null);
+        }
+        if (res.data.status === 'GRADED' && onMarkComplete) {
+          onMarkComplete(lesson.lessonId);
+        }
+      } else {
+        setErrorMsg(res.message || 'Không thể nộp bài thu âm. Vui lòng thử lại.');
+      }
+    } catch (err: any) {
+      console.error('Submit speaking assignment error:', err);
+      setErrorMsg('Đã xảy ra lỗi khi nộp bài ghi âm. Vui lòng kiểm tra lại kết nối mạng.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col h-full w-full bg-slate-950 p-5 md:p-8 overflow-y-auto text-slate-100 scrollbar-thin scrollbar-thumb-slate-800">
+      {/* ── Top Header ────────────────────────────────────────────── */}
+      <div className="flex flex-wrap items-center justify-between gap-4 pb-6 border-b border-slate-800">
+        <div>
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 text-xs font-bold mb-2">
+            <Mic className="w-3.5 h-3.5" />
+            <span>BÀI KIỂM TRA NÓI CUỐI KHÓA</span>
+          </div>
+          <h2 className="text-xl md:text-2xl font-black text-white tracking-tight">
+            {lesson.title}
+          </h2>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-medium text-slate-400">
+            <Clock className="w-4 h-4 text-indigo-400" />
+            <span>Thời lượng: {lesson.durationMinutes || 15} phút</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Main Content Grid ────────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-6">
+        {/* Left / Prompt Area (5 cols) */}
+        <div className="lg:col-span-5 flex flex-col gap-5">
+          <div className="rounded-2xl border border-slate-800/80 bg-slate-900/80 p-5 backdrop-blur-sm shadow-lg">
+            <h3 className="text-sm font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-2 mb-3">
+              <FileText className="w-4 h-4" />
+              <span>Đề Bài & Yêu Cầu</span>
+            </h3>
+
+            <div className="text-sm text-slate-300 leading-relaxed whitespace-pre-line bg-slate-950/60 p-4 rounded-xl border border-slate-800/60">
+              {lesson.description ||
+                'Hãy đọc kỹ kịch bản bài học và thực hiện thu âm giọng nói của bạn. Giảng viên sẽ nghe trực tiếp bài thu âm này để đánh giá ngữ điệu, tốc độ, cảm xúc và đưa ra điểm số kèm nhận xét chi tiết.'}
+            </div>
+
+            <div className="mt-4 space-y-2">
+              <div className="text-xs font-bold text-slate-400 uppercase tracking-wide">
+                Hướng dẫn thực hiện:
+              </div>
+              <ul className="text-xs text-slate-400 space-y-1.5 pl-4 list-disc">
+                <li>Bấm nút ghi âm và đọc theo đúng kịch bản yêu cầu.</li>
+                <li>Hệ thống tự động lưu file lên Cloudinary để giảng viên nghe và chấm điểm.</li>
+                <li>Bạn có thể nghe lại bài ghi âm trước khi chính thức bấm nộp bài.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        {/* Right / Recording & Grading Workspace (7 cols) */}
+        <div className="lg:col-span-7 flex flex-col gap-5">
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center p-12 bg-slate-900/60 rounded-2xl border border-slate-800">
+              <div className="w-8 h-8 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin mb-3" />
+              <p className="text-xs text-slate-400">Đang tải thông tin bài làm...</p>
+            </div>
+          ) : submission && !isReRecording ? (
+            /* ── Existing Submission View ────────────────────────────────── */
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/90 p-6 shadow-xl backdrop-blur-md">
+              {/* Status Header */}
+              <div className="flex items-center justify-between mb-5 pb-4 border-b border-slate-800">
+                <div className="flex items-center gap-2">
+                  {submission.status === 'GRADED' ? (
+                    <span className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-extrabold flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4" />
+                      ĐÃ CHẤM ĐIỂM
+                    </span>
+                  ) : submission.status === 'NEEDS_RESUBMISSION' ? (
+                    <span className="px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-extrabold flex items-center gap-1.5">
+                      <AlertCircle className="w-4 h-4" />
+                      YÊU CẦU NỘP LẠI
+                    </span>
+                  ) : (
+                    <span className="px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-extrabold flex items-center gap-1.5">
+                      <Clock className="w-4 h-4" />
+                      ĐÃ NỘP - CHỜ CHẤM ĐIỂM
+                    </span>
+                  )}
+                </div>
+
+                <span className="text-[11px] text-slate-400">
+                  Nộp lúc: {new Date(submission.submittedAt).toLocaleDateString('vi-VN', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </span>
+              </div>
+
+              {/* Score & Feedback Box (If Graded) */}
+              {submission.status === 'GRADED' && (
+                <div className="mb-6 p-5 rounded-2xl bg-gradient-to-br from-emerald-950/40 via-slate-900 to-slate-900 border border-emerald-500/30 shadow-lg">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">
+                      <Award className="w-5 h-5 text-emerald-400" />
+                      <span>Kết Quả Đánh Giá Giảng Viên</span>
+                    </div>
+
+                    <div className="flex items-baseline gap-1 px-4 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-black text-xl shadow-inner">
+                      <span>{submission.score}</span>
+                      <span className="text-xs text-emerald-400/70 font-semibold">/100</span>
+                    </div>
+                  </div>
+
+                  {submission.feedback ? (
+                    <div className="mt-3 text-xs text-slate-200 bg-slate-950/70 p-3.5 rounded-xl border border-emerald-500/20 leading-relaxed">
+                      <span className="font-bold text-emerald-400 block mb-1">Lời nhận xét:</span>
+                      "{submission.feedback}"
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400 italic">Không có nhận xét thêm.</p>
+                  )}
+
+                  {submission.gradedByName && (
+                    <div className="mt-3 text-[11px] text-slate-400 text-right">
+                      Người chấm: <span className="font-semibold text-slate-200">{submission.gradedByName}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Submitted Audio Player */}
+              <div className="mb-5">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2 flex items-center gap-2">
+                  <Volume2 className="w-4 h-4 text-indigo-400" />
+                  <span>Bài thu âm của bạn đã lưu trên Cloud:</span>
+                </label>
+                <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
+                  <audio controls src={submission.audioUrl} className="w-full h-10" />
+                </div>
+              </div>
+
+              {submission.note && (
+                <div className="mb-5 text-xs text-slate-400 bg-slate-950/50 p-3 rounded-xl border border-slate-800">
+                  <span className="font-bold text-slate-300 block mb-0.5">Ghi chú đã gửi:</span>
+                  "{submission.note}"
+                </div>
+              )}
+
+              {/* Action Button */}
+              <div className="mt-6 flex justify-end">
+                <button
+                  onClick={() => setIsReRecording(true)}
+                  className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-all flex items-center gap-2 border border-slate-700 cursor-pointer"
+                >
+                  <RotateCcw className="w-4 h-4 text-indigo-400" />
+                  <span>Ghi âm & Nộp bài làm mới</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* ── Interactive Audio Recording Workspace ────────────────── */
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/90 p-6 shadow-xl backdrop-blur-md">
+              <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 mb-4">
+                <Mic className="w-4 h-4 text-indigo-400" />
+                <span>Khu Vực Ghi Âm Bài Nói</span>
+              </h3>
+
+              {/* Microphone Device Selector Dropdown */}
+              <div className="mb-5 bg-slate-950/80 p-3.5 rounded-xl border border-slate-800">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                    <Sliders className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Chọn thiết bị Micrô ghi âm:</span>
+                  </label>
+                  {audioDevices.length > 0 && (
+                    <span className="text-[10px] text-indigo-300 bg-indigo-500/20 px-2 py-0.5 rounded-full font-bold border border-indigo-500/30">
+                      {audioDevices.length} thiết bị
+                    </span>
+                  )}
+                </div>
+
+                <div className="relative">
+                  <select
+                    value={selectedDeviceId}
+                    onChange={(e) => setSelectedDeviceId(e.target.value)}
+                    disabled={isRecording || isSubmitting}
+                    className="w-full pl-9 pr-8 py-2 bg-slate-900 border border-slate-700/80 rounded-lg text-xs font-semibold text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 transition-all cursor-pointer"
+                  >
+                    {audioDevices.length === 0 ? (
+                      <option value="">(Micrô mặc định của thiết bị)</option>
+                    ) : (
+                      audioDevices.map((device, index) => (
+                        <option
+                          key={device.deviceId || index}
+                          value={device.deviceId}
+                        >
+                          {device.label || `Microphone ${index + 1}`}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                  <Mic className="w-4 h-4 text-indigo-400 absolute left-3 top-2.5 pointer-events-none" />
+                </div>
+              </div>
+
+              {errorMsg && (
+                <div className="mb-4 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                  <span>{errorMsg}</span>
+                </div>
+              )}
+
+              {/* Record State 1: IDLE (Not Recording, No Audio Blob) */}
+              {!isRecording && !audioBlob && (
+                <div className="flex flex-col items-center justify-center p-8 bg-slate-950/70 rounded-2xl border border-slate-800/80 text-center">
+                  <button
+                    onClick={handleStartRecording}
+                    className="w-20 h-20 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white flex items-center justify-center shadow-lg shadow-indigo-500/30 hover:scale-105 active:scale-95 transition-all cursor-pointer mb-4 group"
+                  >
+                    <Mic className="w-9 h-9 group-hover:scale-110 transition-transform" />
+                  </button>
+
+                  <h4 className="text-base font-bold text-white">Bắt đầu Ghi âm giọng nói</h4>
+                  <p className="text-xs text-slate-400 max-w-xs mt-1">
+                    Nhấn vào nút micro phía trên để cho phép trình duyệt truy cập và bắt đầu thu âm bài phát biểu của bạn.
+                  </p>
+                </div>
+              )}
+
+              {/* Record State 2: RECORDING IN PROGRESS */}
+              {isRecording && (
+                <div className="flex flex-col items-center justify-center p-8 bg-slate-950/90 rounded-2xl border border-rose-500/30 text-center relative overflow-hidden">
+                  <div className="absolute top-3 right-3 flex items-center gap-2 px-3 py-1 rounded-full bg-rose-500/20 border border-rose-500/40 text-rose-400 text-[11px] font-bold animate-pulse">
+                    <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+                    ĐANG GHI ÂM
+                  </div>
+
+                  <div className="text-4xl font-black text-white font-mono tracking-wider mb-4 mt-2">
+                    {formatTime(recordingTime)}
+                  </div>
+
+                  {/* Sound Wave Animation */}
+                  <div className="flex items-center gap-1.5 h-8 mb-6">
+                    {[40, 70, 30, 90, 60, 100, 50, 80, 40, 70].map((h, i) => (
+                      <div
+                        key={i}
+                        className="w-1.5 rounded-full bg-indigo-500 animate-pulse"
+                        style={{
+                          height: `${h}%`,
+                          animationDelay: `${i * 100}ms`,
+                        }}
+                      />
+                    ))}
+                  </div>
+
+                  <button
+                    onClick={handleStopRecording}
+                    className="px-6 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all shadow-lg shadow-rose-600/30 flex items-center gap-2 cursor-pointer active:scale-95"
+                  >
+                    <Square className="w-4 h-4 fill-white" />
+                    <span>Dừng & Kiểm Tra Bài Ghi Âm</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Record State 3: RECORDED (PREVIEW & SUBMIT) */}
+              {!isRecording && audioBlob && audioUrl && (
+                <div className="space-y-4">
+                  <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-bold text-slate-300 flex items-center gap-2">
+                        <Volume2 className="w-4 h-4 text-emerald-400" />
+                        <span>Nghe lại bản thu âm (Thời lượng: {formatTime(recordingTime)})</span>
+                      </span>
+                    </div>
+
+                    <audio controls src={audioUrl} className="w-full h-10 mt-1" />
+                  </div>
+
+                  {/* Optional Learner Note Input */}
+                  <div>
+                    <label className="text-xs font-bold text-slate-400 block mb-1">
+                      Ghi chú cho giảng viên (Không bắt buộc):
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={learnerNote}
+                      onChange={(e) => setLearnerNote(e.target.value)}
+                      placeholder="Nhập ghi chú hoặc thắc mắc nếu có..."
+                      className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                    <button
+                      onClick={handleResetRecording}
+                      disabled={isSubmitting}
+                      className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all flex items-center gap-2 cursor-pointer border border-slate-700 disabled:opacity-50"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                      <span>Thực hiện lại</span>
+                    </button>
+
+                    <div className="flex items-center gap-2">
+                      {submission && isReRecording && (
+                        <button
+                          onClick={() => setIsReRecording(false)}
+                          disabled={isSubmitting}
+                          className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 text-xs font-bold transition-all cursor-pointer border border-slate-800"
+                        >
+                          Hủy
+                        </button>
+                      )}
+
+                      <button
+                        onClick={handleSubmitAssignment}
+                        disabled={isSubmitting}
+                        className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-bold shadow-lg shadow-indigo-500/30 transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
+                      >
+                        {isSubmitting ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            <span>Đang nộp bài lên Cloud...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Send className="w-4 h-4" />
+                            <span>Chính thức Nộp bài thi nói</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 /**
  * Helper to convert various YouTube / Vimeo / Direct video URLs
@@ -152,13 +721,21 @@ export const CourseLearningPage: React.FC = () => {
   const {
     lessonsByModule,
     unassignedLessons,
+    speakingAssignmentLessons,
     orderedLessons,
   } = useMemo(() => {
     const byMod: Record<number, Lesson[]> = {};
     const unassigned: Lesson[] = [];
+    const speakingAssignments: Lesson[] = [];
 
     lessons.forEach((l) => {
-      if (l.moduleId) {
+      const isAssignment =
+        l.lessonType?.toUpperCase() === 'ASSIGNMENT' ||
+        (!l.videoUrl && !l.moduleId);
+
+      if (isAssignment) {
+        speakingAssignments.push(l);
+      } else if (l.moduleId) {
         if (!byMod[l.moduleId]) {
           byMod[l.moduleId] = [];
         }
@@ -186,6 +763,12 @@ export const CourseLearningPage: React.FC = () => {
         (b.orderIndex ?? 0),
     );
 
+    speakingAssignments.sort(
+      (a, b) =>
+        (a.orderIndex ?? 0) -
+        (b.orderIndex ?? 0),
+    );
+
     // Construct flat ordered list following module sequence
     const ordered: Lesson[] = [];
 
@@ -196,6 +779,7 @@ export const CourseLearningPage: React.FC = () => {
     });
 
     ordered.push(...unassigned);
+    ordered.push(...speakingAssignments);
 
     // Fallback if modules aren't used yet
     const finalOrdered =
@@ -210,6 +794,7 @@ export const CourseLearningPage: React.FC = () => {
     return {
       lessonsByModule: byMod,
       unassignedLessons: unassigned,
+      speakingAssignmentLessons: speakingAssignments,
       orderedLessons: finalOrdered,
     };
   }, [lessons, sortedModules]);
@@ -1184,163 +1769,144 @@ export const CourseLearningPage: React.FC = () => {
 
         <main className="flex-1 overflow-y-auto bg-slate-950 p-4 md:p-6 scrollbar-thin scrollbar-thumb-slate-800">
           <div className="mx-auto max-w-5xl space-y-6">
-            {/* Video Player Container */}
+            {/* Main Workspace Container (Video or Speaking Assignment) */}
 
-            <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-black border border-slate-800/80 shadow-2xl group">
-              {/* Custom Completion Overlay */}
-
-              {isVideoEnded && (
-                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-950/95 backdrop-blur-md p-6 text-center animate-fadeIn">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 mb-4 shadow-lg shadow-emerald-500/20">
-                    <CheckCircle2 className="h-8 w-8" />
-                  </div>
-
-                  <h3 className="text-xl font-bold text-white">
-                    Bạn đã hoàn thành
-                    bài học này!
-                  </h3>
-
-                  <p className="mt-1.5 text-xs text-slate-300 max-w-md line-clamp-2">
-                    {activeLesson?.title}
-                  </p>
-
-                  <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-                    <button
-                      onClick={() =>
-                        setIsVideoEnded(
-                          false,
-                        )
-                      }
-                      className="inline-flex items-center gap-2 rounded-xl bg-slate-800 px-4 py-2.5 text-xs font-semibold text-slate-200 hover:bg-slate-700 hover:text-white transition-all cursor-pointer border border-slate-700"
-                    >
-                      <RotateCcw className="h-4 w-4" />
-                      Phát lại bài này
-                    </button>
-
-                    {nextLesson && (
-                      <button
-                        onClick={() => {
-                          setIsVideoEnded(
-                            false,
-                          );
-
-                          handleSelectLesson(
-                            nextLesson,
-                          );
-                        }}
-                        className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-5 py-2.5 text-xs font-semibold text-white shadow-lg shadow-indigo-500/30 hover:from-indigo-500 hover:to-purple-500 active:scale-95 transition-all cursor-pointer"
-                      >
-                        <span>
-                          Bài tiếp theo:{' '}
-                          {
-                            nextLesson.title
-                          }
-                        </span>
-
-                        <ChevronRight className="h-4 w-4" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {embedUrl ? (
-                embedUrl.includes(
-                  'youtube.com',
-                ) ||
-                embedUrl.includes(
-                  'vimeo.com',
-                ) ||
-                embedUrl.includes(
-                  'drive.google.com',
-                ) ? (
-                  <iframe
-                    key={
-                      activeLesson?.lessonId
-                    }
-                    id="video-player-iframe"
-                    src={embedUrl}
-                    title={
-                      activeLesson?.title
-                    }
-                    className="h-full w-full border-0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                    allowFullScreen
-                  />
-                ) : (
-                  <video
-                    src={embedUrl}
-                    controls
-                    autoPlay
-                    onTimeUpdate={(e) => {
-                      const v =
-                        e.currentTarget;
-
-                      handleVideoTimeUpdate(
-                        v.currentTime,
-                      );
-
-                      if (
-                        v.duration >
-                          0 &&
-                        (v.duration -
-                          v.currentTime <=
-                          4 ||
-                          v.currentTime /
-                            v.duration >=
-                            0.95)
-                      ) {
-                        if (
-                          activeLesson
-                        ) {
-                          handleMarkLessonComplete(
-                            activeLesson.lessonId,
-                            true,
-                          );
-                        }
-                      }
-                    }}
-                    onPause={(e) =>
-                      handleVideoTimeUpdate(
-                        e.currentTarget
-                          .currentTime,
-                      )
-                    }
-                    onEnded={() => {
-                      setIsVideoEnded(
-                        true,
-                      );
-
-                      if (
-                        activeLesson
-                      ) {
-                        handleMarkLessonComplete(
-                          activeLesson.lessonId,
-                          true,
-                        );
-                      }
-                    }}
-                    className="h-full w-full object-contain"
-                  >
-                    Trình duyệt của bạn không hỗ trợ phát video HTML5.
-                  </video>
-                )
+            <div
+              className={`relative w-full overflow-hidden rounded-2xl border border-slate-800/80 shadow-2xl group ${
+                activeLesson?.lessonType?.toUpperCase() === 'ASSIGNMENT' ||
+                (!activeLesson?.videoUrl && activeLesson !== null)
+                  ? 'min-h-[550px] bg-slate-950'
+                  : 'aspect-video bg-black'
+              }`}
+            >
+              {activeLesson?.lessonType?.toUpperCase() === 'ASSIGNMENT' ||
+              (!activeLesson?.videoUrl && activeLesson !== null) ? (
+                <LearnerSpeakingWorkspace
+                  lesson={activeLesson}
+                  courseId={courseId}
+                  onMarkComplete={(lessonId) =>
+                    handleMarkLessonComplete(lessonId, true)
+                  }
+                />
               ) : (
-                <div className="flex h-full w-full flex-col items-center justify-center p-6 text-center bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 mb-3">
-                    <Video className="h-8 w-8" />
-                  </div>
+                <>
+                  {/* Custom Completion Overlay */}
 
-                  <h3 className="text-base font-bold text-white">
-                    Chưa chọn hoặc chưa có Video bài học
-                  </h3>
+                  {isVideoEnded && (
+                    <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-950/95 backdrop-blur-md p-6 text-center animate-fadeIn">
+                      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 mb-4 shadow-lg shadow-emerald-500/20">
+                        <CheckCircle2 className="h-8 w-8" />
+                      </div>
 
-                  <p className="mt-1 text-xs text-slate-400 max-w-sm">
-                    {activeLesson
-                      ? 'Bài học này chưa được cập nhật liên kết Video. Vui lòng chọn bài học khác.'
-                      : 'Vui lòng chọn bài học từ danh sách bên phải để bắt đầu xem video.'}
-                  </p>
-                </div>
+                      <h3 className="text-xl font-bold text-white">
+                        Bạn đã hoàn thành bài học này!
+                      </h3>
+
+                      <p className="mt-1.5 text-xs text-slate-300 max-w-md line-clamp-2">
+                        {activeLesson?.title}
+                      </p>
+
+                      <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+                        <button
+                          onClick={() => setIsVideoEnded(false)}
+                          className="inline-flex items-center gap-2 rounded-xl bg-slate-800 px-4 py-2.5 text-xs font-semibold text-slate-200 hover:bg-slate-700 hover:text-white transition-all cursor-pointer border border-slate-700"
+                        >
+                          <RotateCcw className="h-4 w-4" />
+                          Phát lại bài này
+                        </button>
+
+                        {nextLesson && (
+                          <button
+                            onClick={() => {
+                              setIsVideoEnded(false);
+
+                              handleSelectLesson(nextLesson);
+                            }}
+                            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-5 py-2.5 text-xs font-semibold text-white shadow-lg shadow-indigo-500/30 hover:from-indigo-500 hover:to-purple-500 active:scale-95 transition-all cursor-pointer"
+                          >
+                            <span>
+                              Bài tiếp theo: {nextLesson.title}
+                            </span>
+
+                            <ChevronRight className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {embedUrl ? (
+                    embedUrl.includes('youtube.com') ||
+                    embedUrl.includes('vimeo.com') ||
+                    embedUrl.includes('drive.google.com') ? (
+                      <iframe
+                        key={activeLesson?.lessonId}
+                        id="video-player-iframe"
+                        src={embedUrl}
+                        title={activeLesson?.title}
+                        className="h-full w-full border-0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allowFullScreen
+                      />
+                    ) : (
+                      <video
+                        src={embedUrl}
+                        controls
+                        autoPlay
+                        onTimeUpdate={(e) => {
+                          const v = e.currentTarget;
+
+                          handleVideoTimeUpdate(v.currentTime);
+
+                          if (
+                            v.duration > 0 &&
+                            (v.duration - v.currentTime <= 4 ||
+                              v.currentTime / v.duration >= 0.95)
+                          ) {
+                            if (activeLesson) {
+                              handleMarkLessonComplete(
+                                activeLesson.lessonId,
+                                true,
+                              );
+                            }
+                          }
+                        }}
+                        onPause={(e) =>
+                          handleVideoTimeUpdate(e.currentTarget.currentTime)
+                        }
+                        onEnded={() => {
+                          setIsVideoEnded(true);
+
+                          if (activeLesson) {
+                            handleMarkLessonComplete(
+                              activeLesson.lessonId,
+                              true,
+                            );
+                          }
+                        }}
+                        className="h-full w-full object-contain"
+                      >
+                        Trình duyệt của bạn không hỗ trợ phát video HTML5.
+                      </video>
+                    )
+                  ) : (
+                    <div className="flex h-full w-full flex-col items-center justify-center p-6 text-center bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900">
+                      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 mb-3">
+                        <Video className="h-8 w-8" />
+                      </div>
+
+                      <h3 className="text-base font-bold text-white">
+                        Chưa chọn hoặc chưa có Video bài học
+                      </h3>
+
+                      <p className="mt-1 text-xs text-slate-400 max-w-sm">
+                        {activeLesson
+                          ? 'Bài học này chưa được cập nhật liên kết Video. Vui lòng chọn bài học khác.'
+                          : 'Vui lòng chọn bài học từ danh sách bên phải để bắt đầu xem video.'}
+                      </p>
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
@@ -1370,33 +1936,57 @@ export const CourseLearningPage: React.FC = () => {
                 </span>
               </button>
 
-              <button
-                onClick={() =>
-                  activeLesson &&
-                  toggleComplete(
-                    activeLesson.lessonId,
-                  )
-                }
-                className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold transition-all cursor-pointer ${
-                  activeLesson &&
-                  completedLessonIds.includes(
-                    activeLesson.lessonId,
-                  )
-                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                    : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
-                }`}
-              >
-                <CheckCircle2 className="h-4 w-4" />
+              {activeLesson?.lessonType?.toUpperCase() === 'ASSIGNMENT' ||
+              (!activeLesson?.videoUrl && activeLesson !== null) ? (
+                <button
+                  disabled
+                  className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold border transition-all cursor-not-allowed ${
+                    activeLesson && completedLessonIds.includes(activeLesson.lessonId)
+                      ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                      : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                  }`}
+                >
+                  {activeLesson && completedLessonIds.includes(activeLesson.lessonId) ? (
+                    <>
+                      <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                      <span>Đã hoàn thành (Đã chấm điểm)</span>
+                    </>
+                  ) : (
+                    <>
+                      <Clock className="h-4 w-4 text-amber-400 animate-pulse" />
+                      <span>Chờ Giảng viên chấm điểm...</span>
+                    </>
+                  )}
+                </button>
+              ) : (
+                <button
+                  onClick={() =>
+                    activeLesson &&
+                    toggleComplete(
+                      activeLesson.lessonId,
+                    )
+                  }
+                  className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold transition-all cursor-pointer ${
+                    activeLesson &&
+                    completedLessonIds.includes(
+                      activeLesson.lessonId,
+                    )
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
+                  }`}
+                >
+                  <CheckCircle2 className="h-4 w-4" />
 
-                <span>
-                  {activeLesson &&
-                  completedLessonIds.includes(
-                    activeLesson.lessonId,
-                  )
-                    ? 'Đã hoàn thành'
-                    : 'Đánh dấu hoàn thành'}
-                </span>
-              </button>
+                  <span>
+                    {activeLesson &&
+                    completedLessonIds.includes(
+                      activeLesson.lessonId,
+                    )
+                      ? 'Đã hoàn thành'
+                      : 'Đánh dấu hoàn thành'}
+                  </span>
+                </button>
+              )}
 
               <button
                 disabled={!nextLesson}
@@ -1888,6 +2478,59 @@ export const CourseLearningPage: React.FC = () => {
                             );
                           },
                         )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Speaking Assignments Section */}
+
+                  {speakingAssignmentLessons.length > 0 && (
+                    <div className="rounded-xl border border-purple-500/30 bg-gradient-to-br from-purple-950/60 via-indigo-950/40 to-slate-950/60 p-3 shadow-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold text-purple-300 flex items-center gap-1.5">
+                          <Mic className="h-4 w-4 text-purple-400 animate-pulse" />
+                          <span>Bài thi nói cuối khóa ({speakingAssignmentLessons.length})</span>
+                        </span>
+                        <span className="text-[10px] bg-purple-500/20 text-purple-300 font-extrabold px-2 py-0.5 rounded-full border border-purple-500/30">
+                          SPEAKING
+                        </span>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        {speakingAssignmentLessons.map((lesson) => {
+                          const isActive =
+                            lesson.lessonId === activeLesson?.lessonId;
+                          const isCompleted =
+                            completedLessonIds.includes(lesson.lessonId);
+
+                          return (
+                            <button
+                              key={lesson.lessonId}
+                              type="button"
+                              onClick={() => handleSelectLesson(lesson)}
+                              className={`w-full flex items-center justify-between p-2.5 rounded-lg text-left text-xs transition-all cursor-pointer ${
+                                isActive
+                                  ? 'bg-purple-600/40 border border-purple-400 text-white shadow-md'
+                                  : 'bg-slate-900/80 hover:bg-slate-800 text-slate-200 border border-purple-500/20'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                {isCompleted ? (
+                                  <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                                ) : (
+                                  <Mic className="h-4 w-4 text-purple-400 shrink-0" />
+                                )}
+                                <span className="font-bold truncate">
+                                  {lesson.title}
+                                </span>
+                              </div>
+
+                              <span className="text-[10px] px-2 py-0.5 rounded bg-purple-500/30 text-purple-200 font-bold shrink-0">
+                                Làm bài
+                              </span>
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                   )}

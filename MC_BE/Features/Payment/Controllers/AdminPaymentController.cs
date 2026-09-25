@@ -9,12 +9,12 @@ namespace MC_BE.Controllers;
 
 [ApiController]
 [Authorize(Roles = "Admin")]
-public class AdminFullManagementController : ControllerBase
+public class AdminPaymentController : ControllerBase
 {
     private readonly IAdminPaymentService _adminPaymentService;
     private readonly ICurrentUserService _currentUserService;
 
-    public AdminFullManagementController(
+    public AdminPaymentController(
         IAdminPaymentService adminPaymentService,
         ICurrentUserService currentUserService)
     {
