@@ -161,7 +161,7 @@ export const InstructorDashboard: React.FC = () => {
                 </div>
               </div>
               <p className="mt-2 text-2xl font-black text-cyan-200">
-                {isLoading ? '...' : courses.reduce((sum, c) => sum + ((c as any).studentsCount || 0), 0)}
+                {isLoading ? '...' : courses.reduce((sum, c) => sum + (c.studentsCount || c.studentCount || 0), 0)}
               </p>
               <p className="text-[10px] text-cyan-200/80 mt-1">Tổng lượt đăng ký</p>
             </div>
@@ -174,7 +174,7 @@ export const InstructorDashboard: React.FC = () => {
                 </div>
               </div>
               <p className="mt-2 text-lg font-black text-pink-200 truncate">
-                {isLoading ? '...' : formatVND(courses.reduce((sum, c) => sum + (((c as any).studentsCount || 0) * (c.price || 0)), 0))}
+                {isLoading ? '...' : formatVND(courses.reduce((sum, c) => sum + ((c.studentsCount || c.studentCount || 0) * (c.price || 0)), 0))}
               </p>
               <p className="text-[10px] text-pink-200/80 mt-1">Từ các khóa học đã bán</p>
             </div>
@@ -342,7 +342,7 @@ export const InstructorDashboard: React.FC = () => {
                       <td className="py-3.5 px-4">
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-cyan-50 text-cyan-700 border border-cyan-200/80">
                           <Users className="h-3.5 w-3.5 text-cyan-600" />
-                          <span>{(c as any).studentsCount ?? 128} học viên</span>
+                          <span>{c.studentsCount || c.studentCount || 0} học viên</span>
                         </span>
                       </td>
 

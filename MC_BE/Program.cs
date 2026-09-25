@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -28,8 +28,6 @@ using MC_BE.Features.Chat.Services.Interfaces;
 using MC_BE.Features.Quizzes.Services;
 using MC_BE.Features.Quizzes.Services.Interfaces;
 
-using MC_BE.Features.Learning.Services;
-using MC_BE.Features.Learning.Services.Interfaces;
 
 using MC_BE.Shared.Data;
 using MC_BE.Shared.Middleware;
@@ -43,11 +41,6 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-// 08.Quiz Management
-using MC_BE.Features.Quizzes.Services;
-using MC_BE.Features.Quizzes.Services.Interfaces;
-using MC_BE.Features.Learning.Services;
-using MC_BE.Features.Learning.Services.Interfaces;
 using MC_BE.Features.Forum.Services;
 using MC_BE.Features.Forum.Services.Interfaces;
 
@@ -114,7 +107,9 @@ builder.Services.AddScoped<
 
 builder.Services.AddHttpContextAccessor();
 
-// Register Auth, User, Admin & Profile Services
+// ============================================================
+// AUTH / USER / ADMIN
+// ============================================================
 builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
@@ -123,32 +118,44 @@ builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<IAdminStatsService, AdminStatsService>();
 
-// Course Management Services
+// ============================================================
+// COURSE MANAGEMENT
+// ============================================================
 builder.Services.AddScoped<ICourseService, CourseService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<IModuleService, ModuleService>();
 builder.Services.AddScoped<ILessonService, LessonService>();
 
-// 08.Quiz Management Services
+// ============================================================
+// QUIZ MANAGEMENT
+// ============================================================
 builder.Services.AddScoped<IQuizService, QuizService>();
 
-// Learning & Certification Services
+// ============================================================
+// LEARNING / CERTIFICATION
+// ============================================================
 builder.Services.AddScoped<ICertificateService, CertificateService>();
 builder.Services.AddScoped<ILearningProgressService, LearningProgressService>();
 builder.Services.AddScoped<ISpeakingSubmissionRepository, SpeakingSubmissionRepository>();
 builder.Services.AddScoped<ISpeakingSubmissionService, SpeakingSubmissionService>();
 
-// Forum Services
+// ============================================================
+// FORUM
+// ============================================================
 builder.Services.AddScoped<IForumPostService, ForumPostService>();
 builder.Services.AddScoped<IForumCommentService, ForumCommentService>();
 builder.Services.AddScoped<IForumInteractionService, ForumInteractionService>();
 builder.Services.AddScoped<IAdminForumService, AdminForumService>();
 
-// Register Email & Cloudinary Services
+// ============================================================
+// EMAIL / CLOUDINARY
+// ============================================================
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
 
-// Register Course Enrollment & Payment Services
+// ============================================================
+// ENROLLMENT / PAYMENT
+// ============================================================
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<ICourseCatalogService, CourseCatalogService>();
 builder.Services.AddScoped<IEnrollmentService, EnrollmentService>();
@@ -157,161 +164,11 @@ builder.Services.AddScoped<IAdminPaymentService, AdminPaymentService>();
 builder.Services.AddHttpClient<IVnPayService, VnPayService>();
 builder.Services.AddHostedService<EnrollmentExpirationWorker>();
 
-// Configure JWT Authentication
-var secretKey = builder.Configuration["Jwt:Secret"] ?? throw new InvalidOperationException("JWT Secret not found.");
-builder.Services.AddAuthentication(options =>
-{
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-})
-.AddJwtBearer(options =>
-// ============================================================
-// AUTH / USER / ADMIN
-// ============================================================
-
-builder.Services.AddScoped<
-    IPasswordHasher,
-    PasswordHasher
->();
-
-builder.Services.AddScoped<
-    ITokenService,
-    TokenService
->();
-
-builder.Services.AddScoped<
-    IAuthService,
-    AuthService
->();
-
-builder.Services.AddScoped<
-    IUserProfileService,
-    UserProfileService
->();
-
-builder.Services.AddScoped<
-    IUserService,
-    UserService
->();
-
-builder.Services.AddScoped<
-    IAdminService,
-    AdminService
->();
-
-// ============================================================
-// COURSE MANAGEMENT
-// ============================================================
-
-builder.Services.AddScoped<
-    ICourseService,
-    CourseService
->();
-
-builder.Services.AddScoped<
-    ICategoryService,
-    CategoryService
->();
-
-builder.Services.AddScoped<
-    IModuleService,
-    ModuleService
->();
-
-builder.Services.AddScoped<
-    ILessonService,
-    LessonService
->();
-
-// ============================================================
-// QUIZ MANAGEMENT
-// ============================================================
-
-builder.Services.AddScoped<
-    IQuizService,
-    QuizService
->();
-
-// ============================================================
-// LEARNING / CERTIFICATION
-// ============================================================
-
-builder.Services.AddScoped<
-    ICertificateService,
-    CertificateService
->();
-
-builder.Services.AddScoped<
-    ILearningProgressService,
-    LearningProgressService
->();
-
-// ============================================================
-// EMAIL / CLOUDINARY
-// ============================================================
-
-builder.Services.AddScoped<
-    IEmailService,
-    EmailService
->();
-
-builder.Services.AddScoped<
-    ICloudinaryService,
-    CloudinaryService
->();
-
-// ============================================================
-// ENROLLMENT / PAYMENT
-// ============================================================
-
-builder.Services.AddScoped<
-    ICurrentUserService,
-    CurrentUserService
->();
-
-builder.Services.AddScoped<
-    ICourseCatalogService,
-    CourseCatalogService
->();
-
-builder.Services.AddScoped<
-    IEnrollmentService,
-    EnrollmentService
->();
-
-builder.Services.AddScoped<
-    IPaymentService,
-    PaymentService
->();
-
-builder.Services.AddScoped<
-    IAdminPaymentService,
-    AdminPaymentService
->();
-
-builder.Services.AddHttpClient<
-    IVnPayService,
-    VnPayService
->();
-
-builder.Services.AddHostedService<
-    EnrollmentExpirationWorker
->();
-
 // ============================================================
 // CHAT / CALL
 // ============================================================
-
-builder.Services.AddScoped<
-    IChatService,
-    ChatService
->();
-
-builder.Services.AddScoped<
-    ICallService,
-    CallService
->();
-
+builder.Services.AddScoped<IChatService, ChatService>();
+builder.Services.AddScoped<ICallService, CallService>();
 // ============================================================
 // SIGNALR
 // ============================================================
@@ -609,9 +466,9 @@ using (var scope =
             "===================================="
         );
 
-        // Không nuốt exception.
-        // Nếu migration/database lỗi thì server dừng,
-        // để nhìn thấy lỗi thật.
+        // KhÃ´ng nuá»‘t exception.
+        // Náº¿u migration/database lá»—i thÃ¬ server dá»«ng,
+        // Ä‘á»ƒ nhÃ¬n tháº¥y lá»—i tháº­t.
         throw;
     }
 }
