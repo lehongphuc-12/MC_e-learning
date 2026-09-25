@@ -16,6 +16,7 @@ using MC_BE.Features.Courses.Services.Interfaces;
 
 using MC_BE.Features.Users.Services;
 using MC_BE.Features.Users.Services.Interfaces;
+
 using MC_BE.Features.Learning.Repositories;
 using MC_BE.Features.Learning.Repositories.Interfaces;
 using MC_BE.Features.Learning.Services;
@@ -27,9 +28,6 @@ using MC_BE.Features.Chat.Services.Interfaces;
 
 using MC_BE.Features.Quizzes.Services;
 using MC_BE.Features.Quizzes.Services.Interfaces;
-
-using MC_BE.Features.Learning.Services;
-using MC_BE.Features.Learning.Services.Interfaces;
 
 using MC_BE.Shared.Data;
 using MC_BE.Shared.Middleware;
@@ -43,9 +41,6 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-// 08.Quiz Management
-using MC_BE.Features.Quizzes.Services;
-using MC_BE.Features.Quizzes.Services.Interfaces;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -55,28 +50,16 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddDbContext<SmartMcDbContext>(options =>
 {
-    options.UseNpgsql(
-        builder.Configuration.GetConnectionString(
-            "DefaultConnection"
-        )
-    );
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"));
 });
 
 // ============================================================
 // SETTINGS
 // ============================================================
 
-builder.Services.Configure<CloudinarySettings>(
-    builder.Configuration.GetSection("Cloudinary")
-);
-
-builder.Services.Configure<EmailSettings>(
-    builder.Configuration.GetSection("EmailSettings")
-);
-
-builder.Services.Configure<VnPaySettings>(
-    builder.Configuration.GetSection("VnPay")
-);
+builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection("Cloudinary"));
+builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
+builder.Services.Configure<VnPaySettings>(builder.Configuration.GetSection("VnPay"));
 
 // ============================================================
 // CORS
@@ -86,8 +69,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
     {
-        policy
-            .SetIsOriginAllowed(_ => true)
+        policy.SetIsOriginAllowed(_ => true)
             .AllowAnyMethod()
             .AllowAnyHeader()
             .AllowCredentials();
@@ -98,155 +80,67 @@ builder.Services.AddCors(options =>
 // REPOSITORY / UNIT OF WORK
 // ============================================================
 
-builder.Services.AddScoped(
-    typeof(IGenericRepository<>),
-    typeof(GenericRepository<>)
-);
-
-builder.Services.AddScoped<
-    IUnitOfWork,
-    UnitOfWork
->();
-
+builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
+builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddHttpContextAccessor();
 
 // ============================================================
 // AUTH / USER / ADMIN
 // ============================================================
 
-builder.Services.AddScoped<
-    IPasswordHasher,
-    PasswordHasher
->();
-
-builder.Services.AddScoped<
-    ITokenService,
-    TokenService
->();
-
-builder.Services.AddScoped<
-    IAuthService,
-    AuthService
->();
-
-builder.Services.AddScoped<
-    IUserProfileService,
-    UserProfileService
->();
-
+builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
+builder.Services.AddScoped<ITokenService, TokenService>();
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IUserProfileService, UserProfileService>();
 
 // ============================================================
 // COURSE MANAGEMENT
 // ============================================================
 
-builder.Services.AddScoped<
-    ICourseService,
-    CourseService
->();
-
-builder.Services.AddScoped<
-    ICategoryService,
-    CategoryService
->();
-
-builder.Services.AddScoped<
-    IModuleService,
-    ModuleService
->();
-
-builder.Services.AddScoped<
-    ILessonService,
-    LessonService
->();
+builder.Services.AddScoped<ICourseService, CourseService>();
+builder.Services.AddScoped<ICategoryService, CategoryService>();
+builder.Services.AddScoped<IModuleService, ModuleService>();
+builder.Services.AddScoped<ILessonService, LessonService>();
 
 // ============================================================
 // QUIZ MANAGEMENT
 // ============================================================
 
-builder.Services.AddScoped<
-    IQuizService,
-    QuizService
->();
+builder.Services.AddScoped<IQuizService, QuizService>();
 
 // ============================================================
 // LEARNING / CERTIFICATION
 // ============================================================
 
-builder.Services.AddScoped<
-    ICertificateService,
-    CertificateService
->();
-
-builder.Services.AddScoped<
-    ILearningProgressService,
-    LearningProgressService
->();
+builder.Services.AddScoped<ICertificateService, CertificateService>();
+builder.Services.AddScoped<ILearningProgressService, LearningProgressService>();
 
 // ============================================================
 // EMAIL / CLOUDINARY
 // ============================================================
 
-builder.Services.AddScoped<
-    IEmailService,
-    EmailService
->();
-
-builder.Services.AddScoped<
-    ICloudinaryService,
-    CloudinaryService
->();
+builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
 
 // ============================================================
 // ENROLLMENT / PAYMENT
 // ============================================================
 
-builder.Services.AddScoped<
-    ICurrentUserService,
-    CurrentUserService
->();
-
-builder.Services.AddScoped<
-    ICourseCatalogService,
-    CourseCatalogService
->();
-
-builder.Services.AddScoped<
-    IEnrollmentService,
-    EnrollmentService
->();
-
-builder.Services.AddScoped<
-    IPaymentService,
-    PaymentService
->();
-
-builder.Services.AddScoped<
-    IAdminPaymentService,
-    AdminPaymentService
->();
-
-builder.Services.AddHttpClient<
-    IVnPayService,
-    VnPayService
->();
-
-builder.Services.AddHostedService<
-    EnrollmentExpirationWorker
->();
+builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
+builder.Services.AddScoped<ICourseCatalogService, CourseCatalogService>();
+builder.Services.AddScoped<IEnrollmentService, EnrollmentService>();
+builder.Services.AddScoped<IPaymentService, PaymentService>();
+builder.Services.AddScoped<IAdminPaymentService, AdminPaymentService>();
+builder.Services.AddHttpClient<IVnPayService, VnPayService>();
+builder.Services.AddHostedService<EnrollmentExpirationWorker>();
 
 // ============================================================
 // CHAT / CALL
 // ============================================================
 
-builder.Services.AddScoped<
-    IChatService,
-    ChatService
->();
+builder.Services.AddScoped<IChatService, ChatService>();
+builder.Services.AddScoped<ICallService, CallService>();
 
-builder.Services.AddScoped<
-    ICallService,
-    CallService
->();
 
 // ============================================================
 // SIGNALR
@@ -254,115 +148,61 @@ builder.Services.AddScoped<
 
 builder.Services.AddSignalR(options =>
 {
-    options.EnableDetailedErrors =
-        builder.Environment.IsDevelopment();
-
-    options.MaximumReceiveMessageSize =
-        128 * 1024;
+    options.EnableDetailedErrors = builder.Environment.IsDevelopment();
+    options.MaximumReceiveMessageSize = 128 * 1024;
 });
 
 // ============================================================
 // JWT AUTHENTICATION
 // ============================================================
 
-var secretKey =
-    builder.Configuration["Jwt:Secret"]
-    ?? throw new InvalidOperationException(
-        "JWT Secret not found."
-    );
+var secretKey = builder.Configuration["Jwt:Secret"] ?? throw new InvalidOperationException("JWT Secret not found.");
 
-builder.Services
-    .AddAuthentication(options =>
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
     {
-        options.DefaultAuthenticateScheme =
-            JwtBearerDefaults.AuthenticationScheme;
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = builder.Configuration["Jwt:Issuer"],
+        ValidAudience = builder.Configuration["Jwt:Audience"],
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey))
+    };
 
-        options.DefaultChallengeScheme =
-            JwtBearerDefaults.AuthenticationScheme;
-    })
-    .AddJwtBearer(options =>
+    // SignalR sends JWT through ?access_token=... when using WebSocket.
+    options.Events = new JwtBearerEvents
     {
-        options.TokenValidationParameters =
-            new TokenValidationParameters
+        OnMessageReceived = context =>
+        {
+            var accessToken = context.Request.Query["access_token"];
+            var path = context.HttpContext.Request.Path;
+
+            if (!string.IsNullOrEmpty(accessToken) &&
+                (path.StartsWithSegments("/hubs/chat") || path.StartsWithSegments("/hubs/call")))
             {
-                ValidateIssuer = true,
-                ValidateAudience = true,
-                ValidateLifetime = true,
-                ValidateIssuerSigningKey = true,
+                context.Token = accessToken;
+            }
 
-                ValidIssuer =
-                    builder.Configuration[
-                        "Jwt:Issuer"
-                    ],
-
-                ValidAudience =
-                    builder.Configuration[
-                        "Jwt:Audience"
-                    ],
-
-                IssuerSigningKey =
-                    new SymmetricSecurityKey(
-                        Encoding.UTF8.GetBytes(
-                            secretKey
-                        )
-                    )
-            };
-
-        // SignalR sends JWT through ?access_token=...
-        // when using WebSocket.
-        options.Events =
-            new JwtBearerEvents
-            {
-                OnMessageReceived = context =>
-                {
-                    var accessToken =
-                        context.Request.Query[
-                            "access_token"
-                        ];
-
-                    var path =
-                        context.HttpContext
-                            .Request.Path;
-
-                    if (
-                        !string.IsNullOrEmpty(
-                            accessToken
-                        )
-                        &&
-                        (
-                            path.StartsWithSegments(
-                                "/hubs/chat"
-                            )
-                            ||
-                            path.StartsWithSegments(
-                                "/hubs/call"
-                            )
-                        )
-                    )
-                    {
-                        context.Token =
-                            accessToken;
-                    }
-
-                    return Task.CompletedTask;
-                }
-            };
-    });
+            return Task.CompletedTask;
+        }
+    };
+});
 
 // ============================================================
 // CONTROLLERS / JSON
 // ============================================================
 
-builder.Services
-    .AddControllers()
+builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
-        options.JsonSerializerOptions
-            .Converters
-            .Add(
-                new System.Text.Json.Serialization
-                    .JsonStringEnumConverter()
-            );
+        options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
     });
 
 // ============================================================
@@ -370,70 +210,44 @@ builder.Services
 // ============================================================
 
 builder.Services.AddOpenApi();
-
 builder.Services.AddEndpointsApiExplorer();
 
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc(
-        "v1",
-        new OpenApiInfo
+    c.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "MC E-Learning API",
+        Version = "v1"
+    });
+
+    c.CustomSchemaIds(x => x.FullName?.Replace("+", "."));
+
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Description = "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\"",
+        Name = "Authorization",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer"
+    });
+
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
         {
-            Title = "MC E-Learning API",
-            Version = "v1"
-        }
-    );
-
-    c.CustomSchemaIds(
-        x => x.FullName?.Replace("+", ".")
-    );
-
-    c.AddSecurityDefinition(
-        "Bearer",
-        new OpenApiSecurityScheme
-        {
-            Description =
-                "JWT Authorization header using the Bearer scheme. " +
-                "Example: \"Authorization: Bearer {token}\"",
-
-            Name = "Authorization",
-
-            In = ParameterLocation.Header,
-
-            Type = SecuritySchemeType.ApiKey,
-
-            Scheme = "Bearer"
-        }
-    );
-
-    c.AddSecurityRequirement(
-        new OpenApiSecurityRequirement
-        {
+            new OpenApiSecurityScheme
             {
-                new OpenApiSecurityScheme
+                Reference = new OpenApiReference
                 {
-                    Reference =
-                        new OpenApiReference
-                        {
-                            Type =
-                                ReferenceType
-                                    .SecurityScheme,
-
-                            Id = "Bearer"
-                        },
-
-                    Scheme = "oauth2",
-
-                    Name = "Bearer",
-
-                    In =
-                        ParameterLocation.Header
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
                 },
-
-                new List<string>()
-            }
+                Scheme = "oauth2",
+                Name = "Bearer",
+                In = ParameterLocation.Header
+            },
+            new List<string>()
         }
-    );
+    });
 });
 
 // ============================================================
@@ -446,105 +260,61 @@ var app = builder.Build();
 // GLOBAL EXCEPTION
 // ============================================================
 
-app.UseMiddleware<
-    GlobalExceptionMiddleware
->();
+app.UseMiddleware<GlobalExceptionMiddleware>();
 
 // ============================================================
 // DATABASE MIGRATION + SEED ROLES
 // ============================================================
 
-using (var scope =
-       app.Services.CreateScope())
+using (var scope = app.Services.CreateScope())
 {
-    var context =
-        scope.ServiceProvider
-            .GetRequiredService<
-                SmartMcDbContext
-            >();
+    var context = scope.ServiceProvider.GetRequiredService<SmartMcDbContext>();
 
     try
     {
-        Console.WriteLine(
-            "===================================="
-        );
-
-        Console.WriteLine(
-            "Running database migrations..."
-        );
+        Console.WriteLine("====================================");
+        Console.WriteLine("Running database migrations...");
 
         context.Database.Migrate();
 
-        Console.WriteLine(
-            "Database migration completed."
-        );
+        Console.WriteLine("Database migration completed.");
 
         if (!context.Roles.Any())
         {
-            Console.WriteLine(
-                "Seeding default roles..."
-            );
+            Console.WriteLine("Seeding default roles...");
 
             context.Roles.AddRange(
                 new Role
                 {
                     RoleName = "Learner",
-
-                    Description =
-                        "Student user who consumes learning materials."
+                    Description = "Student user who consumes learning materials."
                 },
-
                 new Role
                 {
                     RoleName = "Instructor",
-
-                    Description =
-                        "Teacher user who teaches classes and uploads materials."
+                    Description = "Teacher user who teaches classes and uploads materials."
                 },
-
                 new Role
                 {
                     RoleName = "Admin",
-
-                    Description =
-                        "Administrator user with system-wide permissions."
+                    Description = "Administrator user with system-wide permissions."
                 }
             );
 
             context.SaveChanges();
-
-            Console.WriteLine(
-                "Default roles seeded."
-            );
+            Console.WriteLine("Default roles seeded.");
         }
 
-        Console.WriteLine(
-            "Database initialization completed."
-        );
-
-        Console.WriteLine(
-            "===================================="
-        );
+        Console.WriteLine("Database initialization completed.");
+        Console.WriteLine("====================================");
     }
     catch (Exception ex)
     {
-        Console.WriteLine(
-            "===================================="
-        );
-
-        Console.WriteLine(
-            "DATABASE INITIALIZATION ERROR"
-        );
-
-        Console.WriteLine(
-            "===================================="
-        );
-
+        Console.WriteLine("====================================");
+        Console.WriteLine("DATABASE INITIALIZATION ERROR");
+        Console.WriteLine("====================================");
         Console.WriteLine(ex);
-
-        Console.WriteLine(
-            "===================================="
-        );
+        Console.WriteLine("====================================");
 
         // Không nuốt exception.
         // Nếu migration/database lỗi thì server dừng,
@@ -558,26 +328,16 @@ using (var scope =
 // ============================================================
 
 app.UseRouting();
-
 app.UseCors("AllowAll");
-
 app.UseAuthentication();
-
 app.UseAuthorization();
-
-app.UseStaticFiles();
 
 // ============================================================
 // SIGNALR HUBS
 // ============================================================
 
-app.MapHub<ChatHub>(
-    "/hubs/chat"
-);
-
-app.MapHub<CallHub>(
-    "/hubs/call"
-);
+app.MapHub<ChatHub>("/hubs/chat");
+app.MapHub<CallHub>("/hubs/call");
 
 // ============================================================
 // SWAGGER
@@ -587,13 +347,8 @@ app.UseSwagger();
 
 app.UseSwaggerUI(c =>
 {
-    c.SwaggerEndpoint(
-        "/swagger/v1/swagger.json",
-        "MC E-Learning API v1"
-    );
-
-    c.RoutePrefix =
-        "swagger";
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "MC E-Learning API v1");
+    c.RoutePrefix = "swagger";
 });
 
 // ============================================================
