@@ -146,47 +146,7 @@ builder.Services.AddScoped<IAdminPaymentService, AdminPaymentService>();
 builder.Services.AddHttpClient<IVnPayService, VnPayService>();
 builder.Services.AddHostedService<EnrollmentExpirationWorker>();
 
-// Configure JWT Authentication
-var secretKey = builder.Configuration["Jwt:Secret"] ?? throw new InvalidOperationException("JWT Secret not found.");
-builder.Services.AddAuthentication(options =>
-{
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-})
-.AddJwtBearer(options =>
-// ============================================================
-// AUTH / USER / ADMIN
-// ============================================================
 
-builder.Services.AddScoped<
-    IPasswordHasher,
-    PasswordHasher
->();
-
-builder.Services.AddScoped<
-    ITokenService,
-    TokenService
->();
-
-builder.Services.AddScoped<
-    IAuthService,
-    AuthService
->();
-
-builder.Services.AddScoped<
-    IUserProfileService,
-    UserProfileService
->();
-
-builder.Services.AddScoped<
-    IUserService,
-    UserService
->();
-
-builder.Services.AddScoped<
-    IAdminService,
-    AdminService
->();
 
 // ============================================================
 // COURSE MANAGEMENT
