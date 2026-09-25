@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -110,42 +110,29 @@ builder.Services.AddScoped<
 
 builder.Services.AddHttpContextAccessor();
 
-// Register Auth, User, Admin & Profile Services
-builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
-builder.Services.AddScoped<ITokenService, TokenService>();
-builder.Services.AddScoped<IAuthService, AuthService>();
-builder.Services.AddScoped<IUserProfileService, UserProfileService>();
-builder.Services.AddScoped<IUserService, UserService>();
-builder.Services.AddScoped<IAdminService, AdminService>();
+// ============================================================
+// AUTH / USER / ADMIN
+// ============================================================
 
-// Course Management Services
-builder.Services.AddScoped<ICourseService, CourseService>();
-builder.Services.AddScoped<ICategoryService, CategoryService>();
-builder.Services.AddScoped<IModuleService, ModuleService>();
-builder.Services.AddScoped<ILessonService, LessonService>();
+builder.Services.AddScoped<
+    IPasswordHasher,
+    PasswordHasher
+>();
 
-// 08.Quiz Management Services
-builder.Services.AddScoped<IQuizService, QuizService>();
+builder.Services.AddScoped<
+    ITokenService,
+    TokenService
+>();
 
-// Learning & Certification Services
-builder.Services.AddScoped<ICertificateService, CertificateService>();
-builder.Services.AddScoped<ILearningProgressService, LearningProgressService>();
-builder.Services.AddScoped<ISpeakingSubmissionRepository, SpeakingSubmissionRepository>();
-builder.Services.AddScoped<ISpeakingSubmissionService, SpeakingSubmissionService>();
+builder.Services.AddScoped<
+    IAuthService,
+    AuthService
+>();
 
-// Register Email & Cloudinary Services
-builder.Services.AddScoped<IEmailService, EmailService>();
-builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
-
-// Register Course Enrollment & Payment Services
-builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
-builder.Services.AddScoped<ICourseCatalogService, CourseCatalogService>();
-builder.Services.AddScoped<IEnrollmentService, EnrollmentService>();
-builder.Services.AddScoped<IPaymentService, PaymentService>();
-builder.Services.AddScoped<IAdminPaymentService, AdminPaymentService>();
-builder.Services.AddHttpClient<IVnPayService, VnPayService>();
-builder.Services.AddHostedService<EnrollmentExpirationWorker>();
-
+builder.Services.AddScoped<
+    IUserProfileService,
+    UserProfileService
+>();
 
 
 // ============================================================

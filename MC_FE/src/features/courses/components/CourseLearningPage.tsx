@@ -32,6 +32,8 @@ import {
   Volume2,
   AlertCircle,
   Sliders,
+  UploadCloud,
+  FileAudio,
 } from 'lucide-react';
 
 import { useCourseDetail } from '../hooks/useInstructorCourses';
@@ -80,9 +82,15 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isReRecording, setIsReRecording] = useState<boolean>(false);
 
-  // Audio Device Selection
+  // Audio Device & Submission Mode Selection
+  const [submissionMode, setSubmissionMode] = useState<'MIC' | 'UPLOAD'>('MIC');
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
+
+  // Local Audio File Upload State
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [uploadedAudioUrl, setUploadedAudioUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -153,13 +161,18 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
 
   useEffect(() => {
     fetchSubmission();
-    // Reset local recording states
+    // Reset local recording states & file upload states
     setIsRecording(false);
     setRecordingTime(0);
     setAudioBlob(null);
     if (audioUrl) {
       URL.revokeObjectURL(audioUrl);
       setAudioUrl(null);
+    }
+    setUploadedFile(null);
+    if (uploadedAudioUrl) {
+      URL.revokeObjectURL(uploadedAudioUrl);
+      setUploadedAudioUrl(null);
     }
     setLearnerNote('');
     setIsReRecording(false);
@@ -168,6 +181,42 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [lesson.lessonId]);
+
+  // Handle local audio file selection (.mp3, .wav, etc.)
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate audio file format
+    const allowedExtensions = ['.mp3', '.wav', '.m4a', '.ogg', '.webm', '.aac'];
+    const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+    if (!allowedExtensions.includes(ext) && !file.type.startsWith('audio/')) {
+      setErrorMsg('Vui lòng chọn file âm thanh hợp lệ (.mp3, .wav, .m4a, .ogg, .webm, .aac)');
+      return;
+    }
+
+    // Validate max size (50MB)
+    if (file.size > 50 * 1024 * 1024) {
+      setErrorMsg('Dung lượng file vượt quá giới hạn 50MB. Vui lòng nén hoặc chọn file nhỏ hơn.');
+      return;
+    }
+
+    setErrorMsg(null);
+    setUploadedFile(file);
+    const url = URL.createObjectURL(file);
+    setUploadedAudioUrl(url);
+  };
+
+  const handleResetUploadedFile = () => {
+    setUploadedFile(null);
+    if (uploadedAudioUrl) {
+      URL.revokeObjectURL(uploadedAudioUrl);
+      setUploadedAudioUrl(null);
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
   // Start microphone recording with selected device
   const handleStartRecording = async () => {
@@ -241,16 +290,23 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
     return `${mins.toString().padStart(2, '0')}:${remainder.toString().padStart(2, '0')}`;
   };
 
-  // Submit audio assignment to backend
+  // Submit audio assignment to backend (supports either live record blob or uploaded file)
   const handleSubmitAssignment = async () => {
-    if (!audioBlob) return;
+    const fileToUpload = submissionMode === 'MIC' ? audioBlob : uploadedFile;
+    if (!fileToUpload) return;
     setIsSubmitting(true);
     setErrorMsg(null);
 
     try {
       const formData = new FormData();
       formData.append('LessonId', lesson.lessonId.toString());
-      formData.append('AudioFile', audioBlob, `speaking_record_${Date.now()}.webm`);
+
+      if (fileToUpload instanceof File) {
+        formData.append('AudioFile', fileToUpload, fileToUpload.name);
+      } else {
+        formData.append('AudioFile', fileToUpload, `speaking_record_${Date.now()}.webm`);
+      }
+
       if (learnerNote.trim()) {
         formData.append('Note', learnerNote.trim());
       }
@@ -263,6 +319,11 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
         if (audioUrl) {
           URL.revokeObjectURL(audioUrl);
           setAudioUrl(null);
+        }
+        setUploadedFile(null);
+        if (uploadedAudioUrl) {
+          URL.revokeObjectURL(uploadedAudioUrl);
+          setUploadedAudioUrl(null);
         }
         if (res.data.status === 'GRADED' && onMarkComplete) {
           onMarkComplete(lesson.lessonId);
@@ -434,46 +495,42 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
           ) : (
             /* ── Interactive Audio Recording Workspace ────────────────── */
             <div className="rounded-2xl border border-slate-800 bg-slate-900/90 p-6 shadow-xl backdrop-blur-md">
-              <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 mb-4">
-                <Mic className="w-4 h-4 text-indigo-400" />
-                <span>Khu Vực Ghi Âm Bài Nói</span>
-              </h3>
+              {/* Header & Submission Mode Selector Tabs */}
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-5 pb-3 border-b border-slate-800">
+                <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                  <Mic className="w-4 h-4 text-indigo-400" />
+                  <span>Khu Vực Làm Bài Thi Nói</span>
+                </h3>
 
-              {/* Microphone Device Selector Dropdown */}
-              <div className="mb-5 bg-slate-950/80 p-3.5 rounded-xl border border-slate-800">
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                    <Sliders className="w-3.5 h-3.5 text-indigo-400" />
-                    <span>Chọn thiết bị Micrô ghi âm:</span>
-                  </label>
-                  {audioDevices.length > 0 && (
-                    <span className="text-[10px] text-indigo-300 bg-indigo-500/20 px-2 py-0.5 rounded-full font-bold border border-indigo-500/30">
-                      {audioDevices.length} thiết bị
-                    </span>
-                  )}
-                </div>
-
-                <div className="relative">
-                  <select
-                    value={selectedDeviceId}
-                    onChange={(e) => setSelectedDeviceId(e.target.value)}
+                {/* Mode Selector Tabs */}
+                <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setSubmissionMode('MIC')}
                     disabled={isRecording || isSubmitting}
-                    className="w-full pl-9 pr-8 py-2 bg-slate-900 border border-slate-700/80 rounded-lg text-xs font-semibold text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 transition-all cursor-pointer"
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      submissionMode === 'MIC'
+                        ? 'bg-indigo-600 text-white shadow-md'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
                   >
-                    {audioDevices.length === 0 ? (
-                      <option value="">(Micrô mặc định của thiết bị)</option>
-                    ) : (
-                      audioDevices.map((device, index) => (
-                        <option
-                          key={device.deviceId || index}
-                          value={device.deviceId}
-                        >
-                          {device.label || `Microphone ${index + 1}`}
-                        </option>
-                      ))
-                    )}
-                  </select>
-                  <Mic className="w-4 h-4 text-indigo-400 absolute left-3 top-2.5 pointer-events-none" />
+                    <Mic className="w-3.5 h-3.5" />
+                    <span>Ghi âm trực tiếp</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSubmissionMode('UPLOAD')}
+                    disabled={isRecording || isSubmitting}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      submissionMode === 'UPLOAD'
+                        ? 'bg-indigo-600 text-white shadow-md'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <UploadCloud className="w-3.5 h-3.5" />
+                    <span>Tải file MP3 / Audio</span>
+                  </button>
                 </div>
               </div>
 
@@ -484,128 +541,290 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                 </div>
               )}
 
-              {/* Record State 1: IDLE (Not Recording, No Audio Blob) */}
-              {!isRecording && !audioBlob && (
-                <div className="flex flex-col items-center justify-center p-8 bg-slate-950/70 rounded-2xl border border-slate-800/80 text-center">
-                  <button
-                    onClick={handleStartRecording}
-                    className="w-20 h-20 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white flex items-center justify-center shadow-lg shadow-indigo-500/30 hover:scale-105 active:scale-95 transition-all cursor-pointer mb-4 group"
-                  >
-                    <Mic className="w-9 h-9 group-hover:scale-110 transition-transform" />
-                  </button>
-
-                  <h4 className="text-base font-bold text-white">Bắt đầu Ghi âm giọng nói</h4>
-                  <p className="text-xs text-slate-400 max-w-xs mt-1">
-                    Nhấn vào nút micro phía trên để cho phép trình duyệt truy cập và bắt đầu thu âm bài phát biểu của bạn.
-                  </p>
-                </div>
-              )}
-
-              {/* Record State 2: RECORDING IN PROGRESS */}
-              {isRecording && (
-                <div className="flex flex-col items-center justify-center p-8 bg-slate-950/90 rounded-2xl border border-rose-500/30 text-center relative overflow-hidden">
-                  <div className="absolute top-3 right-3 flex items-center gap-2 px-3 py-1 rounded-full bg-rose-500/20 border border-rose-500/40 text-rose-400 text-[11px] font-bold animate-pulse">
-                    <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
-                    ĐANG GHI ÂM
-                  </div>
-
-                  <div className="text-4xl font-black text-white font-mono tracking-wider mb-4 mt-2">
-                    {formatTime(recordingTime)}
-                  </div>
-
-                  {/* Sound Wave Animation */}
-                  <div className="flex items-center gap-1.5 h-8 mb-6">
-                    {[40, 70, 30, 90, 60, 100, 50, 80, 40, 70].map((h, i) => (
-                      <div
-                        key={i}
-                        className="w-1.5 rounded-full bg-indigo-500 animate-pulse"
-                        style={{
-                          height: `${h}%`,
-                          animationDelay: `${i * 100}ms`,
-                        }}
-                      />
-                    ))}
-                  </div>
-
-                  <button
-                    onClick={handleStopRecording}
-                    className="px-6 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all shadow-lg shadow-rose-600/30 flex items-center gap-2 cursor-pointer active:scale-95"
-                  >
-                    <Square className="w-4 h-4 fill-white" />
-                    <span>Dừng & Kiểm Tra Bài Ghi Âm</span>
-                  </button>
-                </div>
-              )}
-
-              {/* Record State 3: RECORDED (PREVIEW & SUBMIT) */}
-              {!isRecording && audioBlob && audioUrl && (
-                <div className="space-y-4">
-                  <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800">
+              {/* MODE 1: LIVE VOICE RECORDING */}
+              {submissionMode === 'MIC' && (
+                <>
+                  {/* Microphone Device Selector Dropdown */}
+                  <div className="mb-5 bg-slate-950/80 p-3.5 rounded-xl border border-slate-800">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-bold text-slate-300 flex items-center gap-2">
-                        <Volume2 className="w-4 h-4 text-emerald-400" />
-                        <span>Nghe lại bản thu âm (Thời lượng: {formatTime(recordingTime)})</span>
-                      </span>
+                      <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                        <Sliders className="w-3.5 h-3.5 text-indigo-400" />
+                        <span>Chọn thiết bị Micrô ghi âm:</span>
+                      </label>
+                      {audioDevices.length > 0 && (
+                        <span className="text-[10px] text-indigo-300 bg-indigo-500/20 px-2 py-0.5 rounded-full font-bold border border-indigo-500/30">
+                          {audioDevices.length} thiết bị
+                        </span>
+                      )}
                     </div>
 
-                    <audio controls src={audioUrl} className="w-full h-10 mt-1" />
+                    <div className="relative">
+                      <select
+                        value={selectedDeviceId}
+                        onChange={(e) => setSelectedDeviceId(e.target.value)}
+                        disabled={isRecording || isSubmitting}
+                        className="w-full pl-9 pr-8 py-2 bg-slate-900 border border-slate-700/80 rounded-lg text-xs font-semibold text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 transition-all cursor-pointer"
+                      >
+                        {audioDevices.length === 0 ? (
+                          <option value="">(Micrô mặc định của thiết bị)</option>
+                        ) : (
+                          audioDevices.map((device, index) => (
+                            <option
+                              key={device.deviceId || index}
+                              value={device.deviceId}
+                            >
+                              {device.label || `Microphone ${index + 1}`}
+                            </option>
+                          ))
+                        )}
+                      </select>
+                      <Mic className="w-4 h-4 text-indigo-400 absolute left-3 top-2.5 pointer-events-none" />
+                    </div>
                   </div>
 
-                  {/* Optional Learner Note Input */}
-                  <div>
-                    <label className="text-xs font-bold text-slate-400 block mb-1">
-                      Ghi chú cho giảng viên (Không bắt buộc):
-                    </label>
-                    <textarea
-                      rows={2}
-                      value={learnerNote}
-                      onChange={(e) => setLearnerNote(e.target.value)}
-                      placeholder="Nhập ghi chú hoặc thắc mắc nếu có..."
-                      className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
-                  </div>
+                  {/* Record State 1: IDLE (Not Recording, No Audio Blob) */}
+                  {!isRecording && !audioBlob && (
+                    <div className="flex flex-col items-center justify-center p-8 bg-slate-950/70 rounded-2xl border border-slate-800/80 text-center">
+                      <button
+                        onClick={handleStartRecording}
+                        className="w-20 h-20 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white flex items-center justify-center shadow-lg shadow-indigo-500/30 hover:scale-105 active:scale-95 transition-all cursor-pointer mb-4 group"
+                      >
+                        <Mic className="w-9 h-9 group-hover:scale-110 transition-transform" />
+                      </button>
 
-                  {/* Actions */}
-                  <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-                    <button
-                      onClick={handleResetRecording}
-                      disabled={isSubmitting}
-                      className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all flex items-center gap-2 cursor-pointer border border-slate-700 disabled:opacity-50"
-                    >
-                      <RotateCcw className="w-4 h-4" />
-                      <span>Thực hiện lại</span>
-                    </button>
+                      <h4 className="text-base font-bold text-white">Bắt đầu Ghi âm giọng nói</h4>
+                      <p className="text-xs text-slate-400 max-w-xs mt-1">
+                        Nhấn vào nút micro phía trên để cho phép trình duyệt truy cập và bắt đầu thu âm bài phát biểu của bạn.
+                      </p>
+                    </div>
+                  )}
 
-                    <div className="flex items-center gap-2">
-                      {submission && isReRecording && (
-                        <button
-                          onClick={() => setIsReRecording(false)}
-                          disabled={isSubmitting}
-                          className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 text-xs font-bold transition-all cursor-pointer border border-slate-800"
-                        >
-                          Hủy
-                        </button>
-                      )}
+                  {/* Record State 2: RECORDING IN PROGRESS */}
+                  {isRecording && (
+                    <div className="flex flex-col items-center justify-center p-8 bg-slate-950/90 rounded-2xl border border-rose-500/30 text-center relative overflow-hidden">
+                      <div className="absolute top-3 right-3 flex items-center gap-2 px-3 py-1 rounded-full bg-rose-500/20 border border-rose-500/40 text-rose-400 text-[11px] font-bold animate-pulse">
+                        <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+                        ĐANG GHI ÂM
+                      </div>
+
+                      <div className="text-4xl font-black text-white font-mono tracking-wider mb-4 mt-2">
+                        {formatTime(recordingTime)}
+                      </div>
+
+                      {/* Sound Wave Animation */}
+                      <div className="flex items-center gap-1.5 h-8 mb-6">
+                        {[40, 70, 30, 90, 60, 100, 50, 80, 40, 70].map((h, i) => (
+                          <div
+                            key={i}
+                            className="w-1.5 rounded-full bg-indigo-500 animate-pulse"
+                            style={{
+                              height: `${h}%`,
+                              animationDelay: `${i * 100}ms`,
+                            }}
+                          />
+                        ))}
+                      </div>
 
                       <button
-                        onClick={handleSubmitAssignment}
-                        disabled={isSubmitting}
-                        className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-bold shadow-lg shadow-indigo-500/30 transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
+                        onClick={handleStopRecording}
+                        className="px-6 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all shadow-lg shadow-rose-600/30 flex items-center gap-2 cursor-pointer active:scale-95"
                       >
-                        {isSubmitting ? (
-                          <>
-                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                            <span>Đang nộp bài lên Cloud...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Send className="w-4 h-4" />
-                            <span>Chính thức Nộp bài thi nói</span>
-                          </>
-                        )}
+                        <Square className="w-4 h-4 fill-white" />
+                        <span>Dừng & Kiểm Tra Bài Ghi Âm</span>
                       </button>
                     </div>
-                  </div>
+                  )}
+
+                  {/* Record State 3: RECORDED (PREVIEW & SUBMIT) */}
+                  {!isRecording && audioBlob && audioUrl && (
+                    <div className="space-y-4">
+                      <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-bold text-slate-300 flex items-center gap-2">
+                            <Volume2 className="w-4 h-4 text-emerald-400" />
+                            <span>Nghe lại bản thu âm (Thời lượng: {formatTime(recordingTime)})</span>
+                          </span>
+                        </div>
+
+                        <audio controls src={audioUrl} className="w-full h-10 mt-1" />
+                      </div>
+
+                      {/* Optional Learner Note Input */}
+                      <div>
+                        <label className="text-xs font-bold text-slate-400 block mb-1">
+                          Ghi chú cho giảng viên (Không bắt buộc):
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={learnerNote}
+                          onChange={(e) => setLearnerNote(e.target.value)}
+                          placeholder="Nhập ghi chú hoặc thắc mắc nếu có..."
+                          className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                        <button
+                          onClick={handleResetRecording}
+                          disabled={isSubmitting}
+                          className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all flex items-center gap-2 cursor-pointer border border-slate-700 disabled:opacity-50"
+                        >
+                          <RotateCcw className="w-4 h-4" />
+                          <span>Thực hiện lại</span>
+                        </button>
+
+                        <div className="flex items-center gap-2">
+                          {submission && isReRecording && (
+                            <button
+                              onClick={() => setIsReRecording(false)}
+                              disabled={isSubmitting}
+                              className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 text-xs font-bold transition-all cursor-pointer border border-slate-800"
+                            >
+                              Hủy
+                            </button>
+                          )}
+
+                          <button
+                            onClick={handleSubmitAssignment}
+                            disabled={isSubmitting}
+                            className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-bold shadow-lg shadow-indigo-500/30 transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
+                          >
+                            {isSubmitting ? (
+                              <>
+                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                <span>Đang nộp bài lên Cloud...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Send className="w-4 h-4" />
+                                <span>Chính thức Nộp bài thi nói</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* MODE 2: UPLOAD LOCAL AUDIO FILE (.mp3, .wav, .m4a, .ogg) */}
+              {submissionMode === 'UPLOAD' && (
+                <div className="space-y-4">
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileSelect}
+                    accept="audio/*,.mp3,.wav,.m4a,.ogg,.webm,.aac"
+                    className="hidden"
+                  />
+
+                  {!uploadedFile ? (
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex flex-col items-center justify-center p-8 bg-slate-950/70 rounded-2xl border-2 border-dashed border-slate-700/80 hover:border-indigo-500/80 text-center transition-all cursor-pointer group"
+                    >
+                      <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                        <UploadCloud className="w-8 h-8" />
+                      </div>
+                      <h4 className="text-sm font-bold text-white">Tải file ghi âm từ máy cá nhân</h4>
+                      <p className="text-xs text-slate-400 mt-1 max-w-xs">
+                        Bấm vào đây để chọn file âm thanh bài phát biểu của bạn từ máy tính.
+                      </p>
+                      <span className="mt-3 text-[11px] font-semibold text-indigo-400 bg-indigo-500/10 px-3 py-1 rounded-full border border-indigo-500/20">
+                        Định dạng hỗ trợ: .MP3, .WAV, .M4A, .OGG, .WEBM (Tối đa 50MB)
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {/* Selected File Card */}
+                      <div className="p-4 bg-slate-950 rounded-2xl border border-indigo-500/30">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center shrink-0">
+                              <FileAudio className="w-5 h-5" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-xs font-bold text-white truncate max-w-[220px] sm:max-w-[300px]">
+                                {uploadedFile.name}
+                              </div>
+                              <div className="text-[11px] text-slate-400 font-mono">
+                                {(uploadedFile.size / (1024 * 1024)).toFixed(2)} MB
+                              </div>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={handleResetUploadedFile}
+                            disabled={isSubmitting}
+                            className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all cursor-pointer border border-slate-700 shrink-0"
+                          >
+                            Đổi file khác
+                          </button>
+                        </div>
+
+                        {/* Inline Preview Player */}
+                        {uploadedAudioUrl && (
+                          <div className="mt-4 pt-3 border-t border-slate-800">
+                            <label className="text-xs font-bold text-slate-400 block mb-1.5 flex items-center gap-1.5">
+                              <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
+                              <span>Nghe thử trước khi nộp:</span>
+                            </label>
+                            <audio controls src={uploadedAudioUrl} className="w-full h-10" />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Optional Note */}
+                      <div>
+                        <label className="text-xs font-bold text-slate-400 block mb-1">
+                          Ghi chú cho giảng viên (Không bắt buộc):
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={learnerNote}
+                          onChange={(e) => setLearnerNote(e.target.value)}
+                          placeholder="Nhập ghi chú hoặc thắc mắc nếu có..."
+                          className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex items-center justify-end gap-3 pt-2">
+                        {submission && isReRecording && (
+                          <button
+                            type="button"
+                            onClick={() => setIsReRecording(false)}
+                            disabled={isSubmitting}
+                            className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 text-xs font-bold transition-all cursor-pointer border border-slate-800"
+                          >
+                            Hủy
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={handleSubmitAssignment}
+                          disabled={isSubmitting}
+                          className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-bold shadow-lg shadow-indigo-500/30 transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
+                        >
+                          {isSubmitting ? (
+                            <>
+                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              <span>Đang nộp bài lên Cloud...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Send className="w-4 h-4" />
+                              <span>Chính thức Nộp bài thi nói</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
