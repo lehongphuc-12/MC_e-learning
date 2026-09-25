@@ -234,9 +234,45 @@ export const adminApi = {
   async getPlatformSettings(): Promise<PlatformSettings> {
     try {
       const res = await request<{ success: boolean; data: PlatformSettings }>('/admin/settings');
-      if (res.success && res.data) return res.data;
+      if (res.success && res.data) {
+        localStorage.setItem('mseek_maintenance_mode', JSON.stringify(res.data.maintenanceMode));
+        return res.data;
+      }
     } catch (_) {
       // Fallback
+    }
+    return defaultPlatformSettings;
+  },
+
+  async updatePlatformSettings(settings: PlatformSettings): Promise<boolean> {
+    try {
+      const res = await request<{ success: boolean }>('/admin/settings', {
+        method: 'PUT',
+        body: JSON.stringify(settings),
+      });
+      localStorage.setItem('mseek_maintenance_mode', JSON.stringify(settings.maintenanceMode));
+      window.dispatchEvent(new Event('mseek_settings_changed'));
+      return res.success;
+    } catch (_) {
+      localStorage.setItem('mseek_maintenance_mode', JSON.stringify(settings.maintenanceMode));
+      window.dispatchEvent(new Event('mseek_settings_changed'));
+      return true;
+    }
+  },
+
+  async getPublicSettings(): Promise<PlatformSettings> {
+    try {
+      const res = await request<{ success: boolean; data: PlatformSettings }>('/system/settings');
+      if (res.success && res.data) {
+        localStorage.setItem('mseek_maintenance_mode', JSON.stringify(res.data.maintenanceMode));
+        return res.data;
+      }
+    } catch (_) {
+      // Fallback
+    }
+    const cached = localStorage.getItem('mseek_maintenance_mode');
+    if (cached !== null) {
+      return { ...defaultPlatformSettings, maintenanceMode: JSON.parse(cached) };
     }
     return defaultPlatformSettings;
   },
