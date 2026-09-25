@@ -1,4 +1,4 @@
-export type AdminTabType = 'overview' | 'users' | 'courses' | 'categories' | 'financials' | 'settings' | 'forum';
+export type AdminTabType = 'overview' | 'users' | 'courses' | 'categories' | 'financials' | 'settings';
 
 export type UserRole = 'student' | 'instructor' | 'admin';
 
@@ -19,7 +19,7 @@ export interface AdminUser {
   lastActive?: string;
 }
 
-export type CourseModerationStatus = 'published' | 'pending' | 'rejected' | 'draft' | 'hidden';
+export type CourseModerationStatus = 'published' | 'pending' | 'rejected' | 'draft';
 
 export interface AdminCourse {
   id: string;

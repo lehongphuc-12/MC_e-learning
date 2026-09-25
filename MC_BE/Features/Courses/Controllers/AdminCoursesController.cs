@@ -87,18 +87,11 @@ public class AdminCoursesController : ControllerBase
         if (adminId is null)
             return Unauthorized(ApiResponse<CourseDto>.FailureResponse("Unauthorized."));
 
-        try
-        {
-            var result = await _courseService.ApproveCourseAsync(id, adminId.Value);
-            if (result is null)
-                return NotFound(ApiResponse<CourseDto>.FailureResponse("Khóa học không tồn tại."));
+        var result = await _courseService.ApproveCourseAsync(id, adminId.Value);
+        if (result is null)
+            return NotFound(ApiResponse<CourseDto>.FailureResponse("Khóa học không tồn tại."));
 
-            return Ok(ApiResponse<CourseDto>.SuccessResponse(result, "Phê duyệt và xuất bản khóa học thành công."));
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(ApiResponse<CourseDto>.FailureResponse(ex.Message));
-        }
+        return Ok(ApiResponse<CourseDto>.SuccessResponse(result, "Phê duyệt và xuất bản khóa học thành công."));
     }
 
     // -------------------------------------------------------------------------
@@ -115,67 +108,10 @@ public class AdminCoursesController : ControllerBase
         if (adminId is null)
             return Unauthorized(ApiResponse<CourseDto>.FailureResponse("Unauthorized."));
 
-        try
-        {
-            var result = await _courseService.RejectCourseAsync(id, adminId.Value, request.Reason);
-            if (result is null)
-                return NotFound(ApiResponse<CourseDto>.FailureResponse("Khóa học không tồn tại."));
+        var result = await _courseService.RejectCourseAsync(id, adminId.Value, request.Reason);
+        if (result is null)
+            return NotFound(ApiResponse<CourseDto>.FailureResponse("Khóa học không tồn tại."));
 
-            return Ok(ApiResponse<CourseDto>.SuccessResponse(result, "Đã từ chối khóa học và gửi lý do cho Giảng viên."));
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(ApiResponse<CourseDto>.FailureResponse(ex.Message));
-        }
-    }
-
-    // -------------------------------------------------------------------------
-    // POST /api/admin/courses/{id}/hide
-    // Hides (archives) a published course
-    // -------------------------------------------------------------------------
-    [HttpPost("{id:int}/hide")]
-    public async Task<ActionResult<ApiResponse<CourseDto>>> HideCourse(int id)
-    {
-        var adminId = GetCurrentAdminId();
-        if (adminId is null)
-            return Unauthorized(ApiResponse<CourseDto>.FailureResponse("Unauthorized."));
-
-        try
-        {
-            var result = await _courseService.HideCourseAsync(id, adminId.Value);
-            if (result is null)
-                return NotFound(ApiResponse<CourseDto>.FailureResponse("Khóa học không tồn tại."));
-
-            return Ok(ApiResponse<CourseDto>.SuccessResponse(result, "Đã ẩn khóa học thành công."));
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(ApiResponse<CourseDto>.FailureResponse(ex.Message));
-        }
-    }
-
-    // -------------------------------------------------------------------------
-    // POST /api/admin/courses/{id}/unhide
-    // Unhides (republishes) an archived course
-    // -------------------------------------------------------------------------
-    [HttpPost("{id:int}/unhide")]
-    public async Task<ActionResult<ApiResponse<CourseDto>>> UnhideCourse(int id)
-    {
-        var adminId = GetCurrentAdminId();
-        if (adminId is null)
-            return Unauthorized(ApiResponse<CourseDto>.FailureResponse("Unauthorized."));
-
-        try
-        {
-            var result = await _courseService.UnhideCourseAsync(id, adminId.Value);
-            if (result is null)
-                return NotFound(ApiResponse<CourseDto>.FailureResponse("Khóa học không tồn tại."));
-
-            return Ok(ApiResponse<CourseDto>.SuccessResponse(result, "Đã xuất bản lại khóa học thành công."));
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(ApiResponse<CourseDto>.FailureResponse(ex.Message));
-        }
+        return Ok(ApiResponse<CourseDto>.SuccessResponse(result, "Đã từ chối khóa học và gửi lý do cho Giảng viên."));
     }
 }

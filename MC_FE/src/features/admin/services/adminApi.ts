@@ -113,8 +113,6 @@ export const adminApi = {
           if (st === 'PUBLISHED') moderationStatus = 'published';
           else if (st === 'PENDING_APPROVAL' || st === 'PENDING') moderationStatus = 'pending';
           else if (st === 'REJECTED') moderationStatus = 'rejected';
-          else if (st === 'ARCHIVED' || st === 'HIDDEN') moderationStatus = 'hidden';
-          else if (st === 'DRAFT') moderationStatus = 'draft';
 
           return {
             id: String(c.courseId || c.id || Date.now()),
@@ -152,8 +150,6 @@ export const adminApi = {
           method: 'POST',
           body: JSON.stringify({ reason: reason || 'Nội dung chưa đạt yêu cầu' }),
         });
-      } else if (status === 'hidden') {
-        await request(`/admin/courses/${courseId}/hide`, { method: 'POST' });
       } else {
         await request(`/admin/courses/${courseId}/moderation`, {
           method: 'PUT',
@@ -166,42 +162,24 @@ export const adminApi = {
     }
   },
 
-  async approveCourse(courseId: string | number): Promise<{ success: boolean; message?: string }> {
+  async approveCourse(courseId: string | number): Promise<boolean> {
     try {
-      const res = await request<{ success: boolean; message?: string }>(`/admin/courses/${courseId}/approve`, { method: 'POST' });
-      return { success: res.success, message: res.message };
-    } catch (err: any) {
-      return { success: false, message: err?.message || 'Không thể phê duyệt khóa học.' };
+      await request(`/admin/courses/${courseId}/approve`, { method: 'POST' });
+      return true;
+    } catch (_) {
+      return false;
     }
   },
 
-  async rejectCourse(courseId: string | number, reason: string): Promise<{ success: boolean; message?: string }> {
+  async rejectCourse(courseId: string | number, reason: string): Promise<boolean> {
     try {
-      const res = await request<{ success: boolean; message?: string }>(`/admin/courses/${courseId}/reject`, {
+      await request(`/admin/courses/${courseId}/reject`, {
         method: 'POST',
         body: JSON.stringify({ reason }),
       });
-      return { success: res.success, message: res.message };
-    } catch (err: any) {
-      return { success: false, message: err?.message || 'Không thể từ chối khóa học.' };
-    }
-  },
-
-  async hideCourse(courseId: string | number): Promise<{ success: boolean; message?: string }> {
-    try {
-      const res = await request<{ success: boolean; message?: string }>(`/admin/courses/${courseId}/hide`, { method: 'POST' });
-      return { success: res.success, message: res.message };
-    } catch (err: any) {
-      return { success: false, message: err?.message || 'Không thể ẩn khóa học.' };
-    }
-  },
-
-  async unhideCourse(courseId: string | number): Promise<{ success: boolean; message?: string }> {
-    try {
-      const res = await request<{ success: boolean; message?: string }>(`/admin/courses/${courseId}/unhide`, { method: 'POST' });
-      return { success: res.success, message: res.message };
-    } catch (err: any) {
-      return { success: false, message: err?.message || 'Không thể xuất bản lại khóa học.' };
+      return true;
+    } catch (_) {
+      return false;
     }
   },
 
@@ -256,45 +234,9 @@ export const adminApi = {
   async getPlatformSettings(): Promise<PlatformSettings> {
     try {
       const res = await request<{ success: boolean; data: PlatformSettings }>('/admin/settings');
-      if (res.success && res.data) {
-        localStorage.setItem('mseek_maintenance_mode', JSON.stringify(res.data.maintenanceMode));
-        return res.data;
-      }
+      if (res.success && res.data) return res.data;
     } catch (_) {
       // Fallback
-    }
-    return defaultPlatformSettings;
-  },
-
-  async updatePlatformSettings(settings: PlatformSettings): Promise<boolean> {
-    try {
-      const res = await request<{ success: boolean }>('/admin/settings', {
-        method: 'PUT',
-        body: JSON.stringify(settings),
-      });
-      localStorage.setItem('mseek_maintenance_mode', JSON.stringify(settings.maintenanceMode));
-      window.dispatchEvent(new Event('mseek_settings_changed'));
-      return res.success;
-    } catch (_) {
-      localStorage.setItem('mseek_maintenance_mode', JSON.stringify(settings.maintenanceMode));
-      window.dispatchEvent(new Event('mseek_settings_changed'));
-      return true;
-    }
-  },
-
-  async getPublicSettings(): Promise<PlatformSettings> {
-    try {
-      const res = await request<{ success: boolean; data: PlatformSettings }>('/system/settings');
-      if (res.success && res.data) {
-        localStorage.setItem('mseek_maintenance_mode', JSON.stringify(res.data.maintenanceMode));
-        return res.data;
-      }
-    } catch (_) {
-      // Fallback
-    }
-    const cached = localStorage.getItem('mseek_maintenance_mode');
-    if (cached !== null) {
-      return { ...defaultPlatformSettings, maintenanceMode: JSON.parse(cached) };
     }
     return defaultPlatformSettings;
   },

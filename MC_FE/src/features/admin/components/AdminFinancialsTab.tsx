@@ -819,10 +819,6 @@ export const AdminFinancialsTab: React.FC<AdminFinancialsTabProps> = ({
                             <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/20 px-2 py-0.5 text-[11px] font-semibold text-amber-300 ring-1 ring-inset ring-amber-400/25">
                               <Clock className="h-3 w-3 animate-pulse" /> Chờ Duyệt
                             </span>
-                          ) : po.status === 'rejected' ? (
-                            <span className="inline-flex items-center gap-1 rounded-md bg-rose-500/20 px-2 py-0.5 text-[11px] font-semibold text-rose-300 ring-1 ring-inset ring-rose-400/25">
-                              <XCircle className="h-3 w-3" /> Đã Từ Chối
-                            </span>
                           ) : (
                             <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-400 ring-1 ring-inset ring-emerald-400/20">
                               <CheckCircle className="h-3 w-3" /> Đã Chuyển
