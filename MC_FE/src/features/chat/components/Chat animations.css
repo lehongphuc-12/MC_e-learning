@@ -168,4 +168,26 @@
   background-size: 200% 200%;
   animation: gradientDrift 12s ease infinite;
 }
+@keyframes replyTargetFlash {
+  0% {
+    background-color: transparent;
+  }
+
+  20% {
+    background-color: rgba(59, 130, 246, 0.14);
+  }
+
+  55% {
+    background-color: rgba(59, 130, 246, 0.14);
+  }
+
+  100% {
+    background-color: transparent;
+  }
+}
+
+.reply-target-highlight {
+  border-radius: 18px;
+  animation: replyTargetFlash 1.2s ease-out !important;
+}
 .mseek-chat-scroll::-webkit-scrollbar-track { background: transparent; }
