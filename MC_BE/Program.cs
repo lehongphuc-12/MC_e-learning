@@ -110,7 +110,6 @@ builder.Services.AddScoped<
 
 builder.Services.AddHttpContextAccessor();
 
-
 // ============================================================
 // AUTH / USER / ADMIN
 // ============================================================
@@ -135,15 +134,6 @@ builder.Services.AddScoped<
     UserProfileService
 >();
 
-builder.Services.AddScoped<
-    IUserService,
-    UserService
->();
-
-builder.Services.AddScoped<
-    IAdminService,
-    AdminService
->();
 
 // ============================================================
 // COURSE MANAGEMENT
