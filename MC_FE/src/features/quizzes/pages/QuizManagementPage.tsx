@@ -240,9 +240,9 @@ export const QuizManagementPage: React.FC = () => {
 
                         <span
                           className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
-                            (quiz.status as string) === 'PUBLISHED' || (quiz.status as string) === 'ACTIVE'
+                            quiz.status === 'PUBLISHED'
                               ? 'bg-emerald-50 text-emerald-700'
-                              : (quiz.status as string) === 'ARCHIVED'
+                              : quiz.status === 'ARCHIVED'
                               ? 'bg-slate-100 text-slate-500'
                               : 'bg-amber-50 text-amber-700'
                           }`}

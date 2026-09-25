@@ -6,26 +6,21 @@ import {
   XCircle,
   Star,
   Eye,
-  EyeOff,
   User,
   Clock,
   FileText,
   Calendar,
   AlertCircle,
-  AlertTriangle,
   Send,
   RefreshCw,
 } from 'lucide-react';
 import { AdminCourse, CourseModerationStatus } from '../types/adminTypes';
-import { CourseReviewModal } from './modals/CourseReviewModal';
 
 interface AdminCoursesTabProps {
   courses: AdminCourse[];
   onReviewCourse: (course: AdminCourse) => void;
   onApproveCourse: (courseId: string) => void;
   onRejectCourse: (courseId: string, reason: string) => void;
-  onHideCourse?: (courseId: string) => void;
-  onUnhideCourse?: (courseId: string) => void;
   onToggleFeatured: (courseId: string, currentFeatured: boolean) => void;
   onRefresh?: () => void;
 }
@@ -35,17 +30,13 @@ export const AdminCoursesTab: React.FC<AdminCoursesTabProps> = ({
   onReviewCourse,
   onApproveCourse,
   onRejectCourse,
-  onHideCourse,
-  onUnhideCourse,
   onToggleFeatured,
   onRefresh,
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'pending' | 'approved' | 'hidden' | 'all'>('pending');
+  const [activeSubTab, setActiveSubTab] = useState<'pending' | 'approved'>('pending');
   const [searchTerm, setSearchTerm] = useState('');
   const [rejectingCourseId, setRejectingCourseId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
-  const [hidingCourse, setHidingCourse] = useState<AdminCourse | null>(null);
-  const [unhidingCourse, setUnhidingCourse] = useState<AdminCourse | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleRefreshClick = async () => {
@@ -60,7 +51,6 @@ export const AdminCoursesTab: React.FC<AdminCoursesTabProps> = ({
 
   const pendingCourses = courses.filter((c) => c.status === 'pending');
   const approvedCourses = courses.filter((c) => c.status === 'published');
-  const hiddenCourses = courses.filter((c) => c.status === 'hidden' || c.status === 'draft');
 
   const filteredCourses = courses.filter((c) => {
     const matchesSearch =
@@ -68,12 +58,10 @@ export const AdminCoursesTab: React.FC<AdminCoursesTabProps> = ({
       c.instructorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       c.category.toLowerCase().includes(searchTerm.toLowerCase());
 
-    if (!matchesSearch) return false;
-
-    if (activeSubTab === 'pending') return c.status === 'pending';
-    if (activeSubTab === 'approved') return c.status === 'published';
-    if (activeSubTab === 'hidden') return c.status === 'hidden' || c.status === 'draft';
-    return true; // 'all'
+    if (activeSubTab === 'pending') {
+      return matchesSearch && c.status === 'pending';
+    }
+    return matchesSearch && c.status === 'published';
   });
 
   const formatDate = (iso?: string) => {
@@ -108,7 +96,7 @@ export const AdminCoursesTab: React.FC<AdminCoursesTabProps> = ({
             <span>Kiểm Duyệt & Quản Lý Khóa Học</span>
           </h1>
           <p className="text-sm text-slate-400 mt-1">
-            Hệ thống quản lý khóa học dành riêng cho Admin: Duyệt bài mới, ẩn/hiện khóa học công khai và kiểm duyệt nội dung.
+            Hệ thống duyệt 2 tầng dành riêng cho Admin: Xem xét khóa học mới/cập nhật từ Giảng viên, đọc ghi chú và mốc thời gian trước khi phê duyệt.
           </p>
         </div>
 
@@ -124,18 +112,18 @@ export const AdminCoursesTab: React.FC<AdminCoursesTabProps> = ({
         )}
       </div>
 
-      {/* Sub-Tabs */}
-      <div className="flex flex-wrap border-b border-slate-800 gap-1 sm:gap-2">
+      {/* 2 Main View Sub-Tabs */}
+      <div className="flex border-b border-slate-800 space-x-2">
         <button
           onClick={() => setActiveSubTab('pending')}
-          className={`flex items-center space-x-2 px-4 py-3 border-b-2 font-semibold text-xs sm:text-sm transition cursor-pointer ${
+          className={`flex items-center space-x-2 px-5 py-3 border-b-2 font-semibold text-sm transition cursor-pointer ${
             activeSubTab === 'pending'
               ? 'border-amber-400 text-amber-400 bg-amber-500/10 rounded-t-xl'
               : 'border-transparent text-slate-400 hover:text-slate-200'
           }`}
         >
           <Clock className="w-4 h-4" />
-          <span>Chưa Duyệt</span>
+          <span>Khóa học Chưa Duyệt</span>
           <span className="px-2 py-0.5 text-xs rounded-full bg-amber-500/20 text-amber-300 font-bold">
             {pendingCourses.length}
           </span>
@@ -143,44 +131,17 @@ export const AdminCoursesTab: React.FC<AdminCoursesTabProps> = ({
 
         <button
           onClick={() => setActiveSubTab('approved')}
-          className={`flex items-center space-x-2 px-4 py-3 border-b-2 font-semibold text-xs sm:text-sm transition cursor-pointer ${
+          className={`flex items-center space-x-2 px-5 py-3 border-b-2 font-semibold text-sm transition cursor-pointer ${
             activeSubTab === 'approved'
               ? 'border-emerald-400 text-emerald-400 bg-emerald-500/10 rounded-t-xl'
               : 'border-transparent text-slate-400 hover:text-slate-200'
           }`}
         >
           <CheckCircle className="w-4 h-4" />
-          <span>Đã Duyệt</span>
+          <span>Khóa học Đã Duyệt</span>
           <span className="px-2 py-0.5 text-xs rounded-full bg-emerald-500/20 text-emerald-300 font-bold">
             {approvedCourses.length}
           </span>
-        </button>
-
-        <button
-          onClick={() => setActiveSubTab('hidden')}
-          className={`flex items-center space-x-2 px-4 py-3 border-b-2 font-semibold text-xs sm:text-sm transition cursor-pointer ${
-            activeSubTab === 'hidden'
-              ? 'border-rose-400 text-rose-400 bg-rose-500/10 rounded-t-xl'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <EyeOff className="w-4 h-4" />
-          <span>Đã Ẩn / Nháp</span>
-          <span className="px-2 py-0.5 text-xs rounded-full bg-rose-500/20 text-rose-300 font-bold">
-            {hiddenCourses.length}
-          </span>
-        </button>
-
-        <button
-          onClick={() => setActiveSubTab('all')}
-          className={`flex items-center space-x-2 px-4 py-3 border-b-2 font-semibold text-xs sm:text-sm transition cursor-pointer ${
-            activeSubTab === 'all'
-              ? 'border-purple-400 text-purple-400 bg-purple-500/10 rounded-t-xl'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          <BookOpen className="w-4 h-4" />
-          <span>Tất Cả ({courses.length})</span>
         </button>
       </div>
 
@@ -206,7 +167,7 @@ export const AdminCoursesTab: React.FC<AdminCoursesTabProps> = ({
               <tr>
                 <th className="px-6 py-4">Tên Khóa Học</th>
                 <th className="px-6 py-4">Giảng Viên</th>
-                <th className="px-6 py-4">Trạng Thái</th>
+                <th className="px-6 py-4">Ghi Chú Giảng Viên</th>
                 <th className="px-6 py-4">Mốc Thời Gian</th>
                 {activeSubTab === 'approved' && <th className="px-6 py-4">Nổi Bật</th>}
                 <th className="px-6 py-4 text-right">Thao Tác</th>
@@ -216,7 +177,7 @@ export const AdminCoursesTab: React.FC<AdminCoursesTabProps> = ({
               {filteredCourses.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
-                    Chưa có khóa học nào trong mục này.
+                    Chưa có khóa học nào trong danh mục này.
                   </td>
                 </tr>
               ) : (
@@ -248,27 +209,15 @@ export const AdminCoursesTab: React.FC<AdminCoursesTabProps> = ({
                       </div>
                     </td>
 
-                    {/* Status Badge */}
-                    <td className="px-6 py-4">
-                      {course.status === 'published' && (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-md border border-emerald-500/20">
-                          <CheckCircle className="w-3 h-3" /> Đã Duyệt
-                        </span>
-                      )}
-                      {course.status === 'pending' && (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-md border border-amber-500/20">
-                          <Clock className="w-3 h-3 animate-pulse" /> Chưa Duyệt
-                        </span>
-                      )}
-                      {(course.status === 'hidden' || course.status === 'draft') && (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-300 bg-rose-500/10 px-2.5 py-1 rounded-md border border-rose-500/20">
-                          <EyeOff className="w-3 h-3" /> Đã Ẩn / Nháp
-                        </span>
-                      )}
-                      {course.status === 'rejected' && (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-red-400 bg-red-500/10 px-2.5 py-1 rounded-md border border-red-500/20">
-                          <XCircle className="w-3 h-3" /> Từ Chối
-                        </span>
+                    {/* Submission Note */}
+                    <td className="px-6 py-4 max-w-xs">
+                      {course.submissionNote ? (
+                        <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800 text-slate-300 text-xs flex items-start space-x-2">
+                          <FileText className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                          <span className="italic line-clamp-2">{course.submissionNote}</span>
+                        </div>
+                      ) : (
+                        <span className="text-slate-500 text-xs italic">Không có ghi chú</span>
                       )}
                     </td>
 
@@ -283,6 +232,9 @@ export const AdminCoursesTab: React.FC<AdminCoursesTabProps> = ({
                           <CheckCircle className="w-3 h-3 text-emerald-400" />
                           <span>Duyệt: {formatDate(course.approvedAt)}</span>
                         </div>
+                      )}
+                      {course.approvedByName && (
+                        <p className="text-[10px] text-slate-500">Bởi Admin: {course.approvedByName}</p>
                       )}
                     </td>
 
@@ -321,7 +273,7 @@ export const AdminCoursesTab: React.FC<AdminCoursesTabProps> = ({
                               className="flex items-center space-x-1 px-3 py-1.5 rounded-lg text-emerald-300 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-xs font-bold transition cursor-pointer"
                             >
                               <CheckCircle className="w-3.5 h-3.5" />
-                              <span>Duyệt</span>
+                              <span>Duyệt ngay</span>
                             </button>
 
                             <button
@@ -336,26 +288,6 @@ export const AdminCoursesTab: React.FC<AdminCoursesTabProps> = ({
                             </button>
                           </>
                         )}
-
-                        {course.status === 'published' && onHideCourse && (
-                          <button
-                            onClick={() => setHidingCourse(course)}
-                            className="flex items-center space-x-1 px-3 py-1.5 rounded-lg text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-xs font-medium transition cursor-pointer"
-                          >
-                            <EyeOff className="w-3.5 h-3.5" />
-                            <span>Ẩn</span>
-                          </button>
-                        )}
-
-                        {(course.status === 'hidden' || course.status === 'draft') && onUnhideCourse && (
-                          <button
-                            onClick={() => setUnhidingCourse(course)}
-                            className="flex items-center space-x-1 px-3 py-1.5 rounded-lg text-emerald-300 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/30 text-xs font-bold transition cursor-pointer"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                            <span>Xuất bản lại</span>
-                          </button>
-                        )}
                       </div>
                     </td>
                   </tr>
@@ -365,74 +297,6 @@ export const AdminCoursesTab: React.FC<AdminCoursesTabProps> = ({
           </table>
         </div>
       </div>
-
-      {/* Hide Course Confirmation Modal */}
-      {hidingCourse && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
-            <div className="flex items-center space-x-3 text-amber-400">
-              <div className="p-2.5 bg-amber-500/10 rounded-xl border border-amber-500/20">
-                <AlertTriangle className="w-6 h-6" />
-              </div>
-              <h3 className="text-lg font-bold text-white">Ẩn khóa học này?</h3>
-            </div>
-            <p className="text-sm text-slate-300 leading-relaxed">
-              Khóa học sẽ không còn xuất hiện trong danh sách công khai và học viên mới không thể đăng ký. Học viên đã đăng ký vẫn có thể tiếp tục học.
-            </p>
-            <div className="flex justify-end space-x-3 pt-2">
-              <button
-                onClick={() => setHidingCourse(null)}
-                className="px-4 py-2 text-sm font-medium text-slate-400 hover:text-white bg-slate-800 rounded-xl transition cursor-pointer"
-              >
-                Hủy
-              </button>
-              <button
-                onClick={() => {
-                  onHideCourse?.(hidingCourse.id);
-                  setHidingCourse(null);
-                }}
-                className="px-5 py-2 text-sm font-bold text-white bg-rose-600 hover:bg-rose-500 rounded-xl shadow-lg shadow-rose-600/20 transition cursor-pointer"
-              >
-                Ẩn khóa học
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Unhide Course Confirmation Modal */}
-      {unhidingCourse && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl space-y-4">
-            <div className="flex items-center space-x-3 text-emerald-400">
-              <div className="p-2.5 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
-                <CheckCircle className="w-6 h-6" />
-              </div>
-              <h3 className="text-lg font-bold text-white">Xuất bản lại khóa học?</h3>
-            </div>
-            <p className="text-sm text-slate-300 leading-relaxed">
-              Khóa học sẽ xuất hiện trở lại trong danh sách công khai và học viên mới có thể thấy và đăng ký.
-            </p>
-            <div className="flex justify-end space-x-3 pt-2">
-              <button
-                onClick={() => setUnhidingCourse(null)}
-                className="px-4 py-2 text-sm font-medium text-slate-400 hover:text-white bg-slate-800 rounded-xl transition cursor-pointer"
-              >
-                Hủy
-              </button>
-              <button
-                onClick={() => {
-                  onUnhideCourse?.(unhidingCourse.id);
-                  setUnhidingCourse(null);
-                }}
-                className="px-5 py-2 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl shadow-lg shadow-emerald-600/20 transition cursor-pointer"
-              >
-                Xuất bản lại
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Reject Modal with Reason Input */}
       {rejectingCourseId && (

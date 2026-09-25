@@ -187,17 +187,6 @@ export const Header: React.FC<HeaderProps> = ({
                 >
                   Khóa học
                 </button>
-                <button
-                  id="nav-forum-btn"
-                  onClick={() => navigate('/forum')}
-                  className={`px-3.5 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
-                    currentScreen === 'forum'
-                      ? 'text-blue-600 bg-blue-50/70 font-semibold'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                  }`}
-                >
-                  Diễn đàn
-                </button>
                 {user?.role === 'admin' && (
                   <button
                     id="nav-admin-btn"

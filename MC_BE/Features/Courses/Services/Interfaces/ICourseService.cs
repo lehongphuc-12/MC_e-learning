@@ -77,16 +77,6 @@ public interface ICourseService
     Task<CourseDto?> RejectCourseAsync(int courseId, int adminId, string reason);
 
     /// <summary>
-    /// Admin hides (archives) a published course.
-    /// </summary>
-    Task<CourseDto?> HideCourseAsync(int courseId, int adminId);
-
-    /// <summary>
-    /// Admin unhides (republishes) an archived course.
-    /// </summary>
-    Task<CourseDto?> UnhideCourseAsync(int courseId, int adminId);
-
-    /// <summary>
     /// Bulk creates multiple courses in one operation.
     /// </summary>
     Task<List<CourseDto>> CreateCoursesBulkAsync(int instructorId, List<CreateCourseRequest> requests);
