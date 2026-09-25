@@ -1,65 +1,79 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { 
-  BookOpen, Clock, Award, Star, BarChart2, Zap, Trophy, TrendingUp, CheckCircle2, ChevronLeft, ChevronRight 
+  BookOpen, Clock, Award, Star, BarChart2, Zap, Trophy, TrendingUp, CheckCircle2 
 } from 'lucide-react';
-
-import { useLearnedCoursesQuery } from '../../../courses/hooks/useCoursesQuery';
-import { useActivityLogsQuery, useLearningStreakQuery } from '../../../courses/hooks/useLearningQueries';
 
 interface ProfileOverviewProps {
   onNavigate: (screen: any) => void;
 }
 
+const MOCK_STATS = [
+  { label: 'Enrolled', value: '4', sub: 'courses', icon: BookOpen, gradient: 'from-blue-500 to-indigo-600' },
+  { label: 'Learned', value: '42', sub: 'hours', icon: Clock, gradient: 'from-violet-500 to-purple-600' },
+  { label: 'Certificates', value: '2', sub: 'earned', icon: Award, gradient: 'from-amber-500 to-orange-500' },
+  { label: 'Avg. Score', value: '94%', sub: 'quiz', icon: Star, gradient: 'from-emerald-500 to-teal-500' },
+];
 
+const MOCK_COURSES = [
+  {
+    id: 1,
+    title: 'The Elegant Wedding MC',
+    category: 'Wedding & Gala MCing',
+    progress: 68,
+    thumb: 'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=120&q=80',
+    instructor: 'Jonathan Sterling',
+    nextLesson: 'Live Emergency Scripts',
+    color: 'bg-blue-500',
+  },
+  {
+    id: 2,
+    title: 'Executive Public Speaking',
+    category: 'Public Speaking',
+    progress: 35,
+    thumb: 'https://images.unsplash.com/photo-1475721027785-f74eccf877e2?auto=format&fit=crop&w=120&q=80',
+    instructor: 'Elena Vance',
+    nextLesson: 'Stage Movement & Body Language',
+    color: 'bg-violet-500',
+  },
+  {
+    id: 3,
+    title: 'Vocal Power & Broadcast Diction',
+    category: 'Voice & Diction',
+    progress: 90,
+    thumb: 'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?auto=format&fit=crop&w=120&q=80',
+    instructor: 'Sophie Laurent',
+    nextLesson: 'Warm-up & Cool-down Routines',
+    color: 'bg-emerald-500',
+  },
+];
 
+const MOCK_ACTIVITIES = [
+  { emoji: '✅', text: 'Completed "Microphone Technique & Vocal Placement"', time: '2h ago', accent: 'text-blue-600 bg-blue-50' },
+  { emoji: '🏆', text: 'Earned Vocal Power Intermediate Certificate', time: '1d ago', accent: 'text-amber-600 bg-amber-50' },
+  { emoji: '⭐', text: 'Rated Wedding MC Masterclass — 5 stars', time: '3d ago', accent: 'text-violet-600 bg-violet-50' },
+  { emoji: '📝', text: 'Submitted Module 3 Practice Script', time: '5d ago', accent: 'text-emerald-600 bg-emerald-50' },
+];
 
+const BADGES = [
+  { emoji: '🎤', label: 'MC Pro', earned: true },
+  { emoji: '🏅', label: 'Top Scorer', earned: true },
+  { emoji: '🔥', label: '7-Day Streak', earned: true },
+  { emoji: '📚', label: 'Bookworm', earned: false },
+  { emoji: '🎯', label: 'Perfectionist', earned: false },
+  { emoji: '⚡', label: 'Fast Learner', earned: false },
+];
 
 const progressColor = (p: number) =>
   p >= 80 ? 'from-emerald-400 to-emerald-500' : p >= 50 ? 'from-blue-400 to-blue-500' : 'from-amber-400 to-amber-500';
 
 export const ProfileOverview: React.FC<ProfileOverviewProps> = ({ onNavigate }) => {
-  const navigate = useNavigate();
   const [activityTab, setActivityTab] = useState<'courses' | 'activity'>('courses');
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 5;
-  const { data: apiEnrolledCourses, isLoading } = useLearnedCoursesQuery();
-  const { data: activityLogs = [] } = useActivityLogsQuery();
-  const { data: streakData } = useLearningStreakQuery();
-  
-  const currentLogs = activityLogs.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-  const totalPages = Math.ceil(activityLogs.length / itemsPerPage);
-  
-  const enrolledCourses = apiEnrolledCourses || [];
-  const totalEnrolled = enrolledCourses.length;
-  const completedLectures = enrolledCourses.reduce((sum, c) => sum + (c.completedLecturesCount || 0), 0);
-  const totalCertificates = enrolledCourses.filter(c => !!c.certificateId).length;
-  const avgScore = enrolledCourses.length > 0 
-    ? Math.round(enrolledCourses.reduce((sum, c) => sum + c.progressPercent, 0) / enrolledCourses.length) 
-    : 0;
-
-  const STATS = [
-    { label: 'Enrolled', value: isLoading ? '-' : String(totalEnrolled), sub: 'courses', icon: BookOpen, gradient: 'from-blue-500 to-indigo-600' },
-    { label: 'Learned', value: isLoading ? '-' : String(completedLectures), sub: 'lectures', icon: Clock, gradient: 'from-violet-500 to-purple-600' },
-    { label: 'Certificates', value: isLoading ? '-' : String(totalCertificates), sub: 'earned', icon: Award, gradient: 'from-amber-500 to-orange-500' },
-    { label: 'Avg. Score', value: isLoading ? '-' : `${avgScore}%`, sub: 'progress', icon: Star, gradient: 'from-emerald-500 to-teal-500' },
-  ];
-
-  const recentCourses = enrolledCourses.slice(0, 3).map(c => ({
-    id: c.course.id,
-    title: c.course.title,
-    category: c.course.category,
-    progress: c.progressPercent,
-    thumb: c.course.thumbnail,
-    instructor: c.course.instructor.name,
-    nextLesson: c.lastLectureTitle || 'Continue Learning',
-  }));
 
   return (
     <div className="space-y-6">
       {/* Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {STATS.map(s => (
+        {MOCK_STATS.map(s => (
           <div key={s.label} className="bg-white rounded-2xl shadow-sm p-4 flex items-center gap-3 border border-slate-100/70 hover:shadow-md transition-all">
             <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${s.gradient} flex items-center justify-center shadow-sm shrink-0`}>
               <s.icon className="w-5 h-5 text-white" />
@@ -72,9 +86,9 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({ onNavigate }) 
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Side: Courses & Activities */}
-        <div className="lg:col-span-2 space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Left Column: Courses & Activities */}
+        <div className="md:col-span-2 space-y-6">
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
             <div className="flex border-b border-slate-100">
               <button
@@ -100,7 +114,7 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({ onNavigate }) 
             {/* Courses inside overview */}
             {activityTab === 'courses' && (
               <div className="divide-y divide-slate-100">
-                {recentCourses.length > 0 ? recentCourses.map(c => (
+                {MOCK_COURSES.map(c => (
                   <div key={c.id} className="flex gap-4 px-5 py-4 hover:bg-slate-50/50 transition-colors">
                     <img src={c.thumb} alt={c.title}
                       className="w-14 h-14 rounded-xl object-cover shrink-0 border border-slate-100 shadow-sm" />
@@ -121,11 +135,7 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({ onNavigate }) 
                       </div>
                     </div>
                   </div>
-                )) : (
-                  <div className="px-5 py-8 text-center text-slate-500 text-sm">
-                    You haven't enrolled in any courses yet.
-                  </div>
-                )}
+                ))}
                 <div className="px-5 py-3.5 bg-slate-50/50 text-center">
                   <button
                     onClick={() => onNavigate('courses')}
@@ -140,98 +150,62 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({ onNavigate }) 
             {/* Activity logs inside overview */}
             {activityTab === 'activity' && (
               <div className="divide-y divide-slate-100">
-                {currentLogs.length > 0 ? currentLogs.map((a, i) => (
-                  <div 
-                    key={i} 
-                    onClick={() => a.link && navigate(a.link)}
-                    className="flex items-start gap-3 px-5 py-4 hover:bg-slate-50/50 transition-colors cursor-pointer"
-                  >
+                {MOCK_ACTIVITIES.map((a, i) => (
+                  <div key={i} className="flex items-start gap-3 px-5 py-4 hover:bg-slate-50/50 transition-colors">
                     <span className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm shrink-0 mt-0.5 ${a.accent}`}>
                       {a.emoji}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm text-slate-800 font-medium leading-snug hover:text-blue-600 transition-colors">{a.text}</p>
+                      <p className="text-sm text-slate-800 font-medium leading-snug">{a.text}</p>
                       <p className="text-[11px] text-slate-400 mt-1">{a.time}</p>
                     </div>
                     <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-1" />
                   </div>
-                )) : (
-                  <div className="px-5 py-8 text-center text-slate-500 text-sm">
-                    No recent activity found.
-                  </div>
-                )}
-                {totalPages > 1 && (
-                  <div className="px-5 py-4 border-t border-slate-100 flex items-center justify-between">
-                    <span className="text-xs text-slate-500 font-medium">
-                      Page {currentPage} of {totalPages}
-                    </span>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                        disabled={currentPage === 1}
-                        className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                      >
-                        <ChevronLeft className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                        disabled={currentPage === totalPages}
-                        className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                      >
-                        <ChevronRight className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                )}
+                ))}
               </div>
             )}
           </div>
         </div>
 
-        {/* Right Side: Learning Streak Widget */}
+        {/* Right Column: Achievements & Bio */}
         <div className="space-y-6">
-          <div className="bg-slate-950 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden group">
-            {/* Background effects */}
-            <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 rounded-full bg-blue-500/20 blur-2xl group-hover:bg-blue-400/30 transition-all duration-500"></div>
-            
-            <div className="flex items-center justify-between mb-6 relative z-10">
-              <h3 className="text-xs font-black tracking-widest text-blue-300 uppercase">
-                Learning Streak
-              </h3>
-              <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center border border-white/5 backdrop-blur-md">
-                <TrendingUp className="w-4 h-4 text-blue-300" />
+          <div className="bg-gradient-to-br from-slate-900 to-blue-950 rounded-2xl p-5 text-white shadow-lg border border-slate-800">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">Monthly Target</p>
+                <p className="text-3xl font-bold mt-1">42 <span className="text-base font-medium text-slate-400">/ 60h</span></p>
+              </div>
+              <div className="w-10 h-10 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center">
+                <TrendingUp className="w-5 h-5 text-blue-400" />
               </div>
             </div>
-
-            <div className="flex items-baseline gap-3 relative z-10">
-              <span className="text-5xl font-black tracking-tight">
-                {streakData?.currentStreak || 0}
-              </span>
-              <span className="text-slate-400 font-medium">days</span>
-              <span className="text-3xl ml-1">🔥</span>
+            <div className="h-2 bg-white/10 rounded-full mb-2.5 overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-500" style={{ width: '70%' }} />
             </div>
+            <p className="text-[11px] text-slate-400">You completed 70% of your August goal! 🎯</p>
+          </div>
 
-            <div className="mt-8 space-y-3 relative z-10">
-              {/* Progress bar visual (always full or just decorative) */}
-              <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
-                <div 
-                  className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-400"
-                  style={{ width: streakData?.currentStreak && streakData.currentStreak > 0 ? '100%' : '5%' }}
-                />
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Trophy className="w-4 h-4 text-amber-500" />
+                <h3 className="text-sm font-bold text-slate-900">Achievements</h3>
               </div>
-              
-              <div className="flex items-center justify-between text-sm text-slate-300 mt-3">
-                <div className="flex items-center gap-2">
-                  <Trophy className="w-4 h-4 text-amber-400" />
-                  <span>Longest streak: <strong className="text-white">{streakData?.longestStreak || 0}</strong> days</span>
+              <span className="text-[11px] text-slate-500 font-semibold">3 / 6 earned</span>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {BADGES.map(b => (
+                <div key={b.label}
+                  className={`flex flex-col items-center gap-1.5 p-2 rounded-xl border text-center transition-all
+                    ${b.earned
+                      ? 'bg-amber-500/[0.04] border-amber-500/10 text-amber-900'
+                      : 'bg-slate-50 border-slate-100 opacity-30 grayscale'
+                    }`}
+                >
+                  <span className="text-xl">{b.emoji}</span>
+                  <span className="text-[9px] font-bold tracking-tight leading-tight">{b.label}</span>
                 </div>
-              </div>
-              
-              {streakData?.currentStreak === 0 && (
-                <p className="text-xs text-rose-300 mt-2">
-                  You lost your streak! Learn a lesson today to start a new one.
-                </p>
-              )}
+              ))}
             </div>
           </div>
         </div>

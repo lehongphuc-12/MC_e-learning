@@ -95,8 +95,7 @@ export const useLearnedCoursesQuery = () => {
         certificateId: item.certificateId ? String(item.certificateId) : undefined,
       }));
     },
-    staleTime: 0,
-    refetchOnMount: 'always',
+    staleTime: 1000 * 10,
   });
 };
 
