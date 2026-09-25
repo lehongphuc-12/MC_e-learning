@@ -29,7 +29,6 @@ import {
   Users,
   GripVertical,
   Send,
-  Mic2,
 } from 'lucide-react';
 
 import { CourseStudentsModal } from './CourseStudentsModal';
@@ -113,8 +112,6 @@ export const CourseLessonsPage: React.FC = () => {
   const [editingLesson, setEditingLesson] = useState<Lesson | null>(null);
 
   const [targetModuleId, setTargetModuleId] = useState<number | null>(null);
-
-  const [targetLessonType, setTargetLessonType] = useState<'VIDEO' | 'DOCUMENT' | 'QUIZ' | 'ASSIGNMENT'>('VIDEO');
 
   const [lessonToDelete, setLessonToDelete] = useState<Lesson | null>(null);
 
@@ -230,11 +227,6 @@ export const CourseLessonsPage: React.FC = () => {
 
     if (lessons.length === 0) {
       missing.push('Chưa tạo Bài học (Lesson) nào');
-    }
-
-    const hasSpeakingAssignment = lessons.some((l) => l.lessonType === 'ASSIGNMENT');
-    if (!hasSpeakingAssignment) {
-      missing.push('Chưa tạo Bài tập nói (Speaking Assignment) cuối khóa nào');
     }
 
     if (missing.length > 0) {
@@ -372,15 +364,9 @@ export const CourseLessonsPage: React.FC = () => {
 
   const handleOpenCreateLesson = (moduleId?: number | null) => {
     setEditingLesson(null);
-    setTargetModuleId(moduleId ?? null);
-    setTargetLessonType('VIDEO');
-    setIsLessonModalOpen(true);
-  };
 
-  const handleOpenCreateSpeakingAssignment = (moduleId?: number | null) => {
-    setEditingLesson(null);
     setTargetModuleId(moduleId ?? null);
-    setTargetLessonType('ASSIGNMENT');
+
     setIsLessonModalOpen(true);
   };
 
@@ -493,11 +479,6 @@ export const CourseLessonsPage: React.FC = () => {
   const unassignedLessons: Lesson[] = [];
 
   lessons.forEach((lesson) => {
-    // Speaking Assignments belong exclusively to the overall course section
-    if (lesson.lessonType === 'ASSIGNMENT') {
-      return;
-    }
-
     if (lesson.moduleId) {
       if (!lessonsByModule[lesson.moduleId]) {
         lessonsByModule[lesson.moduleId] = [];
@@ -640,23 +621,13 @@ export const CourseLessonsPage: React.FC = () => {
                 </button>
 
                 {modules.length > 0 && (
-                  <>
-                    <button
-                      onClick={() => handleOpenCreateLesson(modules[0]?.moduleId)}
-                      className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white shadow-md shadow-blue-600/30 transition-all hover:bg-blue-500 active:scale-95"
-                    >
-                      <PlusCircle className="h-4 w-4" />
-                      <span>Thêm Bài học</span>
-                    </button>
-
-                <button
-                  onClick={() => handleOpenCreateSpeakingAssignment(null)}
-                  className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-purple-600 px-3.5 py-2 text-xs font-semibold text-white shadow-md shadow-purple-600/30 transition-all hover:bg-purple-500 active:scale-95"
-                >
-                  <Mic2 className="h-4 w-4" />
-                  <span>+ Tạo Bài tập nói tổng khóa</span>
-                </button>
-                  </>
+                  <button
+                    onClick={() => handleOpenCreateLesson(modules[0]?.moduleId)}
+                    className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white shadow-md shadow-blue-600/30 transition-all hover:bg-blue-500 active:scale-95"
+                  >
+                    <PlusCircle className="h-4 w-4" />
+                    <span>Thêm Bài học</span>
+                  </button>
                 )}
 
                 <button
@@ -677,14 +648,6 @@ export const CourseLessonsPage: React.FC = () => {
                 >
                   <Users className="h-4 w-4 text-cyan-300" />
                   <span>Danh sách học viên</span>
-                </button>
-
-                <button
-                  onClick={() => navigate(`/instructor/courses/${courseId}/speaking`)}
-                  className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-white/20 bg-white/10 px-3.5 py-2 text-xs font-semibold text-white backdrop-blur-md transition-all hover:bg-white/20 active:scale-95"
-                >
-                  <Mic2 className="h-4 w-4 text-cyan-300" />
-                  <span>Chấm bài nói (Speaking)</span>
                 </button>
 
                 <button
@@ -859,21 +822,12 @@ export const CourseLessonsPage: React.FC = () => {
                         {moduleLessons.length === 0 ? (
                           <div className="px-6 py-8 text-center text-xs text-slate-400">
                             Chưa có bài học nào trong chương này.
-                            <div className="mt-2 flex items-center justify-center gap-3">
-                              <button
-                                onClick={() => handleOpenCreateLesson(mod.moduleId)}
-                                className="cursor-pointer font-semibold text-indigo-600 underline hover:text-indigo-800"
-                              >
-                                + Thêm bài học mới
-                              </button>
-                              <span>|</span>
-                              <button
-                                onClick={() => handleOpenCreateSpeakingAssignment(mod.moduleId)}
-                                className="cursor-pointer font-semibold text-purple-600 underline hover:text-purple-800"
-                              >
-                                + Thêm Bài tập nói (Speaking)
-                              </button>
-                            </div>
+                            <button
+                              onClick={() => handleOpenCreateLesson(mod.moduleId)}
+                              className="ml-1 cursor-pointer font-semibold text-indigo-600 underline hover:text-indigo-800"
+                            >
+                              + Thêm bài học mới
+                            </button>
                           </div>
                         ) : (
                           <div className="overflow-x-auto">
@@ -946,29 +900,14 @@ export const CourseLessonsPage: React.FC = () => {
                                           }
                                           className="group/title flex cursor-pointer items-start gap-2.5 text-left"
                                         >
-                                          <div className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg shadow-xs transition-all ${
-                                            lesson.lessonType === 'ASSIGNMENT'
-                                              ? 'bg-purple-100 text-purple-700 group-hover/title:bg-purple-600 group-hover/title:text-white'
-                                              : 'bg-indigo-50 text-indigo-600 group-hover/title:bg-indigo-600 group-hover/title:text-white'
-                                          }`}>
-                                            {lesson.lessonType === 'ASSIGNMENT' ? (
-                                              <Mic2 className="h-3.5 w-3.5" />
-                                            ) : (
-                                              <PlayCircle className="h-3.5 w-3.5" />
-                                            )}
+                                          <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 shadow-xs transition-all group-hover/title:bg-indigo-600 group-hover/title:text-white">
+                                            <PlayCircle className="h-3.5 w-3.5" />
                                           </div>
 
                                           <div>
-                                            <div className="flex items-center gap-2">
-                                              <p className="line-clamp-1 text-sm font-semibold text-slate-900 transition-colors group-hover/title:text-indigo-600">
-                                                {lesson.title}
-                                              </p>
-                                              {lesson.lessonType === 'ASSIGNMENT' && (
-                                                <span className="inline-flex items-center gap-1 rounded-md bg-purple-100 px-2 py-0.5 text-[10px] font-bold text-purple-700">
-                                                  🎙️ Bài tập nói
-                                                </span>
-                                              )}
-                                            </div>
+                                            <p className="line-clamp-1 text-sm font-semibold text-slate-900 transition-colors group-hover/title:text-indigo-600">
+                                              {lesson.title}
+                                            </p>
 
                                             {lesson.description && (
                                               <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">
@@ -1325,123 +1264,6 @@ export const CourseLessonsPage: React.FC = () => {
       </div>
 
       {/* =====================================================================
-          COURSE-LEVEL SPEAKING ASSIGNMENT MANAGEMENT
-      ====================================================================== */}
-
-      <div id="speaking-assignment-management" className="mx-auto max-w-7xl px-6 pt-10">
-        <div className="overflow-hidden rounded-3xl border border-purple-200/80 bg-white shadow-xs">
-          {/* HEADER */}
-          <div className="flex flex-col gap-4 border-b border-purple-100 bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-100/50 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-purple-100 text-purple-700 shadow-inner">
-                <Mic2 className="h-5 w-5" />
-              </div>
-
-              <div>
-                <h2 className="text-base font-bold text-slate-900">
-                  Bài tập nói (Speaking Assignment) Tổng khóa học
-                </h2>
-
-                <p className="mt-0.5 text-xs text-slate-500">
-                  Bài thu âm giọng nói dành cho học viên thực hành & nộp điểm cuối khóa (Admin yêu cầu bắt buộc)
-                </p>
-              </div>
-            </div>
-
-            {!lessons.some((l) => l.lessonType === 'ASSIGNMENT') && (
-              <button
-                type="button"
-                onClick={() => handleOpenCreateSpeakingAssignment(null)}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-purple-600 px-4 py-2.5 text-xs font-semibold text-white shadow-md shadow-purple-500/20 transition-all hover:bg-purple-700 active:scale-95 cursor-pointer"
-              >
-                <Plus className="h-4 w-4" />
-                Tạo Bài tập nói tổng khóa
-              </button>
-            )}
-          </div>
-
-          {/* CONTENT */}
-          {(() => {
-            const assignment = lessons.find((l) => l.lessonType === 'ASSIGNMENT');
-            if (assignment) {
-              return (
-                <div className="p-6">
-                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 rounded-2xl border border-purple-100 bg-purple-50/40 p-5">
-                    <div className="space-y-1.5 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="inline-flex items-center gap-1 rounded-md bg-purple-100 px-2.5 py-0.5 text-xs font-extrabold text-purple-700">
-                          🎙️ Bài tập nói tổng khóa
-                        </span>
-                        <span className="text-xs font-semibold text-slate-500">
-                          • {assignment.durationMinutes} phút dự kiến
-                        </span>
-                      </div>
-                      <h3 className="text-base font-bold text-slate-900">{assignment.title}</h3>
-                      {assignment.description && (
-                        <p className="text-xs text-slate-600 leading-relaxed max-w-3xl">
-                          {assignment.description}
-                        </p>
-                      )}
-                      {assignment.videoUrl && (
-                        <div className="pt-1">
-                          <a
-                            href={assignment.videoUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-xs font-semibold text-purple-600 hover:underline"
-                          >
-                            <ExternalLink className="h-3.5 w-3.5" />
-                            <span>Link Audio mẫu / Hướng dẫn đề bài</span>
-                          </a>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-2 self-end md:self-center shrink-0">
-                      <button
-                        onClick={() => handleOpenEditLesson(assignment)}
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-purple-200 bg-white px-3.5 py-2 text-xs font-bold text-purple-700 shadow-xs hover:bg-purple-50 active:scale-95 transition-all cursor-pointer"
-                      >
-                        <Edit2 className="h-4 w-4" />
-                        <span>Chỉnh sửa</span>
-                      </button>
-                      <button
-                        onClick={() => setLessonToDelete(assignment)}
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-white px-3.5 py-2 text-xs font-bold text-red-600 shadow-xs hover:bg-red-50 active:scale-95 transition-all cursor-pointer"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        <span>Xóa</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            }
-
-            return (
-              <div className="flex flex-col items-center justify-center p-8 text-center">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-purple-50 text-purple-500 mb-3">
-                  <Mic2 className="h-6 w-6" />
-                </div>
-                <h4 className="text-sm font-bold text-slate-800">Chưa tạo Bài tập nói tổng khóa</h4>
-                <p className="mt-1 text-xs text-slate-500 max-w-md">
-                  Mỗi khóa học cần có 1 Bài tập nói tổng cuối khóa để học viên nộp bản thu âm cho Giảng viên chấm điểm. Khóa học chỉ có thể gửi Admin duyệt khi đã tạo bài tập này.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => handleOpenCreateSpeakingAssignment(null)}
-                  className="mt-4 inline-flex items-center gap-2 rounded-xl bg-purple-600 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-purple-700 transition-all cursor-pointer"
-                >
-                  <Plus className="h-4 w-4" />
-                  Tạo Bài tập nói ngay
-                </button>
-              </div>
-            );
-          })()}
-        </div>
-      </div>
-
-      {/* =====================================================================
           QUIZ MANAGEMENT  (đã được chuyển xuống cuối trang)
       ====================================================================== */}
 
@@ -1709,7 +1531,6 @@ export const CourseLessonsPage: React.FC = () => {
         existingLesson={editingLesson}
         modules={modules}
         defaultModuleId={targetModuleId}
-        defaultLessonType={targetLessonType}
         isSubmitting={isCreatingLesson || isUpdatingLesson}
         onClose={() => setIsLessonModalOpen(false)}
         onSubmit={handleLessonFormSubmit}

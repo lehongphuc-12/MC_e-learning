@@ -77,6 +77,12 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
       icon: Settings,
       badge: null,
     },
+    {
+      id: 'forum' as AdminTabType,
+      label: 'Quản Lý Diễn Đàn',
+      icon: ShieldAlert,
+      badge: null,
+    },
   ];
 
   return (

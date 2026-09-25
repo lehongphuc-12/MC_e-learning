@@ -3,7 +3,7 @@
 // =============================================================================
 
 import React, { useEffect, useState } from 'react';
-import { X, Save, Loader2, Video, FileText, HelpCircle, Mic2 } from 'lucide-react';
+import { X, Save, Loader2, Video, FileText, HelpCircle } from 'lucide-react';
 import type { Lesson, CreateLessonDto } from '../../types/lessonTypes';
 
 import type { CourseModule } from '../../types/moduleTypes';
@@ -13,7 +13,6 @@ interface LessonFormModalProps {
   existingLesson?: Lesson | null;
   modules?: CourseModule[];
   defaultModuleId?: number | null;
-  defaultLessonType?: 'VIDEO' | 'DOCUMENT' | 'QUIZ' | 'ASSIGNMENT';
   isSubmitting: boolean;
   onClose: () => void;
   onSubmit: (dto: CreateLessonDto) => void;
@@ -24,7 +23,6 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
   existingLesson,
   modules = [],
   defaultModuleId,
-  defaultLessonType,
   isSubmitting,
   onClose,
   onSubmit,
@@ -35,7 +33,6 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
   const [description, setDescription] = useState('');
   const [videoUrl, setVideoUrl] = useState('');
   const [moduleId, setModuleId] = useState<number | null>(null);
-  const [lessonType, setLessonType] = useState<'VIDEO' | 'DOCUMENT' | 'QUIZ' | 'ASSIGNMENT'>('VIDEO');
   const [durationMinutes, setDurationMinutes] = useState<number>(10);
   const [orderIndex, setOrderIndex] = useState<number>(1);
   const [isPreview, setIsPreview] = useState<boolean>(false);
@@ -47,7 +44,6 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
       setDescription(existingLesson.description ?? '');
       setVideoUrl(existingLesson.videoUrl ?? '');
       setModuleId(existingLesson.moduleId ?? null);
-      setLessonType(existingLesson.lessonType || 'VIDEO');
       setDurationMinutes(existingLesson.durationMinutes);
       setOrderIndex(existingLesson.orderIndex);
       setIsPreview(existingLesson.isPreview);
@@ -56,20 +52,19 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
       setDescription('');
       setVideoUrl('');
       setModuleId(defaultModuleId ?? (modules.length > 0 ? modules[0].moduleId : null));
-      setLessonType(defaultLessonType || 'VIDEO');
       setDurationMinutes(10);
       setOrderIndex(1);
       setIsPreview(false);
     }
     setErrorMsg(null);
-  }, [existingLesson, isOpen, defaultModuleId, defaultLessonType, modules]);
+  }, [existingLesson, isOpen, defaultModuleId, modules]);
 
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
-      setErrorMsg('Tên bài học / bài tập không được để trống.');
+      setErrorMsg('Tên bài học không được để trống.');
       return;
     }
 
@@ -77,8 +72,7 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
       title: title.trim(),
       description: description.trim() || undefined,
       videoUrl: videoUrl.trim() || undefined,
-      moduleId: lessonType === 'ASSIGNMENT' ? undefined : (moduleId ?? undefined),
-      lessonType,
+      moduleId: moduleId ?? undefined,
       durationMinutes: Number(durationMinutes) || 0,
       orderIndex: Number(orderIndex) || 1,
       isPreview,
@@ -98,22 +92,15 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-100 pb-4">
           <div className="flex items-center gap-3">
-            <div className={`flex h-11 w-11 items-center justify-center rounded-2xl shadow-inner ${lessonType === 'ASSIGNMENT'
-              ? 'bg-purple-100 text-purple-600'
-              : 'bg-blue-100 text-blue-600'
-              }`}>
-              {lessonType === 'ASSIGNMENT' ? <Mic2 className="h-5 w-5" /> : <Video className="h-5 w-5" />}
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-100 text-blue-600 shadow-inner">
+              <Video className="h-5 w-5" />
             </div>
             <div>
               <h2 className="text-xl font-bold text-slate-900">
-                {isEditMode
-                  ? lessonType === 'ASSIGNMENT' ? 'Chỉnh sửa Bài tập nói tổng khóa' : 'Chỉnh sửa bài học'
-                  : lessonType === 'ASSIGNMENT' ? 'Tạo Bài tập nói (Speaking Assignment)' : 'Thêm bài học mới'}
+                {isEditMode ? 'Chỉnh sửa bài học' : 'Thêm bài học mới'}
               </h2>
               <p className="text-xs text-slate-500">
-                {lessonType === 'ASSIGNMENT'
-                  ? 'Cấu hình đề bài tập thu âm giọng nói dành cho học viên cuối khóa học'
-                  : 'Nhập thông tin bài giảng video hoặc tài liệu học tập'}
+                Nhập thông tin bài giảng video hoặc tài liệu học tập
               </p>
             </div>
           </div>
@@ -133,103 +120,67 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
             </div>
           )}
 
-          {/* Row: Module Select & Lesson Type (Only for non-ASSIGNMENT) */}
-          {lessonType !== 'ASSIGNMENT' && (
-            <div className={`grid grid-cols-1 ${modules.length > 0 ? 'sm:grid-cols-2' : ''} gap-4`}>
-              {/* Module Select */}
-              {modules.length > 0 && (
-                <div>
-                  <label htmlFor="lesson-module" className="block text-xs font-bold text-slate-700 mb-1">
-                    Chương học (Module)
-                  </label>
-                  <select
-                    id="lesson-module"
-                    value={moduleId ?? ''}
-                    onChange={(e) => setModuleId(e.target.value ? Number(e.target.value) : null)}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-2.5 text-sm text-slate-800 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-50/80 transition-all"
-                  >
-                    <option value="">-- Chưa phân vào chương --</option>
-                    {modules.map((m) => (
-                      <option key={m.moduleId} value={m.moduleId}>
-                        Chương {m.orderIndex}: {m.title}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {/* Lesson Type Select */}
-              <div>
-                <label htmlFor="lesson-type" className="block text-xs font-bold text-slate-700 mb-1">
-                  Loại bài học / Bài tập
-                </label>
-                <select
-                  id="lesson-type"
-                  value={lessonType}
-                  onChange={(e) => setLessonType(e.target.value as any)}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-2.5 text-sm text-slate-800 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-50/80 transition-all font-semibold"
-                >
-                  <option value="VIDEO">📹 Video bài giảng</option>
-                  <option value="DOCUMENT">📄 Tài liệu lý thuyết</option>
-                  <option value="QUIZ">❓ Bài kiểm tra Quiz</option>
-                </select>
-              </div>
+          {/* Module Select */}
+          {modules.length > 0 && (
+            <div>
+              <label htmlFor="lesson-module" className="block text-xs font-bold text-slate-700 mb-1">
+                Chương học (Module)
+              </label>
+              <select
+                id="lesson-module"
+                value={moduleId ?? ''}
+                onChange={(e) => setModuleId(e.target.value ? Number(e.target.value) : null)}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-2.5 text-sm text-slate-800 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-50/80 transition-all"
+              >
+                <option value="">-- Chưa phân vào chương --</option>
+                {modules.map((m) => (
+                  <option key={m.moduleId} value={m.moduleId}>
+                    Chương {m.orderIndex}: {m.title}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
 
           {/* Title */}
           <div>
             <label htmlFor="lesson-title" className="block text-xs font-bold text-slate-700 mb-1">
-              {lessonType === 'ASSIGNMENT' ? 'Tên Bài tập nói tổng khóa' : 'Tên bài học'} <span className="text-red-500">*</span>
+              Tên bài học <span className="text-red-500">*</span>
             </label>
             <input
               id="lesson-title"
               type="text"
-              placeholder={
-                lessonType === 'ASSIGNMENT'
-                  ? 'Ví dụ: Bài tập nói cuối khóa: Biên soạn & Dẫn trực tiếp tiệc cưới'
-                  : 'Ví dụ: Bài 1 - Kỹ thuật lấy hơi bụng và kiểm soát giọng nói'
-              }
+              placeholder="Ví dụ: Bài 1 - Kỹ thuật lấy hơi bụng và kiểm soát giọng nói"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="w-full rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-50/80 transition-all"
             />
           </div>
 
-          {/* Video URL or Audio Guide */}
+          {/* Video URL */}
           <div>
             <label htmlFor="lesson-videourl" className="block text-xs font-bold text-slate-700 mb-1">
-              {lessonType === 'ASSIGNMENT'
-                ? 'Link Audio phát mẫu / Video hướng dẫn đề bài (tùy chọn)'
-                : 'Đường dẫn Video bài giảng (URL MP4, Youtube, Vimeo, Cloudinary)'}
+              Đường dẫn Video bài giảng (URL MP4, Youtube, Vimeo, Cloudinary)
             </label>
             <input
               id="lesson-videourl"
               type="url"
-              placeholder={
-                lessonType === 'ASSIGNMENT'
-                  ? 'https://res.cloudinary.com/.../audio_mau.mp3'
-                  : 'https://www.youtube.com/watch?v=... hoặc link video mp4'
-              }
+              placeholder="https://www.youtube.com/watch?v=... hoặc link video mp4"
               value={videoUrl}
               onChange={(e) => setVideoUrl(e.target.value)}
               className="w-full rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-50/80 transition-all"
             />
           </div>
 
-          {/* Description / Prompt */}
+          {/* Description */}
           <div>
             <label htmlFor="lesson-desc" className="block text-xs font-bold text-slate-700 mb-1">
-              {lessonType === 'ASSIGNMENT' ? 'Đề bài / Yêu cầu thu âm (Nội dung học viên sẽ đọc để ghi âm)' : 'Mô tả ngắn bài học'}
+              Mô tả ngắn bài học
             </label>
             <textarea
               id="lesson-desc"
-              rows={4}
-              placeholder={
-                lessonType === 'ASSIGNMENT'
-                  ? 'Ví dụ: Kính thưa quan khách hai họ, lời đầu tiên cho phép MC Hoàng Nam gửi lời chào trân trọng nhất. Đề nghị học viên đọc đoạn kịch bản này với giọng ấm áp, vừa phải trong khoảng 2 phút...'
-                  : 'Nội dung chính học viên sẽ thu hoạch được sau bài học này...'
-              }
+              rows={3}
+              placeholder="Nội dung chính học viên sẽ thu hoạch được sau bài học này..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="w-full rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-50/80 transition-all resize-none"
@@ -237,7 +188,7 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
           </div>
 
           {/* Row: Duration & OrderIndex */}
-          <div className={`grid ${lessonType === 'ASSIGNMENT' ? 'grid-cols-1' : 'grid-cols-2'} gap-4`}>
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label htmlFor="lesson-duration" className="block text-xs font-bold text-slate-700 mb-1">
                 Thời lượng (Phút)
@@ -252,38 +203,34 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
               />
             </div>
 
-            {lessonType !== 'ASSIGNMENT' && (
-              <div>
-                <label htmlFor="lesson-order" className="block text-xs font-bold text-slate-700 mb-1">
-                  Thứ tự bài học (#)
-                </label>
-                <input
-                  id="lesson-order"
-                  type="number"
-                  min="1"
-                  value={orderIndex}
-                  onChange={(e) => setOrderIndex(Number(e.target.value))}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-2.5 text-sm text-slate-800 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-50/80 transition-all"
-                />
-              </div>
-            )}
+            <div>
+              <label htmlFor="lesson-order" className="block text-xs font-bold text-slate-700 mb-1">
+                Thứ tự bài học (#)
+              </label>
+              <input
+                id="lesson-order"
+                type="number"
+                min="1"
+                value={orderIndex}
+                onChange={(e) => setOrderIndex(Number(e.target.value))}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-2.5 text-sm text-slate-800 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-50/80 transition-all"
+              />
+            </div>
           </div>
 
-          {/* IsPreview Checkbox (Only for non-ASSIGNMENT) */}
-          {lessonType !== 'ASSIGNMENT' && (
-            <div className="flex items-center gap-3 pt-2">
-              <input
-                id="lesson-ispreview"
-                type="checkbox"
-                checked={isPreview}
-                onChange={(e) => setIsPreview(e.target.checked)}
-                className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-              />
-              <label htmlFor="lesson-ispreview" className="text-xs font-semibold text-slate-700 cursor-pointer">
-                Cho phép học viên xem thử miễn phí (Free Preview)
-              </label>
-            </div>
-          )}
+          {/* IsPreview Checkbox */}
+          <div className="flex items-center gap-3 pt-2">
+            <input
+              id="lesson-ispreview"
+              type="checkbox"
+              checked={isPreview}
+              onChange={(e) => setIsPreview(e.target.checked)}
+              className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+            />
+            <label htmlFor="lesson-ispreview" className="text-xs font-semibold text-slate-700 cursor-pointer">
+              Cho phép học viên xem thử miễn phí (Free Preview)
+            </label>
+          </div>
 
           {/* Footer Buttons */}
           <div className="flex items-center justify-end gap-3 border-t border-slate-100 pt-4 mt-6">
@@ -298,11 +245,7 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
             <button
               type="submit"
               disabled={isSubmitting}
-              className={`flex items-center gap-2 rounded-xl px-5 py-2 text-xs font-semibold text-white shadow-md active:scale-95 disabled:opacity-50 transition-all cursor-pointer ${
-                lessonType === 'ASSIGNMENT'
-                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 shadow-purple-500/20'
-                  : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-blue-500/20'
-              }`}
+              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-2 text-xs font-semibold text-white shadow-md shadow-blue-500/20 hover:from-blue-700 hover:to-indigo-700 active:scale-95 disabled:opacity-50 transition-all cursor-pointer"
             >
               {isSubmitting ? (
                 <>
@@ -312,9 +255,7 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
               ) : (
                 <>
                   <Save className="h-4 w-4" />
-                  {isEditMode
-                    ? (lessonType === 'ASSIGNMENT' ? 'Lưu Bài tập nói' : 'Lưu thay đổi')
-                    : (lessonType === 'ASSIGNMENT' ? 'Tạo Bài tập nói' : 'Tạo bài học')}
+                  {isEditMode ? 'Lưu thay đổi' : 'Tạo bài học'}
                 </>
               )}
             </button>

@@ -46,6 +46,10 @@ using Microsoft.OpenApi.Models;
 // 08.Quiz Management
 using MC_BE.Features.Quizzes.Services;
 using MC_BE.Features.Quizzes.Services.Interfaces;
+using MC_BE.Features.Learning.Services;
+using MC_BE.Features.Learning.Services.Interfaces;
+using MC_BE.Features.Forum.Services;
+using MC_BE.Features.Forum.Services.Interfaces;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -117,6 +121,7 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserProfileService, UserProfileService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
+builder.Services.AddScoped<IAdminStatsService, AdminStatsService>();
 
 // Course Management Services
 builder.Services.AddScoped<ICourseService, CourseService>();
@@ -132,6 +137,12 @@ builder.Services.AddScoped<ICertificateService, CertificateService>();
 builder.Services.AddScoped<ILearningProgressService, LearningProgressService>();
 builder.Services.AddScoped<ISpeakingSubmissionRepository, SpeakingSubmissionRepository>();
 builder.Services.AddScoped<ISpeakingSubmissionService, SpeakingSubmissionService>();
+
+// Forum Services
+builder.Services.AddScoped<IForumPostService, ForumPostService>();
+builder.Services.AddScoped<IForumCommentService, ForumCommentService>();
+builder.Services.AddScoped<IForumInteractionService, ForumInteractionService>();
+builder.Services.AddScoped<IAdminForumService, AdminForumService>();
 
 // Register Email & Cloudinary Services
 builder.Services.AddScoped<IEmailService, EmailService>();
@@ -531,7 +542,6 @@ using (var scope =
         Console.WriteLine(
             "Database migration completed."
         );
-
         if (!context.Roles.Any())
         {
             Console.WriteLine(
@@ -613,6 +623,7 @@ using (var scope =
 app.UseRouting();
 
 app.UseCors("AllowAll");
+app.UseStaticFiles();
 
 app.UseAuthentication();
 

@@ -1,410 +1,177 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-
 import { Course, User } from './types';
 import { mockCourses } from './data/mockData';
-
-import { AppRouter } from './components/AppRouter';
-import { Toast } from './components/common/Toast';
-import { CartDrawer } from './components/modals/CartDrawer';
-import { CheckoutModal } from './components/modals/CheckoutModal';
 import { VideoPreviewModal } from './components/modals/VideoPreviewModal';
-
+import { CheckoutModal } from './components/modals/CheckoutModal';
+import { CartDrawer } from './components/modals/CartDrawer';
+import { Toast } from './components/common/Toast';
 import { authApi } from './features/auth/api/authApi';
-import { ChatWidget } from './features/chat/components/ChatWidget';
-
 import { useAppStore } from './hooks/useAppStore';
 import { useAuth } from './hooks/useAuth';
 import { useAuthStore } from './store/useAuthStore';
+import { AppRouter } from './components/AppRouter';
 
 const getDefaultAvatar = (name: string) => {
   const parts = name.trim().split(/\s+/);
-
   let initials = '';
-
   if (parts.length > 1) {
-    initials =
-      (parts[0][0] || '') +
-      (parts[parts.length - 1][0] || '');
+    initials = (parts[0][0] || '') + (parts[parts.length - 1][0] || '');
   } else if (parts.length === 1 && parts[0]) {
     initials = parts[0].slice(0, 2);
   }
-
-  return `https://ui-avatars.com/api/?name=${encodeURIComponent(
-    initials.toUpperCase()
-  )}&background=2563eb&color=fff&bold=true`;
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(initials.toUpperCase())}&background=2563eb&color=fff&bold=true`;
 };
 
 export default function App() {
-  // ============================================================
-  // STATE
-  // ============================================================
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(mockCourses[0]);
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
-  const [selectedCourse, setSelectedCourse] =
-    useState<Course | null>(mockCourses[0] ?? null);
-
-  const [searchQuery, setSearchQuery] =
-    useState<string>('');
-
-  // ============================================================
-  // HOOKS
-  // ============================================================
-
-  const {
-    user,
-    setAuth,
-    updateUser,
-    logout: authLogout,
-  } = useAuth();
-
+  const { user, setAuth, updateUser, logout: authLogout } = useAuth();
   const store = useAppStore();
-
   const navigate = useNavigate();
 
-  // ============================================================
-  // RESTORE / SYNC SESSION
-  // ============================================================
-
+  // Background session sync - updates state quietly without blocking UI render
   useEffect(() => {
     const fetchMe = async () => {
-      const storedToken =
-        useAuthStore.getState().token;
-
-      // Không có token thì không cần gọi /me
-      if (!storedToken) {
-        return;
-      }
+      const storedToken = useAuthStore.getState().token;
+      if (!storedToken) return;
 
       try {
         const result = await authApi.getMe();
+        if (result.success) {
+          const userObj = result.data;
+          const mappedRole = 
+            userObj.roleName === 'Learner' ? 'student' :
+            userObj.roleName === 'Instructor' ? 'instructor' :
+            userObj.roleName === 'Admin' ? 'admin' : 'student';
 
-        if (!result.success || !result.data) {
+          setAuth(
+            {
+              id: userObj.userId.toString(),
+              name: userObj.fullName,
+              email: userObj.email,
+              avatar: userObj.avatarUrl || getDefaultAvatar(userObj.fullName),
+              role: mappedRole,
+              isGoogleLogin: userObj.isGoogleLogin ?? false
+            },
+            storedToken
+          );
+        } else {
           authLogout();
-          return;
         }
-
-        const userObj = result.data;
-
-        const mappedRole: User['role'] =
-          userObj.roleName === 'Learner'
-            ? 'student'
-            : userObj.roleName === 'Instructor'
-              ? 'instructor'
-              : userObj.roleName === 'Admin'
-                ? 'admin'
-                : 'student';
-
-        setAuth(
-          {
-            id: userObj.userId.toString(),
-
-            name: userObj.fullName,
-
-            email: userObj.email,
-
-            avatar:
-              userObj.avatarUrl ||
-              getDefaultAvatar(userObj.fullName),
-
-            role: mappedRole,
-
-            isGoogleLogin:
-              userObj.isGoogleLogin ?? false,
-          },
-          storedToken
-        );
-      } catch (error) {
-        console.error(
-          'Failed to restore user session:',
-          error
-        );
-
+      } catch (err) {
         authLogout();
       }
     };
 
-    void fetchMe();
-  }, [authLogout, setAuth]);
+    fetchMe();
+  }, []);
 
-  // ============================================================
-  // COURSE
-  // ============================================================
-
-  const handleSelectCourse = (
-    course: Course
-  ) => {
+  const handleSelectCourse = (course: Course) => {
     setSelectedCourse(course);
-
-    navigate(
-      `/course-detail?id=${course.id}`
-    );
+    navigate(`/course-detail?id=${course.id}`);
   };
 
-  // ============================================================
-  // CHECKOUT
-  // ============================================================
-
-  const handleCheckoutSuccess = (
-    course: Course
-  ) => {
+  const handleCheckoutSuccess = (course: Course) => {
     store.handleRemoveFromCart(course.id);
-
-    store.showToast(
-      'Enrollment Confirmed!',
-      `Welcome to ${course.title}. Lifetime access unlocked.`
-    );
-
+    store.showToast('Enrollment Confirmed!', `Welcome to ${course.title}. Lifetime access unlocked.`);
     handleSelectCourse(course);
   };
 
-  // ============================================================
-  // LOGIN
-  // ============================================================
-
-  const handleLoginSuccess = (
-    userObj: any,
-    token: string
-  ) => {
-    const mappedRole: User['role'] =
-      userObj.roleName === 'Learner'
-        ? 'student'
-        : userObj.roleName === 'Instructor'
-          ? 'instructor'
-          : userObj.roleName === 'Admin'
-            ? 'admin'
-            : 'student';
+  const handleLoginSuccess = (userObj: any, token: string) => {
+    const mappedRole = 
+      userObj.roleName === 'Learner' ? 'student' :
+      userObj.roleName === 'Instructor' ? 'instructor' :
+      userObj.roleName === 'Admin' ? 'admin' : 'student';
 
     setAuth(
       {
         id: userObj.userId.toString(),
-
         name: userObj.fullName,
-
         email: userObj.email,
-
-        avatar:
-          userObj.avatarUrl ||
-          getDefaultAvatar(
-            userObj.fullName
-          ),
-
+        avatar: userObj.avatarUrl || getDefaultAvatar(userObj.fullName),
         role: mappedRole,
-
-        isGoogleLogin:
-          userObj.isGoogleLogin ?? false,
+        isGoogleLogin: userObj.isGoogleLogin ?? false
       },
       token
     );
-
-    store.showToast(
-      'Welcome Back!',
-      `Logged in successfully as ${userObj.email}`
-    );
+    store.showToast('Welcome Back!', `Logged in successfully as ${userObj.email}`);
   };
 
-  // ============================================================
-  // REGISTER
-  // ============================================================
-
-  const handleRegisterSuccess = (
-    userObj: any
-  ) => {
-    store.showToast(
-      'Account Created!',
-      `Welcome to MSEEK Academy, ${userObj.fullName}! Please login.`
-    );
+  const handleRegisterSuccess = (userObj: any) => {
+    store.showToast('Account Created!', `Welcome to MSEEK Academy, ${userObj.fullName}! Please login.`);
   };
-
-  // ============================================================
-  // LOGOUT
-  // ============================================================
 
   const handleLogout = async () => {
     try {
       await authApi.logout();
-    } catch (error) {
-      console.warn(
-        'Logout API failed:',
-        error
-      );
+    } catch (_) {
+      // Ignore network errors on logout
     }
-
     authLogout();
-
-    store.showToast(
-      'Signed Out',
-      'You have been logged out securely.',
-      'info'
-    );
-
+    store.showToast('Signed Out', 'You have been logged out securely.', 'info');
     navigate('/');
   };
 
-  // ============================================================
-  // UPDATE USER
-  // ============================================================
-
-  const handleUpdateUser = (
-    updatedUser: Partial<User>
-  ) => {
+  const handleUpdateUser = (updatedUser: Partial<User>) => {
     updateUser(updatedUser);
   };
 
-  // ============================================================
-  // RENDER
-  // ============================================================
-
   return (
-    <div
-      id="mseek-app-root"
-      className="
-        min-h-screen
-        flex
-        flex-col
-        bg-slate-50
-        text-slate-900
-        selection:bg-blue-600
-        selection:text-white
-      "
-    >
-      {/* ======================================================
-          TOAST
-      ====================================================== */}
+    <div id="mseek-app-root" className="min-h-screen flex flex-col bg-slate-50 text-slate-900 selection:bg-blue-600 selection:text-white">
+      {/* Toast Notification Alert */}
+      <Toast toast={store.toastMessage} onClose={() => store.setToastMessage(null)} />
 
-      <Toast
-        toast={store.toastMessage}
-        onClose={() =>
-          store.setToastMessage(null)
-        }
-      />
-
-      {/* ======================================================
-          APPLICATION ROUTER
-      ====================================================== */}
-
+      {/* Declarative Screen Routing */}
       <AppRouter
         selectedCourse={selectedCourse}
-        setSelectedCourse={
-          setSelectedCourse
-        }
-        wishlistCourseIds={
-          store.wishlistCourseIds
-        }
+        setSelectedCourse={setSelectedCourse}
+        wishlistCourseIds={store.wishlistCourseIds}
         searchQuery={searchQuery}
         user={user}
         onSearchChange={setSearchQuery}
-        onPreviewVideo={
-          store.setPreviewModalCourse
-        }
-        onAddToCart={
-          store.handleAddToCart
-        }
-        onToggleWishlist={
-          store.handleToggleWishlist
-        }
-        onEnrollDirectly={
-          store.setCheckoutModalCourse
-        }
-        onLoginSuccess={
-          handleLoginSuccess
-        }
-        onRegisterSuccess={
-          handleRegisterSuccess
-        }
-        onUpdateUser={
-          handleUpdateUser
-        }
+        onPreviewVideo={store.setPreviewModalCourse}
+        onAddToCart={store.handleAddToCart}
+        onToggleWishlist={store.handleToggleWishlist}
+        onEnrollDirectly={store.setCheckoutModalCourse}
+        onLoginSuccess={handleLoginSuccess}
+        onRegisterSuccess={handleRegisterSuccess}
+        onUpdateUser={handleUpdateUser}
         onToast={store.showToast}
         onLogout={handleLogout}
-        cartCount={
-          store.cartItems.length
-        }
-        onOpenCart={() =>
-          store.setIsCartOpen(true)
-        }
+        cartCount={store.cartItems.length}
+        onOpenCart={() => store.setIsCartOpen(true)}
       />
 
-      {/* ======================================================
-          CHAT
-      ====================================================== */}
-
-      {user && (
-        <ChatWidget
-          currentUser={user}
-        />
-      )}
-
-      {/* ======================================================
-          CART DRAWER
-      ====================================================== */}
-
+      {/* Slide-over Cart Drawer */}
       <CartDrawer
         isOpen={store.isCartOpen}
-        onClose={() =>
-          store.setIsCartOpen(false)
-        }
+        onClose={() => store.setIsCartOpen(false)}
         cartItems={store.cartItems}
-        onRemoveItem={
-          store.handleRemoveFromCart
-        }
+        onRemoveItem={store.handleRemoveFromCart}
         onCheckout={() => {
-          if (
-            store.cartItems.length === 0
-          ) {
-            return;
+          if (store.cartItems.length > 0) {
+            store.setCheckoutModalCourse(store.cartItems[0]);
           }
-
-          store.setCheckoutModalCourse(
-            store.cartItems[0]
-          );
-
-          store.setIsCartOpen(false);
         }}
-        onNavigateToCourse={
-          handleSelectCourse
-        }
+        onNavigateToCourse={handleSelectCourse}
       />
 
-      {/* ======================================================
-          VIDEO PREVIEW
-      ====================================================== */}
-
+      {/* Video Preview Modal */}
       <VideoPreviewModal
-        course={
-          store.previewModalCourse
-        }
-        isOpen={
-          !!store.previewModalCourse
-        }
-        onClose={() =>
-          store.setPreviewModalCourse(
-            null
-          )
-        }
-        onEnroll={
-          store.setCheckoutModalCourse
-        }
+        course={store.previewModalCourse}
+        isOpen={!!store.previewModalCourse}
+        onClose={() => store.setPreviewModalCourse(null)}
+        onEnroll={store.setCheckoutModalCourse}
       />
 
-      {/* ======================================================
-          CHECKOUT
-      ====================================================== */}
-
+      {/* Instant Checkout / Enrollment Modal */}
       <CheckoutModal
-        course={
-          store.checkoutModalCourse
-        }
-        isOpen={
-          !!store.checkoutModalCourse
-        }
-        onClose={() =>
-          store.setCheckoutModalCourse(
-            null
-          )
-        }
-        onSuccess={
-          handleCheckoutSuccess
-        }
+        course={store.checkoutModalCourse}
+        isOpen={!!store.checkoutModalCourse}
+        onClose={() => store.setCheckoutModalCourse(null)}
+        onSuccess={handleCheckoutSuccess}
       />
     </div>
   );

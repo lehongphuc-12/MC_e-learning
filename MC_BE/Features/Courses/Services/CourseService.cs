@@ -161,10 +161,6 @@ public class CourseService : ICourseService
         int page, int limit, string? status, int? categoryId, string? search)
     {
         var query = BuildCourseQuery(null, status, categoryId, search);
-        if (string.IsNullOrEmpty(status))
-        {
-            query = query.Where(c => c.Status != CourseStatus.DRAFT);
-        }
         return await ExecutePaginatedQueryAsync(query, page, limit);
     }
 
@@ -231,10 +227,6 @@ public class CourseService : ICourseService
         var hasLessons = await _lessonRepository.AnyAsync(l => l.CourseId == courseId);
         if (!hasLessons)
             missingRequirements.Add("Bài học (Lesson)");
-
-        var hasSpeakingAssignment = await _lessonRepository.AnyAsync(l => l.CourseId == courseId && l.LessonType == LessonType.ASSIGNMENT);
-        if (!hasSpeakingAssignment)
-            missingRequirements.Add("Bài tập nói cuối khóa (Speaking Assignment)");
 
         if (missingRequirements.Any())
         {
@@ -414,6 +406,9 @@ public class CourseService : ICourseService
         if (course is null)
             return null;
 
+        if (course.Status != CourseStatus.PENDING_APPROVAL)
+            throw new InvalidOperationException("Chỉ có thể phê duyệt khóa học khi đang ở trạng thái Chờ duyệt.");
+
         course.Status = CourseStatus.PUBLISHED;
         course.ApprovedAt = DateTime.UtcNow;
         course.ApprovedById = adminId;
@@ -434,10 +429,55 @@ public class CourseService : ICourseService
         if (course is null)
             return null;
 
+        if (course.Status != CourseStatus.PENDING_APPROVAL)
+            throw new InvalidOperationException("Chỉ có thể từ chối khóa học khi đang ở trạng thái Chờ duyệt.");
+
         course.Status = CourseStatus.REJECTED;
         course.ApprovedAt = DateTime.UtcNow;
         course.ApprovedById = adminId;
         course.RejectionReason = reason;
+        course.UpdatedAt = DateTime.UtcNow;
+
+        _courseRepository.Update(course);
+        await _unitOfWork.SaveChangesAsync();
+        return await GetCourseByIdAsync(courseId);
+    }
+
+    // -------------------------------------------------------------------------
+    // Admin Hide Course (Archive)
+    // -------------------------------------------------------------------------
+    public async Task<CourseDto?> HideCourseAsync(int courseId, int adminId)
+    {
+        var course = await _courseRepository.GetByIdAsync(courseId);
+        if (course is null)
+            return null;
+
+        if (course.Status != CourseStatus.PUBLISHED)
+            throw new InvalidOperationException("Chỉ có thể ẩn khóa học đang ở trạng thái Đã xuất bản.");
+
+        course.Status = CourseStatus.ARCHIVED;
+        course.UpdatedAt = DateTime.UtcNow;
+
+        _courseRepository.Update(course);
+        await _unitOfWork.SaveChangesAsync();
+        return await GetCourseByIdAsync(courseId);
+    }
+
+    // -------------------------------------------------------------------------
+    // Admin Unhide Course (Republish)
+    // -------------------------------------------------------------------------
+    public async Task<CourseDto?> UnhideCourseAsync(int courseId, int adminId)
+    {
+        var course = await _courseRepository.GetByIdAsync(courseId);
+        if (course is null)
+            return null;
+
+        if (course.Status != CourseStatus.ARCHIVED && course.Status != CourseStatus.DRAFT)
+            throw new InvalidOperationException("Khóa học không ở trạng thái Đã ẩn.");
+
+        course.Status = CourseStatus.PUBLISHED;
+        course.ApprovedAt = DateTime.UtcNow;
+        course.ApprovedById = adminId;
         course.UpdatedAt = DateTime.UtcNow;
 
         _courseRepository.Update(course);

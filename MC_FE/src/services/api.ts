@@ -312,7 +312,6 @@ export async function request<T>(
       status: response.status,
       errors: normalizedErrors,
     });
-
     throw error;
   }
 
