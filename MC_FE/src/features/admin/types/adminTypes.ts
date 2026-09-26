@@ -111,3 +111,27 @@ export interface PlatformSettings {
   allowNewRegistrations: boolean;
   requireCourseApproval: boolean;
 }
+
+export const defaultPlatformSettings: PlatformSettings = {
+  siteName: 'MSEEK Academy',
+  supportEmail: 'support@mseek.edu.vn',
+  maintenanceMode: false,
+  commissionRatePercent: 15,
+  payoutMinimum: 1000000,
+  allowNewRegistrations: true,
+  requireCourseApproval: true,
+};
+
+export const emptyAdminStats: AdminStats = {
+  totalRevenue: 0,
+  revenueGrowth: 0,
+  totalUsers: 0,
+  usersGrowth: 0,
+  activeStudents: 0,
+  totalInstructors: 0,
+  totalCourses: 0,
+  coursesGrowth: 0,
+  pendingCourseApprovals: 0,
+  pendingPayoutsCount: 0,
+  pendingPayoutsAmount: 0,
+};

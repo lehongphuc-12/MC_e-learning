@@ -61,11 +61,11 @@ export const AdminOverviewTab: React.FC<AdminOverviewTabProps> = ({
           </div>
           <div className="mt-3">
             <h3 className="text-2xl font-black text-white">
-              {stats.totalRevenue.toLocaleString('vi-VN')} <span className="text-xs text-slate-400 font-normal">VNĐ</span>
+              {(stats.totalRevenue ?? 0).toLocaleString('vi-VN')} <span className="text-xs text-slate-400 font-normal">VNĐ</span>
             </h3>
             <div className="flex items-center space-x-1 text-xs text-emerald-400 mt-2">
               <ArrowUpRight className="w-4 h-4" />
-              <span className="font-semibold">+{stats.revenueGrowth}%</span>
+              <span className="font-semibold">+{stats.revenueGrowth ?? 0}%</span>
               <span className="text-slate-500">so với tháng trước</span>
             </div>
           </div>
@@ -86,11 +86,11 @@ export const AdminOverviewTab: React.FC<AdminOverviewTabProps> = ({
           </div>
           <div className="mt-3">
             <h3 className="text-2xl font-black text-white">
-              {stats.totalUsers.toLocaleString('vi-VN')}
+              {(stats.totalUsers ?? 0).toLocaleString('vi-VN')}
             </h3>
             <div className="flex items-center space-x-1 text-xs text-emerald-400 mt-2">
               <ArrowUpRight className="w-4 h-4" />
-              <span className="font-semibold">+{stats.usersGrowth}%</span>
+              <span className="font-semibold">+{stats.usersGrowth ?? 0}%</span>
               <span className="text-slate-500">tài khoản mới</span>
             </div>
           </div>
@@ -111,10 +111,10 @@ export const AdminOverviewTab: React.FC<AdminOverviewTabProps> = ({
           </div>
           <div className="mt-3">
             <h3 className="text-2xl font-black text-white">
-              {stats.totalCourses}
+              {stats.totalCourses ?? 0}
             </h3>
             <div className="flex items-center space-x-1 text-xs text-purple-400 mt-2">
-              <span className="font-semibold">{stats.totalInstructors} Giảng viên</span>
+              <span className="font-semibold">{stats.totalInstructors ?? 0} Giảng viên</span>
               <span className="text-slate-500">đóng góp</span>
             </div>
           </div>
@@ -135,7 +135,7 @@ export const AdminOverviewTab: React.FC<AdminOverviewTabProps> = ({
           </div>
           <div className="mt-3">
             <h3 className="text-2xl font-black text-amber-400">
-              {stats.pendingCourseApprovals} <span className="text-xs text-slate-400 font-normal">khóa mới</span>
+              {stats.pendingCourseApprovals ?? 0} <span className="text-xs text-slate-400 font-normal">khóa mới</span>
             </h3>
             <p className="text-xs text-slate-400 mt-2">
               Cần Admin xem xét và xuất bản
@@ -165,27 +165,34 @@ export const AdminOverviewTab: React.FC<AdminOverviewTabProps> = ({
 
           {/* Canvas Chart visual bar representation */}
           <div className="h-64 flex items-end justify-between gap-3 pt-6 border-b border-slate-800 pb-2">
-            {chartData.map((item, idx) => {
-              const heightPercent = Math.round((item.revenue / maxRevenue) * 100);
-              return (
-                <div key={idx} className="flex-1 flex flex-col items-center group h-full justify-end">
-                  {/* Tooltip on hover */}
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-slate-800 text-white text-[10px] py-1 px-2 rounded-lg mb-2 shadow-lg border border-slate-700 whitespace-nowrap z-10 pointer-events-none">
-                    <p className="font-bold text-blue-400">{item.revenue.toLocaleString('vi-VN')} VNĐ</p>
-                    <p className="text-slate-300">{item.enrollments} lượt học viên</p>
+            {chartData.length === 0 ? (
+              <div className="w-full h-full flex flex-col items-center justify-center text-slate-500 text-xs">
+                <TrendingUp className="w-8 h-8 text-slate-600 mb-2 opacity-50" />
+                <span>Chưa có dữ liệu biểu đồ doanh thu trong 6 tháng gần nhất</span>
+              </div>
+            ) : (
+              chartData.map((item, idx) => {
+                const heightPercent = Math.round((item.revenue / maxRevenue) * 100);
+                return (
+                  <div key={idx} className="flex-1 flex flex-col items-center group h-full justify-end">
+                    {/* Tooltip on hover */}
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-slate-800 text-white text-[10px] py-1 px-2 rounded-lg mb-2 shadow-lg border border-slate-700 whitespace-nowrap z-10 pointer-events-none">
+                      <p className="font-bold text-blue-400">{item.revenue.toLocaleString('vi-VN')} VNĐ</p>
+                      <p className="text-slate-300">{item.enrollments} lượt học viên</p>
+                    </div>
+                    <div className="w-full max-w-[48px] bg-slate-800/80 rounded-t-xl overflow-hidden relative flex items-end">
+                      <div
+                        style={{ height: `${heightPercent}%` }}
+                        className="w-full bg-gradient-to-t from-blue-600 via-indigo-500 to-cyan-400 rounded-t-xl group-hover:brightness-125 transition-all duration-300"
+                      />
+                    </div>
+                    <span className="text-[11px] font-medium text-slate-400 mt-2 truncate w-full text-center">
+                      {item.month}
+                    </span>
                   </div>
-                  <div className="w-full max-w-[48px] bg-slate-800/80 rounded-t-xl overflow-hidden relative flex items-end">
-                    <div
-                      style={{ height: `${heightPercent}%` }}
-                      className="w-full bg-gradient-to-t from-blue-600 via-indigo-500 to-cyan-400 rounded-t-xl group-hover:brightness-125 transition-all duration-300"
-                    />
-                  </div>
-                  <span className="text-[11px] font-medium text-slate-400 mt-2 truncate w-full text-center">
-                    {item.month}
-                  </span>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </div>
 
@@ -199,32 +206,38 @@ export const AdminOverviewTab: React.FC<AdminOverviewTabProps> = ({
           </div>
 
           <div className="space-y-3">
-            {recentLogs.map((log) => {
-              const icon =
-                log.type === 'success' ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                ) : log.type === 'warning' ? (
-                  <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
-                ) : (
-                  <Clock className="w-4 h-4 text-blue-400 shrink-0" />
-                );
+            {recentLogs.length === 0 ? (
+              <div className="py-12 text-center text-slate-500 text-xs">
+                Chưa có nhật ký hoạt động nào gần đây
+              </div>
+            ) : (
+              recentLogs.map((log) => {
+                const icon =
+                  log.type === 'success' ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  ) : log.type === 'warning' ? (
+                    <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+                  ) : (
+                    <Clock className="w-4 h-4 text-blue-400 shrink-0" />
+                  );
 
-              return (
-                <div
-                  key={log.id}
-                  className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 text-xs space-y-1 hover:border-slate-700 transition"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2 font-semibold text-slate-200">
-                      {icon}
-                      <span>{log.action}</span>
+                return (
+                  <div
+                    key={log.id}
+                    className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 text-xs space-y-1 hover:border-slate-700 transition"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2 font-semibold text-slate-200">
+                        {icon}
+                        <span>{log.action}</span>
+                      </div>
+                      <span className="text-[10px] text-slate-500">{log.timestamp.split(' ')[1]}</span>
                     </div>
-                    <span className="text-[10px] text-slate-500">{log.timestamp.split(' ')[1]}</span>
+                    <p className="text-slate-400 leading-tight pl-6">{log.details}</p>
                   </div>
-                  <p className="text-slate-400 leading-tight pl-6">{log.details}</p>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </div>
       </div>

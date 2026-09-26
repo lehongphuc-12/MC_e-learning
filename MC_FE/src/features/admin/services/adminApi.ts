@@ -1,15 +1,5 @@
 import { request } from '../../../services/api';
 import {
-  initialAdminStats,
-  mockRevenueChartData,
-  initialAdminUsers,
-  initialAdminCourses,
-  initialAdminCategories,
-  initialPayoutRequests,
-  initialSystemLogs,
-  defaultPlatformSettings,
-} from '../data/mockAdminData';
-import {
   AdminStats,
   AdminUser,
   AdminCourse,
@@ -19,6 +9,9 @@ import {
   PlatformSettings,
   UserRole,
   CourseModerationStatus,
+  RevenueDataPoint,
+  defaultPlatformSettings,
+  emptyAdminStats,
 } from '../types/adminTypes';
 
 export const adminApi = {
@@ -27,20 +20,23 @@ export const adminApi = {
     try {
       const res = await request<{ success: boolean; data: AdminStats }>('/admin/stats');
       if (res.success && res.data) return res.data;
-    } catch (_) {
-      // Fallback
+    } catch (err) {
+      console.error('Failed to get dashboard stats:', err);
     }
-    return initialAdminStats;
+    return emptyAdminStats;
   },
 
-  async getRevenueChart() {
+  async getRevenueChart(): Promise<RevenueDataPoint[]> {
     try {
       const res = await request<{ success: boolean; data: any }>('/admin/stats/revenue-chart');
-      if (res.success && res.data) return res.data;
-    } catch (_) {
-      // Fallback
+      if (res.success && res.data) {
+        if (Array.isArray(res.data)) return res.data;
+        if (Array.isArray(res.data.data)) return res.data.data;
+      }
+    } catch (err) {
+      console.error('Failed to get revenue chart:', err);
     }
-    return mockRevenueChartData;
+    return [];
   },
 
   // Users
@@ -51,10 +47,10 @@ export const adminApi = {
         if (Array.isArray(res.data)) return res.data;
         if (Array.isArray(res.data.data)) return res.data.data;
       }
-    } catch (_) {
-      // Fallback
+    } catch (err) {
+      console.error('Failed to get admin users:', err);
     }
-    return initialAdminUsers;
+    return [];
   },
 
   async updateUserStatus(userId: string, targetStatus: 'ACTIVE' | 'INACTIVE'): Promise<boolean> {
@@ -64,7 +60,8 @@ export const adminApi = {
         body: JSON.stringify({ status: targetStatus }),
       });
       return true;
-    } catch (_) {
+    } catch (err) {
+      console.error('Failed to update user status:', err);
       return false;
     }
   },
@@ -76,29 +73,29 @@ export const adminApi = {
         body: JSON.stringify(data),
       });
       if (res.success && res.data) return res.data;
-    } catch (_) {
-      // Fallback
+    } catch (err) {
+      console.error('Failed to update user:', err);
     }
     return null;
   },
 
-
   async updateUserRole(userId: string, newRole: UserRole): Promise<boolean> {
     try {
-      await request(`/admin/users/${userId}/role`, {
+      await request(`/admin/users/${userId}`, {
         method: 'PUT',
         body: JSON.stringify({ role: newRole }),
       });
       return true;
-    } catch (_) {
-      return true;
+    } catch (err) {
+      console.error('Failed to update user role:', err);
+      return false;
     }
   },
 
   // Courses
   async getCourses(): Promise<AdminCourse[]> {
     try {
-      const res = await request<{ success: boolean; data: any }>('/admin/courses');
+      const res = await request<{ success: boolean; data: any }>('/admin/courses?limit=100');
       const rawData = res?.data;
       const rawList: any[] = Array.isArray(rawData)
         ? rawData
@@ -106,39 +103,37 @@ export const adminApi = {
         ? rawData.data
         : [];
 
-      if (rawList.length > 0) {
-        return rawList.map((c: any) => {
-          let moderationStatus: CourseModerationStatus = 'draft';
-          const st = String(c.status || '').toUpperCase();
-          if (st === 'PUBLISHED') moderationStatus = 'published';
-          else if (st === 'PENDING_APPROVAL' || st === 'PENDING') moderationStatus = 'pending';
-          else if (st === 'REJECTED') moderationStatus = 'rejected';
+      return rawList.map((c: any) => {
+        let moderationStatus: CourseModerationStatus = 'draft';
+        const st = String(c.status || '').toUpperCase();
+        if (st === 'PUBLISHED') moderationStatus = 'published';
+        else if (st === 'PENDING_APPROVAL' || st === 'PENDING') moderationStatus = 'pending';
+        else if (st === 'REJECTED') moderationStatus = 'rejected';
 
-          return {
-            id: String(c.courseId || c.id || Date.now()),
-            title: c.title || 'Khóa học',
-            instructorName: c.instructorName || 'Giảng viên',
-            instructorEmail: c.instructorEmail || '',
-            category: c.categoryName || c.category || 'Chưa phân loại',
-            price: Number(c.price) || 0,
-            status: moderationStatus,
-            rating: Number(c.rating) || 5.0,
-            studentsCount: Number(c.studentsCount) || 0,
-            submittedDate: c.submittedAt || c.createdAt || new Date().toISOString(),
-            createdAt: c.createdAt,
-            updatedAt: c.updatedAt,
-            submittedAt: c.submittedAt,
-            approvedAt: c.approvedAt,
-            approvedByName: c.approvedByName,
-            submissionNote: c.submissionNote,
-            rejectReason: c.rejectionReason || c.rejectReason,
-          };
-        });
-      }
-    } catch (_) {
-      // Fallback
+        return {
+          id: String(c.courseId || c.id || ''),
+          title: c.title || 'Khóa học',
+          instructorName: c.instructorName || 'Giảng viên',
+          instructorEmail: c.instructorEmail || '',
+          category: c.categoryName || c.category || 'Chưa phân loại',
+          price: Number(c.price) || 0,
+          status: moderationStatus,
+          rating: Number(c.rating) || 0,
+          studentsCount: Number(c.studentsCount || c.enrolledStudentsCount || c.totalStudents) || 0,
+          submittedDate: c.submittedAt || c.createdAt || new Date().toISOString(),
+          createdAt: c.createdAt,
+          updatedAt: c.updatedAt,
+          submittedAt: c.submittedAt,
+          approvedAt: c.approvedAt,
+          approvedByName: c.approvedByName,
+          submissionNote: c.submissionNote,
+          rejectReason: c.rejectionReason || c.rejectReason,
+        };
+      });
+    } catch (err) {
+      console.error('Failed to get courses:', err);
     }
-    return initialAdminCourses;
+    return [];
   },
 
   async updateCourseStatus(courseId: string, status: CourseModerationStatus, reason?: string): Promise<boolean> {
@@ -157,8 +152,9 @@ export const adminApi = {
         });
       }
       return true;
-    } catch (_) {
-      return true;
+    } catch (err) {
+      console.error('Failed to update course status:', err);
+      return false;
     }
   },
 
@@ -166,7 +162,8 @@ export const adminApi = {
     try {
       await request(`/admin/courses/${courseId}/approve`, { method: 'POST' });
       return true;
-    } catch (_) {
+    } catch (err) {
+      console.error('Failed to approve course:', err);
       return false;
     }
   },
@@ -178,7 +175,8 @@ export const adminApi = {
         body: JSON.stringify({ reason }),
       });
       return true;
-    } catch (_) {
+    } catch (err) {
+      console.error('Failed to reject course:', err);
       return false;
     }
   },
@@ -190,34 +188,46 @@ export const adminApi = {
         body: JSON.stringify({ featured }),
       });
       return true;
-    } catch (_) {
-      return true;
+    } catch (err) {
+      console.error('Failed to toggle course featured:', err);
+      return false;
     }
   },
 
   // Categories
   async getCategories(): Promise<AdminCategory[]> {
     try {
-      const res = await request<{ success: boolean; data: any }>('/admin/categories');
+      const res = await request<{ success: boolean; data: any }>('/categories');
       if (res.success && res.data) {
-        if (Array.isArray(res.data)) return res.data;
-        if (Array.isArray(res.data.data)) return res.data.data;
+        const rawList = Array.isArray(res.data) ? res.data : Array.isArray(res.data.data) ? res.data.data : [];
+        return rawList.map((cat: any) => ({
+          id: String(cat.categoryId || cat.id),
+          name: cat.categoryName || cat.name || '',
+          slug: cat.slug || String(cat.categoryName || '').toLowerCase().replace(/\s+/g, '-'),
+          iconName: cat.iconName || 'Code',
+          coursesCount: cat.coursesCount || 0,
+          description: cat.description || '',
+          status: (cat.status || 'active').toLowerCase() === 'active' ? 'active' : 'inactive',
+        }));
       }
-    } catch (_) {
-      // Fallback
+    } catch (err) {
+      console.error('Failed to get categories:', err);
     }
-    return initialAdminCategories;
+    return [];
   },
 
   // Payouts
   async getPayoutRequests(): Promise<PayoutRequest[]> {
     try {
-      const res = await request<{ success: boolean; data: PayoutRequest[] }>('/admin/payouts');
-      if (res.success && res.data) return res.data;
-    } catch (_) {
-      // Fallback
+      const res = await request<{ success: boolean; data: any }>('/admin/payouts');
+      if (res.success && res.data) {
+        if (Array.isArray(res.data)) return res.data;
+        if (Array.isArray(res.data.data)) return res.data.data;
+      }
+    } catch (err) {
+      // Endpoint may not be present on backend yet
     }
-    return initialPayoutRequests;
+    return [];
   },
 
   // System Logs & Settings
@@ -225,10 +235,10 @@ export const adminApi = {
     try {
       const res = await request<{ success: boolean; data: SystemLog[] }>('/admin/logs');
       if (res.success && res.data) return res.data;
-    } catch (_) {
-      // Fallback
+    } catch (err) {
+      console.error('Failed to get system logs:', err);
     }
-    return initialSystemLogs;
+    return [];
   },
 
   async getPlatformSettings(): Promise<PlatformSettings> {
@@ -238,8 +248,8 @@ export const adminApi = {
         localStorage.setItem('mseek_maintenance_mode', JSON.stringify(res.data.maintenanceMode));
         return res.data;
       }
-    } catch (_) {
-      // Fallback
+    } catch (err) {
+      console.error('Failed to get platform settings:', err);
     }
     return defaultPlatformSettings;
   },
@@ -253,10 +263,9 @@ export const adminApi = {
       localStorage.setItem('mseek_maintenance_mode', JSON.stringify(settings.maintenanceMode));
       window.dispatchEvent(new Event('mseek_settings_changed'));
       return res.success;
-    } catch (_) {
-      localStorage.setItem('mseek_maintenance_mode', JSON.stringify(settings.maintenanceMode));
-      window.dispatchEvent(new Event('mseek_settings_changed'));
-      return true;
+    } catch (err) {
+      console.error('Failed to update platform settings:', err);
+      return false;
     }
   },
 
