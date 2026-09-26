@@ -3,16 +3,15 @@ using MC_BE.Core.Enums.Chat;
 using MC_BE.Features.Chat.DTOs;
 using MC_BE.Features.Chat.Services.Interfaces;
 using MC_BE.Shared.Data;
-using Microsoft.AspNetCore.Hosting;
+using MC_BE.Shared.Services.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 
 namespace MC_BE.Features.Chat.Services;
 
-public class ChatService : IChatService
-{
+public class ChatService : IChatService {
     private readonly SmartMcDbContext _context;
-    private readonly IWebHostEnvironment _environment;
+    private readonly ICloudinaryService _cloudinaryService;
 
     private const long MaxImageSize = 10 * 1024 * 1024;
     private const long MaxFileSize = 25 * 1024 * 1024;
@@ -28,8 +27,7 @@ public class ChatService : IChatService
     {
         ".exe", ".dll", ".com", ".scr", ".msi", ".msp", ".msix", ".appx", ".appxbundle",
         ".bat", ".cmd", ".ps1", ".psm1", ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh",
-        ".hta", ".cpl", ".reg", ".lnk", ".scf", ".jar", ".apk", ".app", ".dmg", ".pkg",
-        ".sh", ".bash", ".zsh", ".fish", ".run", ".bin"
+        ".hta", ".cpl", ".reg", ".lnk", ".scf", ".jar", ".apk", ".app", ".dmg", ".pkg", ".sh", ".bash", ".zsh", ".fish", ".run", ".bin"
     };
 
     private static readonly HashSet<string> AllowedAudioExtensions = new(StringComparer.OrdinalIgnoreCase)
@@ -42,246 +40,116 @@ public class ChatService : IChatService
         "👍", "❤️", "😂", "😮", "😢", "😡"
     };
 
-    public ChatService(
-        SmartMcDbContext context,
-        IWebHostEnvironment environment)
+    public ChatService(SmartMcDbContext context, ICloudinaryService cloudinaryService)
     {
         _context = context;
-        _environment = environment;
+        _cloudinaryService = cloudinaryService;
     }
 
     // ============================================================
     // SEARCH USERS
     // ============================================================
 
-    public async Task<List<ChatUserDto>>
-        SearchUsersAsync(
-            int currentUserId,
-            string keyword)
+    public async Task<List<ChatUserDto>> SearchUsersAsync(int currentUserId, string keyword)
     {
-        keyword =
-            keyword?.Trim() ?? string.Empty;
+        keyword = keyword?.Trim() ?? string.Empty;
 
         if (string.IsNullOrWhiteSpace(keyword))
         {
             return new List<ChatUserDto>();
         }
 
-        var searchPattern =
-            $"%{keyword}%";
+        var searchPattern = $"%{keyword}%";
 
-        var users =
-            await _context.Users
-                .AsNoTracking()
-                .Where(user =>
-                    user.UserId != currentUserId &&
-                    user.Status == "ACTIVE" &&
-                    (
-                        EF.Functions.ILike(
-                            user.FullName,
-                            searchPattern)
-                        ||
-                        EF.Functions.ILike(
-                            user.Email,
-                            searchPattern)
-                    ))
-                .OrderBy(user =>
-                    user.FullName)
-                .Take(20)
-                .Select(user => new
+        var users = await _context.Users.AsNoTracking().Where(user => user.UserId != currentUserId && user.Status == "ACTIVE" && (
+                        EF.Functions.ILike(user.FullName, searchPattern) || EF.Functions.ILike(user.Email, searchPattern)
+)).OrderBy(user => user.FullName).Take(20).Select(user => new
                 {
-                    user.UserId,
-                    user.FullName,
-                    user.Email,
-                    user.AvatarUrl,
-                    user.LastSeenAt
-                })
-                .ToListAsync();
+                    user.UserId, user.FullName, user.Email, user.AvatarUrl, user.LastSeenAt
+                }).ToListAsync();
 
         if (users.Count == 0)
         {
             return new List<ChatUserDto>();
         }
 
-        var userIds =
-            users
-                .Select(x => x.UserId)
-                .ToList();
+        var userIds = users.Select(x => x.UserId).ToList();
 
-        var existingConversations =
-            await _context.Conversations
-                .AsNoTracking()
-                .Where(conversation =>
-                    (
-                        conversation.User1Id ==
-                        currentUserId
-                        &&
-                        userIds.Contains(
-                            conversation.User2Id)
-                    )
-                    ||
-                    (
-                        conversation.User2Id ==
-                        currentUserId
-                        &&
-                        userIds.Contains(
-                            conversation.User1Id)
-                    ))
-                .Select(conversation => new
+        var existingConversations = await _context.Conversations.AsNoTracking().Where(conversation => (conversation.User1Id == currentUserId &&
+                        userIds.Contains(conversation.User2Id)
+) || (conversation.User2Id == currentUserId && userIds.Contains(conversation.User1Id))).Select(conversation => new
                 {
                     conversation.ConversationId,
 
-                    OtherUserId =
-                        conversation.User1Id ==
-                        currentUserId
-                            ? conversation.User2Id
-                            : conversation.User1Id
-                })
-                .ToListAsync();
+                    OtherUserId = conversation.User1Id == currentUserId ? conversation.User2Id : conversation.User1Id }).ToListAsync();
 
-        var conversationMap =
-            existingConversations
-                .GroupBy(x =>
-                    x.OtherUserId)
-                .ToDictionary(
-                    group => group.Key,
-                    group =>
-                        group
-                            .Select(x =>
-                                (int?)x.ConversationId)
-                            .FirstOrDefault());
+        var conversationMap = existingConversations.GroupBy(x => x.OtherUserId).ToDictionary(group => group.Key, group => group.Select(x =>
+                                (int?)x.ConversationId).FirstOrDefault());
 
-        return users
-            .Select(user =>
-                new ChatUserDto
-                {
-                    UserId =
-                        user.UserId,
+        return users.Select(user => new ChatUserDto { UserId = user.UserId,
 
-                    FullName =
-                        user.FullName,
+                    FullName = user.FullName,
 
-                    Email =
-                        user.Email,
+                    Email = user.Email,
 
-                    AvatarUrl = user.AvatarUrl,
-                    LastSeenAt = user.LastSeenAt,
+                    AvatarUrl = user.AvatarUrl, LastSeenAt = user.LastSeenAt,
 
-                    ConversationId =
-                        conversationMap
-                            .GetValueOrDefault(
-                                user.UserId)
-                })
-            .ToList();
+                    ConversationId = conversationMap.GetValueOrDefault(user.UserId) }).ToList();
     }
 
     // ============================================================
     // CREATE OR GET CONVERSATION
     // ============================================================
 
-    public async Task<ConversationDto>
-        CreateOrGetConversationAsync(
-            int currentUserId,
-            int otherUserId)
+    public async Task<ConversationDto> CreateOrGetConversationAsync(int currentUserId, int otherUserId)
     {
         if (currentUserId == otherUserId)
         {
-            throw new ArgumentException(
-                "Không thể tạo cuộc trò chuyện với chính mình.");
+            throw new ArgumentException("Không thể tạo cuộc trò chuyện với chính mình.");
         }
 
-        var otherUser =
-            await _context.Users
-                .AsNoTracking()
-                .FirstOrDefaultAsync(x =>
-                    x.UserId == otherUserId &&
-                    x.Status == "ACTIVE")
-            ?? throw new KeyNotFoundException(
-                "Người dùng không tồn tại hoặc không hoạt động.");
+        var otherUser = await _context.Users.AsNoTracking().FirstOrDefaultAsync(x => x.UserId == otherUserId && x.Status == "ACTIVE")
+            ?? throw new KeyNotFoundException("Người dùng không tồn tại hoặc không hoạt động.");
 
-        var conversation =
-            await _context.Conversations
-                .FirstOrDefaultAsync(x =>
-                    (
-                        x.User1Id ==
-                        currentUserId &&
-                        x.User2Id ==
-                        otherUserId
-                    )
-                    ||
-                    (
-                        x.User1Id ==
-                        otherUserId &&
-                        x.User2Id ==
-                        currentUserId
-                    ));
+        var conversation = await _context.Conversations.FirstOrDefaultAsync(x => (x.User1Id == currentUserId && x.User2Id == otherUserId) || (
+                        x.User1Id == otherUserId && x.User2Id == currentUserId));
 
         if (conversation == null)
         {
-            var first =
-                Math.Min(
-                    currentUserId,
-                    otherUserId);
+            var first = Math.Min(currentUserId, otherUserId);
 
-            var second =
-                Math.Max(
-                    currentUserId,
-                    otherUserId);
+            var second = Math.Max(currentUserId, otherUserId);
 
-            conversation =
-                new Conversation
+            conversation = new Conversation
                 {
-                    User1Id = first,
-                    User2Id = second,
+                    User1Id = first, User2Id = second,
 
-                    CreatedAt =
-                        DateTime.UtcNow,
+                    CreatedAt = DateTime.UtcNow,
 
-                    UpdatedAt =
-                        DateTime.UtcNow
-                };
+                    UpdatedAt = DateTime.UtcNow };
 
-            _context.Conversations.Add(
-                conversation);
+            _context.Conversations.Add(conversation);
 
             await _context.SaveChangesAsync();
         }
 
-        return await BuildConversationDtoAsync(
-            conversation.ConversationId,
-            currentUserId);
+        return await BuildConversationDtoAsync(conversation.ConversationId, currentUserId);
     }
 
     // ============================================================
     // GET CONVERSATIONS
     // ============================================================
 
-    public async Task<List<ConversationDto>>
-        GetConversationsAsync(
-            int currentUserId)
+    public async Task<List<ConversationDto>> GetConversationsAsync(int currentUserId)
     {
-        var ids =
-            await _context.Conversations
-                .AsNoTracking()
-                .Where(x =>
-                    x.User1Id == currentUserId ||
-                    x.User2Id == currentUserId)
-                .OrderByDescending(x =>
-                    x.LastMessageAt ??
-                    x.CreatedAt)
-                .Select(x =>
-                    x.ConversationId)
-                .ToListAsync();
+        var ids = await _context.Conversations.AsNoTracking().Where(x => x.User1Id == currentUserId || x.User2Id == currentUserId)
+.OrderByDescending(x => x.LastMessageAt ?? x.CreatedAt).Select(x => x.ConversationId).ToListAsync();
 
-        var result =
-            new List<ConversationDto>();
+        var result = new List<ConversationDto>();
 
         foreach (var id in ids)
         {
-            result.Add(
-                await BuildConversationDtoAsync(
-                    id,
-                    currentUserId));
+            result.Add(await BuildConversationDtoAsync(id, currentUserId));
         }
 
         return result;
@@ -295,91 +163,44 @@ public class ChatService : IChatService
         var conversation = await GetConversationForUserAsync(conversationId, currentUserId);
         var otherUserId = conversation.User1Id == currentUserId ? conversation.User2Id : conversation.User1Id;
 
-        var user = await _context.Users
-            .AsNoTracking()
-            .Include(x => x.Role)
-            .Include(x => x.UserProfile)
-            .FirstOrDefaultAsync(x => x.UserId == otherUserId && x.Status == "ACTIVE")
+        var user = await _context.Users.AsNoTracking().Include(x => x.Role).Include(x => x.UserProfile)
+.FirstOrDefaultAsync(x => x.UserId == otherUserId && x.Status == "ACTIVE")
             ?? throw new KeyNotFoundException("Người dùng không tồn tại hoặc không hoạt động.");
 
         return new ChatUserProfileDto
         {
-            UserId = user.UserId,
-            FullName = user.FullName,
-            Email = user.Email,
-            AvatarUrl = user.AvatarUrl,
-            PhoneNumber = user.PhoneNumber,
-            Role = user.Role.RoleName,
-            Bio = user.UserProfile?.Bio,
-            Gender = user.UserProfile?.Gender,
-            DateOfBirth = user.UserProfile?.DateOfBirth,
-            ExperienceLevel = user.UserProfile?.ExperienceLevel,
-            LearningGoal = user.UserProfile?.LearningGoal,
-            PreferredLanguage = user.UserProfile?.PreferredLanguage
-        };
+            UserId = user.UserId, FullName = user.FullName, Email = user.Email, AvatarUrl = user.AvatarUrl, PhoneNumber = user.PhoneNumber,
+            Role = user.Role.RoleName, Bio = user.UserProfile?.Bio, Gender = user.UserProfile?.Gender, DateOfBirth = user.UserProfile?.DateOfBirth,
+            ExperienceLevel = user.UserProfile?.ExperienceLevel, LearningGoal = user.UserProfile?.LearningGoal,
+            PreferredLanguage = user.UserProfile?.PreferredLanguage };
     }
 
     // ============================================================
     // GET MESSAGES
     // ============================================================
 
-    public async Task<
-        ChatPagedResult<ChatMessageDto>>
-        GetMessagesAsync(
-            int currentUserId,
-            int conversationId,
-            int page,
-            int pageSize)
+    public async Task< ChatPagedResult<ChatMessageDto>> GetMessagesAsync(int currentUserId, int conversationId, int page, int pageSize)
     {
-        await EnsureConversationMemberAsync(
-            currentUserId,
-            conversationId);
+        await EnsureConversationMemberAsync(currentUserId, conversationId);
 
-        page =
-            Math.Max(
-                1,
-                page);
+        page = Math.Max(1, page);
 
-        pageSize =
-            Math.Clamp(
-                pageSize,
-                1,
-                100);
+        pageSize = Math.Clamp(pageSize, 1, 100);
 
-        var query =
-            _context.ChatMessages
-                .AsNoTracking()
-                .Where(x =>
-                    x.ConversationId ==
-                    conversationId);
+        var query = _context.ChatMessages.AsNoTracking().Where(x => x.ConversationId == conversationId);
 
-        var totalItems =
-            await query.CountAsync();
+        var totalItems = await query.CountAsync();
 
-        var messageIds =
-            await query
-                .OrderByDescending(x =>
-                    x.MessageId)
-                .Skip(
-                    (page - 1) *
-                    pageSize)
-                .Take(pageSize)
-                .Select(x =>
-                    x.MessageId)
-                .ToListAsync();
+        var messageIds = await query.OrderByDescending(x => x.MessageId).Skip((page - 1) * pageSize).Take(pageSize).Select(x => x.MessageId)
+.ToListAsync();
 
         messageIds.Reverse();
 
-        var messages =
-            new List<ChatMessageDto>();
+        var messages = new List<ChatMessageDto>();
 
-        foreach (
-            var messageId in messageIds)
+        foreach (var messageId in messageIds)
         {
-            messages.Add(
-                await GetMessageDtoAsync(
-                    messageId,
-                    currentUserId));
+            messages.Add(await GetMessageDtoAsync(messageId, currentUserId));
         }
 
         return new ChatPagedResult<ChatMessageDto>
@@ -392,167 +213,108 @@ public class ChatService : IChatService
 
             TotalItems = totalItems,
 
-            TotalPages =
-                (int)Math.Ceiling(
-                    totalItems /
-                    (double)pageSize)
-        };
+            TotalPages = (int)Math.Ceiling(totalItems / (double)pageSize) };
     }
 
     // ============================================================
     // SEND TEXT
     // ============================================================
 
-    public async Task<ChatMessageDto>
-        SendTextAsync(
-            int currentUserId,
-            SendTextMessageRequest request)
+    public async Task<ChatMessageDto> SendTextAsync(int currentUserId, SendTextMessageRequest request)
     {
-        var content =
-            request.Content?.Trim();
+        var content = request.Content?.Trim();
 
         if (string.IsNullOrWhiteSpace(content))
         {
-            throw new ArgumentException(
-                "Tin nhắn không được để trống.");
+            throw new ArgumentException("Tin nhắn không được để trống.");
         }
 
         if (content.Length > 5000)
         {
-            throw new ArgumentException(
-                "Tin nhắn không được vượt quá 5000 ký tự.");
+            throw new ArgumentException("Tin nhắn không được vượt quá 5000 ký tự.");
         }
 
-        var conversation =
-            await GetConversationForUserAsync(
-                request.ConversationId,
-                currentUserId);
+        var conversation = await GetConversationForUserAsync(request.ConversationId, currentUserId);
 
-        await ValidateReplyAsync(
-            request.ConversationId,
-            request.ReplyToMessageId);
+        await ValidateReplyAsync(request.ConversationId, request.ReplyToMessageId);
 
-        var message =
-            new ChatMessage
+        var message = new ChatMessage
             {
-                ConversationId =
-                    request.ConversationId,
+                ConversationId = request.ConversationId,
 
-                SenderId =
-                    currentUserId,
+                SenderId = currentUserId,
 
-                Content =
-                    content,
+                Content = content,
 
-                MessageType =
-                    ChatMessageType.TEXT,
+                MessageType = ChatMessageType.TEXT,
 
-                Status =
-                    ChatMessageStatus.SENT,
+                Status = ChatMessageStatus.SENT,
 
-                ReplyToMessageId =
-                    request.ReplyToMessageId,
+                ReplyToMessageId = request.ReplyToMessageId,
 
-                CreatedAt =
-                    DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow,
 
-                UpdatedAt =
-                    DateTime.UtcNow
-            };
+                UpdatedAt = DateTime.UtcNow };
 
-        _context.ChatMessages.Add(
-            message);
+        _context.ChatMessages.Add(message);
 
-        conversation.LastMessageAt =
-            message.CreatedAt;
+        conversation.LastMessageAt = message.CreatedAt;
 
-        conversation.UpdatedAt =
-            DateTime.UtcNow;
+        conversation.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
 
-        return await GetMessageDtoAsync(
-            message.MessageId,
-            currentUserId);
+        return await GetMessageDtoAsync(message.MessageId, currentUserId);
     }
 
     // ============================================================
     // SEND STICKER
     // ============================================================
 
-    public async Task<ChatMessageDto>
-        SendStickerAsync(
-            int currentUserId,
-            SendStickerRequest request)
+    public async Task<ChatMessageDto> SendStickerAsync(int currentUserId, SendStickerRequest request)
     {
-        var conversation =
-            await GetConversationForUserAsync(
-                request.ConversationId,
-                currentUserId);
+        var conversation = await GetConversationForUserAsync(request.ConversationId, currentUserId);
 
-        var sticker =
-            await _context.Stickers
-                .FirstOrDefaultAsync(x =>
-                    x.StickerId ==
-                    request.StickerId &&
-                    x.IsActive);
+        var sticker = await _context.Stickers.FirstOrDefaultAsync(x => x.StickerId == request.StickerId && x.IsActive);
 
         if (sticker == null)
         {
-            throw new KeyNotFoundException(
-                "Sticker không tồn tại.");
+            throw new KeyNotFoundException("Sticker không tồn tại.");
         }
 
-        await ValidateReplyAsync(
-            request.ConversationId,
-            request.ReplyToMessageId);
+        await ValidateReplyAsync(request.ConversationId, request.ReplyToMessageId);
 
-        var message =
-            new ChatMessage
+        var message = new ChatMessage
             {
-                ConversationId =
-                    request.ConversationId,
+                ConversationId = request.ConversationId,
 
-                SenderId =
-                    currentUserId,
+                SenderId = currentUserId,
 
-                StickerId =
-                    sticker.StickerId,
+                StickerId = sticker.StickerId,
 
-                MessageType =
-                    ChatMessageType.STICKER,
+                MessageType = ChatMessageType.STICKER,
 
-                Status =
-                    ChatMessageStatus.SENT,
+                Status = ChatMessageStatus.SENT,
 
-                ReplyToMessageId =
-                    request.ReplyToMessageId,
+                ReplyToMessageId = request.ReplyToMessageId,
 
-                CreatedAt =
-                    DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow,
 
-                UpdatedAt =
-                    DateTime.UtcNow
-            };
+                UpdatedAt = DateTime.UtcNow };
 
-        _context.ChatMessages.Add(
-            message);
+        _context.ChatMessages.Add(message);
 
-        conversation.LastMessageAt =
-            message.CreatedAt;
+        conversation.LastMessageAt = message.CreatedAt;
 
-        conversation.UpdatedAt =
-            DateTime.UtcNow;
+        conversation.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
 
-        return await GetMessageDtoAsync(
-            message.MessageId,
-            currentUserId);
+        return await GetMessageDtoAsync(message.MessageId, currentUserId);
     }
 
     // ============================================================
-    // SEND FILE / IMAGE
+    // SEND FILE / IMAGE - CLOUDINARY
     // ============================================================
 
     public async Task<ChatMessageDto> SendFileAsync(int currentUserId, int conversationId, IFormFile file, long? replyToMessageId)
@@ -577,340 +339,191 @@ public class ChatService : IChatService
         if (!isImage && file.Length > MaxFileSize) throw new ArgumentException("File không được vượt quá 25MB.");
 
         await ValidateReplyAsync(conversationId, replyToMessageId);
-        var savedPath = await SavePhysicalFileAsync(file, isImage ? "images" : "files");
-        var now = DateTime.UtcNow;
 
+        string fileUrl;
+
+        if (isImage)
+        {
+            var uploadResult = await _cloudinaryService.UploadImageAsync(file, "mc_elearning/chat/images");
+            if (uploadResult.Error != null) throw new InvalidOperationException($"Không thể tải ảnh lên Cloudinary: {uploadResult.Error.Message}");
+            if (uploadResult.SecureUrl == null) throw new InvalidOperationException("Cloudinary không trả về URL của ảnh.");
+            fileUrl = uploadResult.SecureUrl.ToString();
+        }
+        else
+        {
+            var uploadResult = await _cloudinaryService.UploadRawFileAsync(file, "mc_elearning/chat/files");
+            if (uploadResult.Error != null) throw new InvalidOperationException($"Không thể tải file lên Cloudinary: {uploadResult.Error.Message}");
+            if (uploadResult.SecureUrl == null) throw new InvalidOperationException("Cloudinary không trả về URL của file.");
+            fileUrl = uploadResult.SecureUrl.ToString();
+        }
+
+        var now = DateTime.UtcNow;
         var message = new ChatMessage
         {
-            ConversationId = conversationId,
-            SenderId = currentUserId,
-            MessageType = isImage ? ChatMessageType.IMAGE : ChatMessageType.FILE,
-            Status = ChatMessageStatus.SENT,
-            ReplyToMessageId = replyToMessageId,
-            CreatedAt = now,
-            UpdatedAt = now
-        };
+            ConversationId = conversationId, SenderId = currentUserId, MessageType = isImage ? ChatMessageType.IMAGE : ChatMessageType.FILE,
+            Status = ChatMessageStatus.SENT, ReplyToMessageId = replyToMessageId, CreatedAt = now, UpdatedAt = now };
 
         _context.ChatMessages.Add(message);
         await _context.SaveChangesAsync();
 
-        _context.MessageAttachments.Add(new MessageAttachment
-        {
-            MessageId = message.MessageId,
-            FileUrl = savedPath,
-            FileName = originalFileName,
-            MimeType = string.IsNullOrWhiteSpace(contentType) ? "application/octet-stream" : contentType,
-            FileSize = file.Length,
-            AttachmentType = isImage ? "IMAGE" : "FILE",
-            CreatedAt = now
-        });
+        _context.MessageAttachments.Add(new MessageAttachment { MessageId = message.MessageId, FileUrl = fileUrl, FileName = originalFileName,
+            MimeType = string.IsNullOrWhiteSpace(contentType) ? "application/octet-stream" : contentType, FileSize = file.Length,
+            AttachmentType = isImage ? "IMAGE" : "FILE", CreatedAt = now });
 
         conversation.LastMessageAt = now;
         conversation.UpdatedAt = now;
         await _context.SaveChangesAsync();
+
         return await GetMessageDtoAsync(message.MessageId, currentUserId);
     }
 
     // ============================================================
-    // SEND VOICE
+    // SEND VOICE - CLOUDINARY
     // ============================================================
 
-    public async Task<ChatMessageDto>
-        SendVoiceAsync(
-            int currentUserId,
-            int conversationId,
-            IFormFile audio,
-            int durationSeconds,
-            long? replyToMessageId)
+    public async Task<ChatMessageDto> SendVoiceAsync(int currentUserId, int conversationId, IFormFile audio, int durationSeconds, long? replyToMessageId)
     {
-        var conversation =
-            await GetConversationForUserAsync(
-                conversationId,
-                currentUserId);
+        var conversation = await GetConversationForUserAsync(conversationId, currentUserId);
+        if (audio == null || audio.Length <= 0) throw new ArgumentException("File ghi âm không hợp lệ.");
+        if (durationSeconds is < 1 or > 600) throw new ArgumentException("Voice phải từ 1 đến 600 giây.");
+        if (audio.Length > MaxVoiceSize) throw new ArgumentException("Voice không được vượt quá 20MB.");
 
-        if (audio == null ||
-            audio.Length <= 0)
+        var originalFileName = Path.GetFileName(audio.FileName);
+        if (string.IsNullOrWhiteSpace(originalFileName)) throw new ArgumentException("Tên file ghi âm không hợp lệ.");
+
+        var extension = Path.GetExtension(originalFileName).ToLowerInvariant();
+        if (!AllowedAudioExtensions.Contains(extension)) throw new ArgumentException("Định dạng audio không được hỗ trợ.");
+        if (string.IsNullOrWhiteSpace(audio.ContentType) || !audio.ContentType.StartsWith("audio/", StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("File không phải audio hợp lệ.");
+
+        await ValidateReplyAsync(conversationId, replyToMessageId);
+
+        // Cloudinary xử lý audio bằng resource type Video.
+        var uploadResult = await _cloudinaryService.UploadVideoAsync(audio, "mc_elearning/chat/voices");
+        if (uploadResult.Error != null) throw new InvalidOperationException($"Không thể tải voice lên Cloudinary: {uploadResult.Error.Message}");
+        if (uploadResult.SecureUrl == null) throw new InvalidOperationException("Cloudinary không trả về URL của voice.");
+
+        var now = DateTime.UtcNow;
+        var message = new ChatMessage
         {
-            throw new ArgumentException(
-                "File ghi âm không hợp lệ.");
-        }
+            ConversationId = conversationId, SenderId = currentUserId, MessageType = ChatMessageType.VOICE, Status = ChatMessageStatus.SENT,
+            ReplyToMessageId = replyToMessageId, CreatedAt = now, UpdatedAt = now };
 
-        if (durationSeconds is < 1 or > 600)
-        {
-            throw new ArgumentException(
-                "Voice phải từ 1 đến 600 giây.");
-        }
-
-        if (audio.Length >
-            MaxVoiceSize)
-        {
-            throw new ArgumentException(
-                "Voice không được vượt quá 20MB.");
-        }
-
-        var extension =
-            Path.GetExtension(
-                    audio.FileName)
-                .ToLowerInvariant();
-
-        if (!AllowedAudioExtensions
-                .Contains(extension))
-        {
-            throw new ArgumentException(
-                "Định dạng audio không được hỗ trợ.");
-        }
-
-        if (string.IsNullOrWhiteSpace(
-                audio.ContentType)
-            ||
-            !audio.ContentType.StartsWith(
-                "audio/",
-                StringComparison.OrdinalIgnoreCase))
-        {
-            throw new ArgumentException(
-                "File không phải audio hợp lệ.");
-        }
-
-        await ValidateReplyAsync(
-            conversationId,
-            replyToMessageId);
-
-        var message =
-            new ChatMessage
-            {
-                ConversationId =
-                    conversationId,
-
-                SenderId =
-                    currentUserId,
-
-                MessageType =
-                    ChatMessageType.VOICE,
-
-                Status =
-                    ChatMessageStatus.SENT,
-
-                ReplyToMessageId =
-                    replyToMessageId,
-
-                CreatedAt =
-                    DateTime.UtcNow,
-
-                UpdatedAt =
-                    DateTime.UtcNow
-            };
-
-        _context.ChatMessages.Add(
-            message);
-
+        _context.ChatMessages.Add(message);
         await _context.SaveChangesAsync();
 
-        var savedPath =
-            await SavePhysicalFileAsync(
-                audio,
-                "voice");
+        _context.MessageAttachments.Add(new MessageAttachment { MessageId = message.MessageId, FileUrl = uploadResult.SecureUrl.ToString(),
+            FileName = originalFileName, MimeType = audio.ContentType, FileSize = audio.Length, AttachmentType = "VOICE",
+            DurationSeconds = durationSeconds, CreatedAt = now });
 
-        _context.MessageAttachments.Add(
-            new MessageAttachment
-            {
-                MessageId =
-                    message.MessageId,
-
-                FileUrl =
-                    savedPath,
-
-                FileName =
-                    Path.GetFileName(
-                        audio.FileName),
-
-                MimeType =
-                    audio.ContentType,
-
-                FileSize =
-                    audio.Length,
-
-                AttachmentType =
-                    "VOICE",
-
-                DurationSeconds =
-                    durationSeconds,
-
-                CreatedAt =
-                    DateTime.UtcNow
-            });
-
-        conversation.LastMessageAt =
-            message.CreatedAt;
-
-        conversation.UpdatedAt =
-            DateTime.UtcNow;
-
+        conversation.LastMessageAt = now;
+        conversation.UpdatedAt = now;
         await _context.SaveChangesAsync();
 
-        return await GetMessageDtoAsync(
-            message.MessageId,
-            currentUserId);
+        return await GetMessageDtoAsync(message.MessageId, currentUserId);
     }
 
     // ============================================================
     // FORWARD MESSAGE
     // ============================================================
 
-    public async Task<List<ChatMessageDto>> ForwardMessageAsync(
-        int currentUserId,
-        long messageId,
-        ForwardMessageRequest request)
+    public async Task<List<ChatMessageDto>> ForwardMessageAsync(int currentUserId, long messageId, ForwardMessageRequest request)
     {
-        if (request.ConversationIds == null ||
-            request.ConversationIds.Count == 0)
+        if (request.ConversationIds == null || request.ConversationIds.Count == 0)
         {
-            throw new ArgumentException(
-                "Phải chọn ít nhất một cuộc trò chuyện.");
+            throw new ArgumentException("Phải chọn ít nhất một cuộc trò chuyện.");
         }
 
-        var sourceMessage =
-            await _context.ChatMessages
-                .AsNoTracking()
-                .Include(x => x.Attachments)
-                .FirstOrDefaultAsync(x =>
-                    x.MessageId == messageId)
-            ?? throw new KeyNotFoundException(
-                "Tin nhắn không tồn tại.");
+        var sourceMessage = await _context.ChatMessages.AsNoTracking().Include(x => x.Attachments).FirstOrDefaultAsync(x =>
+                    x.MessageId == messageId) ?? throw new KeyNotFoundException("Tin nhắn không tồn tại.");
 
-        await EnsureConversationMemberAsync(
-            currentUserId,
-            sourceMessage.ConversationId);
+        await EnsureConversationMemberAsync(currentUserId, sourceMessage.ConversationId);
 
-        if (sourceMessage.Status ==
-            ChatMessageStatus.RECALLED)
+        if (sourceMessage.Status == ChatMessageStatus.RECALLED)
         {
-            throw new InvalidOperationException(
-                "Không thể chuyển tiếp tin nhắn đã thu hồi.");
+            throw new InvalidOperationException("Không thể chuyển tiếp tin nhắn đã thu hồi.");
         }
 
-        var conversationIds =
-            request.ConversationIds
-                .Where(x => x > 0)
-                .Distinct()
-                .ToList();
+        var conversationIds = request.ConversationIds.Where(x => x > 0).Distinct().ToList();
 
         if (conversationIds.Count == 0)
         {
-            throw new ArgumentException(
-                "Danh sách cuộc trò chuyện không hợp lệ.");
+            throw new ArgumentException("Danh sách cuộc trò chuyện không hợp lệ.");
         }
 
         if (conversationIds.Count > 20)
         {
-            throw new ArgumentException(
-                "Chỉ có thể chuyển tiếp tối đa 20 cuộc trò chuyện.");
+            throw new ArgumentException("Chỉ có thể chuyển tiếp tối đa 20 cuộc trò chuyện.");
         }
 
-        var createdMessages =
-            new List<ChatMessage>();
+        var createdMessages = new List<ChatMessage>();
 
         foreach (var conversationId in conversationIds)
         {
-            var conversation =
-                await GetConversationForUserAsync(
-                    conversationId,
-                    currentUserId);
+            var conversation = await GetConversationForUserAsync(conversationId, currentUserId);
 
             var now = DateTime.UtcNow;
 
-            var forwarded =
-                new ChatMessage
+            var forwarded = new ChatMessage
                 {
-                    ConversationId =
-                        conversationId,
+                    ConversationId = conversationId,
 
-                    SenderId =
-                        currentUserId,
+                    SenderId = currentUserId,
 
-                    Content =
-                        sourceMessage.Content,
+                    Content = sourceMessage.Content,
 
-                    MessageType =
-                        sourceMessage.MessageType,
+                    MessageType = sourceMessage.MessageType,
 
-                    Status =
-                        ChatMessageStatus.SENT,
+                    Status = ChatMessageStatus.SENT,
 
-                    StickerId =
-                        sourceMessage.StickerId,
+                    StickerId = sourceMessage.StickerId,
 
-                    ReplyToMessageId =
-                        null,
+                    ReplyToMessageId = null,
 
-                    CreatedAt =
-                        now,
+                    CreatedAt = now,
 
-                    UpdatedAt =
-                        now
-                };
+                    UpdatedAt = now };
 
-            _context.ChatMessages.Add(
-                forwarded);
+            _context.ChatMessages.Add(forwarded);
 
             await _context.SaveChangesAsync();
 
             if (sourceMessage.Attachments.Count > 0)
             {
-                foreach (
-                    var attachment in
-                    sourceMessage.Attachments)
+                foreach (var attachment in sourceMessage.Attachments)
                 {
-                    _context.MessageAttachments.Add(
-                        new MessageAttachment
-                        {
-                            MessageId =
-                                forwarded.MessageId,
+                    _context.MessageAttachments.Add(new MessageAttachment { MessageId = forwarded.MessageId,
 
-                            FileUrl =
-                                attachment.FileUrl,
+                            FileUrl = attachment.FileUrl,
 
-                            FileName =
-                                attachment.FileName,
+                            FileName = attachment.FileName,
 
-                            MimeType =
-                                attachment.MimeType,
+                            MimeType = attachment.MimeType,
 
-                            FileSize =
-                                attachment.FileSize,
+                            FileSize = attachment.FileSize,
 
-                            AttachmentType =
-                                attachment.AttachmentType,
+                            AttachmentType = attachment.AttachmentType,
 
-                            DurationSeconds =
-                                attachment.DurationSeconds,
+                            DurationSeconds = attachment.DurationSeconds,
 
-                            CreatedAt =
-                                now
-                        });
+                            CreatedAt = now });
                 }
             }
 
-            conversation.LastMessageAt =
-                now;
+            conversation.LastMessageAt = now;
 
-            conversation.UpdatedAt =
-                now;
+            conversation.UpdatedAt = now;
 
             await _context.SaveChangesAsync();
 
-            createdMessages.Add(
-                forwarded);
+            createdMessages.Add(forwarded);
         }
 
-        var result =
-            new List<ChatMessageDto>();
+        var result = new List<ChatMessageDto>();
 
         foreach (var message in createdMessages)
         {
-            result.Add(
-                await GetMessageDtoAsync(
-                    message.MessageId,
-                    currentUserId));
+            result.Add(await GetMessageDtoAsync(message.MessageId, currentUserId));
         }
 
         return result;
@@ -919,207 +532,123 @@ public class ChatService : IChatService
     // RECALL MESSAGE
     // ============================================================
 
-    public async Task<ChatMessageDto>
-        RecallMessageAsync(
-            int currentUserId,
-            long messageId)
+    public async Task<ChatMessageDto> RecallMessageAsync(int currentUserId, long messageId)
     {
-        var message =
-            await _context.ChatMessages
-                .FirstOrDefaultAsync(x =>
-                    x.MessageId ==
-                    messageId)
-            ?? throw new KeyNotFoundException(
+        var message = await _context.ChatMessages.FirstOrDefaultAsync(x => x.MessageId == messageId) ?? throw new KeyNotFoundException(
                 "Tin nhắn không tồn tại.");
 
-        if (message.SenderId !=
-            currentUserId)
+        if (message.SenderId != currentUserId)
         {
-            throw new UnauthorizedAccessException(
-                "Bạn chỉ có thể thu hồi tin nhắn của mình.");
+            throw new UnauthorizedAccessException("Bạn chỉ có thể thu hồi tin nhắn của mình.");
         }
 
-        if (message.Status ==
-            ChatMessageStatus.RECALLED)
+        if (message.Status == ChatMessageStatus.RECALLED)
         {
-            return await GetMessageDtoAsync(
-                messageId,
-                currentUserId);
+            return await GetMessageDtoAsync(messageId, currentUserId);
         }
 
-        message.Status =
-            ChatMessageStatus.RECALLED;
+        message.Status = ChatMessageStatus.RECALLED;
 
         message.Content = null;
         message.StickerId = null;
 
-        message.RecalledAt =
-            DateTime.UtcNow;
+        message.RecalledAt = DateTime.UtcNow;
 
-        message.UpdatedAt =
-            DateTime.UtcNow;
+        message.UpdatedAt = DateTime.UtcNow;
 
         await _context.SaveChangesAsync();
 
-        return await GetMessageDtoAsync(
-            messageId,
-            currentUserId);
+        return await GetMessageDtoAsync(messageId, currentUserId);
     }
 
     // ============================================================
     // REACTION
     // ============================================================
 
-    public async Task<ChatMessageDto>
-        ReactAsync(
-            int currentUserId,
-            long messageId,
-            string reaction)
+    public async Task<ChatMessageDto> ReactAsync(int currentUserId, long messageId, string reaction)
     {
-        if (!AllowedReactions.Contains(
-                reaction))
+        if (!AllowedReactions.Contains(reaction))
         {
-            throw new ArgumentException(
-                "Reaction không hợp lệ.");
+            throw new ArgumentException("Reaction không hợp lệ.");
         }
 
-        var message =
-            await _context.ChatMessages
-                .AsNoTracking()
-                .FirstOrDefaultAsync(x =>
-                    x.MessageId ==
-                    messageId)
-            ?? throw new KeyNotFoundException(
-                "Tin nhắn không tồn tại.");
+        var message = await _context.ChatMessages.AsNoTracking().FirstOrDefaultAsync(x => x.MessageId == messageId)
+            ?? throw new KeyNotFoundException("Tin nhắn không tồn tại.");
 
-        await EnsureConversationMemberAsync(
-            currentUserId,
-            message.ConversationId);
+        await EnsureConversationMemberAsync(currentUserId, message.ConversationId);
 
-        if (message.Status ==
-            ChatMessageStatus.RECALLED)
+        if (message.Status == ChatMessageStatus.RECALLED)
         {
-            throw new InvalidOperationException(
-                "Không thể reaction tin nhắn đã thu hồi.");
+            throw new InvalidOperationException("Không thể reaction tin nhắn đã thu hồi.");
         }
 
-        var existing =
-            await _context.MessageReactions
-                .FirstOrDefaultAsync(x =>
-                    x.MessageId ==
-                    messageId &&
-                    x.UserId ==
-                    currentUserId);
+        var existing = await _context.MessageReactions.FirstOrDefaultAsync(x => x.MessageId == messageId && x.UserId == currentUserId);
 
         if (existing == null)
         {
-            _context.MessageReactions.Add(
-                new MessageReaction
-                {
-                    MessageId =
-                        messageId,
+            _context.MessageReactions.Add(new MessageReaction { MessageId = messageId,
 
-                    UserId =
-                        currentUserId,
+                    UserId = currentUserId,
 
-                    Reaction =
-                        reaction,
+                    Reaction = reaction,
 
-                    CreatedAt =
-                        DateTime.UtcNow
-                });
+                    CreatedAt = DateTime.UtcNow });
         }
-        else if (
-            existing.Reaction ==
-            reaction)
+        else if (existing.Reaction == reaction)
         {
-            _context.MessageReactions
-                .Remove(existing);
+            _context.MessageReactions.Remove(existing);
         }
         else
         {
-            existing.Reaction =
-                reaction;
+            existing.Reaction = reaction;
 
-            existing.CreatedAt =
-                DateTime.UtcNow;
+            existing.CreatedAt = DateTime.UtcNow;
         }
 
         await _context.SaveChangesAsync();
 
-        return await GetMessageDtoAsync(
-            messageId,
-            currentUserId);
+        return await GetMessageDtoAsync(messageId, currentUserId);
     }
 
     // ============================================================
     // MARK READ
     // ============================================================
 
-    public async Task MarkReadAsync(
-        int currentUserId,
-        int conversationId,
-        long messageId)
+    public async Task MarkReadAsync(int currentUserId, int conversationId, long messageId)
     {
-        await EnsureConversationMemberAsync(
-            currentUserId,
-            conversationId);
+        await EnsureConversationMemberAsync(currentUserId, conversationId);
 
-        var messageExists =
-            await _context.ChatMessages
-                .AnyAsync(x =>
-                    x.MessageId ==
-                    messageId &&
-                    x.ConversationId ==
-                    conversationId);
+        var messageExists = await _context.ChatMessages.AnyAsync(x => x.MessageId == messageId && x.ConversationId == conversationId);
 
         if (!messageExists)
         {
-            throw new KeyNotFoundException(
-                "Tin nhắn không tồn tại trong cuộc trò chuyện.");
+            throw new KeyNotFoundException("Tin nhắn không tồn tại trong cuộc trò chuyện.");
         }
 
-        var read =
-            await _context.ConversationReads
-                .FirstOrDefaultAsync(x =>
-                    x.ConversationId ==
-                    conversationId &&
-                    x.UserId ==
-                    currentUserId);
+        var read = await _context.ConversationReads.FirstOrDefaultAsync(x => x.ConversationId == conversationId && x.UserId == currentUserId);
 
         if (read == null)
         {
-            read =
-                new ConversationRead
+            read = new ConversationRead
                 {
-                    ConversationId =
-                        conversationId,
+                    ConversationId = conversationId,
 
-                    UserId =
-                        currentUserId,
+                    UserId = currentUserId,
 
-                    LastReadMessageId =
-                        messageId,
+                    LastReadMessageId = messageId,
 
-                    ReadAt =
-                        DateTime.UtcNow
-                };
+                    ReadAt = DateTime.UtcNow };
 
-            _context.ConversationReads.Add(
-                read);
+            _context.ConversationReads.Add(read);
         }
         else
         {
-            if (!read.LastReadMessageId.HasValue ||
-                messageId >
-                read.LastReadMessageId.Value)
+            if (!read.LastReadMessageId.HasValue || messageId > read.LastReadMessageId.Value)
             {
-                read.LastReadMessageId =
-                    messageId;
+                read.LastReadMessageId = messageId;
             }
 
-            read.ReadAt =
-                DateTime.UtcNow;
+            read.ReadAt = DateTime.UtcNow;
         }
 
         await _context.SaveChangesAsync();
@@ -1129,115 +658,60 @@ public class ChatService : IChatService
     // GET STICKER PACKS
     // ============================================================
 
-    public async Task<List<StickerPackDto>>
-        GetStickerPacksAsync()
+    public async Task<List<StickerPackDto>> GetStickerPacksAsync()
     {
-        return await _context.StickerPacks
-            .AsNoTracking()
-            .Where(x =>
-                x.IsActive)
-            .OrderBy(x =>
-                x.StickerPackId)
-            .Select(x =>
-                new StickerPackDto
-                {
-                    StickerPackId =
-                        x.StickerPackId,
+        return await _context.StickerPacks.AsNoTracking().Where(x => x.IsActive).OrderBy(x => x.StickerPackId).Select(x => new StickerPackDto {
+                    StickerPackId = x.StickerPackId,
 
-                    Name =
-                        x.Name,
+                    Name = x.Name,
 
-                    ThumbnailUrl =
-                        x.ThumbnailUrl,
+                    ThumbnailUrl = x.ThumbnailUrl,
 
-                    Stickers =
-                        x.Stickers
-                            .Where(s =>
-                                s.IsActive)
-                            .OrderBy(s =>
-                                s.StickerId)
-                            .Select(s =>
-                                new StickerDto
-                                {
-                                    StickerId =
-                                        s.StickerId,
+                    Stickers = x.Stickers.Where(s => s.IsActive).OrderBy(s => s.StickerId).Select(s => new StickerDto { StickerId = s.StickerId,
 
-                                    StickerPackId =
-                                        s.StickerPackId,
+                                    StickerPackId = s.StickerPackId,
 
-                                    Name =
-                                        s.Name,
+                                    Name = s.Name,
 
-                                    ImageUrl =
-                                        s.ImageUrl
-                                })
-                            .ToList()
-                })
-            .ToListAsync();
+                                    ImageUrl = s.ImageUrl }).ToList() }).ToListAsync();
     }
 
     // ============================================================
     // GET OTHER USER
     // ============================================================
 
-    public async Task<int>
-        GetOtherUserIdAsync(
-            int currentUserId,
-            int conversationId)
+    public async Task<int> GetOtherUserIdAsync(int currentUserId, int conversationId)
     {
-        var conversation =
-            await GetConversationForUserAsync(
-                conversationId,
-                currentUserId);
+        var conversation = await GetConversationForUserAsync(conversationId, currentUserId);
 
-        return conversation.User1Id ==
-               currentUserId
-            ? conversation.User2Id
-            : conversation.User1Id;
+        return conversation.User1Id == currentUserId ? conversation.User2Id : conversation.User1Id;
     }
 
     // ============================================================
     // ENSURE CONVERSATION MEMBER
     // ============================================================
 
-    public async Task
-        EnsureConversationMemberAsync(
-            int currentUserId,
-            int conversationId)
+    public async Task EnsureConversationMemberAsync(int currentUserId, int conversationId)
     {
-        await GetConversationForUserAsync(
-            conversationId,
-            currentUserId);
+        await GetConversationForUserAsync(conversationId, currentUserId);
     }
 
     // ============================================================
     // GET CONVERSATION FOR USER
     // ============================================================
 
-    private async Task<Conversation>
-        GetConversationForUserAsync(
-            int conversationId,
-            int currentUserId)
+    private async Task<Conversation> GetConversationForUserAsync(int conversationId, int currentUserId)
     {
-        var conversation =
-            await _context.Conversations
-                .FirstOrDefaultAsync(x =>
-                    x.ConversationId ==
-                    conversationId);
+        var conversation = await _context.Conversations.FirstOrDefaultAsync(x => x.ConversationId == conversationId);
 
         if (conversation == null)
         {
-            throw new KeyNotFoundException(
-                "Cuộc trò chuyện không tồn tại.");
+            throw new KeyNotFoundException("Cuộc trò chuyện không tồn tại.");
         }
 
-        if (conversation.User1Id !=
-                currentUserId &&
-            conversation.User2Id !=
-                currentUserId)
+        if (conversation.User1Id != currentUserId && conversation.User2Id != currentUserId)
         {
-            throw new UnauthorizedAccessException(
-                "Bạn không thuộc cuộc trò chuyện.");
+            throw new UnauthorizedAccessException("Bạn không thuộc cuộc trò chuyện.");
         }
 
         return conversation;
@@ -1247,332 +721,143 @@ public class ChatService : IChatService
     // VALIDATE REPLY
     // ============================================================
 
-    private async Task ValidateReplyAsync(
-        int conversationId,
-        long? replyId)
+    private async Task ValidateReplyAsync(int conversationId, long? replyId)
     {
         if (!replyId.HasValue)
         {
             return;
         }
 
-        var exists =
-            await _context.ChatMessages
-                .AnyAsync(x =>
-                    x.MessageId ==
-                    replyId.Value &&
-                    x.ConversationId ==
-                    conversationId);
+        var exists = await _context.ChatMessages.AnyAsync(x => x.MessageId == replyId.Value && x.ConversationId == conversationId);
 
         if (!exists)
         {
-            throw new ArgumentException(
-                "Tin nhắn được reply không hợp lệ.");
+            throw new ArgumentException("Tin nhắn được reply không hợp lệ.");
         }
-    }
-
-    // ============================================================
-    // SAVE PHYSICAL FILE
-    // ============================================================
-
-    private async Task<string>
-        SavePhysicalFileAsync(
-            IFormFile file,
-            string category)
-    {
-        var webRoot =
-            _environment.WebRootPath
-            ??
-            Path.Combine(
-                _environment.ContentRootPath,
-                "wwwroot");
-
-        var year =
-            DateTime.UtcNow
-                .ToString("yyyy");
-
-        var month =
-            DateTime.UtcNow
-                .ToString("MM");
-
-        var relativeDirectory =
-            Path.Combine(
-                "uploads",
-                "chat",
-                category,
-                year,
-                month);
-
-        var physicalDirectory =
-            Path.Combine(
-                webRoot,
-                relativeDirectory);
-
-        Directory.CreateDirectory(
-            physicalDirectory);
-
-        var extension =
-            Path.GetExtension(
-                    file.FileName)
-                .ToLowerInvariant();
-
-        var generatedName =
-            $"{Guid.NewGuid():N}{extension}";
-
-        var physicalPath =
-            Path.Combine(
-                physicalDirectory,
-                generatedName);
-
-        await using var stream =
-            new FileStream(
-                physicalPath,
-                FileMode.CreateNew);
-
-        await file.CopyToAsync(
-            stream);
-
-        return "/" +
-            Path.Combine(
-                    relativeDirectory,
-                    generatedName)
-                .Replace(
-                    "\\",
-                    "/");
     }
 
     // ============================================================
     // BUILD MESSAGE DTO
     // ============================================================
 
-    private async Task<ChatMessageDto>
-        GetMessageDtoAsync(
-            long messageId,
-            int currentUserId)
+    private async Task<ChatMessageDto> GetMessageDtoAsync(long messageId, int currentUserId)
     {
-        var message =
-            await _context.ChatMessages
-                .AsNoTracking()
+        var message = await _context.ChatMessages.AsNoTracking()
 
-                .Include(x =>
-                    x.Sender)
+.Include(x => x.Sender)
 
-                .Include(x =>
-                    x.Sticker)
+.Include(x => x.Sticker)
 
-                .Include(x =>
-                    x.Attachments)
+.Include(x => x.Attachments)
 
-                .Include(x =>
-                    x.Reactions)
-                    .ThenInclude(x =>
-                        x.User)
+.Include(x => x.Reactions).ThenInclude(x => x.User)
 
-                .Include(x =>
-                    x.ReplyToMessage)
-                    .ThenInclude(x =>
-                        x!.Sender)
+.Include(x => x.ReplyToMessage).ThenInclude(x => x!.Sender)
 
-                .FirstOrDefaultAsync(x =>
-                    x.MessageId ==
-                    messageId)
+.FirstOrDefaultAsync(x => x.MessageId == messageId)
 
-            ?? throw new KeyNotFoundException(
-                "Tin nhắn không tồn tại.");
+            ?? throw new KeyNotFoundException("Tin nhắn không tồn tại.");
 
-        var otherUserId =
-            await GetOtherUserIdAsync(
-                currentUserId,
-                message.ConversationId);
+        var otherUserId = await GetOtherUserIdAsync(currentUserId, message.ConversationId);
 
-        var otherRead =
-            await _context.ConversationReads
-                .AsNoTracking()
-                .FirstOrDefaultAsync(x =>
-                    x.ConversationId ==
-                    message.ConversationId
-                    &&
-                    x.UserId ==
-                    otherUserId);
+        var otherRead = await _context.ConversationReads.AsNoTracking().FirstOrDefaultAsync(x => x.ConversationId == message.ConversationId &&
+                    x.UserId == otherUserId);
 
-        var recalled =
-            message.Status ==
-            ChatMessageStatus.RECALLED;
+        var recalled = message.Status == ChatMessageStatus.RECALLED;
 
         return new ChatMessageDto
         {
-            MessageId =
-                message.MessageId,
+            MessageId = message.MessageId,
 
-            ConversationId =
-                message.ConversationId,
+            ConversationId = message.ConversationId,
 
-            SenderId =
-                message.SenderId,
+            SenderId = message.SenderId,
 
-            SenderName =
-                message.Sender.FullName,
+            SenderName = message.Sender.FullName,
 
-            SenderAvatarUrl =
-                message.Sender.AvatarUrl,
+            SenderAvatarUrl = message.Sender.AvatarUrl,
 
-            Content =
-                recalled
-                    ? null
-                    : message.Content,
+            Content = recalled ? null : message.Content,
 
-            MessageType =
-                message.MessageType
-                    .ToString(),
+            MessageType = message.MessageType.ToString(),
 
-            Status =
-                message.Status
-                    .ToString(),
+            Status = message.Status.ToString(),
 
-            CreatedAt =
-                message.CreatedAt,
+            CreatedAt = message.CreatedAt,
 
-            UpdatedAt =
-                message.UpdatedAt,
+            UpdatedAt = message.UpdatedAt,
 
-            RecalledAt =
-    message.RecalledAt,
+            RecalledAt = message.RecalledAt,
 
-            IsRead =
-    otherRead?
-        .LastReadMessageId
-    >= message.MessageId,
+            IsRead = otherRead?.LastReadMessageId >= message.MessageId,
 
-            Sticker =
-                recalled ||
-                message.Sticker == null
+            Sticker = recalled || message.Sticker == null
 
                     ? null
 
                     : new StickerDto
                     {
-                        StickerId =
-                            message.Sticker
-                                .StickerId,
+                        StickerId = message.Sticker.StickerId,
 
-                        StickerPackId =
-                            message.Sticker
-                                .StickerPackId,
+                        StickerPackId = message.Sticker.StickerPackId,
 
-                        Name =
-                            message.Sticker
-                                .Name,
+                        Name = message.Sticker.Name,
 
-                        ImageUrl =
-                            message.Sticker
-                                .ImageUrl
-                    },
+                        ImageUrl = message.Sticker.ImageUrl },
 
-            Attachments =
-                recalled
+            Attachments = recalled
 
                     ? new List<
                         AttachmentDto>()
 
-                    : message.Attachments
-                        .Select(x =>
-                            new AttachmentDto
-                            {
-                                AttachmentId =
-                                    x.AttachmentId,
+                    : message.Attachments.Select(x => new AttachmentDto { AttachmentId = x.AttachmentId,
 
-                                FileUrl =
-                                    x.FileUrl,
+                                FileUrl = x.FileUrl,
 
-                                FileName =
-                                    x.FileName,
+                                FileName = x.FileName,
 
-                                MimeType =
-                                    x.MimeType,
+                                MimeType = x.MimeType,
 
-                                FileSize =
-                                    x.FileSize,
+                                FileSize = x.FileSize,
 
-                                AttachmentType =
-                                    x.AttachmentType,
+                                AttachmentType = x.AttachmentType,
 
-                                DurationSeconds =
-                                    x.DurationSeconds
-                            })
-                        .ToList(),
+                                DurationSeconds = x.DurationSeconds }).ToList(),
 
-            Reactions =
-                recalled
+            Reactions = recalled
 
                     ? new List<
                         ReactionDto>()
 
-                    : message.Reactions
-                        .Select(x =>
-                            new ReactionDto
-                            {
-                                ReactionId =
-                                    x.ReactionId,
+                    : message.Reactions.Select(x => new ReactionDto { ReactionId = x.ReactionId,
 
-                                UserId =
-                                    x.UserId,
+                                UserId = x.UserId,
 
-                                UserName =
-                                    x.User.FullName,
+                                UserName = x.User.FullName,
 
-                                Reaction =
-                                    x.Reaction
-                            })
-                        .ToList(),
+                                Reaction = x.Reaction }).ToList(),
 
-            ReplyTo =
-                message.ReplyToMessage ==
-                null
+            ReplyTo = message.ReplyToMessage == null
 
                     ? null
 
                     : new ReplyMessageDto
                     {
-                        MessageId =
-                            message
-                                .ReplyToMessage
-                                .MessageId,
+                        MessageId = message.ReplyToMessage.MessageId,
 
-                        SenderId =
-                            message
-                                .ReplyToMessage
-                                .SenderId,
+                        SenderId = message.ReplyToMessage.SenderId,
 
-                        SenderName =
-                            message
-                                .ReplyToMessage
-                                .Sender
-                                .FullName,
+                        SenderName = message.ReplyToMessage.Sender.FullName,
 
-                        Content =
-                            message
-                                .ReplyToMessage
-                                .Status ==
-                            ChatMessageStatus
-                                .RECALLED
+                        Content = message.ReplyToMessage.Status == ChatMessageStatus.RECALLED
 
                                 ? null
 
-                                : message
-                                    .ReplyToMessage
-                                    .Content,
+                                : message.ReplyToMessage.Content,
 
-                        MessageType =
-                            message
-                                .ReplyToMessage
-                                .MessageType
-                                .ToString(),
+                        MessageType = message.ReplyToMessage.MessageType.ToString(),
 
-                        Status =
-                            message
-                                .ReplyToMessage
-                                .Status
-                                .ToString()
+                        Status = message.ReplyToMessage.Status.ToString()
                     }
         };
     }
@@ -1581,104 +866,50 @@ public class ChatService : IChatService
     // BUILD CONVERSATION DTO
     // ============================================================
 
-    private async Task<ConversationDto>
-        BuildConversationDtoAsync(
-            int conversationId,
-            int currentUserId)
+    private async Task<ConversationDto> BuildConversationDtoAsync(int conversationId, int currentUserId)
     {
-        var conversation =
-            await _context.Conversations
-                .AsNoTracking()
-                .Include(x =>
-                    x.User1)
-                .Include(x =>
-                    x.User2)
-                .FirstAsync(x =>
-                    x.ConversationId ==
-                    conversationId);
+        var conversation = await _context.Conversations.AsNoTracking().Include(x => x.User1).Include(x => x.User2).FirstAsync(x =>
+                    x.ConversationId == conversationId);
 
-        var other =
-            conversation.User1Id ==
-            currentUserId
+        var other = conversation.User1Id == currentUserId
 
-                ? conversation.User2
-                : conversation.User1;
+                ? conversation.User2 : conversation.User1;
 
-        var lastMessageId =
-            await _context.ChatMessages
-                .Where(x =>
-                    x.ConversationId ==
-                    conversationId)
-                .OrderByDescending(x =>
-                    x.MessageId)
-                .Select(x =>
-                    (long?)x.MessageId)
-                .FirstOrDefaultAsync();
+        var lastMessageId = await _context.ChatMessages.Where(x => x.ConversationId == conversationId).OrderByDescending(x => x.MessageId)
+.Select(x => (long?)x.MessageId).FirstOrDefaultAsync();
 
         ChatMessageDto?
             lastMessage = null;
 
         if (lastMessageId.HasValue)
         {
-            lastMessage =
-                await GetMessageDtoAsync(
-                    lastMessageId.Value,
-                    currentUserId);
+            lastMessage = await GetMessageDtoAsync(lastMessageId.Value, currentUserId);
         }
 
-        var read =
-            await _context.ConversationReads
-                .AsNoTracking()
-                .FirstOrDefaultAsync(x =>
-                    x.ConversationId ==
-                    conversationId
-                    &&
-                    x.UserId ==
+        var read = await _context.ConversationReads.AsNoTracking().FirstOrDefaultAsync(x => x.ConversationId == conversationId && x.UserId ==
                     currentUserId);
 
-        var lastRead =
-            read?.LastReadMessageId ?? 0;
+        var lastRead = read?.LastReadMessageId ?? 0;
 
-        var unread =
-            await _context.ChatMessages
-                .CountAsync(x =>
-                    x.ConversationId ==
-                    conversationId
-                    &&
-                    x.SenderId !=
-                    currentUserId
-                    &&
-                    x.MessageId >
+        var unread = await _context.ChatMessages.CountAsync(x => x.ConversationId == conversationId && x.SenderId != currentUserId && x.MessageId >
                     lastRead);
 
         return new ConversationDto
         {
-            ConversationId =
-                conversation
-                    .ConversationId,
+            ConversationId = conversation.ConversationId,
 
-            OtherUserId =
-                other.UserId,
+            OtherUserId = other.UserId,
 
-            OtherUserName =
-                other.FullName,
+            OtherUserName = other.FullName,
 
-            OtherUserAvatarUrl = other.AvatarUrl,
-            OtherUserLastSeenAt = other.LastSeenAt,
+            OtherUserAvatarUrl = other.AvatarUrl, OtherUserLastSeenAt = other.LastSeenAt,
 
-            LastMessage =
-                lastMessage,
+            LastMessage = lastMessage,
 
-            UnreadCount =
-                unread,
+            UnreadCount = unread,
 
-            LastMessageAt =
-                conversation
-                    .LastMessageAt,
+            LastMessageAt = conversation.LastMessageAt,
 
-            CreatedAt =
-                conversation
-                    .CreatedAt
-        };
+            CreatedAt = conversation.CreatedAt };
     }
 }

@@ -282,7 +282,7 @@ const QuizDetailPage: React.FC = () => {
 
             <span
               className={`rounded-full px-3 py-1 text-sm font-medium ${
-                quiz.status === 'PUBLISHED'
+                quiz.status === 'ACTIVE'
                   ? 'bg-green-50 text-green-700'
                   : quiz.status === 'ARCHIVED'
                     ? 'bg-slate-100 text-slate-600'

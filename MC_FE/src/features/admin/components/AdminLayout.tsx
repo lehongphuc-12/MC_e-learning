@@ -14,6 +14,7 @@ import {
   ShieldAlert,
   Home,
   Mic2,
+  MessageSquare,
 } from 'lucide-react';
 import { AdminTabType } from '../types/adminTypes';
 import { User } from '../../../types';
@@ -75,6 +76,12 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
       id: 'settings' as AdminTabType,
       label: 'Cấu Hình Hệ Thống',
       icon: Settings,
+      badge: null,
+    },
+    {
+      id: 'forum' as AdminTabType,
+      label: 'Diễn Đàn',
+      icon: MessageSquare,
       badge: null,
     },
   ];

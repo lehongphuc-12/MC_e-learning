@@ -1,15 +1,5 @@
 import { request } from '../../../services/api';
 import {
-  initialAdminStats,
-  mockRevenueChartData,
-  initialAdminUsers,
-  initialAdminCourses,
-  initialAdminCategories,
-  initialPayoutRequests,
-  initialSystemLogs,
-  defaultPlatformSettings,
-} from '../data/mockAdminData';
-import {
   AdminStats,
   AdminUser,
   AdminCourse,
@@ -19,6 +9,9 @@ import {
   PlatformSettings,
   UserRole,
   CourseModerationStatus,
+  RevenueDataPoint,
+  defaultPlatformSettings,
+  emptyAdminStats,
 } from '../types/adminTypes';
 
 export const adminApi = {
@@ -57,7 +50,7 @@ export const adminApi = {
     };
   },
 
-  async getRevenueChart() {
+  async getRevenueChart(): Promise<RevenueDataPoint[]> {
     try {
       const res = await request<{ success: boolean; data: any }>('/admin/stats/revenue-chart');
       if (res && res.success && Array.isArray(res.data)) return res.data;
@@ -107,7 +100,8 @@ export const adminApi = {
         body: JSON.stringify({ status: targetStatus }),
       });
       return true;
-    } catch (_) {
+    } catch (err) {
+      console.error('Failed to update user status:', err);
       return false;
     }
   },
@@ -119,22 +113,22 @@ export const adminApi = {
         body: JSON.stringify(data),
       });
       if (res.success && res.data) return res.data;
-    } catch (_) {
-      // Fallback
+    } catch (err) {
+      console.error('Failed to update user:', err);
     }
     return null;
   },
 
-
   async updateUserRole(userId: string, newRole: UserRole): Promise<boolean> {
     try {
-      await request(`/admin/users/${userId}/role`, {
+      await request(`/admin/users/${userId}`, {
         method: 'PUT',
         body: JSON.stringify({ role: newRole }),
       });
       return true;
-    } catch (_) {
-      return true;
+    } catch (err) {
+      console.error('Failed to update user role:', err);
+      return false;
     }
   },
 
@@ -202,8 +196,9 @@ export const adminApi = {
         });
       }
       return true;
-    } catch (_) {
-      return true;
+    } catch (err) {
+      console.error('Failed to update course status:', err);
+      return false;
     }
   },
 
@@ -211,7 +206,8 @@ export const adminApi = {
     try {
       await request(`/admin/courses/${courseId}/approve`, { method: 'POST' });
       return true;
-    } catch (_) {
+    } catch (err) {
+      console.error('Failed to approve course:', err);
       return false;
     }
   },
@@ -223,7 +219,8 @@ export const adminApi = {
         body: JSON.stringify({ reason }),
       });
       return true;
-    } catch (_) {
+    } catch (err) {
+      console.error('Failed to reject course:', err);
       return false;
     }
   },
@@ -235,8 +232,9 @@ export const adminApi = {
         body: JSON.stringify({ featured }),
       });
       return true;
-    } catch (_) {
-      return true;
+    } catch (err) {
+      console.error('Failed to toggle course featured:', err);
+      return false;
     }
   },
 
@@ -379,9 +377,44 @@ export const adminApi = {
   async getPlatformSettings(): Promise<PlatformSettings> {
     try {
       const res = await request<{ success: boolean; data: PlatformSettings }>('/admin/settings');
-      if (res.success && res.data) return res.data;
+      if (res.success && res.data) {
+        localStorage.setItem('mseek_maintenance_mode', JSON.stringify(res.data.maintenanceMode));
+        return res.data;
+      }
+    } catch (err) {
+      console.error('Failed to get platform settings:', err);
+    }
+    return defaultPlatformSettings;
+  },
+
+  async updatePlatformSettings(settings: PlatformSettings): Promise<boolean> {
+    try {
+      const res = await request<{ success: boolean }>('/admin/settings', {
+        method: 'PUT',
+        body: JSON.stringify(settings),
+      });
+      localStorage.setItem('mseek_maintenance_mode', JSON.stringify(settings.maintenanceMode));
+      window.dispatchEvent(new Event('mseek_settings_changed'));
+      return res.success;
+    } catch (err) {
+      console.error('Failed to update platform settings:', err);
+      return false;
+    }
+  },
+
+  async getPublicSettings(): Promise<PlatformSettings> {
+    try {
+      const res = await request<{ success: boolean; data: PlatformSettings }>('/system/settings');
+      if (res.success && res.data) {
+        localStorage.setItem('mseek_maintenance_mode', JSON.stringify(res.data.maintenanceMode));
+        return res.data;
+      }
     } catch (_) {
       // Fallback
+    }
+    const cached = localStorage.getItem('mseek_maintenance_mode');
+    if (cached !== null) {
+      return { ...defaultPlatformSettings, maintenanceMode: JSON.parse(cached) };
     }
     return defaultPlatformSettings;
   },

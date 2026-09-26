@@ -7,6 +7,7 @@ import { AdminCoursesTab } from '../components/AdminCoursesTab';
 import { AdminCategoriesTab } from '../components/AdminCategoriesTab';
 import { AdminFinancialsTab } from '../components/AdminFinancialsTab';
 import { AdminSettingsTab } from '../components/AdminSettingsTab';
+import { AdminForumTab } from '../components/AdminForumTab';
 import { UserEditModal } from '../components/modals/UserEditModal';
 import { CourseReviewModal } from '../components/modals/CourseReviewModal';
 import { CategoryModal } from '../components/modals/CategoryModal';
@@ -41,7 +42,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const VALID_TABS: AdminTabType[] = ['overview', 'users', 'courses', 'categories', 'financials', 'settings'];
+  const VALID_TABS: AdminTabType[] = ['overview', 'users', 'courses', 'categories', 'financials', 'settings', 'forum'];
   const tabFromUrl = searchParams.get('tab') as AdminTabType | null;
   const [activeTab, setActiveTab] = useState<AdminTabType>(
     tabFromUrl && VALID_TABS.includes(tabFromUrl) ? tabFromUrl : 'overview'
@@ -87,31 +88,60 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
 
   useEffect(() => {
     const fetchTabData = async () => {
+      // Xác định xem tab hiện tại có cần tải dữ liệu từ Backend lần đầu hay không
+      let needsFetch = false;
+      switch (activeTab) {
+        case 'overview':
+          needsFetch = !stats;
+          break;
+        case 'users':
+          needsFetch = users.length === 0;
+          break;
+        case 'courses':
+          needsFetch = courses.length === 0;
+          break;
+        case 'categories':
+          needsFetch = categories.length === 0;
+          break;
+        case 'financials':
+          needsFetch = payouts.length === 0 || !settings;
+          break;
+        case 'settings':
+          needsFetch = !settings;
+          break;
+        case 'forum':
+          needsFetch = false;
+          break;
+      }
+
+      if (!needsFetch) {
+        // Với tab courses, nếu đã có dữ liệu thì cập nhật ngầm mà không làm nhấp nháy màn hình
+        if (activeTab === 'courses') {
+          refreshCoursesData();
+        }
+        return;
+      }
+
       setTabLoading(true);
       try {
         switch (activeTab) {
           case 'overview':
-            if (!stats) {
-              const [statsRes, chartRes, logsRes] = await Promise.all([
-                adminApi.getDashboardStats(),
-                adminApi.getRevenueChart(),
-                adminApi.getSystemLogs(),
-              ]);
-              setStats(statsRes);
-              setChartData(chartRes);
-              setLogs(logsRes);
-            }
+            const [statsRes, chartRes, logsRes] = await Promise.all([
+              adminApi.getDashboardStats(),
+              adminApi.getRevenueChart(),
+              adminApi.getSystemLogs(),
+            ]);
+            setStats(statsRes);
+            setChartData(chartRes);
+            setLogs(logsRes);
             break;
 
           case 'users':
-            if (users.length === 0) {
-              const usersRes = await adminApi.getUsers();
-              setUsers(usersRes);
-            }
+            const usersRes = await adminApi.getUsers();
+            setUsers(usersRes);
             break;
 
           case 'courses':
-            // Always fetch fresh courses data on entering tab
             await refreshCoursesData();
             break;
 
@@ -120,21 +150,17 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
             break;
 
           case 'financials':
-            if (payouts.length === 0 || !settings) {
-              const [payoutsRes, settingsRes] = await Promise.all([
-                adminApi.getPayoutRequests(),
-                adminApi.getPlatformSettings(),
-              ]);
-              setPayouts(payoutsRes);
-              if (!settings) setSettings(settingsRes);
-            }
+            const [payoutsRes, settingsRes] = await Promise.all([
+              adminApi.getPayoutRequests(),
+              adminApi.getPlatformSettings(),
+            ]);
+            setPayouts(payoutsRes);
+            if (!settings) setSettings(settingsRes);
             break;
 
           case 'settings':
-            if (!settings) {
-              const settingsRes = await adminApi.getPlatformSettings();
-              setSettings(settingsRes);
-            }
+            const setRes = await adminApi.getPlatformSettings();
+            setSettings(setRes);
             break;
         }
       } catch (err) {
@@ -361,9 +387,18 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   };
 
   // --- Handlers for Settings ---
-  const handleSaveSettings = (newSettings: PlatformSettings) => {
-    setSettings(newSettings);
-    onToast?.('Đã lưu cấu hình', 'Các thiết lập hệ thống đã được cập nhật.', 'success');
+  const handleSaveSettings = async (newSettings: PlatformSettings) => {
+    try {
+      const success = await adminApi.updatePlatformSettings(newSettings);
+      if (success) {
+        setSettings(newSettings);
+        onToast?.('Đã lưu cấu hình', 'Các thiết lập hệ thống đã được cập nhật.', 'success');
+      } else {
+        onToast?.('Lỗi', 'Không thể lưu cấu hình hệ thống', 'error');
+      }
+    } catch (error) {
+      onToast?.('Lỗi', 'Có lỗi xảy ra khi lưu cấu hình', 'error');
+    }
   };
 
   const pendingApprovalsCount = Array.isArray(courses)
@@ -379,43 +414,43 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
       onLogout={onLogout}
       pendingApprovalsCount={pendingApprovalsCount}
     >
-      {tabLoading && (
-        <div className="flex items-center justify-center py-16">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600"></div>
-          <span className="ml-3 text-slate-600 font-medium">Đang tải dữ liệu...</span>
+      {tabLoading ? (
+        <div className="flex flex-col items-center justify-center py-28 min-h-[400px]">
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-500 mb-4"></div>
+          <span className="text-slate-400 font-medium text-sm">Đang tải dữ liệu...</span>
         </div>
-      )}
+      ) : (
+        <>
+          {activeTab === 'overview' && stats && (
+            <AdminOverviewTab
+              stats={stats}
+              chartData={chartData}
+              recentLogs={logs}
+              onNavigateTab={(tab) => handleTabChange(tab)}
+            />
+          )}
 
-      {!tabLoading && activeTab === 'overview' && stats && (
-        <AdminOverviewTab
-          stats={stats}
-          chartData={chartData}
-          recentLogs={logs}
-          onNavigateTab={(tab) => handleTabChange(tab)}
-        />
-      )}
+          {activeTab === 'users' && (
+            <AdminUsersTab
+              users={users}
+              onAddUser={handleAddUser}
+              onEditUser={handleEditUser}
+              onToggleStatus={handleToggleUserStatus}
+              onRefresh={handleRefreshUsers}
+              isLoading={isUsersLoading}
+            />
+          )}
 
-      {activeTab === 'users' && (
-        <AdminUsersTab
-          users={users}
-          onAddUser={handleAddUser}
-          onEditUser={handleEditUser}
-          onToggleStatus={handleToggleUserStatus}
-          onRefresh={handleRefreshUsers}
-          isLoading={isUsersLoading}
-        />
-      )}
-
-      {activeTab === 'courses' && (
-        <AdminCoursesTab
-          courses={courses}
-          onReviewCourse={handleReviewCourse}
-          onApproveCourse={handleApproveCourse}
-          onRejectCourse={handleRejectCourse}
-          onToggleFeatured={handleToggleFeatured}
-          onRefresh={refreshCoursesData}
-        />
-      )}
+          {activeTab === 'courses' && (
+            <AdminCoursesTab
+              courses={courses}
+              onReviewCourse={handleReviewCourse}
+              onApproveCourse={handleApproveCourse}
+              onRejectCourse={handleRejectCourse}
+              onToggleFeatured={handleToggleFeatured}
+              onRefresh={refreshCoursesData}
+            />
+          )}
 
       {activeTab === 'categories' && (
         <AdminCategoriesTab
@@ -429,17 +464,23 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         />
       )}
 
-      {activeTab === 'financials' && settings && (
-        <AdminFinancialsTab
-          payouts={payouts}
-          onApprovePayout={handleApprovePayout}
-          onRejectPayout={handleRejectPayout}
-          commissionRate={settings.commissionRatePercent}
-        />
-      )}
+          {activeTab === 'financials' && settings && (
+            <AdminFinancialsTab
+              payouts={payouts}
+              onApprovePayout={handleApprovePayout}
+              onRejectPayout={handleRejectPayout}
+              commissionRate={settings.commissionRatePercent}
+            />
+          )}
 
-      {activeTab === 'settings' && settings && (
-        <AdminSettingsTab settings={settings} onSaveSettings={handleSaveSettings} />
+          {activeTab === 'settings' && settings && (
+            <AdminSettingsTab settings={settings} onSaveSettings={handleSaveSettings} />
+          )}
+
+          {activeTab === 'forum' && (
+            <AdminForumTab onToast={onToast} />
+          )}
+        </>
       )}
 
       {/* Modals */}

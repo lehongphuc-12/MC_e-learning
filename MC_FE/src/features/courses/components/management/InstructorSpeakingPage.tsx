@@ -32,7 +32,7 @@ import { speakingApi, SpeakingSubmissionDto } from '../../api/speakingApi';
 import { courseApi } from '../../api/courseApi';
 import { moduleApi } from '../../api/moduleApi';
 import { lessonApi } from '../../api/lessonApi';
-import { CourseDto } from '../../types/courseTypes';
+import { Course } from '../../types/courseTypes';
 import { ToastType } from '../../../../components/common/Toast';
 
 export interface SpeakingAssignmentItem {
@@ -54,7 +54,7 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
   const navigate = useNavigate();
 
   const [submissions, setSubmissions] = useState<SpeakingSubmissionDto[]>([]);
-  const [courses, setCourses] = useState<CourseDto[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -86,7 +86,7 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
   const [isLoadingAssignments, setIsLoadingAssignments] = useState<boolean>(false);
 
   // Fetch created speaking assignments for instructor's courses
-  const loadAssignments = async (courseList: CourseDto[]) => {
+  const loadAssignments = async (courseList: Course[]) => {
     if (!courseList || courseList.length === 0) return;
     setIsLoadingAssignments(true);
     try {
@@ -928,7 +928,7 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
                     <option value="">-- Chọn khóa học để tạo bài tập nói tổng khóa --</option>
                     {courses.map((c) => (
                       <option key={c.courseId} value={c.courseId}>
-                        {c.title} ({c.status === 'PUBLISHED' ? 'Đã xuất bản' : c.status === 'APPROVED' ? 'Đã duyệt' : 'Bản nháp'})
+                        {c.title} ({c.status === 'PUBLISHED' ? 'Đã xuất bản' : c.status === 'PENDING_APPROVAL' ? 'Chờ duyệt' : 'Bản nháp'})
                       </option>
                     ))}
                   </select>
