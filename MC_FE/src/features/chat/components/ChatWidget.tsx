@@ -1,5 +1,5 @@
 import { MessageCircle, Sparkles, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useCall } from "../hooks/useCall";
 import { CallScreen } from "./CallScreen";
 import { ChatPanel } from "./ChatPanel";
@@ -14,13 +14,26 @@ interface Props {
 
 export function ChatWidget({ currentUser }: Props) {
   const [open, setOpen] = useState(false);
+  const [targetConversation, setTargetConversation] = useState<any>(null);
   const calls = useCall();
+
+  useEffect(() => {
+    const handleOpenChat = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      setOpen(true);
+      if (customEvent.detail?.conversation) {
+        setTargetConversation(customEvent.detail.conversation);
+      }
+    };
+    window.addEventListener("mseek_open_chat_widget", handleOpenChat);
+    return () => window.removeEventListener("mseek_open_chat_widget", handleOpenChat);
+  }, []);
 
   if (!currentUser) return null;
 
   return (
     <>
-      {open && <ChatPanel onClose={() => setOpen(false)} calls={calls} />}
+      {open && <ChatPanel onClose={() => setOpen(false)} calls={calls} initialConversation={targetConversation} onClearTarget={() => setTargetConversation(null)} />}
 
       {calls.incoming && (
         <IncomingCallModal

@@ -13,6 +13,8 @@ import { MessageComposer } from "./MessageComposer";
 interface Props {
   onClose: () => void;
   calls: ReturnType<typeof useCall>;
+  initialConversation?: Conversation | null;
+  onClearTarget?: () => void;
 }
 
 const TIME_SEPARATOR_MINUTES = 15;
@@ -53,7 +55,7 @@ function formatLastSeen(value?: string | null) {
   return `Hoạt động ${new Date(value).toLocaleDateString("vi-VN")}`;
 }
 
-export function ChatPanel({ onClose, calls }: Props) {
+export function ChatPanel({ onClose, calls, initialConversation, onClearTarget }: Props) {
   const chat = useChat();
   const user = useAuthStore((state) => state.user);
   const currentUserId = Number(user?.id);
@@ -132,6 +134,14 @@ export function ChatPanel({ onClose, calls }: Props) {
     if (chat.typingUserId === null || !shouldStickBottomRef.current) return;
     requestAnimationFrame(() => scrollToBottom("smooth"));
   }, [chat.typingUserId]);
+
+  useEffect(() => {
+    if (initialConversation) {
+      void chat.openConversation(initialConversation).finally(() => {
+        onClearTarget?.();
+      });
+    }
+  }, [initialConversation, chat, onClearTarget]);
 
   const selectConversation = async (conversation: Conversation) => {
     setReply(null);

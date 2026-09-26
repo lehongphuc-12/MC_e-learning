@@ -112,8 +112,8 @@ export const ForumUserProfileModal: React.FC<ForumUserProfileModalProps> = ({
     if (!userId || isSelf) return;
     setChatLoading(true);
     try {
-      await chatApi.createConversation(userId);
-      window.dispatchEvent(new CustomEvent('mseek_open_chat_widget'));
+      const conversation = await chatApi.createConversation(userId);
+      window.dispatchEvent(new CustomEvent('mseek_open_chat_widget', { detail: { conversation } }));
       onClose();
     } catch (err: any) {
       if (onToast) {
