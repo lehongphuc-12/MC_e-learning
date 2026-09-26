@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 
 import { Course, User } from './types';
 import { mockCourses } from './data/mockData';
@@ -60,6 +61,7 @@ export default function App() {
   const store = useAppStore();
 
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   // ============================================================
   // RESTORE / SYNC SESSION
@@ -230,6 +232,7 @@ export default function App() {
     }
 
     authLogout();
+    queryClient.clear();
 
     store.showToast(
       'Signed Out',
