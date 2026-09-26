@@ -77,3 +77,60 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+
+# ==========================================
+# 4. AI SERVICE: FASTAPI & RAG (MC_MentorChat)
+# ==========================================
+# Python Bytecode & Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+
+# Qdrant Vector Database (Local file storage & snapshot backups)
+qdrant_storage/
+qdrant_data/
+local_qdrant/
+*.snapshot
+
+# RAG Knowledge Sources: Document & Video Script uploads / temp processing
+# Tránh commit tài liệu PDF, bản ghi transcript tạm thời của khóa học lên repo
+uploads/
+temp_docs/
+temp_scripts/
+extracted_data/
+processed_data/
+logs/
+MC_MentorChat/uploads/
+MC_MentorChat/data/
+!MC_MentorChat/data/.gitkeep
+MC_MentorChat/storage/
