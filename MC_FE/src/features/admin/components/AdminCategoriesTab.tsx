@@ -65,46 +65,54 @@ export const AdminCategoriesTab: React.FC<AdminCategoriesTabProps> = ({
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {categories.map((cat) => (
-          <div
-            key={cat.id}
-            className="p-5 rounded-2xl bg-slate-900/70 border border-slate-800 flex flex-col justify-between hover:border-purple-500/40 transition group shadow-lg cursor-pointer"
-          >
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 group-hover:scale-110 transition-transform">
-                  {getCategoryIcon(cat.iconName)}
+      {categories.length === 0 ? (
+        <div className="p-12 text-center rounded-2xl bg-slate-900/40 border border-slate-800 text-slate-400">
+          <FolderTree className="w-10 h-10 text-slate-600 mx-auto mb-3" />
+          <p className="font-semibold text-white">Chưa có danh mục nào</p>
+          <p className="text-xs text-slate-500 mt-1">Danh mục khóa học từ hệ thống sẽ hiển thị ở đây.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {categories.map((cat) => (
+            <div
+              key={cat.id}
+              className="p-5 rounded-2xl bg-slate-900/70 border border-slate-800 flex flex-col justify-between hover:border-purple-500/40 transition group shadow-lg cursor-pointer"
+            >
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 group-hover:scale-110 transition-transform">
+                    {getCategoryIcon(cat.iconName)}
+                  </div>
+                  <button
+                    onClick={() => onEditCategory(cat)}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+                    title="Chỉnh sửa danh mục"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
                 </div>
-                <button
-                  onClick={() => onEditCategory(cat)}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
-                  title="Chỉnh sửa danh mục"
-                >
-                  <Edit2 className="w-4 h-4" />
-                </button>
+
+                <div>
+                  <h3 className="text-lg font-bold text-white group-hover:text-purple-300 transition">
+                    {cat.name}
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-1 line-clamp-2">{cat.description}</p>
+                </div>
               </div>
 
-              <div>
-                <h3 className="text-lg font-bold text-white group-hover:text-purple-300 transition">
-                  {cat.name}
-                </h3>
-                <p className="text-xs text-slate-400 mt-1 line-clamp-2">{cat.description}</p>
+              <div className="mt-6 pt-4 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
+                <span className="flex items-center space-x-1.5 text-slate-300 font-semibold">
+                  <BookOpen className="w-3.5 h-3.5 text-purple-400" />
+                  <span>{cat.coursesCount} khóa học</span>
+                </span>
+                <span className="text-[10px] bg-slate-950 px-2 py-0.5 rounded-md border border-slate-800">
+                  Slug: {cat.slug}
+                </span>
               </div>
             </div>
-
-            <div className="mt-6 pt-4 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
-              <span className="flex items-center space-x-1.5 text-slate-300 font-semibold">
-                <BookOpen className="w-3.5 h-3.5 text-purple-400" />
-                <span>{cat.coursesCount} khóa học</span>
-              </span>
-              <span className="text-[10px] bg-slate-950 px-2 py-0.5 rounded-md border border-slate-800">
-                Slug: {cat.slug}
-              </span>
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

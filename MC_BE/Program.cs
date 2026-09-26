@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -326,10 +326,6 @@ using (var scope = app.Services.CreateScope())
         Console.WriteLine("====================================");
         Console.WriteLine(ex);
         Console.WriteLine("====================================");
-
-        // KhÃ´ng nuá»‘t exception.
-        // Náº¿u migration/database lá»—i thÃ¬ server dá»«ng,
-        // Ä‘á»ƒ nhÃ¬n tháº¥y lá»—i tháº­t.
         throw;
     }
 }
