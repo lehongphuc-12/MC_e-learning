@@ -21,6 +21,7 @@ import {
 import { EnrolledCourse } from '../../../data/mockData';
 import { ScreenType } from '../../../types';
 import { useLearnedCoursesQuery } from '../hooks/useCoursesQuery';
+import { useAuthStore } from '../../../store/useAuthStore';
 
 interface MyCoursesScreenProps {
   onNavigate: (screen: ScreenType) => void;
@@ -339,6 +340,7 @@ const CourseCardSkeleton: React.FC = () => (
 
 export const MyCoursesScreen: React.FC<MyCoursesScreenProps> = ({ onNavigate }) => {
   const navigate = useNavigate();
+  const user = useAuthStore(state => state.user);
   const { data: apiEnrolledCourses, isLoading, isError } = useLearnedCoursesQuery();
 
   // Pure API data (100% real backend data)
@@ -741,7 +743,10 @@ export const MyCoursesScreen: React.FC<MyCoursesScreenProps> = ({ onNavigate }) 
             {paginatedCourses.map((item) => {
               let localCount = 0;
               try {
-                const stored = localStorage.getItem(`mc_completed_lessons_${item.course.id}`);
+                const storageKey = user?.id 
+                  ? `mc_completed_lessons_${user.id}_${item.course.id}`
+                  : `mc_completed_lessons_${item.course.id}`;
+                const stored = localStorage.getItem(storageKey);
                 if (stored) {
                   const arr = JSON.parse(stored);
                   if (Array.isArray(arr)) localCount = arr.length;
