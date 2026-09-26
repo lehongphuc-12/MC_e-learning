@@ -187,6 +187,17 @@ export const Header: React.FC<HeaderProps> = ({
                 >
                   Khóa học
                 </button>
+                <button
+                  id="nav-forum-btn"
+                  onClick={() => onNavigate('forum')}
+                  className={`px-3.5 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
+                    currentScreen === 'forum'
+                      ? 'text-blue-600 bg-blue-50/70 font-semibold'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  }`}
+                >
+                  Diễn đàn
+                </button>
                 {user?.role === 'admin' && (
                   <button
                     id="nav-admin-btn"
@@ -485,6 +496,18 @@ export const Header: React.FC<HeaderProps> = ({
             >
               <span>📚</span>
               <span>Khóa học</span>
+            </button>
+            <button
+              onClick={() => {
+                onNavigate('forum');
+                setIsMobileMenuOpen(false);
+              }}
+              className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-semibold flex items-center gap-2.5 ${
+                currentScreen === 'forum' ? 'bg-blue-50 text-blue-600' : 'text-slate-700'
+              }`}
+            >
+              <span>💬</span>
+              <span>Diễn đàn</span>
             </button>
             {user?.role === 'student' && (
               <button
