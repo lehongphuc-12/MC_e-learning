@@ -25,36 +25,79 @@ export const adminApi = {
   // Stats
   async getDashboardStats(): Promise<AdminStats> {
     try {
-      const res = await request<{ success: boolean; data: AdminStats }>('/admin/stats');
-      if (res.success && res.data) return res.data;
-    } catch (_) {
-      // Fallback
-    }
-    return initialAdminStats;
+      const res = await request<{ success: boolean; data: any }>('/admin/stats');
+      if (res && res.success && res.data) {
+        return {
+          totalRevenue: Number(res.data.totalRevenue) || 0,
+          revenueGrowth: Number(res.data.revenueGrowth) || 0,
+          totalUsers: Number(res.data.totalUsers) || 0,
+          usersGrowth: Number(res.data.usersGrowth) || 0,
+          activeStudents: Number(res.data.activeStudents) || 0,
+          totalInstructors: Number(res.data.totalInstructors) || 0,
+          totalCourses: Number(res.data.totalCourses) || 0,
+          coursesGrowth: Number(res.data.coursesGrowth) || 0,
+          pendingCourseApprovals: Number(res.data.pendingCourseApprovals) || 0,
+          pendingPayoutsCount: Number(res.data.pendingPayoutsCount) || 0,
+          pendingPayoutsAmount: Number(res.data.pendingPayoutsAmount) || 0,
+        };
+      }
+    } catch (_) {}
+    return {
+      totalRevenue: 0,
+      revenueGrowth: 0,
+      totalUsers: 0,
+      usersGrowth: 0,
+      activeStudents: 0,
+      totalInstructors: 0,
+      totalCourses: 0,
+      coursesGrowth: 0,
+      pendingCourseApprovals: 0,
+      pendingPayoutsCount: 0,
+      pendingPayoutsAmount: 0,
+    };
   },
 
   async getRevenueChart() {
     try {
       const res = await request<{ success: boolean; data: any }>('/admin/stats/revenue-chart');
-      if (res.success && res.data) return res.data;
-    } catch (_) {
-      // Fallback
-    }
-    return mockRevenueChartData;
+      if (res && res.success && Array.isArray(res.data)) return res.data;
+    } catch (_) {}
+    return [];
   },
 
   // Users
   async getUsers(): Promise<AdminUser[]> {
     try {
       const res = await request<{ success: boolean; data: any }>('/admin/users');
-      if (res.success && res.data) {
-        if (Array.isArray(res.data)) return res.data;
-        if (Array.isArray(res.data.data)) return res.data.data;
+      if (res && res.success) {
+        const rawData = res.data;
+        const rawList: any[] = Array.isArray(rawData)
+          ? rawData
+          : Array.isArray(rawData?.data)
+          ? rawData.data
+          : Array.isArray(rawData?.users)
+          ? rawData.users
+          : [];
+
+        return rawList.map((u: any) => ({
+          id: String(u.userId || u.id || ''),
+          name: u.fullName || u.name || 'Người dùng',
+          email: u.email || '',
+          role: (String(u.role).toLowerCase() === 'admin' ? 'admin' : String(u.role).toLowerCase() === 'instructor' ? 'instructor' : 'student') as UserRole,
+          status: (String(u.status).toLowerCase() === 'inactive' || String(u.status).toLowerCase() === 'locked') ? 'locked' : 'active',
+          avatar: u.avatar || u.avatarUrl,
+          joinedDate: u.joinedDate || u.createdAt?.split('T')[0] || new Date().toISOString().split('T')[0],
+          coursesEnrolled: Number(u.coursesEnrolled) || 0,
+          coursesCreated: Number(u.coursesCreated) || 0,
+          totalSpent: Number(u.totalSpent) || 0,
+          earnings: Number(u.earnings) || 0,
+          lastActive: u.lastActive || 'Chưa có',
+        }));
       }
-    } catch (_) {
-      // Fallback
+    } catch (err) {
+      console.error('Lỗi tải danh sách người dùng:', err);
     }
-    return initialAdminUsers;
+    return [];
   },
 
   async updateUserStatus(userId: string, targetStatus: 'ACTIVE' | 'INACTIVE'): Promise<boolean> {
@@ -99,14 +142,16 @@ export const adminApi = {
   async getCourses(): Promise<AdminCourse[]> {
     try {
       const res = await request<{ success: boolean; data: any }>('/admin/courses');
-      const rawData = res?.data;
-      const rawList: any[] = Array.isArray(rawData)
-        ? rawData
-        : Array.isArray(rawData?.data)
-        ? rawData.data
-        : [];
+      if (res && res.success) {
+        const rawData = res.data;
+        const rawList: any[] = Array.isArray(rawData)
+          ? rawData
+          : Array.isArray(rawData?.data)
+          ? rawData.data
+          : Array.isArray(rawData?.items)
+          ? rawData.items
+          : [];
 
-      if (rawList.length > 0) {
         return rawList.map((c: any) => {
           let moderationStatus: CourseModerationStatus = 'draft';
           const st = String(c.status || '').toUpperCase();
@@ -135,10 +180,10 @@ export const adminApi = {
           };
         });
       }
-    } catch (_) {
-      // Fallback
+    } catch (err) {
+      console.error('Lỗi tải danh sách khóa học Admin:', err);
     }
-    return initialAdminCourses;
+    return [];
   },
 
   async updateCourseStatus(courseId: string, status: CourseModerationStatus, reason?: string): Promise<boolean> {
@@ -199,36 +244,136 @@ export const adminApi = {
   async getCategories(): Promise<AdminCategory[]> {
     try {
       const res = await request<{ success: boolean; data: any }>('/admin/categories');
-      if (res.success && res.data) {
-        if (Array.isArray(res.data)) return res.data;
-        if (Array.isArray(res.data.data)) return res.data.data;
+      if (res && res.success) {
+        const rawData = res.data;
+        const rawList: any[] = Array.isArray(rawData)
+          ? rawData
+          : Array.isArray(rawData?.data)
+          ? rawData.data
+          : [];
+
+        return rawList.map((cat: any) => {
+          const nameStr = cat.categoryName || cat.name || '';
+          const statusStr = String(cat.status || 'ACTIVE').toUpperCase();
+
+          return {
+            id: String(cat.categoryId || cat.id || Date.now()),
+            name: nameStr,
+            slug: cat.slug || nameStr.toLowerCase().replace(/\s+/g, '-'),
+            iconName: cat.iconName || 'Mic',
+            coursesCount: Number(cat.coursesCount) || 0,
+            description: cat.description || '',
+            status: statusStr === 'INACTIVE' ? 'inactive' : 'active',
+          };
+        });
       }
-    } catch (_) {
-      // Fallback
+    } catch (err) {
+      console.error('Lỗi tải danh mục từ Backend:', err);
     }
-    return initialAdminCategories;
+    return [];
   },
+
+  async createCategory(data: Partial<AdminCategory>): Promise<AdminCategory | null> {
+    try {
+      const res = await request<{ success: boolean; data: any }>('/admin/categories', {
+        method: 'POST',
+        body: JSON.stringify({
+          categoryName: data.name,
+          description: data.description || '',
+          status: data.status === 'inactive' ? 'INACTIVE' : 'ACTIVE',
+        }),
+      });
+
+      if (res.success && res.data) {
+        const cat = res.data;
+        const nameStr = cat.categoryName || data.name || '';
+        return {
+          id: String(cat.categoryId),
+          name: nameStr,
+          slug: cat.slug || nameStr.toLowerCase().replace(/\s+/g, '-'),
+          iconName: data.iconName || 'Code',
+          coursesCount: Number(cat.coursesCount) || 0,
+          description: cat.description || '',
+          status: String(cat.status).toUpperCase() === 'INACTIVE' ? 'inactive' : 'active',
+        };
+      }
+    } catch (err) {
+      console.error('Lỗi tạo danh mục:', err);
+    }
+    return null;
+  },
+
+  async updateCategory(id: string | number, data: Partial<AdminCategory>): Promise<AdminCategory | null> {
+    try {
+      const res = await request<{ success: boolean; data: any }>(`/admin/categories/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          categoryName: data.name,
+          description: data.description || '',
+          status: data.status === 'inactive' ? 'INACTIVE' : 'ACTIVE',
+        }),
+      });
+
+      if (res.success && res.data) {
+        const cat = res.data;
+        const nameStr = cat.categoryName || data.name || '';
+        return {
+          id: String(cat.categoryId),
+          name: nameStr,
+          slug: cat.slug || nameStr.toLowerCase().replace(/\s+/g, '-'),
+          iconName: data.iconName || 'Code',
+          coursesCount: Number(cat.coursesCount) || 0,
+          description: cat.description || '',
+          status: String(cat.status).toUpperCase() === 'INACTIVE' ? 'inactive' : 'active',
+        };
+      }
+    } catch (err) {
+      console.error('Lỗi cập nhật danh mục:', err);
+    }
+    return null;
+  },
+
+  async deleteCategory(id: string | number): Promise<boolean> {
+    try {
+      const res = await request<{ success: boolean }>(`/admin/categories/${id}`, {
+        method: 'DELETE',
+      });
+      return res.success;
+    } catch (err) {
+      console.error('Lỗi xóa danh mục:', err);
+      return false;
+    }
+  },
+
+  async toggleCategoryStatus(id: string | number): Promise<boolean> {
+    try {
+      const res = await request<{ success: boolean }>(`/admin/categories/${id}/status`, {
+        method: 'PUT',
+      });
+      return res.success;
+    } catch (err) {
+      console.error('Lỗi đổi trạng thái danh mục:', err);
+      return false;
+    }
+  },
+
 
   // Payouts
   async getPayoutRequests(): Promise<PayoutRequest[]> {
     try {
       const res = await request<{ success: boolean; data: PayoutRequest[] }>('/admin/payouts');
-      if (res.success && res.data) return res.data;
-    } catch (_) {
-      // Fallback
-    }
-    return initialPayoutRequests;
+      if (res && res.success && Array.isArray(res.data)) return res.data;
+    } catch (_) {}
+    return [];
   },
 
   // System Logs & Settings
   async getSystemLogs(): Promise<SystemLog[]> {
     try {
       const res = await request<{ success: boolean; data: SystemLog[] }>('/admin/logs');
-      if (res.success && res.data) return res.data;
-    } catch (_) {
-      // Fallback
-    }
-    return initialSystemLogs;
+      if (res && res.success && Array.isArray(res.data)) return res.data;
+    } catch (_) {}
+    return [];
   },
 
   async getPlatformSettings(): Promise<PlatformSettings> {

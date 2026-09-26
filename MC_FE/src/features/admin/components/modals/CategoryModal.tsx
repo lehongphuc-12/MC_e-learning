@@ -17,17 +17,20 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
 }) => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [iconName, setIconName] = useState('Code');
+  const [iconName, setIconName] = useState('Mic');
+  const [status, setStatus] = useState<'active' | 'inactive'>('active');
 
   useEffect(() => {
     if (category) {
       setName(category.name);
       setDescription(category.description);
-      setIconName(category.iconName);
+      setIconName(category.iconName || 'Mic');
+      setStatus(category.status || 'active');
     } else {
       setName('');
       setDescription('');
-      setIconName('Code');
+      setIconName('Mic');
+      setStatus('active');
     }
   }, [category, isOpen]);
 
@@ -43,7 +46,7 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
       slug: name.trim().toLowerCase().replace(/\s+/g, '-'),
       description: description.trim(),
       iconName,
-      status: 'active',
+      status,
     });
     onClose();
   };
@@ -80,7 +83,7 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Ví dụ: Điện Toán Đám Mây"
+                placeholder="Ví dụ: Dẫn Chương Trình Sự Kiện & Gala"
                 className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-9 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-hidden focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
               />
             </div>
@@ -95,13 +98,29 @@ export const CategoryModal: React.FC<CategoryModalProps> = ({
               onChange={(e) => setIconName(e.target.value)}
               className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-hidden focus:border-purple-500 cursor-pointer"
             >
-              <option value="Code">Code (Lập trình)</option>
-              <option value="Palette">Palette (Thiết kế)</option>
-              <option value="Cpu">Cpu (AI / Công nghệ)</option>
-              <option value="Database">Database (Dữ liệu)</option>
-              <option value="TrendingUp">TrendingUp (Marketing)</option>
-              <option value="Globe">Globe (Ngoại ngữ)</option>
-              <option value="Briefcase">Briefcase (Kinh doanh)</option>
+              <option value="Mic">Mic (Dẫn MC / Sự kiện)</option>
+              <option value="Volume2">Volume (Luyện giọng & Phát âm)</option>
+              <option value="Sparkles">Sparkles (Thần thái sân khấu)</option>
+              <option value="FileText">FileText (Biên tập kịch bản)</option>
+              <option value="Zap">Zap (Ứng biến sân khấu)</option>
+              <option value="Award">Award (MC Chuyên nghiệp)</option>
+              <option value="Users">Users (Giao tiếp khán giả)</option>
+              <option value="Heart">Heart (MC Tiệc cưới & Gia đình)</option>
+              <option value="Radio">Radio (Truyền hình & Phát thanh)</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+              Trạng thái
+            </label>
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value as 'active' | 'inactive')}
+              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-hidden focus:border-purple-500 cursor-pointer"
+            >
+              <option value="active">Hoạt động (Active)</option>
+              <option value="inactive">Ngưng hoạt động (Inactive)</option>
             </select>
           </div>
 

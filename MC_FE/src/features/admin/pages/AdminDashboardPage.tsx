@@ -116,10 +116,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
             break;
 
           case 'categories':
-            if (categories.length === 0) {
-              const categoriesRes = await adminApi.getCategories();
-              setCategories(categoriesRes);
-            }
+            await refreshCategoriesData();
             break;
 
           case 'financials':
@@ -287,6 +284,15 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     );
   };
 
+  const refreshCategoriesData = async () => {
+    try {
+      const categoriesRes = await adminApi.getCategories();
+      setCategories(categoriesRes);
+    } catch (err) {
+      console.error('Lỗi tự động tải danh mục:', err);
+    }
+  };
+
   // --- Handlers for Categories ---
   const handleAddCategory = () => {
     setSelectedCategory(null);
@@ -298,26 +304,46 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     setCategoryModalOpen(true);
   };
 
-  const handleSaveCategory = (catData: Partial<AdminCategory>) => {
+  const handleSaveCategory = async (catData: Partial<AdminCategory>) => {
     if (catData.id) {
-      setCategories((prev) =>
-        prev.map((c) => (c.id === catData.id ? { ...c, ...catData } : c))
-      );
-      onToast?.('Đã cập nhật', `Đã sửa danh mục ${catData.name}`, 'success');
+      const res = await adminApi.updateCategory(catData.id, catData);
+      if (res) {
+        onToast?.('Đã cập nhật', `Đã sửa danh mục ${res.name}`, 'success');
+      } else {
+        onToast?.('Lỗi', 'Không thể cập nhật danh mục.', 'error');
+      }
     } else {
-      const newCat: AdminCategory = {
-        id: `cat-${Date.now()}`,
-        name: catData.name || 'Danh mục mới',
-        slug: catData.slug || 'danh-muc-moi',
-        iconName: catData.iconName || 'Code',
-        coursesCount: 0,
-        description: catData.description || '',
-        status: 'active',
-      };
-      setCategories((prev) => [...prev, newCat]);
-      onToast?.('Đã thêm danh mục', `Đã tạo danh mục ${newCat.name}`, 'success');
+      const res = await adminApi.createCategory(catData);
+      if (res) {
+        onToast?.('Đã thêm danh mục', `Đã tạo danh mục ${res.name}`, 'success');
+      } else {
+        onToast?.('Lỗi', 'Không thể tạo danh mục.', 'error');
+      }
+    }
+    await refreshCategoriesData();
+  };
+
+  const handleToggleCategoryStatus = async (categoryId: string) => {
+    const ok = await adminApi.toggleCategoryStatus(categoryId);
+    if (ok) {
+      onToast?.('Thành công', 'Đã cập nhật trạng thái danh mục.', 'success');
+      await refreshCategoriesData();
+    } else {
+      onToast?.('Lỗi', 'Không thể thay đổi trạng thái danh mục.', 'error');
     }
   };
+
+  const handleDeleteCategory = async (categoryId: string) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa hoặc ngưng hoạt động danh mục này?')) return;
+    const ok = await adminApi.deleteCategory(categoryId);
+    if (ok) {
+      onToast?.('Thành công', 'Đã xử lý ngưng hoạt động/xóa danh mục.', 'success');
+      await refreshCategoriesData();
+    } else {
+      onToast?.('Lỗi', 'Không thể xóa danh mục.', 'error');
+    }
+  };
+
 
   // --- Handlers for Financial Payouts ---
   const handleApprovePayout = (payoutId: string) => {
@@ -396,6 +422,10 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
           categories={categories}
           onAddCategory={handleAddCategory}
           onEditCategory={handleEditCategory}
+          onToggleStatus={handleToggleCategoryStatus}
+          onDeleteCategory={handleDeleteCategory}
+          onRefresh={refreshCategoriesData}
+          isLoading={tabLoading}
         />
       )}
 
