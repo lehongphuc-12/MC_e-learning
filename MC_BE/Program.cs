@@ -92,6 +92,9 @@ builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserProfileService, UserProfileService>();
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IAdminStatsService, AdminStatsService>();
+builder.Services.AddScoped<IAdminService, AdminService>();
 
 // ============================================================
 // COURSE MANAGEMENT
