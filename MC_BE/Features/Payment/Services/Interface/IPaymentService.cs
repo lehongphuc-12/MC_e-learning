@@ -1,6 +1,5 @@
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
 using MC_BE.Core.DTOs;
+using PayOS.Models.Webhooks;
 
 namespace MC_BE.Shared.Services.Interfaces;
 
@@ -12,8 +11,8 @@ public interface IPaymentService
         string ipAddress
     );
 
-    Task<ApiResponse<PaymentDetailsDto>> ProcessVnPayResultAsync(
-        IQueryCollection query
+    Task<bool> ProcessPayOsWebhookAsync(
+        Webhook webhook
     );
 
     Task<ApiResponse<PaymentDetailsDto>> GetMyPaymentAsync(
@@ -21,7 +20,6 @@ public interface IPaymentService
         int paymentId
     );
 
-    // MỚI: Lịch sử mua khóa học của learner
     Task<ApiResponse<PagedResult<PaymentDetailsDto>>> GetMyPaymentHistoryAsync(
         int currentUserId,
         PaymentFilterRequest filter

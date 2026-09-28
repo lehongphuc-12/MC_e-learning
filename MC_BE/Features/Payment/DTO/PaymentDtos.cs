@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-
 namespace MC_BE.Core.DTOs;
 
 public class PagedResult<T>
@@ -73,14 +70,10 @@ public class PaymentDetailsDto
 
     public decimal Amount { get; set; }
     public string Currency { get; set; } = "VND";
-    public string PaymentMethod { get; set; } = "VNPAY";
+    public string PaymentMethod { get; set; } = "PAYOS";
     public string PaymentStatus { get; set; } = string.Empty;
 
     public string MerchantTxnRef { get; set; } = string.Empty;
-
-    public string? VnPayTransactionNo { get; set; }
-    public string? VnPayResponseCode { get; set; }
-    public string? VnPayTransactionStatus { get; set; }
 
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
@@ -96,19 +89,7 @@ public class VerifyPaymentResultDto
     public string? TransactionStatus { get; set; }
     public List<string> Issues { get; set; } = new();
     public PaymentDetailsDto? Payment { get; set; }
-    public VnPayQueryResultDto? VnPay { get; set; }
-}
-
-public class VnPayQueryResultDto
-{
-    public bool RequestSucceeded { get; set; }
-    public string? ResponseCode { get; set; }
-    public string? Message { get; set; }
-    public string? TransactionStatus { get; set; }
-    public string? TransactionNo { get; set; }
-    public string? BankCode { get; set; }
-    public decimal? Amount { get; set; }
-    public string? RawResponse { get; set; }
+    public PayOsQueryResultDto? PayOs { get; set; }
 }
 
 public class CoursePaymentDto

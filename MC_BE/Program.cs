@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -59,8 +59,7 @@ builder.Services.AddDbContext<SmartMcDbContext>(options =>
 
 builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection("Cloudinary"));
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
-builder.Services.Configure<VnPaySettings>(builder.Configuration.GetSection("VnPay"));
-
+builder.Services.Configure<PayOsSettings>(builder.Configuration.GetSection("PayOS"));
 // ============================================================
 // CORS
 // ============================================================
@@ -134,7 +133,7 @@ builder.Services.AddScoped<ICourseCatalogService, CourseCatalogService>();
 builder.Services.AddScoped<IEnrollmentService, EnrollmentService>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddScoped<IAdminPaymentService, AdminPaymentService>();
-builder.Services.AddHttpClient<IVnPayService, VnPayService>();
+builder.Services.AddScoped<IPayOsService, PayOsService>();
 builder.Services.AddHostedService<EnrollmentExpirationWorker>();
 
 // ============================================================
