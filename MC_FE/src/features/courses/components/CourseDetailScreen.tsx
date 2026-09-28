@@ -47,12 +47,55 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
   isEnrolled: isEnrolledProp,
 }) => {
   const navigate = useNavigate();
-  const courseId = initialCourse?.id || mockCourses[0].id;
-  const courseQuery = useCourseDetailQuery(courseId);
-  const course = courseQuery.data || initialCourse || mockCourses[0];
+
+  // ============================================================
+  // COURSE ID
+  // Chỉ sử dụng CourseID thật từ backend.
+  // Không dùng ID của mock course để gọi API.
+  // ============================================================
+
+  const rawCourseId = initialCourse?.id;
+
+  const parsedCourseId =
+    rawCourseId !== undefined &&
+    rawCourseId !== null &&
+    rawCourseId !== ''
+      ? Number(rawCourseId)
+      : null;
+
+  const validCourseId =
+    parsedCourseId !== null &&
+    Number.isInteger(parsedCourseId) &&
+    parsedCourseId > 0
+      ? String(parsedCourseId)
+      : null;
+
+  // Chỉ query backend khi có CourseID hợp lệ.
+  // Nhờ vậy sẽ không bao giờ gọi:
+  // GET /api/courses/NaN
+  const courseQuery = useCourseDetailQuery(validCourseId);
+
+  // Ưu tiên:
+  // 1. Course mới nhất từ backend
+  // 2. Course được truyền vào màn hình
+  // 3. Mock chỉ dùng để giữ UI không crash
+  //
+  // QUAN TRỌNG:
+  // mock course KHÔNG được dùng làm ID gọi backend.
+  const course =
+    courseQuery.data ||
+    initialCourse ||
+    mockCourses[0];
 
   const { data: learnedCourses } = useLearnedCoursesQuery();
-  const isEnrolled = isEnrolledProp ?? learnedCourses?.some((item) => String(item.course.id) === String(course.id));
+
+  const isEnrolled =
+    isEnrolledProp ??
+    learnedCourses?.some(
+      (item) =>
+        String(item.course.id) ===
+        String(course.id)
+    );
 
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     'sec-1': true,

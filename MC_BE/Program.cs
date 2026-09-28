@@ -8,6 +8,9 @@ using MC_BE.Core.Entities;
 using MC_BE.Features.Admin.Services;
 using MC_BE.Features.Admin.Services.Interfaces;
 
+using MC_BE.Features.Forum.Services;
+using MC_BE.Features.Forum.Services.Interfaces;
+
 using MC_BE.Features.Auth.Services;
 using MC_BE.Features.Auth.Services.Interfaces;
 
@@ -109,6 +112,14 @@ builder.Services.AddScoped<ILessonService, LessonService>();
 // ============================================================
 
 builder.Services.AddScoped<IQuizService, QuizService>();
+
+// ============================================================
+// FORUM
+// ============================================================
+builder.Services.AddScoped<IForumPostService, ForumPostService>();
+builder.Services.AddScoped<IForumCommentService, ForumCommentService>();
+builder.Services.AddScoped<IForumInteractionService, ForumInteractionService>();
+builder.Services.AddScoped<IAdminForumService, AdminForumService>();
 
 // ============================================================
 // LEARNING / CERTIFICATION
