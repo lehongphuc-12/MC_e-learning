@@ -680,7 +680,7 @@ public class SmartMcDbContext : DbContext
                 .HasDefaultValue("VND");
 
             entity.Property(e => e.PaymentMethod)
-                .HasDefaultValue("VNPAY");
+    .HasDefaultValue("PAYOS");
 
             entity.Property(e => e.Status)
                 .HasDefaultValue("PENDING");
@@ -725,7 +725,7 @@ public class SmartMcDbContext : DbContext
 
             entity.Property(e => e.Provider)
                 .HasColumnName("Provider")
-                .HasDefaultValue("VNPAY");
+                .HasDefaultValue("PAYOS");
 
             entity.Property(e => e.ProviderTransactionNo)
                 .HasColumnName("ProviderTransactionNo");

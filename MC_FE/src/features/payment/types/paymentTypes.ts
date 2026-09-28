@@ -32,7 +32,7 @@ export interface EnrollmentDto {
 }
 
 // ============================================================
-// CREATE PAYMENT
+// CREATE PAYMENT - PAYOS
 // ============================================================
 
 export interface CreatePaymentResponseDto {
@@ -84,14 +84,9 @@ export interface PaymentDetailsDto {
   amount: number;
   currency: string;
   paymentMethod: string;
-
   paymentStatus: string;
 
   merchantTxnRef: string;
-
-  vnPayTransactionNo?: string | null;
-  vnPayResponseCode?: string | null;
-  vnPayTransactionStatus?: string | null;
 
   createdAt: string;
   updatedAt: string;
@@ -102,25 +97,25 @@ export interface PaymentDetailsDto {
 }
 
 // ============================================================
-// VNPAY QUERY
+// PAYOS QUERY
 // ============================================================
 
-export interface VnPayQueryResultDto {
+export interface PayOsQueryResultDto {
   requestSucceeded: boolean;
 
-  responseCode?: string | null;
+  orderCode: number;
 
-  message?: string | null;
+  amount: number;
+  amountPaid: number;
+  amountRemaining: number;
 
-  transactionStatus?: string | null;
+  status: string;
 
-  transactionNo?: string | null;
+  paymentLinkId?: string | null;
+  reference?: string | null;
+  cancellationReason?: string | null;
 
-  bankCode?: string | null;
-
-  amount?: number | null;
-
-  rawResponse?: string | null;
+  message: string;
 }
 
 // ============================================================
@@ -140,7 +135,7 @@ export interface VerifyPaymentResultDto {
 
   payment?: PaymentDetailsDto | null;
 
-  vnPay?: VnPayQueryResultDto | null;
+  payOs?: PayOsQueryResultDto | null;
 }
 
 // ============================================================

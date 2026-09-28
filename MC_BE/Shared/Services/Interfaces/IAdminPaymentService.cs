@@ -1,4 +1,3 @@
-using System.Threading.Tasks;
 using MC_BE.Core.DTOs;
 
 namespace MC_BE.Shared.Services.Interfaces;
@@ -17,13 +16,11 @@ public interface IAdminPaymentService
 
     Task<ApiResponse<VerifyPaymentResultDto>> VerifyPaymentAsync(
         int currentUserId,
-        int paymentId,
-        string ipAddress
+        int paymentId
     );
 
-    Task<ApiResponse<VnPayQueryResultDto>> RetrieveVnPayInformationAsync(
+    Task<ApiResponse<PayOsQueryResultDto>> RetrievePayOsInformationAsync(
         int currentUserId,
-        int paymentId,
-        string ipAddress
+        int paymentId
     );
 }

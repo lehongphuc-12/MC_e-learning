@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -37,7 +35,7 @@ public class Payment
     [Required]
     [MaxLength(30)]
     [Column("PaymentMethod")]
-    public string PaymentMethod { get; set; } = "VNPAY";
+    public string PaymentMethod { get; set; } = "PAYOS";
 
     [Required]
     [MaxLength(30)]
@@ -53,18 +51,6 @@ public class Payment
     [Column("OrderInfo")]
     public string? OrderInfo { get; set; }
 
-    [MaxLength(100)]
-    [Column("VnPayTransactionNo")]
-    public string? VnPayTransactionNo { get; set; }
-
-    [MaxLength(20)]
-    [Column("VnPayResponseCode")]
-    public string? VnPayResponseCode { get; set; }
-
-    [MaxLength(20)]
-    [Column("VnPayTransactionStatus")]
-    public string? VnPayTransactionStatus { get; set; }
-
     [Column("CreatedAt")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
@@ -74,7 +60,6 @@ public class Payment
     [Column("ExpiresAt")]
     public DateTime ExpiresAt { get; set; }
 
-    // Navigation properties
     [ForeignKey(nameof(LearnerId))]
     public virtual User Learner { get; set; } = null!;
 

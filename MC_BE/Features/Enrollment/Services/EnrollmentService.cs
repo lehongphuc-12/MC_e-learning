@@ -15,22 +15,70 @@ public class EnrollmentService : IEnrollmentService
     private readonly SmartMcDbContext _context;
     private readonly ICourseCatalogService _courseCatalog;
 
-    public EnrollmentService(SmartMcDbContext context, ICourseCatalogService courseCatalog)
+    public EnrollmentService(
+        SmartMcDbContext context,
+        ICourseCatalogService courseCatalog)
     {
         _context = context;
         _courseCatalog = courseCatalog;
     }
 
-    public async Task<ApiResponse<EnrollmentDto>> EnrollCourseAsync(int learnerId, int courseId)
+    public async Task<ApiResponse<EnrollmentDto>> EnrollCourseAsync(
+        int learnerId,
+        int courseId)
     {
-        var course = await _courseCatalog.GetCourseByIdAsync(courseId);
-        if (course == null || course.Status != "PUBLISHED")
+        // ============================================================
+        // 1. VALIDATE COURSE ID
+        // ============================================================
+
+        if (courseId <= 0)
         {
-            return ApiResponse<EnrollmentDto>.FailureResponse("Khóa học không tồn tại hoặc chưa mở đăng ký.");
+            return ApiResponse<EnrollmentDto>.FailureResponse(
+                "CourseID không hợp lệ."
+            );
         }
 
+        // Kiểm tra trực tiếp DB để tránh lỗi foreign key khi INSERT.
+        var courseExistsInDatabase = await _context.Courses
+            .AsNoTracking()
+            .AnyAsync(c => c.CourseId == courseId);
+
+        if (!courseExistsInDatabase)
+        {
+            return ApiResponse<EnrollmentDto>.FailureResponse(
+                $"Không tìm thấy khóa học có CourseID = {courseId} trong hệ thống."
+            );
+        }
+
+        // Lấy thông tin khóa học thông qua catalog như logic cũ.
+        var course = await _courseCatalog.GetCourseByIdAsync(courseId);
+
+        if (course == null)
+        {
+            return ApiResponse<EnrollmentDto>.FailureResponse(
+                $"Không tìm thấy khóa học có CourseID = {courseId}."
+            );
+        }
+
+        if (!string.Equals(
+            course.Status,
+            "PUBLISHED",
+            StringComparison.OrdinalIgnoreCase))
+        {
+            return ApiResponse<EnrollmentDto>.FailureResponse(
+                "Khóa học chưa mở đăng ký."
+            );
+        }
+
+        // ============================================================
+        // 2. KIỂM TRA ENROLLMENT GẦN NHẤT
+        // ============================================================
+
         var latestEnrollment = await _context.Enrollments
-            .Where(e => e.LearnerId == learnerId && e.CourseId == courseId)
+            .Where(e =>
+                e.LearnerId == learnerId &&
+                e.CourseId == courseId
+            )
             .OrderByDescending(e => e.EnrollmentId)
             .FirstOrDefaultAsync();
 
@@ -40,25 +88,37 @@ public class EnrollmentService : IEnrollmentService
         {
             if (latestEnrollment.Status == "ACTIVE")
             {
-                if (latestEnrollment.ExpiresAt.HasValue && now > latestEnrollment.ExpiresAt.Value)
+                if (
+                    latestEnrollment.ExpiresAt.HasValue &&
+                    now > latestEnrollment.ExpiresAt.Value
+                )
                 {
                     latestEnrollment.Status = "EXPIRED";
                     latestEnrollment.UpdatedAt = now;
+
                     _context.Enrollments.Update(latestEnrollment);
+
                     await _context.SaveChangesAsync();
                 }
                 else
                 {
-                    var daysRemaining = latestEnrollment.ExpiresAt.HasValue 
-                        ? (int)Math.Max(0, (latestEnrollment.ExpiresAt.Value - now).TotalDays) 
-                        : 0;
+                    var daysRemaining =
+                        latestEnrollment.ExpiresAt.HasValue
+                            ? (int)Math.Max(
+                                0,
+                                (latestEnrollment.ExpiresAt.Value - now)
+                                    .TotalDays
+                            )
+                            : 0;
 
                     return ApiResponse<EnrollmentDto>.FailureResponse(
                         $"Bạn đã đăng ký khóa học này rồi. Hạn học còn {daysRemaining} ngày (đến {latestEnrollment.ExpiresAt:dd/MM/yyyy})."
                     );
                 }
             }
-            else if (latestEnrollment.Status == "PENDING_PAYMENT")
+            else if (
+                latestEnrollment.Status == "PENDING_PAYMENT"
+            )
             {
                 return ApiResponse<EnrollmentDto>.SuccessResponse(
                     MapToDto(latestEnrollment),
@@ -67,30 +127,55 @@ public class EnrollmentService : IEnrollmentService
             }
         }
 
+        // ============================================================
+        // 3. TẠO ENROLLMENT
+        // ============================================================
+
         var isFreeCourse = course.Price <= 0;
+
         var newEnrollment = new Enrollment
         {
             LearnerId = learnerId,
             CourseId = courseId,
-            Status = isFreeCourse ? "ACTIVE" : "PENDING_PAYMENT",
+
+            Status = isFreeCourse
+                ? "ACTIVE"
+                : "PENDING_PAYMENT",
+
             CompletionPercentage = 0,
-            EnrolledAt = isFreeCourse ? now : null,
-            ExpiresAt = isFreeCourse ? now.AddDays(90) : null,
+
+            EnrolledAt = isFreeCourse
+                ? now
+                : null,
+
+            ExpiresAt = isFreeCourse
+                ? now.AddDays(90)
+                : null,
+
             CreatedAt = now,
             UpdatedAt = now
         };
 
         await _context.Enrollments.AddAsync(newEnrollment);
+
         await _context.SaveChangesAsync();
 
-        var message = isFreeCourse 
-            ? "Đăng ký khóa học thành công! Bạn có thể bắt đầu học ngay." 
+        // ============================================================
+        // 4. RESPONSE
+        // ============================================================
+
+        var message = isFreeCourse
+            ? "Đăng ký khóa học thành công! Bạn có thể bắt đầu học ngay."
             : "Đăng ký khóa học thành công. Vui lòng thanh toán để kích hoạt.";
 
-        return ApiResponse<EnrollmentDto>.SuccessResponse(MapToDto(newEnrollment), message);
+        return ApiResponse<EnrollmentDto>.SuccessResponse(
+            MapToDto(newEnrollment),
+            message
+        );
     }
 
-    public async Task<ApiResponse<List<EnrollmentDto>>> GetMyEnrollmentsAsync(int learnerId)
+    public async Task<ApiResponse<List<EnrollmentDto>>> GetMyEnrollmentsAsync(
+        int learnerId)
     {
         var enrollments = await _context.Enrollments
             .Where(e => e.LearnerId == learnerId)
@@ -100,11 +185,19 @@ public class EnrollmentService : IEnrollmentService
         var now = DateTime.UtcNow;
         var hasChanges = false;
 
-        foreach (var item in enrollments.Where(e => e.Status == "ACTIVE" && e.ExpiresAt.HasValue && now > e.ExpiresAt.Value))
+        foreach (
+            var item in enrollments.Where(e =>
+                e.Status == "ACTIVE" &&
+                e.ExpiresAt.HasValue &&
+                now > e.ExpiresAt.Value
+            )
+        )
         {
             item.Status = "EXPIRED";
             item.UpdatedAt = now;
+
             _context.Enrollments.Update(item);
+
             hasChanges = true;
         }
 
@@ -113,122 +206,196 @@ public class EnrollmentService : IEnrollmentService
             await _context.SaveChangesAsync();
         }
 
-        var result = enrollments.Select(MapToDto).ToList();
-        return ApiResponse<List<EnrollmentDto>>.SuccessResponse(result);
+        var result = enrollments
+            .Select(MapToDto)
+            .ToList();
+
+        return ApiResponse<List<EnrollmentDto>>.SuccessResponse(
+            result
+        );
     }
 
-    public async Task<ApiResponse<bool>> CancelPendingEnrollmentAsync(int learnerId, int enrollmentId)
+    public async Task<ApiResponse<bool>> CancelPendingEnrollmentAsync(
+        int learnerId,
+        int enrollmentId)
     {
         var enrollment = await _context.Enrollments
-            .FirstOrDefaultAsync(e => e.EnrollmentId == enrollmentId && e.LearnerId == learnerId);
+            .FirstOrDefaultAsync(e =>
+                e.EnrollmentId == enrollmentId &&
+                e.LearnerId == learnerId
+            );
 
         if (enrollment == null)
         {
-            return ApiResponse<bool>.FailureResponse("Không tìm thấy đơn đăng ký của bạn.");
+            return ApiResponse<bool>.FailureResponse(
+                "Không tìm thấy đơn đăng ký của bạn."
+            );
         }
 
         if (enrollment.Status == "ACTIVE")
         {
-            return ApiResponse<bool>.FailureResponse("Khóa học đã kích hoạt thành công, không thể tự hủy.");
+            return ApiResponse<bool>.FailureResponse(
+                "Khóa học đã kích hoạt thành công, không thể tự hủy."
+            );
         }
 
         if (enrollment.Status == "CANCELLED")
         {
-            return ApiResponse<bool>.FailureResponse("Đơn đăng ký này đã được hủy trước đó.");
+            return ApiResponse<bool>.FailureResponse(
+                "Đơn đăng ký này đã được hủy trước đó."
+            );
         }
 
         if (enrollment.Status != "PENDING_PAYMENT")
         {
-            return ApiResponse<bool>.FailureResponse($"Trạng thái hiện tại ({enrollment.Status}) không hỗ trợ thao tác hủy.");
+            return ApiResponse<bool>.FailureResponse(
+                $"Trạng thái hiện tại ({enrollment.Status}) không hỗ trợ thao tác hủy."
+            );
         }
 
         var now = DateTime.UtcNow;
+
         enrollment.Status = "CANCELLED";
         enrollment.UpdatedAt = now;
+
         _context.Enrollments.Update(enrollment);
 
         var pendingPayment = await _context.Payments
-            .FirstOrDefaultAsync(p => p.EnrollmentId == enrollmentId && p.Status == "PENDING");
+            .FirstOrDefaultAsync(p =>
+                p.EnrollmentId == enrollmentId &&
+                p.Status == "PENDING"
+            );
 
         if (pendingPayment != null)
         {
             pendingPayment.Status = "CANCELLED";
             pendingPayment.UpdatedAt = now;
+
             _context.Payments.Update(pendingPayment);
         }
 
         await _context.SaveChangesAsync();
-        return ApiResponse<bool>.SuccessResponse(true, "Hủy đơn đăng ký chờ thanh toán thành công.");
+
+        return ApiResponse<bool>.SuccessResponse(
+            true,
+            "Hủy đơn đăng ký chờ thanh toán thành công."
+        );
     }
 
-    public async Task<ApiResponse<bool>> RevokeEnrollmentByAdminAsync(int enrollmentId, RevokeEnrollmentRequest request)
+    public async Task<ApiResponse<bool>> RevokeEnrollmentByAdminAsync(
+        int enrollmentId,
+        RevokeEnrollmentRequest request)
     {
         var enrollment = await _context.Enrollments
-            .FirstOrDefaultAsync(e => e.EnrollmentId == enrollmentId);
+            .FirstOrDefaultAsync(e =>
+                e.EnrollmentId == enrollmentId
+            );
 
         if (enrollment == null)
         {
-            return ApiResponse<bool>.FailureResponse("Không tìm thấy thông tin đăng ký khóa học.");
+            return ApiResponse<bool>.FailureResponse(
+                "Không tìm thấy thông tin đăng ký khóa học."
+            );
         }
 
-        if (enrollment.Status == "REVOKED" || enrollment.Status == "REFUNDED")
+        if (
+            enrollment.Status == "REVOKED" ||
+            enrollment.Status == "REFUNDED"
+        )
         {
-            return ApiResponse<bool>.FailureResponse("Khóa học này đã bị thu hồi hoặc hoàn tiền từ trước.");
+            return ApiResponse<bool>.FailureResponse(
+                "Khóa học này đã bị thu hồi hoặc hoàn tiền từ trước."
+            );
         }
 
         var now = DateTime.UtcNow;
-        var targetStatus = request.IsRefunded ? "REFUNDED" : "REVOKED";
+
+        var targetStatus = request.IsRefunded
+            ? "REFUNDED"
+            : "REVOKED";
+
         enrollment.Status = targetStatus;
         enrollment.UpdatedAt = now;
         enrollment.ExpiresAt = now;
+
         _context.Enrollments.Update(enrollment);
 
-        var payment = await _context.Payments.FirstOrDefaultAsync(p => p.EnrollmentId == enrollmentId);
+        var payment = await _context.Payments
+            .FirstOrDefaultAsync(p =>
+                p.EnrollmentId == enrollmentId
+            );
+
         if (payment != null)
         {
             payment.Status = targetStatus;
             payment.UpdatedAt = now;
+
             _context.Payments.Update(payment);
         }
 
         await _context.SaveChangesAsync();
-        return ApiResponse<bool>.SuccessResponse(true, $"Đã thu hồi quyền học thành công ({targetStatus}). Lý do: {request.Reason}");
+
+        return ApiResponse<bool>.SuccessResponse(
+            true,
+            $"Đã thu hồi quyền học thành công ({targetStatus}). Lý do: {request.Reason}"
+        );
     }
 
-    public async Task<bool> HasActiveAccessAsync(int learnerId, int courseId)
+    public async Task<bool> HasActiveAccessAsync(
+        int learnerId,
+        int courseId)
     {
         var enrollment = await _context.Enrollments
-            .Where(e => e.LearnerId == learnerId && e.CourseId == courseId)
+            .Where(e =>
+                e.LearnerId == learnerId &&
+                e.CourseId == courseId
+            )
             .OrderByDescending(e => e.EnrollmentId)
             .FirstOrDefaultAsync();
 
-        if (enrollment == null || enrollment.Status != "ACTIVE")
+        if (
+            enrollment == null ||
+            enrollment.Status != "ACTIVE"
+        )
         {
             return false;
         }
 
-        if (enrollment.ExpiresAt.HasValue && DateTime.UtcNow > enrollment.ExpiresAt.Value)
+        if (
+            enrollment.ExpiresAt.HasValue &&
+            DateTime.UtcNow > enrollment.ExpiresAt.Value
+        )
         {
             enrollment.Status = "EXPIRED";
             enrollment.UpdatedAt = DateTime.UtcNow;
+
             _context.Enrollments.Update(enrollment);
+
             await _context.SaveChangesAsync();
+
             return false;
         }
 
         return true;
     }
 
-    private static EnrollmentDto MapToDto(Enrollment e) => new()
+    private static EnrollmentDto MapToDto(
+        Enrollment enrollment)
     {
-        EnrollmentId = e.EnrollmentId,
-        LearnerId = e.LearnerId,
-        CourseId = e.CourseId,
-        PaymentId = e.PaymentId,
-        Status = e.Status,
-        CompletionPercentage = Convert.ToDecimal(e.CompletionPercentage),
-        EnrolledAt = e.EnrolledAt,
-        ExpiresAt = e.ExpiresAt,
-        CreatedAt = e.CreatedAt
-    };
+        return new EnrollmentDto
+        {
+            EnrollmentId = enrollment.EnrollmentId,
+            LearnerId = enrollment.LearnerId,
+            CourseId = enrollment.CourseId,
+            PaymentId = enrollment.PaymentId,
+            Status = enrollment.Status,
+            CompletionPercentage =
+                Convert.ToDecimal(
+                    enrollment.CompletionPercentage
+                ),
+            EnrolledAt = enrollment.EnrolledAt,
+            ExpiresAt = enrollment.ExpiresAt,
+            CreatedAt = enrollment.CreatedAt
+        };
+    }
 }

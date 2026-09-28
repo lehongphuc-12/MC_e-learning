@@ -8,6 +8,9 @@ using MC_BE.Core.Entities;
 using MC_BE.Features.Admin.Services;
 using MC_BE.Features.Admin.Services.Interfaces;
 
+using MC_BE.Features.Forum.Services;
+using MC_BE.Features.Forum.Services.Interfaces;
+
 using MC_BE.Features.Auth.Services;
 using MC_BE.Features.Auth.Services.Interfaces;
 
@@ -62,8 +65,7 @@ builder.Services.AddDbContext<SmartMcDbContext>(options =>
 
 builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection("Cloudinary"));
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
-builder.Services.Configure<VnPaySettings>(builder.Configuration.GetSection("VnPay"));
-
+builder.Services.Configure<PayOsSettings>(builder.Configuration.GetSection("PayOS"));
 // ============================================================
 // CORS
 // ============================================================
@@ -115,6 +117,14 @@ builder.Services.AddScoped<ILessonService, LessonService>();
 builder.Services.AddScoped<IQuizService, QuizService>();
 
 // ============================================================
+// FORUM
+// ============================================================
+builder.Services.AddScoped<IForumPostService, ForumPostService>();
+builder.Services.AddScoped<IForumCommentService, ForumCommentService>();
+builder.Services.AddScoped<IForumInteractionService, ForumInteractionService>();
+builder.Services.AddScoped<IAdminForumService, AdminForumService>();
+
+// ============================================================
 // LEARNING / CERTIFICATION
 // ============================================================
 builder.Services.AddScoped<ICertificateService, CertificateService>();
@@ -146,7 +156,7 @@ builder.Services.AddScoped<ICourseCatalogService, CourseCatalogService>();
 builder.Services.AddScoped<IEnrollmentService, EnrollmentService>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddScoped<IAdminPaymentService, AdminPaymentService>();
-builder.Services.AddHttpClient<IVnPayService, VnPayService>();
+builder.Services.AddScoped<IPayOsService, PayOsService>();
 builder.Services.AddHostedService<EnrollmentExpirationWorker>();
 
 // ============================================================
