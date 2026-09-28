@@ -241,6 +241,7 @@ export const useLearnedCoursesQuery = () => {
     },
 
     staleTime: 1000 * 10,
+
   });
 };
 

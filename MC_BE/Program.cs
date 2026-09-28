@@ -32,6 +32,7 @@ using MC_BE.Features.Chat.Services.Interfaces;
 using MC_BE.Features.Quizzes.Services;
 using MC_BE.Features.Quizzes.Services.Interfaces;
 
+
 using MC_BE.Shared.Data;
 using MC_BE.Shared.Middleware;
 using MC_BE.Shared.Repositories;
@@ -44,6 +45,8 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using MC_BE.Features.Forum.Services;
+using MC_BE.Features.Forum.Services.Interfaces;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -95,8 +98,8 @@ builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserProfileService, UserProfileService>();
 builder.Services.AddScoped<IUserService, UserService>();
-builder.Services.AddScoped<IAdminStatsService, AdminStatsService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
+builder.Services.AddScoped<IAdminStatsService, AdminStatsService>();
 
 // ============================================================
 // COURSE MANAGEMENT
@@ -124,9 +127,18 @@ builder.Services.AddScoped<IAdminForumService, AdminForumService>();
 // ============================================================
 // LEARNING / CERTIFICATION
 // ============================================================
-
 builder.Services.AddScoped<ICertificateService, CertificateService>();
 builder.Services.AddScoped<ILearningProgressService, LearningProgressService>();
+builder.Services.AddScoped<ISpeakingSubmissionRepository, SpeakingSubmissionRepository>();
+builder.Services.AddScoped<ISpeakingSubmissionService, SpeakingSubmissionService>();
+
+// ============================================================
+// FORUM
+// ============================================================
+builder.Services.AddScoped<IForumPostService, ForumPostService>();
+builder.Services.AddScoped<IForumCommentService, ForumCommentService>();
+builder.Services.AddScoped<IForumInteractionService, ForumInteractionService>();
+builder.Services.AddScoped<IAdminForumService, AdminForumService>();
 
 // ============================================================
 // EMAIL / CLOUDINARY
@@ -150,11 +162,8 @@ builder.Services.AddHostedService<EnrollmentExpirationWorker>();
 // ============================================================
 // CHAT / CALL
 // ============================================================
-
 builder.Services.AddScoped<IChatService, ChatService>();
 builder.Services.AddScoped<ICallService, CallService>();
-
-
 // ============================================================
 // SIGNALR
 // ============================================================
@@ -291,7 +300,6 @@ using (var scope = app.Services.CreateScope())
         context.Database.Migrate();
 
         Console.WriteLine("Database migration completed.");
-
         if (!context.Roles.Any())
         {
             Console.WriteLine("Seeding default roles...");
@@ -328,10 +336,6 @@ using (var scope = app.Services.CreateScope())
         Console.WriteLine("====================================");
         Console.WriteLine(ex);
         Console.WriteLine("====================================");
-
-        // Không nuốt exception.
-        // Nếu migration/database lỗi thì server dừng,
-        // để nhìn thấy lỗi thật.
         throw;
     }
 }
@@ -342,6 +346,7 @@ using (var scope = app.Services.CreateScope())
 
 app.UseRouting();
 app.UseCors("AllowAll");
+app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
 

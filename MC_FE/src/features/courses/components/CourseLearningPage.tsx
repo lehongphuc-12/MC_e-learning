@@ -842,34 +842,59 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
 export function getEmbedVideoUrl(url?: string): string | null {
   if (!url) return null;
 
-  // Standard YouTube Watch or Short links
-  const ytRegex =
-    /^(?:https?:\/\/)?(?:www\.)?(?:youtu\.be\/|v\/|u\/\w+\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+  // Handle YouTube
+  if (url.includes('youtube.com') || url.includes('youtu.be')) {
+    let videoId = '';
+    
+    try {
+      let formattedUrl = url;
+      if (!formattedUrl.startsWith('http')) {
+        formattedUrl = 'https://' + formattedUrl;
+      }
+      
+      const urlObj = new URL(formattedUrl);
+      if (urlObj.hostname.includes('youtube.com')) {
+        if (urlObj.pathname === '/watch') {
+          videoId = urlObj.searchParams.get('v') || '';
+        } else if (urlObj.pathname.startsWith('/embed/')) {
+          videoId = urlObj.pathname.split('/embed/')[1];
+        } else if (urlObj.pathname.startsWith('/shorts/')) {
+          videoId = urlObj.pathname.split('/shorts/')[1];
+        } else if (urlObj.pathname.startsWith('/v/')) {
+          videoId = urlObj.pathname.split('/v/')[1];
+        }
+      } else if (urlObj.hostname === 'youtu.be') {
+        videoId = urlObj.pathname.slice(1);
+      }
+    } catch (e) {
+      // Fallback regex if URL parsing fails
+      const ytMatch = url.match(/(?:youtu\.be\/|v\/|u\/\w+\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/);
+      if (ytMatch && ytMatch[1]) {
+        videoId = ytMatch[1];
+      }
+    }
 
-  const ytMatch = url.match(ytRegex);
-
-  if (ytMatch && ytMatch[1].length === 11) {
-    return `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1&rel=0&modestbranding=1&iv_load_policy=3&enablejsapi=1`;
+    if (videoId) {
+      // Origin is required for enablejsapi=1 to work properly without errors
+      const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
+      return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&iv_load_policy=3&enablejsapi=1&origin=${encodeURIComponent(origin)}`;
+    }
   }
 
-  // Vimeo
-  const vimeoRegex =
-    /vimeo\.com\/(?:channels\/(?:\w+\/)?|groups\/([^\/]*)\/videos\/|album\/(\d+)\/video\/|)(\d+)/;
-
-  const vimeoMatch = url.match(vimeoRegex);
-
-  if (vimeoMatch && vimeoMatch[3]) {
-    return `https://player.vimeo.com/video/${vimeoMatch[3]}?autoplay=1`;
+  // Handle Vimeo
+  if (url.includes('vimeo.com')) {
+    const vimeoMatch = url.match(/vimeo\.com\/(?:channels\/(?:\w+\/)?|groups\/([^\/]*)\/videos\/|album\/(\d+)\/video\/|)(\d+)/);
+    if (vimeoMatch && vimeoMatch[3]) {
+      return `https://player.vimeo.com/video/${vimeoMatch[3]}?autoplay=1`;
+    }
   }
 
-  // Google Drive
-  const gdriveRegex =
-    /drive\.google\.com\/file\/d\/([^\/]+)/;
-
-  const gdriveMatch = url.match(gdriveRegex);
-
-  if (gdriveMatch && gdriveMatch[1]) {
-    return `https://drive.google.com/file/d/${gdriveMatch[1]}/preview`;
+  // Handle Google Drive
+  if (url.includes('drive.google.com')) {
+    const gdriveMatch = url.match(/drive\.google\.com\/file\/d\/([^\/]+)/);
+    if (gdriveMatch && gdriveMatch[1]) {
+      return `https://drive.google.com/file/d/${gdriveMatch[1]}/preview`;
+    }
   }
 
   return url;
@@ -1063,8 +1088,9 @@ export const CourseLearningPage: React.FC = () => {
   // LocalStorage storage key for persistent fallback progress
   // ===========================================================================
 
-  const storageKey =
-    `mc_completed_lessons_${courseId}`;
+  const storageKey = user?.id
+    ? `mc_completed_lessons_${user.id}_${courseId}`
+    : `mc_completed_lessons_${courseId}`;
 
   // ===========================================================================
   // Sync completed lesson IDs from LocalStorage & backend progress
