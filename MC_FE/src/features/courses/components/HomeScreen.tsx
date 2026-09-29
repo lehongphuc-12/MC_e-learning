@@ -39,7 +39,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 }) => {
   const coursesQuery = useCoursesQuery();
   const allCourses = coursesQuery.data || [];
-  const featuredCourses = allCourses.slice(0, 3);
+  const featuredCourses = allCourses.slice(0, 8);
   const instructors = mockInstructors.slice(0, 3);
   const testimonials = mockTestimonials.slice(0, 3);
   const studioRef = useRef<HTMLElement | null>(null);
@@ -700,7 +700,10 @@ useEffect(() => {
   `}</style>
 </section>
       {/* FEATURED COURSES */}
-<section className="featured-courses-section relative overflow-hidden bg-gradient-to-br from-[#f7faff] via-white to-[#fffaf0] py-12 sm:py-14 lg:py-16">  <div className="pointer-events-none absolute inset-0">
+<section className="featured-courses-section relative overflow-hidden bg-gradient-to-br from-[#f7faff] via-white to-[#fffaf0] py-12 sm:py-14 lg:py-16">
+
+  {/* BACKGROUND */}
+  <div className="pointer-events-none absolute inset-0">
     <div className="featured-glow-blue absolute -left-32 top-10 h-[420px] w-[420px] rounded-full bg-blue-400/[0.08] blur-[100px]" />
     <div className="featured-glow-yellow absolute -right-28 -top-20 h-[380px] w-[380px] rounded-full bg-[#ffc928]/10 blur-[100px]" />
     <div className="absolute bottom-[-180px] left-[28%] h-[300px] w-[520px] rounded-full bg-blue-300/[0.06] blur-[120px]" />
@@ -713,234 +716,368 @@ useEffect(() => {
   </div>
 
   <div className="relative z-10 mx-auto max-w-[1450px] px-5 sm:px-6 lg:px-8">
-  <div className="grid items-center gap-8 lg:grid-cols-[0.72fr_1.55fr] xl:gap-10">
-      {/* LEFT CONTENT */}
-      <div className="featured-intro lg:pr-4">
+
+    <div className="grid items-center gap-8 lg:grid-cols-[0.58fr_1.65fr] xl:gap-10">
+
+      {/* ================= LEFT CONTENT ================= */}
+      <div className="featured-intro lg:pr-3">
+
         <div className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50/80 px-4 py-2 shadow-sm backdrop-blur-sm">
           <span className="flex h-5 w-5 items-center justify-center rounded-md bg-blue-600 text-white">
             <Star className="h-3 w-3 fill-current" />
           </span>
+
           <span className="text-[11px] font-black uppercase tracking-[0.18em] text-blue-600">
             Khóa học tiêu biểu
           </span>
         </div>
-      <h2 className="mt-5 max-w-[500px] text-[28px] font-black leading-[1.1] tracking-[-0.035em] text-[#071d4c] sm:text-[32px] lg:text-[34px] xl:text-[36px]">
-  <span className="lg:whitespace-nowrap">Bắt đầu hành trình</span>
-  <span className="mt-1 block bg-gradient-to-r from-blue-600 to-[#1780ff] bg-clip-text text-transparent">
-    làm chủ giọng nói
-  </span>
-</h2>
 
-<p className="mt-4 max-w-[420px] text-[13px] font-medium leading-6 text-slate-500 sm:text-sm">
-  Những khóa học được thiết kế bởi các giảng viên MC giàu kinh nghiệm, bám sát thực tế.
-</p>
+        <h2 className="mt-5 max-w-[500px] text-[28px] font-black leading-[1.1] tracking-[-0.035em] text-[#071d4c] sm:text-[32px] lg:text-[34px] xl:text-[36px]">
+          <span className="lg:whitespace-nowrap">
+            Bắt đầu hành trình
+          </span>
+
+          <span className="mt-1 block bg-gradient-to-r from-blue-600 to-[#1780ff] bg-clip-text text-transparent">
+            làm chủ giọng nói
+          </span>
+        </h2>
+
+        <p className="mt-4 max-w-[420px] text-[13px] font-medium leading-6 text-slate-500 sm:text-sm">
+          Những khóa học được thiết kế bởi các giảng viên MC giàu kinh nghiệm, bám sát thực tế.
+        </p>
 
         <button
-  type="button"
-  onClick={() => onNavigate('courses')}
-  className="featured-main-button group mt-6 inline-flex items-center gap-3 rounded-xl bg-[#ffc928] px-6 py-3.5 text-[13px] font-black text-[#071d4c] shadow-[0_15px_35px_rgba(255,201,40,0.24)] transition-all duration-300 hover:-translate-y-1 hover:bg-[#ffd64d] hover:shadow-[0_20px_45px_rgba(255,201,40,0.35)]"
->
-  Xem tất cả khóa học
-  <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1.5" />
-</button>
+          type="button"
+          onClick={() => onNavigate('courses')}
+          className="featured-main-button group mt-6 inline-flex items-center gap-3 rounded-xl bg-[#ffc928] px-6 py-3.5 text-[13px] font-black text-[#071d4c] shadow-[0_15px_35px_rgba(255,201,40,0.24)] transition-all duration-300 hover:-translate-y-1 hover:bg-[#ffd64d] hover:shadow-[0_20px_45px_rgba(255,201,40,0.35)]"
+        >
+          Xem tất cả khóa học
 
-<div className="mt-8 hidden items-end gap-5 lg:flex">
-  <div className="featured-wave-icon flex h-[58px] w-[58px] items-center justify-center rounded-[18px] bg-blue-100/70 text-blue-600 shadow-[0_15px_40px_rgba(37,99,235,0.12)]">
-    <Volume2 className="h-7 w-7" />
-  </div>
-  <div className="mb-2 h-2.5 w-2.5 rounded-full bg-blue-100" />
-</div>
+          <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1.5" />
+        </button>
+
+        <div className="mt-8 hidden items-end gap-5 lg:flex">
+          <div className="featured-wave-icon flex h-[58px] w-[58px] items-center justify-center rounded-[18px] bg-blue-100/70 text-blue-600 shadow-[0_15px_40px_rgba(37,99,235,0.12)]">
+            <Volume2 className="h-7 w-7" />
+          </div>
+
+          <div className="mb-2 h-2.5 w-2.5 rounded-full bg-blue-100" />
+        </div>
+
       </div>
 
-      {/* RIGHT COURSES */}
-      {coursesQuery.isLoading ? (
-        <div className="grid gap-6 md:grid-cols-2">
-          {[0, 1].map((item) => (
-            <div key={item} className="h-[390px] animate-pulse rounded-[26px] bg-slate-100" />
-          ))}
-        </div>
-      ) : featuredCourses.length > 0 ? (
-        <div className="grid gap-6 md:grid-cols-2">
-          {featuredCourses.slice(0, 2).map((course, index) => {
-            const courseImage =
-              (course as any).thumbnail ||
-              (course as any).image ||
-              fallbackCourseImages[index];
+      {/* ================= RIGHT COURSE CAROUSEL ================= */}
+      <div className="relative min-w-0">
 
-            return (
-              <article
-                key={course.id}
-                className={`featured-course-card featured-course-${index + 1} group relative overflow-hidden rounded-[26px] border border-slate-200/80 bg-white shadow-[0_18px_55px_rgba(15,23,42,0.09)] transition-all duration-500 hover:-translate-y-2 hover:border-blue-200 hover:shadow-[0_28px_70px_rgba(15,23,42,0.15)]`}
-              >
-                {/* IMAGE */}
-                <div className="relative h-[190px] overflow-hidden sm:h-[205px]">
-                  <img
-                    src={courseImage}
-                    alt={course.title}
-                    className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.07]"
-                  />
+        {coursesQuery.isLoading ? (
 
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#071d4c]/45 via-transparent to-black/5 opacity-70 transition-opacity duration-500 group-hover:opacity-50" />
+          /* LOADING */
+          <div className="grid gap-5 md:grid-cols-2">
+            {[0, 1].map((item) => (
+              <div
+                key={item}
+                className="h-[390px] animate-pulse rounded-[26px] bg-slate-100"
+              />
+            ))}
+          </div>
 
-                  <div className="featured-image-shine pointer-events-none absolute inset-y-0 -left-[80%] w-[45%] rotate-[15deg] bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+        ) : featuredCourses.length > 0 ? (
 
-                  {index === 0 && (
-                    <div className="absolute left-5 top-5 inline-flex items-center gap-2 rounded-xl bg-[#ffc928] px-4 py-2 text-[11px] font-black text-[#071d4c] shadow-[0_8px_25px_rgba(255,201,40,0.3)]">
-                      <span>🔥</span>
-                      Phổ biến
-                    </div>
-                  )}
+          <div className="course-film-wrapper relative overflow-hidden py-5">
 
-                  <button
-                    type="button"
-                    onClick={() => onPreviewVideo(course)}
-                    className="featured-play-button absolute right-5 top-5 flex h-12 w-12 items-center justify-center rounded-full border-2 border-white bg-[#071d4c]/75 text-white shadow-xl backdrop-blur-md transition-all duration-300 hover:scale-110 hover:border-[#ffc928] hover:bg-blue-600"
-                  >
-                    <Play className="ml-0.5 h-4 w-4 fill-current" />
-                  </button>
-                </div>
+            {/* FADE LEFT */}
+            <div className="pointer-events-none absolute inset-y-0 left-0 z-30 w-12 bg-gradient-to-r from-[#f9fbff] to-transparent sm:w-16" />
 
-                {/* CONTENT */}
-                <div className="p-5">
-                  <div className="text-[11px] font-black uppercase tracking-[0.08em] text-blue-600">
-                    {course.category || 'Luyện giọng & phát âm'}
-                  </div>
+            {/* FADE RIGHT */}
+            <div className="pointer-events-none absolute inset-y-0 right-0 z-30 w-12 bg-gradient-to-l from-[#fffaf0] to-transparent sm:w-16" />
 
-                  <h3 className="mt-2 line-clamp-2 min-h-[46px] text-[17px] font-black leading-[23px] tracking-[-0.02em] text-[#071d4c] transition-colors duration-300 group-hover:text-blue-700">
-                      {course.title}
-                      </h3>
+            {/* CAROUSEL TRACK */}
+            <div className="course-film-track flex w-max items-stretch gap-5">
 
-                  <p className="mt-2 line-clamp-2 min-h-[40px] text-[12px] leading-5 text-slate-500">
-                        {index === 0
-                      ? 'Làm chủ giọng nói, phong thái và kỹ năng dẫn dắt trong các tình huống thực tế.'
-                      : 'Cải thiện phát âm, kiểm soát giọng nói và xây dựng chất giọng truyền cảm, chuyên nghiệp.'}
-                  </p>
+              {[...featuredCourses, ...featuredCourses].map(
+                (course, loopIndex) => {
 
-                <div className="my-4 h-px bg-gradient-to-r from-slate-200 via-slate-100 to-transparent" />
+                  const realIndex =
+                    loopIndex % featuredCourses.length;
 
-                  <div className="flex items-center gap-3">
-                    <div className="relative shrink-0">
-                      <div className="absolute -inset-1 rounded-full bg-blue-500/10 opacity-0 blur-md transition-opacity duration-300 group-hover:opacity-100" />
-                      <img
-                        src={course.instructor?.avatar || fallbackAvatars[index]}
-                        alt={course.instructor?.name || 'Giảng viên'}
-                        className="relative h-9 w-9 rounded-full object-cover ring-2 ring-blue-50"
-                      />
-                    </div>
+                  const courseImage =
+                    (course as any).thumbnail ||
+                    (course as any).image ||
+                    fallbackCourseImages[
+                      realIndex % fallbackCourseImages.length
+                    ];
 
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-[12px] font-black text-[#071d4c]">
-                        {course.instructor?.name || 'Giảng viên MSEEK'}
-                      </div>
+                  const avatar =
+                    course.instructor?.avatar ||
+                    fallbackAvatars[
+                      realIndex % fallbackAvatars.length
+                    ];
 
-                      <div className="mt-1 flex items-center gap-1.5">
-                        <Star className="h-3.5 w-3.5 fill-[#ffc928] text-[#ffc928]" />
-                        <span className="text-[11px] font-black text-amber-500">
-                          {course.rating || '5.0'}
-                        </span>
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => onSelectCourse(course)}
-                      className="group/course flex shrink-0 items-center gap-2 text-[12px] font-black text-blue-600 transition-colors duration-300 hover:text-blue-800"
+                  return (
+                    <article
+                      key={`${course.id}-${loopIndex}`}
+                      className="course-film-card group relative w-[300px] shrink-0 overflow-hidden rounded-[24px] border border-slate-200/80 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.09)] transition-all duration-500 sm:w-[320px] lg:w-[335px]"
                     >
-                      Xem khóa học
-                      <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover/course:translate-x-1" />
-                    </button>
-                  </div>
-                </div>
 
-                <div className="pointer-events-none absolute inset-x-8 bottom-0 h-[2px] origin-left scale-x-0 rounded-full bg-gradient-to-r from-blue-600 via-cyan-400 to-[#ffc928] transition-transform duration-500 group-hover:scale-x-100" />
-              </article>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="rounded-[26px] border border-dashed border-slate-300 bg-white/70 p-12 text-center text-sm text-slate-500 shadow-sm backdrop-blur-sm">
-          Hiện chưa có khóa học nổi bật.
-        </div>
-      )}
+                      {/* ================= IMAGE ================= */}
+                      <div className="relative h-[180px] overflow-hidden">
+
+                        <img
+                          src={courseImage}
+                          alt={course.title}
+                          className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.08]"
+                        />
+
+                        <div className="absolute inset-0 bg-gradient-to-t from-[#071d4c]/50 via-transparent to-black/5 opacity-70 transition-opacity duration-500 group-hover:opacity-45" />
+
+                        {/* IMAGE SHINE */}
+                        <div className="featured-image-shine pointer-events-none absolute inset-y-0 -left-[80%] w-[45%] rotate-[15deg] bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+
+                        {/* POPULAR */}
+                        {realIndex === 0 && (
+                          <div className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-xl bg-[#ffc928] px-3.5 py-2 text-[10px] font-black text-[#071d4c] shadow-[0_8px_25px_rgba(255,201,40,0.3)]">
+                            <span>🔥</span>
+                            Phổ biến
+                          </div>
+                        )}
+
+                        {/* PLAY */}
+                        <button
+                          type="button"
+                          onClick={() => onPreviewVideo(course)}
+                          className="featured-play-button absolute right-4 top-4 flex h-11 w-11 items-center justify-center rounded-full border-2 border-white bg-[#071d4c]/75 text-white shadow-xl backdrop-blur-md transition-all duration-300 hover:scale-110 hover:border-[#ffc928] hover:bg-blue-600"
+                        >
+                          <Play className="ml-0.5 h-4 w-4 fill-current" />
+                        </button>
+
+                      </div>
+
+                      {/* ================= CONTENT ================= */}
+                      <div className="p-5">
+
+                        <div className="text-[10px] font-black uppercase tracking-[0.08em] text-blue-600">
+                          {course.category || 'Luyện giọng & phát âm'}
+                        </div>
+
+                        <h3 className="mt-2 line-clamp-2 min-h-[44px] text-[16px] font-black leading-[22px] tracking-[-0.02em] text-[#071d4c] transition-colors duration-300 group-hover:text-blue-700">
+                          {course.title}
+                        </h3>
+
+                        <p className="mt-2 line-clamp-2 min-h-[40px] text-[11px] leading-5 text-slate-500">
+                          {realIndex === 0
+                            ? 'Làm chủ giọng nói, phong thái và kỹ năng dẫn dắt trong các tình huống thực tế.'
+                            : 'Cải thiện phát âm, kiểm soát giọng nói và xây dựng chất giọng truyền cảm, chuyên nghiệp.'}
+                        </p>
+
+                        <div className="my-4 h-px bg-gradient-to-r from-slate-200 via-slate-100 to-transparent" />
+
+                        {/* INSTRUCTOR */}
+                        <div className="flex items-center gap-3">
+
+                          <div className="relative shrink-0">
+
+                            <div className="absolute -inset-1 rounded-full bg-blue-500/10 opacity-0 blur-md transition-opacity duration-300 group-hover:opacity-100" />
+
+                            <img
+                              src={avatar}
+                              alt={
+                                course.instructor?.name ||
+                                'Giảng viên'
+                              }
+                              className="relative h-9 w-9 rounded-full object-cover ring-2 ring-blue-50"
+                            />
+
+                          </div>
+
+                          <div className="min-w-0 flex-1">
+
+                            <div className="truncate text-[11px] font-black text-[#071d4c]">
+                              {course.instructor?.name ||
+                                'Giảng viên MSEEK'}
+                            </div>
+
+                            <div className="mt-1 flex items-center gap-1">
+
+                              <Star className="h-3.5 w-3.5 fill-[#ffc928] text-[#ffc928]" />
+
+                              <span className="text-[10px] font-black text-amber-500">
+                                {course.rating || '5.0'}
+                              </span>
+
+                            </div>
+
+                          </div>
+
+                          {/* VIEW COURSE */}
+                          <button
+                            type="button"
+                            onClick={() => onSelectCourse(course)}
+                            className="group/course flex shrink-0 items-center gap-1.5 text-[11px] font-black text-blue-600 transition-colors duration-300 hover:text-blue-800"
+                          >
+                            Xem khóa học
+
+                            <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 group-hover/course:translate-x-1" />
+                          </button>
+
+                        </div>
+
+                      </div>
+
+                      {/* BOTTOM LINE */}
+                      <div className="pointer-events-none absolute inset-x-8 bottom-0 h-[2px] origin-left scale-x-0 rounded-full bg-gradient-to-r from-blue-600 via-cyan-400 to-[#ffc928] transition-transform duration-500 group-hover:scale-x-100" />
+
+                    </article>
+                  );
+                }
+              )}
+
+            </div>
+
+            {/* MOVING INDICATOR */}
+            <div className="mt-3 flex items-center justify-center gap-2">
+
+              <span className="course-film-dot h-1.5 w-1.5 rounded-full bg-blue-600" />
+
+              <span className="h-1 w-12 overflow-hidden rounded-full bg-blue-100">
+                <span className="course-film-progress block h-full rounded-full bg-blue-600" />
+              </span>
+
+              <span className="h-1.5 w-1.5 rounded-full bg-[#ffc928]" />
+
+            </div>
+
+          </div>
+
+        ) : (
+
+          <div className="rounded-[26px] border border-dashed border-slate-300 bg-white/70 p-12 text-center text-sm text-slate-500 shadow-sm backdrop-blur-sm">
+            Hiện chưa có khóa học nổi bật.
+          </div>
+
+        )}
+
+      </div>
+
     </div>
+
   </div>
 
+  {/* ================= ANIMATIONS ================= */}
   <style>{`
-    @keyframes featuredIntroReveal {
-      0% {
-        opacity: 0;
-        transform: translate3d(-28px, 20px, 0);
-      }
-      100% {
-        opacity: 1;
+
+    /* =========================================================
+       COURSE FILM - INFINITE LOOP
+    ========================================================= */
+
+    @keyframes courseFilmScroll {
+      from {
         transform: translate3d(0, 0, 0);
       }
-    }
 
-    @keyframes featuredCardReveal {
-      0% {
-        opacity: 0;
-        transform: translate3d(0, 35px, 0) scale(0.97);
-      }
-      100% {
-        opacity: 1;
-        transform: translate3d(0, 0, 0) scale(1);
+      to {
+        transform: translate3d(-50%, 0, 0);
       }
     }
 
-    @keyframes featuredGlowBlue {
-      0%, 100% {
-        transform: translate3d(0, 0, 0) scale(1);
-      }
-      50% {
-        transform: translate3d(65px, 20px, 0) scale(1.12);
-      }
+    .course-film-track {
+      animation: courseFilmScroll 32s linear infinite;
+      will-change: transform;
     }
 
-    @keyframes featuredGlowYellow {
-      0%, 100% {
-        transform: translate3d(0, 0, 0) scale(1);
-      }
-      50% {
-        transform: translate3d(-45px, 30px, 0) scale(1.15);
-      }
+    /*
+      Hover vào khu course -> dừng phim
+      để user click Play / Xem khóa học
+    */
+    .course-film-wrapper:hover .course-film-track {
+      animation-play-state: paused;
     }
 
-    @keyframes featuredWaveFloat {
-      0%, 100% {
-        transform: translate3d(0, 0, 0) rotate(-2deg);
-      }
-      50% {
-        transform: translate3d(0, -8px, 0) rotate(2deg);
-      }
+
+    /* =========================================================
+       CARD
+    ========================================================= */
+
+    .course-film-card {
+      transform:
+        perspective(1000px)
+        rotateY(0deg)
+        scale(0.96);
+
+      opacity: 0.88;
+
+      transition:
+        transform 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+        opacity 0.5s ease,
+        box-shadow 0.5s ease,
+        border-color 0.5s ease;
+
+      will-change: transform;
     }
+
+    .course-film-card:hover {
+      transform:
+        perspective(1000px)
+        translateY(-8px)
+        rotateY(0deg)
+        scale(1);
+
+      opacity: 1;
+
+      z-index: 20;
+
+      border-color: rgba(59, 130, 246, 0.28);
+
+      box-shadow:
+        0 28px 70px rgba(15, 23, 42, 0.15),
+        0 10px 30px rgba(37, 99, 235, 0.08);
+    }
+
+
+    /* =========================================================
+       IMAGE SHINE
+    ========================================================= */
 
     @keyframes featuredShine {
       0% {
         left: -80%;
         opacity: 0;
       }
-      25% {
+
+      30% {
         opacity: 0;
       }
+
       50% {
-        opacity: 0.7;
+        opacity: 0.65;
       }
-      75% {
+
+      70% {
         opacity: 0;
       }
+
       100% {
         left: 140%;
         opacity: 0;
       }
     }
 
+    .featured-image-shine {
+      animation: featuredShine 7s ease-in-out infinite;
+    }
+
+
+    /* =========================================================
+       PLAY BUTTON
+    ========================================================= */
+
     @keyframes featuredPlayPulse {
-      0%, 100% {
+      0%,
+      100% {
         box-shadow:
           0 10px 30px rgba(7, 29, 76, 0.2),
           0 0 0 0 rgba(255, 255, 255, 0.25);
       }
+
       50% {
         box-shadow:
           0 12px 35px rgba(7, 29, 76, 0.28),
@@ -948,22 +1085,60 @@ useEffect(() => {
       }
     }
 
+    .featured-play-button {
+      animation: featuredPlayPulse 3s ease-in-out infinite;
+    }
+
+
+    /* =========================================================
+       LEFT CONTENT REVEAL
+    ========================================================= */
+
+    @keyframes featuredIntroReveal {
+      0% {
+        opacity: 0;
+        transform: translate3d(-28px, 20px, 0);
+      }
+
+      100% {
+        opacity: 1;
+        transform: translate3d(0, 0, 0);
+      }
+    }
+
     .featured-intro {
-      animation: featuredIntroReveal 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+      animation:
+        featuredIntroReveal
+        0.8s
+        cubic-bezier(0.16, 1, 0.3, 1)
+        both;
     }
 
-    .featured-course-card {
-      opacity: 0;
-      animation: featuredCardReveal 0.85s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-      will-change: transform, opacity;
+
+    /* =========================================================
+       BACKGROUND GLOW
+    ========================================================= */
+
+    @keyframes featuredGlowBlue {
+      0%,
+      100% {
+        transform: translate3d(0, 0, 0) scale(1);
+      }
+
+      50% {
+        transform: translate3d(65px, 20px, 0) scale(1.12);
+      }
     }
 
-    .featured-course-1 {
-      animation-delay: 0.12s;
-    }
+    @keyframes featuredGlowYellow {
+      0%,
+      100% {
+        transform: translate3d(0, 0, 0) scale(1);
+      }
 
-    .featured-course-2 {
-      animation-delay: 0.24s;
+      50% {
+        transform: translate3d(-45px, 30px, 0) scale(1.15);
+      }
     }
 
     .featured-glow-blue {
@@ -974,21 +1149,30 @@ useEffect(() => {
       animation: featuredGlowYellow 13s ease-in-out infinite;
     }
 
+
+    /* =========================================================
+       WAVE ICON
+    ========================================================= */
+
+    @keyframes featuredWaveFloat {
+      0%,
+      100% {
+        transform: translate3d(0, 0, 0) rotate(-2deg);
+      }
+
+      50% {
+        transform: translate3d(0, -8px, 0) rotate(2deg);
+      }
+    }
+
     .featured-wave-icon {
       animation: featuredWaveFloat 4.5s ease-in-out infinite;
     }
 
-    .featured-image-shine {
-      animation: featuredShine 7s ease-in-out infinite;
-    }
 
-    .featured-course-2 .featured-image-shine {
-      animation-delay: 1.5s;
-    }
-
-    .featured-play-button {
-      animation: featuredPlayPulse 3s ease-in-out infinite;
-    }
+    /* =========================================================
+       MAIN BUTTON SHINE
+    ========================================================= */
 
     .featured-main-button {
       position: relative;
@@ -997,18 +1181,24 @@ useEffect(() => {
 
     .featured-main-button::after {
       content: '';
+
       position: absolute;
+
       top: -50%;
       left: -80%;
+
       width: 35%;
       height: 200%;
+
       transform: rotate(20deg);
+
       background: linear-gradient(
         90deg,
         transparent,
-        rgba(255, 255, 255, 0.5),
+        rgba(255,255,255,0.5),
         transparent
       );
+
       transition: left 0.7s ease;
     }
 
@@ -1016,21 +1206,103 @@ useEffect(() => {
       left: 140%;
     }
 
-    @media (prefers-reduced-motion: reduce) {
-      .featured-intro,
-      .featured-course-card,
-      .featured-glow-blue,
-      .featured-glow-yellow,
-      .featured-wave-icon,
-      .featured-image-shine,
-      .featured-play-button {
-        animation: none !important;
+
+    /* =========================================================
+       PROGRESS ANIMATION
+    ========================================================= */
+
+    @keyframes courseFilmProgress {
+      0% {
+        transform: translateX(-100%);
       }
 
-      .featured-course-card {
+      100% {
+        transform: translateX(100%);
+      }
+    }
+
+    .course-film-progress {
+      width: 60%;
+
+      animation:
+        courseFilmProgress
+        2.2s
+        ease-in-out
+        infinite;
+    }
+
+
+    /* =========================================================
+       DOT
+    ========================================================= */
+
+    @keyframes courseFilmDot {
+      0%,
+      100% {
+        transform: scale(1);
+        opacity: 0.6;
+      }
+
+      50% {
+        transform: scale(1.5);
         opacity: 1;
       }
     }
+
+    .course-film-dot {
+      animation: courseFilmDot 1.8s ease-in-out infinite;
+    }
+
+
+    /* =========================================================
+       RESPONSIVE SPEED
+    ========================================================= */
+
+    @media (max-width: 1024px) {
+
+      .course-film-track {
+        animation-duration: 28s;
+      }
+
+    }
+
+    @media (max-width: 640px) {
+
+      .course-film-track {
+        animation-duration: 24s;
+      }
+
+      .course-film-card {
+        width: 280px;
+      }
+
+    }
+
+
+    /* =========================================================
+       ACCESSIBILITY
+    ========================================================= */
+
+    @media (prefers-reduced-motion: reduce) {
+
+      .course-film-track,
+      .featured-image-shine,
+      .featured-play-button,
+      .featured-intro,
+      .featured-glow-blue,
+      .featured-glow-yellow,
+      .featured-wave-icon,
+      .course-film-progress,
+      .course-film-dot {
+        animation: none !important;
+      }
+
+      .course-film-track {
+        transform: none !important;
+      }
+
+    }
+
   `}</style>
 </section>
       {/* INSTRUCTORS */}
