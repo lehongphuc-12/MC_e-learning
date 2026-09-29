@@ -619,10 +619,6 @@ export const Header: React.FC<HeaderProps> = ({
                     <span className="relative z-10">
                       Đăng ký
                     </span>
-
-                    <span className="relative z-10 flex h-5 w-5 items-center justify-center rounded-full bg-[#092653] text-white transition-transform duration-300 group-hover:translate-x-0.5">
-                      <ArrowRight className="h-3 w-3" />
-                    </span>
                   </button>
                 </div>
               )}
