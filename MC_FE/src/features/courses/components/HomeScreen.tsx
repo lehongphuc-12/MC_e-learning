@@ -757,9 +757,6 @@ useEffect(() => {
         </button>
 
         <div className="mt-8 hidden items-end gap-5 lg:flex">
-          <div className="featured-wave-icon flex h-[58px] w-[58px] items-center justify-center rounded-[18px] bg-blue-100/70 text-blue-600 shadow-[0_15px_40px_rgba(37,99,235,0.12)]">
-            <Volume2 className="h-7 w-7" />
-          </div>
 
           <div className="mb-2 h-2.5 w-2.5 rounded-full bg-blue-100" />
         </div>
