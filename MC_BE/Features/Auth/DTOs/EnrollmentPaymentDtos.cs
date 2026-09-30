@@ -91,12 +91,16 @@ public class PaymentFilterRequest
     public string? Status { get; set; }
     public DateOnly? FromDate { get; set; }
     public DateOnly? ToDate { get; set; }
+
     [Range(0, double.MaxValue)]
     public decimal? MinAmount { get; set; }
+
     [Range(0, double.MaxValue)]
     public decimal? MaxAmount { get; set; }
+
     [Range(1, int.MaxValue)]
     public int Page { get; set; } = 1;
+
     [Range(1, 100)]
     public int PageSize { get; set; } = 20;
 }

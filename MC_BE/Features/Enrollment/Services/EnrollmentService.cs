@@ -158,39 +158,39 @@ public class EnrollmentService : IEnrollmentService
 
         await _context.Enrollments.AddAsync(newEnrollment);
 
-try
-{
-    await _context.SaveChangesAsync();
-}
-catch (DbUpdateException)
-{
-    _context.Entry(newEnrollment).State = EntityState.Detached;
-
-    var existingEnrollment = await _context.Enrollments
-        .AsNoTracking()
-        .Where(e =>
-            e.LearnerId == learnerId &&
-            e.CourseId == courseId &&
-            (e.Status == "ACTIVE" ||
-             e.Status == "PENDING_PAYMENT"))
-        .OrderByDescending(e => e.EnrollmentId)
-        .FirstOrDefaultAsync();
-
-    if (existingEnrollment != null)
-    {
-        if (existingEnrollment.Status == "PENDING_PAYMENT")
+        try
         {
-            return ApiResponse<EnrollmentDto>.SuccessResponse(
-                MapToDto(existingEnrollment),
-                "Bạn đã có đơn đăng ký đang chờ thanh toán.");
+            await _context.SaveChangesAsync();
         }
+        catch (DbUpdateException)
+        {
+            _context.Entry(newEnrollment).State = EntityState.Detached;
 
-        return ApiResponse<EnrollmentDto>.FailureResponse(
-            "Bạn đã đăng ký khóa học này rồi.");
-    }
+            var existingEnrollment = await _context.Enrollments
+                .AsNoTracking()
+                .Where(e =>
+                    e.LearnerId == learnerId &&
+                    e.CourseId == courseId &&
+                    (e.Status == "ACTIVE" ||
+                     e.Status == "PENDING_PAYMENT"))
+                .OrderByDescending(e => e.EnrollmentId)
+                .FirstOrDefaultAsync();
 
-    throw;
-}
+            if (existingEnrollment != null)
+            {
+                if (existingEnrollment.Status == "PENDING_PAYMENT")
+                {
+                    return ApiResponse<EnrollmentDto>.SuccessResponse(
+                        MapToDto(existingEnrollment),
+                        "Bạn đã có đơn đăng ký đang chờ thanh toán.");
+                }
+
+                return ApiResponse<EnrollmentDto>.FailureResponse(
+                    "Bạn đã đăng ký khóa học này rồi.");
+            }
+
+            throw;
+        }
 
         // ============================================================
         // 4. RESPONSE
@@ -293,8 +293,9 @@ catch (DbUpdateException)
         _context.Enrollments.Update(enrollment);
 
         var pendingPayment = await _context.Payments
+            .Include(p => p.Items)
             .FirstOrDefaultAsync(p =>
-                p.EnrollmentId == enrollmentId &&
+                p.Items.Any(i => i.EnrollmentId == enrollmentId) &&
                 p.Status == "PENDING"
             );
 
@@ -353,8 +354,9 @@ catch (DbUpdateException)
         _context.Enrollments.Update(enrollment);
 
         var payment = await _context.Payments
+            .Include(p => p.Items)
             .FirstOrDefaultAsync(p =>
-                p.EnrollmentId == enrollmentId
+                p.Items.Any(i => i.EnrollmentId == enrollmentId)
             );
 
         if (payment != null)
@@ -419,7 +421,7 @@ catch (DbUpdateException)
             EnrollmentId = enrollment.EnrollmentId,
             LearnerId = enrollment.LearnerId,
             CourseId = enrollment.CourseId,
-            PaymentId = enrollment.PaymentId,
+            PaymentId = null,
             Status = enrollment.Status,
             CompletionPercentage =
                 Convert.ToDecimal(

@@ -913,10 +913,6 @@ namespace MC_BE.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("LearnerID");
 
-                    b.Property<int?>("PaymentId")
-                        .HasColumnType("integer")
-                        .HasColumnName("PaymentID");
-
                     b.Property<string>("Status")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -934,9 +930,6 @@ namespace MC_BE.Migrations
                     b.HasKey("EnrollmentId");
 
                     b.HasIndex("CourseId");
-
-                    b.HasIndex("PaymentId")
-                        .IsUnique();
 
                     b.HasIndex("LearnerId", "CourseId")
                         .IsUnique()
@@ -1562,10 +1555,6 @@ namespace MC_BE.Migrations
                         .HasColumnType("numeric(18,2)")
                         .HasColumnName("Amount");
 
-                    b.Property<int>("CourseId")
-                        .HasColumnType("integer")
-                        .HasColumnName("CourseID");
-
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -1579,10 +1568,6 @@ namespace MC_BE.Migrations
                         .HasColumnType("character varying(10)")
                         .HasDefaultValue("VND")
                         .HasColumnName("Currency");
-
-                    b.Property<int>("EnrollmentId")
-                        .HasColumnType("integer")
-                        .HasColumnName("EnrollmentID");
 
                     b.Property<DateTime>("ExpiresAt")
                         .HasColumnType("timestamp with time zone")
@@ -1625,21 +1610,62 @@ namespace MC_BE.Migrations
                         .HasColumnName("UpdatedAt")
                         .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
+                    b.Property<int?>("UserId")
+                        .HasColumnType("integer");
+
                     b.HasKey("PaymentId");
-
-                    b.HasIndex("CourseId");
-
-                    b.HasIndex("EnrollmentId")
-                        .IsUnique();
 
                     b.HasIndex("LearnerId");
 
                     b.HasIndex("MerchantTxnRef")
                         .IsUnique();
 
-                    b.HasIndex("Status");
+                    b.HasIndex("UserId");
 
-                    b.ToTable("payments", (string)null);
+                    b.ToTable("PAYMENT", (string)null);
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.PaymentItem", b =>
+                {
+                    b.Property<int>("PaymentItemId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("PaymentItemID");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("PaymentItemId"));
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("Amount");
+
+                    b.Property<int>("CourseId")
+                        .HasColumnType("integer")
+                        .HasColumnName("CourseID");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("CreatedAt")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<int>("EnrollmentId")
+                        .HasColumnType("integer")
+                        .HasColumnName("EnrollmentID");
+
+                    b.Property<int>("PaymentId")
+                        .HasColumnType("integer")
+                        .HasColumnName("PaymentID");
+
+                    b.HasKey("PaymentItemId");
+
+                    b.HasIndex("CourseId");
+
+                    b.HasIndex("EnrollmentId");
+
+                    b.HasIndex("PaymentId", "EnrollmentId")
+                        .IsUnique();
+
+                    b.ToTable("PAYMENT_ITEM", (string)null);
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.PaymentTransaction", b =>
@@ -2601,6 +2627,21 @@ namespace MC_BE.Migrations
 
             modelBuilder.Entity("MC_BE.Core.Entities.Payment", b =>
                 {
+                    b.HasOne("MC_BE.Core.Entities.User", "Learner")
+                        .WithMany()
+                        .HasForeignKey("LearnerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MC_BE.Core.Entities.User", null)
+                        .WithMany("Payments")
+                        .HasForeignKey("UserId");
+
+                    b.Navigation("Learner");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.PaymentItem", b =>
+                {
                     b.HasOne("MC_BE.Core.Entities.Course", "Course")
                         .WithMany()
                         .HasForeignKey("CourseId")
@@ -2608,22 +2649,22 @@ namespace MC_BE.Migrations
                         .IsRequired();
 
                     b.HasOne("MC_BE.Core.Entities.Enrollment", "Enrollment")
-                        .WithOne("Payment")
-                        .HasForeignKey("MC_BE.Core.Entities.Payment", "EnrollmentId")
+                        .WithMany("PaymentItems")
+                        .HasForeignKey("EnrollmentId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("MC_BE.Core.Entities.User", "Learner")
-                        .WithMany("Payments")
-                        .HasForeignKey("LearnerId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                    b.HasOne("MC_BE.Core.Entities.Payment", "Payment")
+                        .WithMany("Items")
+                        .HasForeignKey("PaymentId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("Course");
 
                     b.Navigation("Enrollment");
 
-                    b.Navigation("Learner");
+                    b.Navigation("Payment");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.PaymentTransaction", b =>
@@ -2827,7 +2868,7 @@ namespace MC_BE.Migrations
                 {
                     b.Navigation("LessonProgresses");
 
-                    b.Navigation("Payment");
+                    b.Navigation("PaymentItems");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.ForumComment", b =>
@@ -2869,6 +2910,8 @@ namespace MC_BE.Migrations
 
             modelBuilder.Entity("MC_BE.Core.Entities.Payment", b =>
                 {
+                    b.Navigation("Items");
+
                     b.Navigation("Transactions");
                 });
 

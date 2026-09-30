@@ -51,7 +51,8 @@ public class SmartMcDbContext : DbContext
     // ============================================================
 
     public DbSet<Payment> Payments { get; set; } = null!;
-    public DbSet<PaymentTransaction> PaymentTransactions { get; set; } = null!;
+public DbSet<PaymentItem> PaymentItems { get; set; } = null!;
+public DbSet<PaymentTransaction> PaymentTransactions { get; set; } = null!;
 
     // ============================================================
     // Section 4: Quiz & Assessment
@@ -319,8 +320,6 @@ public class SmartMcDbContext : DbContext
 .IsUnique()
 .HasFilter("\"Status\" IN ('PENDING_PAYMENT', 'ACTIVE')");
 
-            entity.HasIndex(e => e.PaymentId);
-
             entity.Property(e => e.Status)
                 .HasDefaultValue("PENDING_PAYMENT");
 
@@ -342,12 +341,7 @@ public class SmartMcDbContext : DbContext
                 .WithMany(c => c.Enrollments)
                 .HasForeignKey(e => e.CourseId)
                 .OnDelete(DeleteBehavior.Cascade);
-
-            entity.HasOne(e => e.Payment)
-                .WithOne(p => p.Enrollment)
-                .HasForeignKey<Payment>(p => p.EnrollmentId)
-                .OnDelete(DeleteBehavior.Restrict);
-        });
+                });
 
         modelBuilder.Entity<LessonProgress>(entity =>
         {
@@ -671,49 +665,71 @@ public class SmartMcDbContext : DbContext
         // ============================================================
 
         modelBuilder.Entity<Payment>(entity =>
-        {
-            entity.ToTable("payments");
+{
+    entity.ToTable("PAYMENT");
 
-            entity.HasKey(e => e.PaymentId);
+    entity.HasKey(e => e.PaymentId);
 
-            entity.HasIndex(e => e.MerchantTxnRef)
-                .IsUnique();
+    entity.HasIndex(e => e.MerchantTxnRef)
+        .IsUnique();
 
-            entity.HasIndex(e => e.LearnerId);
-            entity.HasIndex(e => e.CourseId);
-            entity.HasIndex(e => e.EnrollmentId);
-            entity.HasIndex(e => e.Status);
+    entity.HasIndex(e => e.LearnerId);
 
-            entity.Property(e => e.Currency)
-                .HasDefaultValue("VND");
+    entity.Property(e => e.Currency)
+        .HasDefaultValue("VND");
 
-            entity.Property(e => e.PaymentMethod)
-    .HasDefaultValue("PAYOS");
+    entity.Property(e => e.PaymentMethod)
+        .HasDefaultValue("PAYOS");
 
-            entity.Property(e => e.Status)
-                .HasDefaultValue("PENDING");
+    entity.Property(e => e.Status)
+        .HasDefaultValue("PENDING");
 
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+    entity.Property(e => e.CreatedAt)
+        .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
-            entity.Property(e => e.UpdatedAt)
-                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+    entity.Property(e => e.UpdatedAt)
+        .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
-            entity.HasOne(e => e.Learner)
-                .WithMany("Payments")
-                .HasForeignKey(e => e.LearnerId)
-                .OnDelete(DeleteBehavior.Restrict);
+    entity.HasOne(e => e.Learner)
+        .WithMany()
+        .HasForeignKey(e => e.LearnerId)
+        .OnDelete(DeleteBehavior.Restrict);
+});
 
-            entity.HasOne(e => e.Course)
-                .WithMany()
-                .HasForeignKey(e => e.CourseId)
-                .OnDelete(DeleteBehavior.Restrict);
+         modelBuilder.Entity<PaymentItem>(entity =>
+{
+    entity.ToTable("PAYMENT_ITEM");
 
-            entity.HasOne(e => e.Enrollment)
-                .WithOne(en => en.Payment)
-                .HasForeignKey<Payment>(p => p.EnrollmentId)
-                .OnDelete(DeleteBehavior.Restrict);
-        });
+    entity.HasKey(e => e.PaymentItemId);
+
+    entity.HasIndex(e => new
+    {
+        e.PaymentId,
+        e.EnrollmentId
+    }).IsUnique();
+
+    entity.HasIndex(e => e.EnrollmentId);
+
+    entity.HasIndex(e => e.CourseId);
+
+    entity.Property(e => e.CreatedAt)
+        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+    entity.HasOne(e => e.Payment)
+        .WithMany(p => p.Items)
+        .HasForeignKey(e => e.PaymentId)
+        .OnDelete(DeleteBehavior.Cascade);
+
+    entity.HasOne(e => e.Enrollment)
+    .WithMany(e => e.PaymentItems)
+    .HasForeignKey(e => e.EnrollmentId)
+    .OnDelete(DeleteBehavior.Restrict);
+
+    entity.HasOne(e => e.Course)
+        .WithMany()
+        .HasForeignKey(e => e.CourseId)
+        .OnDelete(DeleteBehavior.Restrict);
+});
 
         // ============================================================
         // PAYMENT TRANSACTION CONFIGURATION
@@ -1014,4 +1030,4 @@ public class SmartMcDbContext : DbContext
                 .OnDelete(DeleteBehavior.Cascade);
         });
     }
-}
+    }
