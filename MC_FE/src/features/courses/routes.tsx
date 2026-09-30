@@ -31,6 +31,10 @@ interface CourseRoutesProps {
   user: User | null;
   currentScreen: ScreenType;
   onToast?: (title: string, desc?: string, type?: ToastType) => void;
+  onOpenCart: () => void;
+  isCourseInCart: (courseId: string | number) => boolean;
+  isCourseEnrolled: (courseId: string | number) => boolean;
+  isCoursePendingPayment: (courseId: string | number) => boolean;
 }
 
 export const renderCourseRoutes = ({
@@ -49,6 +53,10 @@ export const renderCourseRoutes = ({
   user,
   currentScreen,
   onToast,
+  onOpenCart,
+  isCourseInCart,
+  isCourseEnrolled,
+  isCoursePendingPayment,
 }: CourseRoutesProps) => {
   return (
     <>
@@ -67,34 +75,59 @@ export const renderCourseRoutes = ({
         )}
       />
       <Route
-        path="/courses"
-        element={withMainLayout(
-          <CourseCatalogScreen
-            onNavigate={onNavigate}
-            onSelectCourse={onSelectCourse}
-            onPreviewVideo={onPreviewVideo}
-            onAddToCart={onAddToCart}
-            onToggleWishlist={onToggleWishlist}
-            wishlistCourseIds={wishlistCourseIds}
-            searchQuery={searchQuery}
-            onSearchChange={onSearchChange}
-          />
-        )}
-      />
+  path="/courses"
+  element={withMainLayout(
+    <CourseCatalogScreen
+      onNavigate={onNavigate}
+      onSelectCourse={onSelectCourse}
+      onPreviewVideo={onPreviewVideo}
+      onAddToCart={onAddToCart}
+      onToggleWishlist={onToggleWishlist}
+      wishlistCourseIds={wishlistCourseIds}
+      searchQuery={searchQuery}
+      onSearchChange={onSearchChange}
+      onOpenCart={onOpenCart}
+      isCourseInCart={isCourseInCart}
+      isCourseEnrolled={isCourseEnrolled}
+      isCoursePendingPayment={isCoursePendingPayment}
+      onContinuePayment={onEnrollDirectly}
+    />
+  )}
+/>
       <Route
-        path="/course-detail"
-        element={withMainLayout(
-          <CourseDetailScreen
-            course={activeCourse}
-            onNavigate={onNavigate}
-            onEnroll={onEnrollDirectly}
-            onAddToCart={onAddToCart}
-            onToggleWishlist={onToggleWishlist}
-            isWishlisted={activeCourse ? wishlistCourseIds.includes(activeCourse.id) : false}
-            onPreviewVideo={onPreviewVideo}
-          />
-        )}
-      />
+  path="/course-detail"
+  element={withMainLayout(
+    <CourseDetailScreen
+      course={activeCourse}
+      onNavigate={onNavigate}
+      onEnroll={onEnrollDirectly}
+      onAddToCart={onAddToCart}
+      onToggleWishlist={onToggleWishlist}
+      isWishlisted={
+        activeCourse
+          ? wishlistCourseIds.includes(activeCourse.id)
+          : false
+      }
+      onPreviewVideo={onPreviewVideo}
+      isEnrolled={
+        activeCourse
+          ? isCourseEnrolled(activeCourse.id)
+          : false
+      }
+      isInCart={
+        activeCourse
+          ? isCourseInCart(activeCourse.id)
+          : false
+      }
+      isPendingPayment={
+        activeCourse
+          ? isCoursePendingPayment(activeCourse.id)
+          : false
+      }
+      onOpenCart={onOpenCart}
+    />
+  )}
+/>
       <Route path="/courses/:id/learn" element={<CourseLearningPage />} />
       <Route path="/my-courses" element={withMainLayout(<MyCoursesScreen onNavigate={onNavigate} />)} />
       <Route path="/certificates/:certificateId" element={<CertificateScreen />} />

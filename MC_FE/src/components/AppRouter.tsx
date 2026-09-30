@@ -51,8 +51,17 @@ interface AppRouterProps {
   onUpdateUser?: (updatedUser: Partial<User>) => void;
   onToast?: (title: string, desc?: string, type?: ToastType) => void;
   onLogout: () => void;
-  cartCount: number;
+   cartCount: number;
   onOpenCart: () => void;
+  isCourseInCart: (
+    courseId: string | number
+  ) => boolean;
+  isCourseEnrolled: (
+    courseId: string | number
+  ) => boolean;
+  isCoursePendingPayment: (
+    courseId: string | number
+  ) => boolean;
 }
 
 export const AppRouter: React.FC<AppRouterProps> = ({
@@ -73,6 +82,9 @@ export const AppRouter: React.FC<AppRouterProps> = ({
   onLogout,
   cartCount,
   onOpenCart,
+  isCourseInCart,
+  isCourseEnrolled,
+  isCoursePendingPayment,
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -194,24 +206,28 @@ export const AppRouter: React.FC<AppRouterProps> = ({
         onToast,
       })}
 
-      {/* ── 2. Course Routes (/, /courses, /course-detail, /instructor/courses/*) ── */}
       {renderCourseRoutes({
-        onNavigate: handleNavigate,
-        onSelectCourse: handleSelectCourse,
-        onPreviewVideo,
-        onAddToCart,
-        onToggleWishlist,
-        onEnrollDirectly,
-        wishlistCourseIds,
-        searchQuery,
-        onSearchChange,
-        activeCourse,
-        withMainLayout,
-        withInstructorLayout,
-        user,
-        currentScreen,
-        onToast,
-      })}
+  onNavigate: handleNavigate,
+  onSelectCourse: handleSelectCourse,
+  onPreviewVideo,
+  onAddToCart,
+  onToggleWishlist,
+  onEnrollDirectly,
+  wishlistCourseIds,
+  searchQuery,
+  onSearchChange,
+  activeCourse,
+  withMainLayout,
+  withInstructorLayout,
+  user,
+  currentScreen,
+  onToast,
+
+  onOpenCart,
+  isCourseInCart,
+  isCourseEnrolled,
+  isCoursePendingPayment,
+})}
 
       {/* ── 3. Quiz Routes (/quizzes/*, /instructor/quizzes/*) ── */}
       {renderQuizRoutes({
