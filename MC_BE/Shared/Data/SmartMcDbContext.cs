@@ -311,6 +311,14 @@ public class SmartMcDbContext : DbContext
                 e.Status
             });
 
+            entity.HasIndex(e => new
+{
+    e.LearnerId,
+    e.CourseId
+})
+.IsUnique()
+.HasFilter("\"Status\" IN ('PENDING_PAYMENT', 'ACTIVE')");
+
             entity.HasIndex(e => e.PaymentId);
 
             entity.Property(e => e.Status)
@@ -757,7 +765,9 @@ public class SmartMcDbContext : DbContext
                 .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
             entity.HasIndex(e => e.PaymentId);
-            entity.HasIndex(e => e.ProviderTransactionNo);
+            entity.HasIndex(e => e.ProviderTransactionNo)
+    .IsUnique()
+    .HasFilter("\"ProviderTransactionNo\" IS NOT NULL");
             entity.HasIndex(e => e.Status);
 
             entity.HasOne(e => e.Payment)

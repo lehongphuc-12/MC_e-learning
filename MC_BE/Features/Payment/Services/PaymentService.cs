@@ -64,14 +64,19 @@ public class PaymentService : IPaymentService
                 "Bạn không có quyền thanh toán cho ghi danh này.");
 
 
-        if (string.Equals(
+        if (!string.Equals(
+    enrollment.Status,
+    "PENDING_PAYMENT",
+    StringComparison.OrdinalIgnoreCase))
+{
+    return ApiResponse<CreatePaymentResponseDto>.FailureResponse(
+        string.Equals(
             enrollment.Status,
             "ACTIVE",
-            StringComparison.OrdinalIgnoreCase))
-        {
-            return ApiResponse<CreatePaymentResponseDto>.FailureResponse(
-                "Khóa học đã được kích hoạt.");
-        }
+            StringComparison.OrdinalIgnoreCase)
+            ? "Khóa học đã được kích hoạt."
+            : $"Không thể thanh toán ghi danh ở trạng thái {enrollment.Status}.");
+}
 
 
         var course = await _courseCatalog.GetCourseByIdAsync(
@@ -83,9 +88,17 @@ public class PaymentService : IPaymentService
                 "Không tìm thấy khóa học.");
 
 
-        if (course.Price <= 0)
-            return ApiResponse<CreatePaymentResponseDto>.FailureResponse(
-                "Giá khóa học không hợp lệ.");
+if (!string.Equals(
+    course.Status,
+    "PUBLISHED",
+    StringComparison.OrdinalIgnoreCase)){
+    return ApiResponse<CreatePaymentResponseDto>.FailureResponse(
+        "Khóa học hiện không mở thanh toán.");
+}
+        if (course.Price <= 0){
+    return ApiResponse<CreatePaymentResponseDto>.FailureResponse(
+        "Giá khóa học không hợp lệ.");
+}
 
 
         if (course.Price != decimal.Truncate(course.Price))

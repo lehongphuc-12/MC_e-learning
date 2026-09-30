@@ -28,27 +28,21 @@ public class PaymentController : ControllerBase
     {
         _currentUserService.RequireLearner();
 
-        if (!int.TryParse(
-            _currentUserService.GetUserId(),
-            out var userId))
+        if (!int.TryParse(_currentUserService.GetUserId(), out var userId))
         {
             return Unauthorized(
-                ApiResponse<CreatePaymentResponseDto>
-                    .FailureResponse(
-                        "Không xác định được người dùng."));
+                ApiResponse<CreatePaymentResponseDto>.FailureResponse(
+                    "Không xác định được người dùng."));
         }
 
         var ipAddress =
-            HttpContext.Connection
-                .RemoteIpAddress?
-                .ToString()
+            HttpContext.Connection.RemoteIpAddress?.ToString()
             ?? "127.0.0.1";
 
-        var result =
-            await _paymentService.CreatePaymentAsync(
-                userId,
-                request,
-                ipAddress);
+        var result = await _paymentService.CreatePaymentAsync(
+            userId,
+            request,
+            ipAddress);
 
         if (!result.Success)
             return BadRequest(result);
@@ -61,21 +55,17 @@ public class PaymentController : ControllerBase
     public async Task<ActionResult<ApiResponse<PagedResult<PaymentDetailsDto>>>> GetMyPaymentHistory(
         [FromQuery] PaymentFilterRequest filter)
     {
-        if (!int.TryParse(
-            _currentUserService.GetUserId(),
-            out var userId))
+        _currentUserService.RequireLearner();
+
+        if (!int.TryParse(_currentUserService.GetUserId(), out var userId))
         {
             return Unauthorized(
-                ApiResponse<PagedResult<PaymentDetailsDto>>
-                    .FailureResponse(
-                        "Không xác định được người dùng."));
+                ApiResponse<PagedResult<PaymentDetailsDto>>.FailureResponse(
+                    "Không xác định được người dùng."));
         }
 
         var result =
-            await _paymentService
-                .GetMyPaymentHistoryAsync(
-                    userId,
-                    filter);
+            await _paymentService.GetMyPaymentHistoryAsync(userId, filter);
 
         if (!result.Success)
             return BadRequest(result);
@@ -88,20 +78,17 @@ public class PaymentController : ControllerBase
     public async Task<ActionResult<ApiResponse<PaymentDetailsDto>>> GetMyPayment(
         int paymentId)
     {
-        if (!int.TryParse(
-            _currentUserService.GetUserId(),
-            out var userId))
+        _currentUserService.RequireLearner();
+
+        if (!int.TryParse(_currentUserService.GetUserId(), out var userId))
         {
             return Unauthorized(
-                ApiResponse<PaymentDetailsDto>
-                    .FailureResponse(
-                        "Không xác định được người dùng."));
+                ApiResponse<PaymentDetailsDto>.FailureResponse(
+                    "Không xác định được người dùng."));
         }
 
         var result =
-            await _paymentService.GetMyPaymentAsync(
-                userId,
-                paymentId);
+            await _paymentService.GetMyPaymentAsync(userId, paymentId);
 
         if (!result.Success)
             return NotFound(result);
@@ -115,64 +102,67 @@ public class PaymentController : ControllerBase
     // ============================================================
 
     [HttpPost("payos-webhook")]
-[AllowAnonymous]
-public async Task<IActionResult> PayOsWebhook(
-    [FromBody] Webhook webhook)
-{
-    try
+    [AllowAnonymous]
+    public async Task<IActionResult> PayOsWebhook(
+        [FromBody] Webhook webhook)
     {
-        var processed =
-            await _paymentService.ProcessPayOsWebhookAsync(webhook);
+        try
+        {
+            var processed =
+                await _paymentService.ProcessPayOsWebhookAsync(webhook);
 
-        if (!processed)
+            if (!processed)
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = "Webhook payOS không hợp lệ."
+                });
+            }
+
+            return Ok(new
+            {
+                success = true
+            });
+        }
+        catch (Exception)
+        {
+            return StatusCode(
+                StatusCodes.Status500InternalServerError,
+                new
+                {
+                    success = false,
+                    message = "Không thể xử lý webhook."
+                });
+        }
+    }
+
+    [HttpPost("confirm-webhook")]
+    [Authorize]
+    public async Task<IActionResult> ConfirmWebhook(
+        [FromServices] IPayOsService payOsService)
+    {
+        _currentUserService.RequireAdmin();
+
+        try
+        {
+            var webhookUrl =
+                await payOsService.ConfirmWebhookAsync();
+
+            return Ok(new
+            {
+                success = true,
+                message = "Đăng ký webhook payOS thành công.",
+                webhookUrl
+            });
+        }
+        catch (Exception ex)
         {
             return BadRequest(new
             {
                 success = false,
-                message = "Webhook payOS không hợp lệ."
+                message = ex.Message
             });
         }
-
-        return Ok(new
-        {
-            success = true
-        });
     }
-    catch (Exception)
-    {
-        return StatusCode(
-            StatusCodes.Status500InternalServerError,
-            new
-            {
-                success = false,
-                message = "Không thể xử lý webhook."
-            });
-    }
-}
-[HttpPost("confirm-webhook")]
-[Authorize]
-public async Task<IActionResult> ConfirmWebhook(
-    [FromServices] IPayOsService payOsService)
-{
-    try
-    {
-        var webhookUrl =
-            await payOsService.ConfirmWebhookAsync();
-
-        return Ok(new
-        {
-            success = true,
-            message = "Đăng ký webhook payOS thành công.",
-            webhookUrl
-        });
-    }
-    catch (Exception ex)
-    {
-        return BadRequest(new
-        {
-            success = false,
-            message = ex.Message
-        });
-    }
-}
 }
