@@ -694,11 +694,19 @@ namespace MC_BE.Migrations
                         .HasColumnType("text")
                         .HasColumnName("ChoiceText");
 
+                    b.Property<string>("Explanation")
+                        .HasColumnType("text")
+                        .HasColumnName("Explanation");
+
                     b.Property<bool>("IsCorrect")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
                         .HasDefaultValue(false)
                         .HasColumnName("IsCorrect");
+
+                    b.Property<string>("OptionValue")
+                        .HasColumnType("text")
+                        .HasColumnName("OptionValue");
 
                     b.Property<int>("OrderIndex")
                         .ValueGeneratedOnAdd()
@@ -1761,11 +1769,27 @@ namespace MC_BE.Migrations
                         .HasColumnType("text")
                         .HasColumnName("Explanation");
 
+                    b.Property<string>("Instruction")
+                        .HasColumnType("text")
+                        .HasColumnName("Instruction");
+
+                    b.Property<bool>("IsRequired")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("IsRequired");
+
                     b.Property<int>("OrderIndex")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")
                         .HasDefaultValue(1)
                         .HasColumnName("OrderIndex");
+
+                    b.Property<decimal>("Points")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("decimal(8,2)")
+                        .HasDefaultValue(1.00m)
+                        .HasColumnName("Points");
 
                     b.Property<string>("QuestionText")
                         .IsRequired()
@@ -1783,9 +1807,242 @@ namespace MC_BE.Migrations
 
                     b.HasKey("QuestionId");
 
-                    b.HasIndex("QuizId");
+                    b.HasIndex("QuizId", "OrderIndex");
 
                     b.ToTable("questions", (string)null);
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.QuestionAnnotation", b =>
+                {
+                    b.Property<int>("AnnotationId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("AnnotationID");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("AnnotationId"));
+
+                    b.Property<string>("AnnotationType")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("AnnotationType");
+
+                    b.Property<string>("AnnotationValue")
+                        .HasColumnType("text")
+                        .HasColumnName("AnnotationValue");
+
+                    b.Property<int>("EndIndex")
+                        .HasColumnType("integer")
+                        .HasColumnName("EndIndex");
+
+                    b.Property<string>("Explanation")
+                        .HasColumnType("text")
+                        .HasColumnName("Explanation");
+
+                    b.Property<decimal>("Points")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("decimal(8,2)")
+                        .HasDefaultValue(1.00m)
+                        .HasColumnName("Points");
+
+                    b.Property<int>("QuestionId")
+                        .HasColumnType("integer")
+                        .HasColumnName("QuestionID");
+
+                    b.Property<int>("StartIndex")
+                        .HasColumnType("integer")
+                        .HasColumnName("StartIndex");
+
+                    b.HasKey("AnnotationId");
+
+                    b.HasIndex("QuestionId");
+
+                    b.ToTable("question_annotations", (string)null);
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.QuestionArrangeItem", b =>
+                {
+                    b.Property<int>("ArrangeItemId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("ArrangeItemID");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("ArrangeItemId"));
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("Content");
+
+                    b.Property<int?>("CorrectOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("CorrectOrder");
+
+                    b.Property<bool>("IsDistractor")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsDistractor");
+
+                    b.Property<int>("QuestionId")
+                        .HasColumnType("integer")
+                        .HasColumnName("QuestionID");
+
+                    b.HasKey("ArrangeItemId");
+
+                    b.HasIndex("QuestionId");
+
+                    b.ToTable("question_arrange_items", (string)null);
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.QuestionErrorRegion", b =>
+                {
+                    b.Property<int>("ErrorRegionId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("ErrorRegionID");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("ErrorRegionId"));
+
+                    b.Property<string>("CorrectionText")
+                        .HasColumnType("text")
+                        .HasColumnName("CorrectionText");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text")
+                        .HasColumnName("Description");
+
+                    b.Property<int>("EndTimeMs")
+                        .HasColumnType("integer")
+                        .HasColumnName("EndTimeMs");
+
+                    b.Property<string>("ErrorCategory")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("ErrorCategory");
+
+                    b.Property<string>("ErrorCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("ErrorCode");
+
+                    b.Property<decimal>("Points")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("decimal(8,2)")
+                        .HasDefaultValue(1.00m)
+                        .HasColumnName("Points");
+
+                    b.Property<int>("QuestionId")
+                        .HasColumnType("integer")
+                        .HasColumnName("QuestionID");
+
+                    b.Property<int>("StartTimeMs")
+                        .HasColumnType("integer")
+                        .HasColumnName("StartTimeMs");
+
+                    b.HasKey("ErrorRegionId");
+
+                    b.HasIndex("QuestionId");
+
+                    b.ToTable("question_error_regions", (string)null);
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.QuestionMedia", b =>
+                {
+                    b.Property<int>("MediaId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("MediaID");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("MediaId"));
+
+                    b.Property<int?>("DurationSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("DurationSeconds");
+
+                    b.Property<string>("Label")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("Label");
+
+                    b.Property<string>("MediaType")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("MediaType");
+
+                    b.Property<string>("MediaUrl")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("MediaUrl");
+
+                    b.Property<int>("OrderIndex")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("OrderIndex");
+
+                    b.Property<int>("QuestionId")
+                        .HasColumnType("integer")
+                        .HasColumnName("QuestionID");
+
+                    b.HasKey("MediaId");
+
+                    b.HasIndex("QuestionId", "OrderIndex");
+
+                    b.ToTable("question_media", (string)null);
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.QuestionWritingConfig", b =>
+                {
+                    b.Property<int>("WritingConfigId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("WritingConfigID");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("WritingConfigId"));
+
+                    b.Property<string>("Audience")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("Audience");
+
+                    b.Property<string>("EventType")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("EventType");
+
+                    b.Property<string>("GradingRubricJson")
+                        .HasColumnType("text")
+                        .HasColumnName("GradingRubricJson");
+
+                    b.Property<int?>("MaxWords")
+                        .HasColumnType("integer")
+                        .HasColumnName("MaxWords");
+
+                    b.Property<int?>("MinWords")
+                        .HasColumnType("integer")
+                        .HasColumnName("MinWords");
+
+                    b.Property<int>("QuestionId")
+                        .HasColumnType("integer")
+                        .HasColumnName("QuestionID");
+
+                    b.Property<string>("RequiredElementsJson")
+                        .HasColumnType("text")
+                        .HasColumnName("RequiredElementsJson");
+
+                    b.Property<string>("Style")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("Style");
+
+                    b.HasKey("WritingConfigId");
+
+                    b.HasIndex("QuestionId")
+                        .IsUnique();
+
+                    b.ToTable("question_writing_configs", (string)null);
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.Quiz", b =>
@@ -1880,27 +2137,262 @@ namespace MC_BE.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("AttemptID");
 
+                    b.Property<DateTime?>("GradedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("GradedAt");
+
+                    b.Property<int?>("GradedById")
+                        .HasColumnType("integer")
+                        .HasColumnName("GradedByID");
+
                     b.Property<bool?>("IsCorrect")
                         .HasColumnType("boolean")
                         .HasColumnName("IsCorrect");
+
+                    b.Property<decimal>("MaxScore")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("decimal(8,2)")
+                        .HasDefaultValue(1.00m)
+                        .HasColumnName("MaxScore");
 
                     b.Property<int>("QuestionId")
                         .HasColumnType("integer")
                         .HasColumnName("QuestionID");
 
+                    b.Property<decimal?>("Score")
+                        .HasColumnType("decimal(8,2)")
+                        .HasColumnName("Score");
+
                     b.Property<int?>("SelectedChoiceId")
                         .HasColumnType("integer")
                         .HasColumnName("SelectedChoiceID");
 
+                    b.Property<string>("TeacherFeedback")
+                        .HasColumnType("text")
+                        .HasColumnName("TeacherFeedback");
+
+                    b.Property<string>("TextAnswer")
+                        .HasColumnType("text")
+                        .HasColumnName("TextAnswer");
+
                     b.HasKey("QuizAnswerId");
 
-                    b.HasIndex("AttemptId");
+                    b.HasIndex("GradedById");
 
                     b.HasIndex("QuestionId");
 
                     b.HasIndex("SelectedChoiceId");
 
+                    b.HasIndex("AttemptId", "QuestionId")
+                        .IsUnique();
+
                     b.ToTable("quiz_answers", (string)null);
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.QuizAnswerAnnotation", b =>
+                {
+                    b.Property<int>("AnswerAnnotationId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("AnswerAnnotationID");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("AnswerAnnotationId"));
+
+                    b.Property<string>("AnnotationType")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("AnnotationType");
+
+                    b.Property<string>("AnnotationValue")
+                        .HasColumnType("text")
+                        .HasColumnName("AnnotationValue");
+
+                    b.Property<int>("EndIndex")
+                        .HasColumnType("integer")
+                        .HasColumnName("EndIndex");
+
+                    b.Property<int?>("MatchedAnnotationId")
+                        .HasColumnType("integer")
+                        .HasColumnName("MatchedAnnotationID");
+
+                    b.Property<int>("QuizAnswerId")
+                        .HasColumnType("integer")
+                        .HasColumnName("QuizAnswerID");
+
+                    b.Property<decimal>("Score")
+                        .HasColumnType("decimal(8,2)")
+                        .HasColumnName("Score");
+
+                    b.Property<int>("StartIndex")
+                        .HasColumnType("integer")
+                        .HasColumnName("StartIndex");
+
+                    b.HasKey("AnswerAnnotationId");
+
+                    b.HasIndex("MatchedAnnotationId");
+
+                    b.HasIndex("QuizAnswerId");
+
+                    b.ToTable("quiz_answer_annotations", (string)null);
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.QuizAnswerArrangeItem", b =>
+                {
+                    b.Property<int>("AnswerArrangeItemId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("AnswerArrangeItemID");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("AnswerArrangeItemId"));
+
+                    b.Property<int>("ArrangeItemId")
+                        .HasColumnType("integer")
+                        .HasColumnName("ArrangeItemID");
+
+                    b.Property<bool>("IsIncluded")
+                        .HasColumnType("boolean")
+                        .HasColumnName("IsIncluded");
+
+                    b.Property<int>("QuizAnswerId")
+                        .HasColumnType("integer")
+                        .HasColumnName("QuizAnswerID");
+
+                    b.Property<int?>("SelectedOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("SelectedOrder");
+
+                    b.HasKey("AnswerArrangeItemId");
+
+                    b.HasIndex("ArrangeItemId");
+
+                    b.HasIndex("QuizAnswerId", "ArrangeItemId")
+                        .IsUnique();
+
+                    b.ToTable("quiz_answer_arrange_items", (string)null);
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.QuizAnswerErrorRegion", b =>
+                {
+                    b.Property<int>("AnswerErrorRegionId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("AnswerErrorRegionID");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("AnswerErrorRegionId"));
+
+                    b.Property<decimal>("LocationScore")
+                        .HasColumnType("decimal(8,2)")
+                        .HasColumnName("LocationScore");
+
+                    b.Property<int?>("MatchedErrorRegionId")
+                        .HasColumnType("integer")
+                        .HasColumnName("MatchedErrorRegionID");
+
+                    b.Property<int>("QuizAnswerId")
+                        .HasColumnType("integer")
+                        .HasColumnName("QuizAnswerID");
+
+                    b.Property<int?>("SelectedEndTimeMs")
+                        .HasColumnType("integer")
+                        .HasColumnName("SelectedEndTimeMs");
+
+                    b.Property<string>("SelectedErrorCategory")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("SelectedErrorCategory");
+
+                    b.Property<string>("SelectedErrorCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("SelectedErrorCode");
+
+                    b.Property<int>("SelectedStartTimeMs")
+                        .HasColumnType("integer")
+                        .HasColumnName("SelectedStartTimeMs");
+
+                    b.Property<decimal>("TypeScore")
+                        .HasColumnType("decimal(8,2)")
+                        .HasColumnName("TypeScore");
+
+                    b.HasKey("AnswerErrorRegionId");
+
+                    b.HasIndex("MatchedErrorRegionId");
+
+                    b.HasIndex("QuizAnswerId");
+
+                    b.ToTable("quiz_answer_error_regions", (string)null);
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.QuizAnswerScenarioPath", b =>
+                {
+                    b.Property<int>("AnswerScenarioPathId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("AnswerScenarioPathID");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("AnswerScenarioPathId"));
+
+                    b.Property<DateTime>("AnsweredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("AnsweredAt");
+
+                    b.Property<int>("NodeId")
+                        .HasColumnType("integer")
+                        .HasColumnName("NodeID");
+
+                    b.Property<int>("QuizAnswerId")
+                        .HasColumnType("integer")
+                        .HasColumnName("QuizAnswerID");
+
+                    b.Property<int>("ScenarioChoiceId")
+                        .HasColumnType("integer")
+                        .HasColumnName("ScenarioChoiceID");
+
+                    b.Property<decimal>("Score")
+                        .HasColumnType("decimal(8,2)")
+                        .HasColumnName("Score");
+
+                    b.Property<int>("StepOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("StepOrder");
+
+                    b.HasKey("AnswerScenarioPathId");
+
+                    b.HasIndex("NodeId");
+
+                    b.HasIndex("ScenarioChoiceId");
+
+                    b.HasIndex("QuizAnswerId", "StepOrder")
+                        .IsUnique();
+
+                    b.ToTable("quiz_answer_scenario_paths", (string)null);
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.QuizAnswerSelectedChoice", b =>
+                {
+                    b.Property<int>("QuizAnswerSelectedChoiceId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("QuizAnswerSelectedChoiceID");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("QuizAnswerSelectedChoiceId"));
+
+                    b.Property<int>("ChoiceId")
+                        .HasColumnType("integer")
+                        .HasColumnName("ChoiceID");
+
+                    b.Property<int>("QuizAnswerId")
+                        .HasColumnType("integer")
+                        .HasColumnName("QuizAnswerID");
+
+                    b.HasKey("QuizAnswerSelectedChoiceId");
+
+                    b.HasIndex("ChoiceId");
+
+                    b.HasIndex("QuizAnswerId", "ChoiceId")
+                        .IsUnique();
+
+                    b.ToTable("quiz_answer_selected_choices", (string)null);
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.QuizAttempt", b =>
@@ -1946,9 +2438,9 @@ namespace MC_BE.Migrations
 
                     b.HasKey("AttemptId");
 
-                    b.HasIndex("QuizId");
-
                     b.HasIndex("UserId");
+
+                    b.HasIndex("QuizId", "UserId");
 
                     b.ToTable("quiz_attempts", (string)null);
                 });
@@ -2025,6 +2517,108 @@ namespace MC_BE.Migrations
                         .IsUnique();
 
                     b.ToTable("roles", (string)null);
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.ScenarioChoice", b =>
+                {
+                    b.Property<int>("ScenarioChoiceId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("ScenarioChoiceID");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("ScenarioChoiceId"));
+
+                    b.Property<string>("ChoiceText")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("ChoiceText");
+
+                    b.Property<string>("Feedback")
+                        .HasColumnType("text")
+                        .HasColumnName("Feedback");
+
+                    b.Property<int?>("NextNodeId")
+                        .HasColumnType("integer")
+                        .HasColumnName("NextNodeID");
+
+                    b.Property<int>("NodeId")
+                        .HasColumnType("integer")
+                        .HasColumnName("NodeID");
+
+                    b.Property<int>("OrderIndex")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("OrderIndex");
+
+                    b.Property<decimal>("Score")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("decimal(8,2)")
+                        .HasDefaultValue(0m)
+                        .HasColumnName("Score");
+
+                    b.HasKey("ScenarioChoiceId");
+
+                    b.HasIndex("NextNodeId");
+
+                    b.HasIndex("NodeId");
+
+                    b.ToTable("scenario_choices", (string)null);
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.ScenarioNode", b =>
+                {
+                    b.Property<int>("NodeId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("NodeID");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("NodeId"));
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("Content");
+
+                    b.Property<bool>("IsEndNode")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsEndNode");
+
+                    b.Property<bool>("IsStartNode")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsStartNode");
+
+                    b.Property<string>("MediaUrl")
+                        .HasColumnType("text")
+                        .HasColumnName("MediaUrl");
+
+                    b.Property<string>("NodeType")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("NodeType");
+
+                    b.Property<decimal?>("Points")
+                        .HasColumnType("decimal(8,2)")
+                        .HasColumnName("Points");
+
+                    b.Property<int>("QuestionId")
+                        .HasColumnType("integer")
+                        .HasColumnName("QuestionID");
+
+                    b.Property<string>("Title")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("Title");
+
+                    b.HasKey("NodeId");
+
+                    b.HasIndex("QuestionId");
+
+                    b.ToTable("scenario_nodes", (string)null);
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.SpeakingSubmission", b =>
@@ -2689,6 +3283,61 @@ namespace MC_BE.Migrations
                     b.Navigation("Quiz");
                 });
 
+            modelBuilder.Entity("MC_BE.Core.Entities.QuestionAnnotation", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.Question", "Question")
+                        .WithMany("Annotations")
+                        .HasForeignKey("QuestionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Question");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.QuestionArrangeItem", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.Question", "Question")
+                        .WithMany("ArrangeItems")
+                        .HasForeignKey("QuestionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Question");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.QuestionErrorRegion", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.Question", "Question")
+                        .WithMany("ErrorRegions")
+                        .HasForeignKey("QuestionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Question");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.QuestionMedia", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.Question", "Question")
+                        .WithMany("Media")
+                        .HasForeignKey("QuestionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Question");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.QuestionWritingConfig", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.Question", "Question")
+                        .WithOne("WritingConfig")
+                        .HasForeignKey("MC_BE.Core.Entities.QuestionWritingConfig", "QuestionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Question");
+                });
+
             modelBuilder.Entity("MC_BE.Core.Entities.Quiz", b =>
                 {
                     b.HasOne("MC_BE.Core.Entities.Course", "Course")
@@ -2722,10 +3371,15 @@ namespace MC_BE.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("MC_BE.Core.Entities.User", "GradedBy")
+                        .WithMany()
+                        .HasForeignKey("GradedById")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("MC_BE.Core.Entities.Question", "Question")
                         .WithMany("QuizAnswers")
                         .HasForeignKey("QuestionId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("MC_BE.Core.Entities.Choice", "SelectedChoice")
@@ -2735,9 +3389,112 @@ namespace MC_BE.Migrations
 
                     b.Navigation("Attempt");
 
+                    b.Navigation("GradedBy");
+
                     b.Navigation("Question");
 
                     b.Navigation("SelectedChoice");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.QuizAnswerAnnotation", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.QuestionAnnotation", "MatchedAnnotation")
+                        .WithMany("AnswerAnnotations")
+                        .HasForeignKey("MatchedAnnotationId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("MC_BE.Core.Entities.QuizAnswer", "QuizAnswer")
+                        .WithMany("Annotations")
+                        .HasForeignKey("QuizAnswerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("MatchedAnnotation");
+
+                    b.Navigation("QuizAnswer");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.QuizAnswerArrangeItem", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.QuestionArrangeItem", "ArrangeItem")
+                        .WithMany("AnswerArrangeItems")
+                        .HasForeignKey("ArrangeItemId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MC_BE.Core.Entities.QuizAnswer", "QuizAnswer")
+                        .WithMany("ArrangeItems")
+                        .HasForeignKey("QuizAnswerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ArrangeItem");
+
+                    b.Navigation("QuizAnswer");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.QuizAnswerErrorRegion", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.QuestionErrorRegion", "MatchedErrorRegion")
+                        .WithMany("AnswerErrorRegions")
+                        .HasForeignKey("MatchedErrorRegionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("MC_BE.Core.Entities.QuizAnswer", "QuizAnswer")
+                        .WithMany("ErrorRegions")
+                        .HasForeignKey("QuizAnswerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("MatchedErrorRegion");
+
+                    b.Navigation("QuizAnswer");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.QuizAnswerScenarioPath", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.ScenarioNode", "Node")
+                        .WithMany("AnswerPaths")
+                        .HasForeignKey("NodeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MC_BE.Core.Entities.QuizAnswer", "QuizAnswer")
+                        .WithMany("ScenarioPaths")
+                        .HasForeignKey("QuizAnswerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MC_BE.Core.Entities.ScenarioChoice", "ScenarioChoice")
+                        .WithMany("AnswerPaths")
+                        .HasForeignKey("ScenarioChoiceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Node");
+
+                    b.Navigation("QuizAnswer");
+
+                    b.Navigation("ScenarioChoice");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.QuizAnswerSelectedChoice", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.Choice", "Choice")
+                        .WithMany("SelectedByAnswers")
+                        .HasForeignKey("ChoiceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MC_BE.Core.Entities.QuizAnswer", "QuizAnswer")
+                        .WithMany("SelectedChoices")
+                        .HasForeignKey("QuizAnswerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Choice");
+
+                    b.Navigation("QuizAnswer");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.QuizAttempt", b =>
@@ -2768,6 +3525,35 @@ namespace MC_BE.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.ScenarioChoice", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.ScenarioNode", "NextNode")
+                        .WithMany("IncomingChoices")
+                        .HasForeignKey("NextNodeId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MC_BE.Core.Entities.ScenarioNode", "Node")
+                        .WithMany("Choices")
+                        .HasForeignKey("NodeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("NextNode");
+
+                    b.Navigation("Node");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.ScenarioNode", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.Question", "Question")
+                        .WithMany("ScenarioNodes")
+                        .HasForeignKey("QuestionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Question");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.SpeakingSubmission", b =>
@@ -2849,6 +3635,8 @@ namespace MC_BE.Migrations
             modelBuilder.Entity("MC_BE.Core.Entities.Choice", b =>
                 {
                     b.Navigation("QuizAnswers");
+
+                    b.Navigation("SelectedByAnswers");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.Course", b =>
@@ -2917,9 +3705,36 @@ namespace MC_BE.Migrations
 
             modelBuilder.Entity("MC_BE.Core.Entities.Question", b =>
                 {
+                    b.Navigation("Annotations");
+
+                    b.Navigation("ArrangeItems");
+
                     b.Navigation("Choices");
 
+                    b.Navigation("ErrorRegions");
+
+                    b.Navigation("Media");
+
                     b.Navigation("QuizAnswers");
+
+                    b.Navigation("ScenarioNodes");
+
+                    b.Navigation("WritingConfig");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.QuestionAnnotation", b =>
+                {
+                    b.Navigation("AnswerAnnotations");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.QuestionArrangeItem", b =>
+                {
+                    b.Navigation("AnswerArrangeItems");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.QuestionErrorRegion", b =>
+                {
+                    b.Navigation("AnswerErrorRegions");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.Quiz", b =>
@@ -2927,6 +3742,19 @@ namespace MC_BE.Migrations
                     b.Navigation("Questions");
 
                     b.Navigation("QuizAttempts");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.QuizAnswer", b =>
+                {
+                    b.Navigation("Annotations");
+
+                    b.Navigation("ArrangeItems");
+
+                    b.Navigation("ErrorRegions");
+
+                    b.Navigation("ScenarioPaths");
+
+                    b.Navigation("SelectedChoices");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.QuizAttempt", b =>
@@ -2937,6 +3765,20 @@ namespace MC_BE.Migrations
             modelBuilder.Entity("MC_BE.Core.Entities.Role", b =>
                 {
                     b.Navigation("Users");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.ScenarioChoice", b =>
+                {
+                    b.Navigation("AnswerPaths");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.ScenarioNode", b =>
+                {
+                    b.Navigation("AnswerPaths");
+
+                    b.Navigation("Choices");
+
+                    b.Navigation("IncomingChoices");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.User", b =>
