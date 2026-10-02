@@ -297,6 +297,12 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
+            entity.Property(e => e.FileUrl)
+                .HasColumnType("text");
+
+            entity.Property(e => e.Title)
+                .HasMaxLength(500);
+
             entity.HasOne(d => d.Course)
                 .WithMany(p => p.CourseMaterials)
                 .HasForeignKey(d => d.CourseId)

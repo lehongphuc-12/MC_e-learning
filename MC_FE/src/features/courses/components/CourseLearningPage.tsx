@@ -973,9 +973,7 @@ export const CourseLearningPage: React.FC = () => {
     const speakingAssignments: Lesson[] = [];
 
     lessons.forEach((l) => {
-      const isAssignment =
-        l.lessonType?.toUpperCase() === 'ASSIGNMENT' ||
-        (!l.videoUrl && !l.moduleId);
+      const isAssignment = l.lessonType?.toUpperCase() === 'ASSIGNMENT';
 
       if (isAssignment) {
         speakingAssignments.push(l);
@@ -2018,14 +2016,12 @@ export const CourseLearningPage: React.FC = () => {
 
             <div
               className={`relative w-full overflow-hidden rounded-2xl border border-slate-800/80 shadow-2xl group ${
-                activeLesson?.lessonType?.toUpperCase() === 'ASSIGNMENT' ||
-                (!activeLesson?.videoUrl && activeLesson !== null)
+                activeLesson?.lessonType?.toUpperCase() === 'ASSIGNMENT'
                   ? 'min-h-[550px] bg-slate-950'
                   : 'aspect-video bg-black'
               }`}
             >
-              {activeLesson?.lessonType?.toUpperCase() === 'ASSIGNMENT' ||
-              (!activeLesson?.videoUrl && activeLesson !== null) ? (
+              {activeLesson?.lessonType?.toUpperCase() === 'ASSIGNMENT' ? (
                 <LearnerSpeakingWorkspace
                   lesson={activeLesson}
                   courseId={courseId}
