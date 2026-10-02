@@ -5,16 +5,11 @@ export interface ApiResponse<T> {
   errors?: string[];
 }
 
-// ============================================================
-// ENROLLMENT
-// ============================================================
-
 export interface EnrollmentDto {
   enrollmentId: number;
   learnerId: number;
   courseId: number;
   paymentId?: number | null;
-
   status:
     | 'ACTIVE'
     | 'PENDING_PAYMENT'
@@ -22,22 +17,17 @@ export interface EnrollmentDto {
     | 'EXPIRED'
     | 'REVOKED'
     | 'REFUNDED';
-
   completionPercentage: number;
-
   enrolledAt?: string | null;
   expiresAt?: string | null;
-
   createdAt: string;
 }
-
-// ============================================================
-// CREATE PAYMENT
-// ============================================================
 
 export interface CreatePaymentResponseDto {
   paymentId: number;
   enrollmentId: number;
+  enrollmentIds: number[];
+  courseIds: number[];
   amount: number;
   currency: string;
   status: string;
@@ -45,9 +35,16 @@ export interface CreatePaymentResponseDto {
   expiresAt: string;
 }
 
-// ============================================================
-// TRANSACTION
-// ============================================================
+export interface PaymentItemDto {
+  paymentItemId: number;
+  enrollmentId: number;
+  courseId: number;
+  courseTitle: string;
+  courseThumbnailUrl: string;
+  courseDescription: string;
+  enrollmentStatus: string;
+  amount: number;
+}
 
 export interface PaymentTransactionDto {
   transactionId: number;
@@ -62,13 +59,8 @@ export interface PaymentTransactionDto {
   processedAt: string;
 }
 
-// ============================================================
-// PAYMENT DETAIL
-// ============================================================
-
 export interface PaymentDetailsDto {
   paymentId: number;
-
   learnerId: number;
   learnerName: string;
   learnerEmail: string;
@@ -81,98 +73,59 @@ export interface PaymentDetailsDto {
   enrollmentId: number;
   enrollmentStatus: string;
 
+  items: PaymentItemDto[];
+
   amount: number;
   currency: string;
   paymentMethod: string;
-
   paymentStatus: string;
-
   merchantTxnRef: string;
-
-  vnPayTransactionNo?: string | null;
-  vnPayResponseCode?: string | null;
-  vnPayTransactionStatus?: string | null;
 
   createdAt: string;
   updatedAt: string;
 
-  latestTransaction?:
-    | PaymentTransactionDto
-    | null;
+  latestTransaction?: PaymentTransactionDto | null;
 }
 
-// ============================================================
-// VNPAY QUERY
-// ============================================================
-
-export interface VnPayQueryResultDto {
+export interface PayOsQueryResultDto {
   requestSucceeded: boolean;
-
-  responseCode?: string | null;
-
-  message?: string | null;
-
-  transactionStatus?: string | null;
-
-  transactionNo?: string | null;
-
-  bankCode?: string | null;
-
-  amount?: number | null;
-
-  rawResponse?: string | null;
+  orderCode: number;
+  amount: number;
+  amountPaid: number;
+  amountRemaining: number;
+  status: string;
+  paymentLinkId?: string | null;
+  reference?: string | null;
+  cancellationReason?: string | null;
+  message: string;
 }
-
-// ============================================================
-// VERIFY
-// ============================================================
 
 export interface VerifyPaymentResultDto {
   valid: boolean;
-
   isSuccess: boolean;
-
   message: string;
-
   transactionStatus?: string | null;
-
   issues: string[];
-
   payment?: PaymentDetailsDto | null;
-
-  vnPay?: VnPayQueryResultDto | null;
+  payOs?: PayOsQueryResultDto | null;
 }
-
-// ============================================================
-// PAGING
-// ============================================================
 
 export interface PagedResult<T> {
   items: T[];
-
-  totalCount: number;
+  totalCount?: number;
   totalItems: number;
-
   totalPages: number;
-
   page: number;
   pageSize: number;
 }
 
-// ============================================================
-// FILTER
-// ============================================================
-
 export interface PaymentFilterRequest {
   page?: number;
   pageSize?: number;
-
   status?: string;
   keyword?: string;
-
   fromDate?: string;
   toDate?: string;
-
   minAmount?: number;
   maxAmount?: number;
 }

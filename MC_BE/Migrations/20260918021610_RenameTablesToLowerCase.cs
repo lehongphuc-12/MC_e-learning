@@ -10,6 +10,11 @@ namespace MC_BE.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            // FIX: Drop FK ApprovedByID created by AddCourseApprovalFields
+            migrationBuilder.DropForeignKey(
+                name: "FK_COURSE_USER_ApprovedByID",
+                table: "COURSE");
+
             migrationBuilder.DropForeignKey(
                 name: "FK_CERTIFICATE_ENROLLMENT_EnrollmentID",
                 table: "CERTIFICATE");
@@ -508,6 +513,14 @@ namespace MC_BE.Migrations
                 principalColumn: "UserID",
                 onDelete: ReferentialAction.Restrict);
 
+            // FIX: Recreate ApprovedByID FK with the lowercase course table name
+            migrationBuilder.AddForeignKey(
+                name: "FK_courses_USER_ApprovedByID",
+                table: "courses",
+                column: "ApprovedByID",
+                principalTable: "USER",
+                principalColumn: "UserID");
+
             migrationBuilder.AddForeignKey(
                 name: "FK_courses_categories_CategoryID",
                 table: "courses",
@@ -680,6 +693,11 @@ namespace MC_BE.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            // FIX: Drop ApprovedByID FK before renaming courses back to COURSE
+            migrationBuilder.DropForeignKey(
+                name: "FK_courses_USER_ApprovedByID",
+                table: "courses");
+
             migrationBuilder.DropForeignKey(
                 name: "FK_CERTIFICATE_enrollments_EnrollmentID",
                 table: "CERTIFICATE");
@@ -1161,6 +1179,14 @@ namespace MC_BE.Migrations
                 principalTable: "USER",
                 principalColumn: "UserID",
                 onDelete: ReferentialAction.Restrict);
+
+            // FIX: Restore original ApprovedByID FK
+            migrationBuilder.AddForeignKey(
+                name: "FK_COURSE_USER_ApprovedByID",
+                table: "COURSE",
+                column: "ApprovedByID",
+                principalTable: "USER",
+                principalColumn: "UserID");
 
             migrationBuilder.AddForeignKey(
                 name: "FK_COURSE_MATERIAL_COURSE_CourseID",

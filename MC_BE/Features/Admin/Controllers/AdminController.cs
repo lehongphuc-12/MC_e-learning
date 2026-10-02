@@ -7,6 +7,8 @@ using Microsoft.EntityFrameworkCore;
 using MC_BE.Core.DTOs;
 using MC_BE.Features.Admin.DTOs;
 using MC_BE.Features.Users.Services.Interfaces;
+using MC_BE.Features.Admin.Services.Interfaces;
+using System.Collections.Generic;
 using MC_BE.Shared.Data;
 
 namespace MC_BE.Features.Admin.Controllers;
@@ -17,14 +19,127 @@ namespace MC_BE.Features.Admin.Controllers;
 public class AdminController : ControllerBase
 {
     private readonly IUserService _userService;
+    private readonly IAdminStatsService _adminStatsService;
     private readonly SmartMcDbContext _context;
 
     public AdminController(
         IUserService userService,
+        IAdminStatsService adminStatsService,
         SmartMcDbContext context)
     {
         _userService = userService;
+        _adminStatsService = adminStatsService;
         _context = context;
+    }
+
+    // ============================================================
+    // GET DASHBOARD STATS
+    // GET /api/admin/stats
+    // ============================================================
+
+    [HttpGet("stats")]
+    public async Task<ActionResult<ApiResponse<AdminStatsDto>>> GetDashboardStats()
+    {
+        try
+        {
+            var stats = await _adminStatsService.GetDashboardStatsAsync();
+            return Ok(ApiResponse<AdminStatsDto>.SuccessResponse(stats, "Lấy dữ liệu thống kê Admin thành công."));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ApiResponse<AdminStatsDto>.FailureResponse(ex.Message));
+        }
+    }
+
+    // ============================================================
+    // GET REVENUE CHART
+    // GET /api/admin/stats/revenue-chart
+    // ============================================================
+
+    [HttpGet("stats/revenue-chart")]
+    public async Task<ActionResult<ApiResponse<List<RevenueDataPointDto>>>> GetRevenueChart()
+    {
+        try
+        {
+            var chartData = await _adminStatsService.GetRevenueChartAsync();
+            return Ok(ApiResponse<List<RevenueDataPointDto>>.SuccessResponse(chartData, "Lấy dữ liệu biểu đồ doanh thu thành công."));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ApiResponse<List<RevenueDataPointDto>>.FailureResponse(ex.Message));
+        }
+    }
+
+    // ============================================================
+    // GET SYSTEM LOGS
+    // GET /api/admin/logs
+    // ============================================================
+
+    [HttpGet("logs")]
+    public async Task<ActionResult<ApiResponse<List<SystemLogDto>>>> GetSystemLogs()
+    {
+        try
+        {
+            var logs = await _adminStatsService.GetSystemLogsAsync();
+            return Ok(ApiResponse<List<SystemLogDto>>.SuccessResponse(logs, "Lấy nhật ký hệ thống thành công."));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ApiResponse<List<SystemLogDto>>.FailureResponse(ex.Message));
+        }
+    }
+
+    // ============================================================
+    // GET PLATFORM SETTINGS
+    // GET /api/admin/settings
+    // ============================================================
+
+    [HttpGet("settings")]
+    public async Task<ActionResult<ApiResponse<PlatformSettingsDto>>> GetPlatformSettings()
+    {
+        try
+        {
+            var settings = await _adminStatsService.GetPlatformSettingsAsync();
+            return Ok(ApiResponse<PlatformSettingsDto>.SuccessResponse(settings, "Lấy cấu hình hệ thống thành công."));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ApiResponse<PlatformSettingsDto>.FailureResponse(ex.Message));
+        }
+    }
+
+    [HttpGet("/api/system/settings")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<PlatformSettingsDto>>> GetPublicSystemSettings()
+    {
+        try
+        {
+            var settings = await _adminStatsService.GetPlatformSettingsAsync();
+            return Ok(ApiResponse<PlatformSettingsDto>.SuccessResponse(settings, "Lấy cấu hình hệ thống công khai."));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ApiResponse<PlatformSettingsDto>.FailureResponse(ex.Message));
+        }
+    }
+
+    // ============================================================
+    // UPDATE PLATFORM SETTINGS
+    // PUT /api/admin/settings
+    // ============================================================
+
+    [HttpPut("settings")]
+    public async Task<ActionResult<ApiResponse<bool>>> UpdatePlatformSettings([FromBody] PlatformSettingsDto settings)
+    {
+        try
+        {
+            var success = await _adminStatsService.UpdatePlatformSettingsAsync(settings);
+            return Ok(ApiResponse<bool>.SuccessResponse(success, "Cập nhật cấu hình hệ thống thành công."));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ApiResponse<bool>.FailureResponse(ex.Message));
+        }
     }
 
     // ============================================================

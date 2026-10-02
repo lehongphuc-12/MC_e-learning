@@ -1,9 +1,6 @@
-using MC_BE.Core.DTOs;
 using System.Net;
 using System.Text.Json;
 using MC_BE.Core.DTOs;
-using MC_BE.Features.Auth.DTOs;
-using MC_BE.Features.Admin.DTOs;
 
 namespace MC_BE.Shared.Middleware;
 
@@ -12,7 +9,9 @@ public class GlobalExceptionMiddleware
     private readonly RequestDelegate _next;
     private readonly ILogger<GlobalExceptionMiddleware> _logger;
 
-    public GlobalExceptionMiddleware(RequestDelegate next, ILogger<GlobalExceptionMiddleware> logger)
+    public GlobalExceptionMiddleware(
+        RequestDelegate next,
+        ILogger<GlobalExceptionMiddleware> logger)
     {
         _next = next;
         _logger = logger;
@@ -26,27 +25,81 @@ public class GlobalExceptionMiddleware
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "An unhandled exception occurred during request processing. Path: {Path}", context.Request.Path);
             await HandleExceptionAsync(context, ex);
         }
     }
 
-    private static Task HandleExceptionAsync(HttpContext context, Exception exception)
+    private async Task HandleExceptionAsync(HttpContext context, Exception exception)
     {
+        var (statusCode, message) = exception switch
+        {
+            ArgumentException => (
+                HttpStatusCode.BadRequest,
+                exception.Message
+            ),
+
+            KeyNotFoundException => (
+                HttpStatusCode.NotFound,
+                exception.Message
+            ),
+
+            UnauthorizedAccessException => (
+                HttpStatusCode.Forbidden,
+                exception.Message
+            ),
+
+            InvalidOperationException => (
+                HttpStatusCode.BadRequest,
+                exception.Message
+            ),
+
+            _ => (
+                HttpStatusCode.InternalServerError,
+                "An internal server error occurred."
+            )
+        };
+
+        if (statusCode == HttpStatusCode.InternalServerError)
+        {
+            _logger.LogError(
+                exception,
+                "An unhandled exception occurred during request processing. Path: {Path}",
+                context.Request.Path
+            );
+        }
+        else
+        {
+            _logger.LogWarning(
+                exception,
+                "Request failed with status {StatusCode}. Path: {Path}. Message: {Message}",
+                (int)statusCode,
+                context.Request.Path,
+                exception.Message
+            );
+        }
+
+        if (context.Response.HasStarted)
+        {
+            return;
+        }
+
+        context.Response.Clear();
+        context.Response.StatusCode = (int)statusCode;
         context.Response.ContentType = "application/json";
-        context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
 
         var response = ApiResponse<object>.FailureResponse(
-            "An internal server error occurred.",
+            message,
             new List<string> { exception.Message }
         );
 
-        var jsonOptions = new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        };
+        var json = JsonSerializer.Serialize(
+            response,
+            new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            }
+        );
 
-        var json = JsonSerializer.Serialize(response, jsonOptions);
-        return context.Response.WriteAsync(json);
+        await context.Response.WriteAsync(json);
     }
 }

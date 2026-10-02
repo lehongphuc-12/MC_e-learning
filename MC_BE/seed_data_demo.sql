@@ -1,16 +1,34 @@
 -- =============================================================================
 -- SQL Seed Data script for Demo: LE13 (Learning) & LE15 (Certification)
--- Learner ID: 1 (huynhthiminhnguyet198@gmail.com)
+-- Account: heo (huynhthiminhnguyet198@gmail.com / pass: 12345678)
 -- =============================================================================
 
--- 1. Insert Categories
+-- 1. Insert Roles
+INSERT INTO "ROLE" ("RoleID", "RoleName", "Description")
+VALUES 
+  (1, 'Learner', 'Student user who consumes learning materials.'),
+  (2, 'Instructor', 'Teacher user who teaches classes and uploads materials.'),
+  (3, 'Admin', 'Administrator user with system-wide permissions.')
+ON CONFLICT ("RoleID") DO NOTHING;
+
+-- 2. Insert or Update User "heo" (LearnerID = 1, Pass = 12345678)
+INSERT INTO "USER" ("UserID", "RoleID", "FullName", "Email", "PasswordHash", "IsGoogleLogin", "Status", "CreatedAt", "UpdatedAt")
+VALUES 
+  (1, 1, 'heo', 'huynhthiminhnguyet198@gmail.com', '$2a$11$N.zmdrZk7uOCQb376NoUnuTJ8iAt6Z5E61.6Jz/e7L9P7m3MhWk4m', false, 'ACTIVE', NOW(), NOW())
+ON CONFLICT ("UserID") DO UPDATE 
+SET "FullName" = 'heo', 
+    "Email" = 'huynhthiminhnguyet198@gmail.com', 
+    "PasswordHash" = '$2a$11$N.zmdrZk7uOCQb376NoUnuTJ8iAt6Z5E61.6Jz/e7L9P7m3MhWk4m',
+    "Status" = 'ACTIVE';
+
+-- 3. Insert Categories
 INSERT INTO "CATEGORY" ("CategoryID", "CategoryName", "Description", "Status")
 VALUES 
   (1, 'Dẫn Chương Trình Sự Kiện', 'Khóa học đào tạo kỹ năng MC sự kiện chuyên nghiệp', 'ACTIVE'),
   (2, 'Luyện Giọng Nói & Ngôn Ngữ', 'Khóa học làm chủ giọng nói và biểu cảm', 'ACTIVE')
 ON CONFLICT ("CategoryID") DO NOTHING;
 
--- 2. Insert Sample Courses (3 Courses, InstructorID = 1, Status = PUBLISHED)
+-- 4. Insert Sample Courses (3 Courses, InstructorID = 1, Status = PUBLISHED)
 INSERT INTO "COURSE" ("CourseID", "CategoryID", "InstructorID", "Title", "Slug", "Description", "ThumbnailUrl", "Price", "Level", "Status", "CreatedAt", "UpdatedAt")
 VALUES 
   (1, 1, 1, 'Kỹ Năng MC Sự Kiện & Hội Nghị Chuyên Nghiệp', 'ky-nang-mc-su-kien-hoi-nghi-chuyen-nghiep', 'Khóa học hướng dẫn quy trình dẫn chương trình từ A-Z, xử lý sự cố sân khấu và làm chủ không khí hội nghị.', 'https://images.unsplash.com/photo-1475721027785-f74eccf877e2?w=800&auto=format&fit=crop&q=60', 1490000.00, 'BEGINNER', 'PUBLISHED', NOW(), NOW()),
@@ -18,7 +36,7 @@ VALUES
   (3, 1, 1, 'Kỹ Thuật Xử Lý Kịch Bản MC & Biến Tấu Linh Hoạt', 'ky-thuat-xu-ly-kich-ban-mc-bien-tau-linh-hoat', 'Khóa học chuyên sâu hướng dẫn cách biên tập, dàn dựng và biến tấu linh hoạt mọi thể loại kịch bản MC sự kiện.', 'https://images.unsplash.com/photo-1505373877841-8d25f7d46678?w=800&auto=format&fit=crop&q=60', 1290000.00, 'ADVANCED', 'PUBLISHED', NOW(), NOW())
 ON CONFLICT ("CourseID") DO UPDATE SET "Status" = 'PUBLISHED';
 
--- 3. Insert Modules for Courses
+-- 5. Insert Modules for Courses
 INSERT INTO "MODULE" ("ModuleID", "CourseID", "Title", "Description", "OrderIndex", "CreatedAt", "UpdatedAt")
 VALUES 
   (1, 1, 'Chương 1: Kỹ năng nhập môn & Chuẩn bị kịch bản chương trình', 'Tổng quan về nghề MC và tác phong chuyên nghiệp', 1, NOW(), NOW()),
@@ -29,7 +47,7 @@ VALUES
   (6, 3, 'Chương 2: Kỹ thuật ứng biến & Biến tấu kịch bản', 'Ứng biến ngôn từ linh hoạt khi sự kiện phát sinh thay đổi phút chót', 2, NOW(), NOW())
 ON CONFLICT ("ModuleID") DO NOTHING;
 
--- 4. Insert Lessons (2 Lessons per Course)
+-- 6. Insert Lessons (2 Lessons per Course)
 INSERT INTO "LESSON" ("LessonID", "CourseID", "ModuleID", "Title", "Description", "LessonType", "OrderIndex", "DurationMinutes", "IsPreview", "Status", "CreatedAt")
 VALUES 
   -- Course 1 Lessons
@@ -45,7 +63,18 @@ VALUES
   (6, 3, 6, 'Bài 2: Nghệ thuật ứng biến khi kịch bản thay đổi phút chót', 'Kỹ thuật nối lời, kéo dài thời gian và giữ lửa chương trình khi đại biểu đến trễ.', 'VIDEO', 2, 25, false, 'ACTIVE', NOW())
 ON CONFLICT ("LessonID") DO NOTHING;
 
--- 5. Insert Valid Enrollment Records for Learner ID = 1 (beo) - 3 Courses Total
+-- 7. Insert Video Materials for Lessons (Demo short MP4 videos ~5-10s)
+INSERT INTO "COURSE_MATERIAL" ("MaterialID", "CourseID", "LessonID", "UploaderID", "Title", "MaterialType", "FileUrl", "CreatedAt")
+VALUES 
+  (1, 1, 1, 1, 'Bài 1: Tác phong MC - Video', 'VIDEO', 'https://www.w3schools.com/html/mov_bbb.mp4', NOW()),
+  (2, 1, 2, 1, 'Bài 2: Làm chủ sân khấu - Video', 'VIDEO', 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4', NOW()),
+  (3, 2, 3, 1, 'Bài 1: Kỹ thuật nén hơi - Video', 'VIDEO', 'https://www.w3schools.com/html/mov_bbb.mp4', NOW()),
+  (4, 2, 4, 1, 'Bài 2: Ngôn ngữ cơ thể - Video', 'VIDEO', 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4', NOW()),
+  (5, 3, 5, 1, 'Bài 1: Phân tích kịch bản Gala - Video', 'VIDEO', 'https://www.w3schools.com/html/mov_bbb.mp4', NOW()),
+  (6, 3, 6, 1, 'Bài 2: Nghệ thuật ứng biến - Video', 'VIDEO', 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4', NOW())
+ON CONFLICT ("MaterialID") DO UPDATE SET "FileUrl" = EXCLUDED."FileUrl";
+
+-- 8. Insert Valid Enrollment Records for Learner ID = 1 (heo) - 3 Courses Total
 INSERT INTO "ENROLLMENT" ("EnrollmentID", "LearnerID", "CourseID", "Status", "CompletionPercentage", "EnrolledAt", "CreatedAt", "UpdatedAt")
 VALUES 
   (1, 1, 1, 'ACTIVE', 0.00, NOW(), NOW(), NOW()),
@@ -54,8 +83,12 @@ VALUES
 ON CONFLICT ("EnrollmentID") DO UPDATE SET "Status" = 'ACTIVE';
 
 -- Reset Sequences for PostgreSQL identity columns
+SELECT setval(pg_get_serial_sequence('"ROLE"', 'RoleID'), coalesce(max("RoleID"), 1)) FROM "ROLE";
+SELECT setval(pg_get_serial_sequence('"USER"', 'UserID'), coalesce(max("UserID"), 1)) FROM "USER";
 SELECT setval(pg_get_serial_sequence('"CATEGORY"', 'CategoryID'), coalesce(max("CategoryID"), 1)) FROM "CATEGORY";
 SELECT setval(pg_get_serial_sequence('"COURSE"', 'CourseID'), coalesce(max("CourseID"), 1)) FROM "COURSE";
 SELECT setval(pg_get_serial_sequence('"MODULE"', 'ModuleID'), coalesce(max("ModuleID"), 1)) FROM "MODULE";
 SELECT setval(pg_get_serial_sequence('"LESSON"', 'LessonID'), coalesce(max("LessonID"), 1)) FROM "LESSON";
+SELECT setval(pg_get_serial_sequence('"COURSE_MATERIAL"', 'MaterialID'), coalesce(max("MaterialID"), 1)) FROM "COURSE_MATERIAL";
 SELECT setval(pg_get_serial_sequence('"ENROLLMENT"', 'EnrollmentID'), coalesce(max("EnrollmentID"), 1)) FROM "ENROLLMENT";
+

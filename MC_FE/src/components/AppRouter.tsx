@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Routes, Route, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { ScreenType, Course, User } from '../types';
 import { CourseCatalogScreen } from '../features/courses/components/CourseCatalogScreen';
@@ -21,6 +21,8 @@ import { MainLayout } from './layouts/MainLayout';
 import { InstructorLayout } from './layouts/InstructorLayout';
 import { ToastType } from './common/Toast';
 import { ProtectedRoute } from './common/ProtectedRoute';
+import { MaintenanceScreen } from './common/MaintenanceScreen';
+import { adminApi } from '../features/admin/services/adminApi';
 import { mockCourses } from '../data/mockData';
 import { HomeScreen } from '../features/courses/components/HomeScreen';
 
@@ -31,6 +33,7 @@ import { renderQuizRoutes } from '../features/quizzes/routes';
 import { renderProfileRoutes } from '../features/profile/routes';
 import { renderAdminRoutes } from '../features/admin/routes';
 import { renderPaymentRoutes } from '../features/payment/routes';
+import { renderForumRoutes } from '../features/forum/routes';
 
 interface AppRouterProps {
   selectedCourse: Course | null;
@@ -48,8 +51,17 @@ interface AppRouterProps {
   onUpdateUser?: (updatedUser: Partial<User>) => void;
   onToast?: (title: string, desc?: string, type?: ToastType) => void;
   onLogout: () => void;
-  cartCount: number;
+   cartCount: number;
   onOpenCart: () => void;
+  isCourseInCart: (
+    courseId: string | number
+  ) => boolean;
+  isCourseEnrolled: (
+    courseId: string | number
+  ) => boolean;
+  isCoursePendingPayment: (
+    courseId: string | number
+  ) => boolean;
 }
 
 export const AppRouter: React.FC<AppRouterProps> = ({
@@ -70,10 +82,56 @@ export const AppRouter: React.FC<AppRouterProps> = ({
   onLogout,
   cartCount,
   onOpenCart,
+  isCourseInCart,
+  isCourseEnrolled,
+  isCoursePendingPayment,
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
+
+  const [isMaintenanceMode, setIsMaintenanceMode] = useState<boolean>(() => {
+    const cached = localStorage.getItem('mseek_maintenance_mode');
+    return cached ? JSON.parse(cached) : false;
+  });
+
+  useEffect(() => {
+    const checkMaintenance = async () => {
+      const settings = await adminApi.getPublicSettings();
+      setIsMaintenanceMode(settings.maintenanceMode);
+    };
+    checkMaintenance();
+
+    const handleSettingsChanged = () => {
+      const cached = localStorage.getItem('mseek_maintenance_mode');
+      if (cached !== null) {
+        try {
+          setIsMaintenanceMode(cached === 'true' || JSON.parse(cached) === true);
+        } catch (_) {
+          setIsMaintenanceMode(cached === 'true');
+        }
+      } else {
+        checkMaintenance();
+      }
+    };
+
+    window.addEventListener('mseek_settings_changed', handleSettingsChanged);
+    window.addEventListener('storage', handleSettingsChanged);
+
+    return () => {
+      window.removeEventListener('mseek_settings_changed', handleSettingsChanged);
+      window.removeEventListener('storage', handleSettingsChanged);
+    };
+  }, []);
+
+  // Check maintenance mode: block non-admin users from public routes
+  const isUserAdmin = user?.role === 'admin';
+  const path = location.pathname;
+  const isBypassPath = path === '/login' || path.startsWith('/admin');
+
+  if (isMaintenanceMode && !isUserAdmin && !isBypassPath) {
+    return <MaintenanceScreen onLoginClick={() => navigate('/login')} />;
+  }
 
   // Map react-router path to ScreenType for layout compatibility
   const currentScreen: ScreenType = (() => {
@@ -82,6 +140,7 @@ export const AppRouter: React.FC<AppRouterProps> = ({
     if (path === '/my-courses') return 'my-courses';
     if (path.startsWith('/courses')) return 'courses';
     if (path.startsWith('/course-detail')) return 'course-detail';
+    if (path.startsWith('/forum')) return 'forum';
     if (path === '/profile') return 'profile';
     if (path === '/login') return 'login';
     if (path === '/register') return 'register';
@@ -147,24 +206,28 @@ export const AppRouter: React.FC<AppRouterProps> = ({
         onToast,
       })}
 
-      {/* ── 2. Course Routes (/, /courses, /course-detail, /instructor/courses/*) ── */}
       {renderCourseRoutes({
-        onNavigate: handleNavigate,
-        onSelectCourse: handleSelectCourse,
-        onPreviewVideo,
-        onAddToCart,
-        onToggleWishlist,
-        onEnrollDirectly,
-        wishlistCourseIds,
-        searchQuery,
-        onSearchChange,
-        activeCourse,
-        withMainLayout,
-        withInstructorLayout,
-        user,
-        currentScreen,
-        onToast,
-      })}
+  onNavigate: handleNavigate,
+  onSelectCourse: handleSelectCourse,
+  onPreviewVideo,
+  onAddToCart,
+  onToggleWishlist,
+  onEnrollDirectly,
+  wishlistCourseIds,
+  searchQuery,
+  onSearchChange,
+  activeCourse,
+  withMainLayout,
+  withInstructorLayout,
+  user,
+  currentScreen,
+  onToast,
+
+  onOpenCart,
+  isCourseInCart,
+  isCourseEnrolled,
+  isCoursePendingPayment,
+})}
 
       {/* ── 3. Quiz Routes (/quizzes/*, /instructor/quizzes/*) ── */}
       {renderQuizRoutes({
@@ -197,6 +260,13 @@ export const AppRouter: React.FC<AppRouterProps> = ({
 
       {/* ── 6. Payment Result Route (/payment-result) ── */}
       {renderPaymentRoutes()}
+
+      {/* ── 7. Forum Routes (/forum, /forum/posts/:id) ── */}
+      {renderForumRoutes({
+        withMainLayout,
+        user,
+        onToast,
+      })}
 
       {/* ── FE:03 Instructor Course Management Routes ────────────────────── */}
       <Route

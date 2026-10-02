@@ -40,7 +40,7 @@ export const renderQuizRoutes = ({
             onNavigate={onNavigate}
             onToast={onToast}
           >
-            {withInstructorLayout(<CreateQuizPage />)}
+            {withInstructorLayout(<CreateQuizPage onToast={onToast} />)}
           </ProtectedRoute>
         }
       />
@@ -54,7 +54,7 @@ export const renderQuizRoutes = ({
             onNavigate={onNavigate}
             onToast={onToast}
           >
-            {withInstructorLayout(<UpdateQuizPage />)}
+            {withInstructorLayout(<UpdateQuizPage onToast={onToast} />)}
           </ProtectedRoute>
         }
       />

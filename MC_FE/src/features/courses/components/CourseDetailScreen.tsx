@@ -1,11 +1,13 @@
 
 
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Star, 
   Award, 
   CheckCircle2, 
   Play, 
+  PlayCircle,
   ChevronDown, 
   ChevronUp, 
   ShieldCheck, 
@@ -21,7 +23,7 @@ import {
 } from 'lucide-react';
 import { Course, ScreenType } from '../../../types';
 import { mockCourses } from '../../../data/mockData';
-import { useCourseDetailQuery } from '../hooks/useCoursesQuery';
+import { useCourseDetailQuery, useLearnedCoursesQuery } from '../hooks/useCoursesQuery';
 
 interface CourseDetailScreenProps {
   course: Course | null;
@@ -31,6 +33,10 @@ interface CourseDetailScreenProps {
   onToggleWishlist: (courseId: string) => void;
   isWishlisted: boolean;
   onPreviewVideo: (course: Course) => void;
+  isEnrolled?: boolean;
+  isInCart?: boolean;
+  isPendingPayment?: boolean;
+  onOpenCart?: () => void;
 }
 
 export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
@@ -41,10 +47,61 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
   onToggleWishlist,
   isWishlisted,
   onPreviewVideo,
+  isEnrolled: isEnrolledProp,
+  isInCart = false,
+  isPendingPayment = false,
+  onOpenCart,
 }) => {
-  const courseId = initialCourse?.id || mockCourses[0].id;
-  const courseQuery = useCourseDetailQuery(courseId);
-  const course = courseQuery.data || initialCourse || mockCourses[0];
+  const navigate = useNavigate();
+
+  // ============================================================
+  // COURSE ID
+  // Chỉ sử dụng CourseID thật từ backend.
+  // Không dùng ID của mock course để gọi API.
+  // ============================================================
+
+  const rawCourseId = initialCourse?.id;
+
+  const parsedCourseId =
+    rawCourseId !== undefined &&
+    rawCourseId !== null &&
+    rawCourseId !== ''
+      ? Number(rawCourseId)
+      : null;
+
+  const validCourseId =
+    parsedCourseId !== null &&
+    Number.isInteger(parsedCourseId) &&
+    parsedCourseId > 0
+      ? String(parsedCourseId)
+      : null;
+
+  // Chỉ query backend khi có CourseID hợp lệ.
+  // Nhờ vậy sẽ không bao giờ gọi:
+  // GET /api/courses/NaN
+  const courseQuery = useCourseDetailQuery(validCourseId);
+
+  // Ưu tiên:
+  // 1. Course mới nhất từ backend
+  // 2. Course được truyền vào màn hình
+  // 3. Mock chỉ dùng để giữ UI không crash
+  //
+  // QUAN TRỌNG:
+  // mock course KHÔNG được dùng làm ID gọi backend.
+  const course =
+    courseQuery.data ||
+    initialCourse ||
+    mockCourses[0];
+
+  const { data: learnedCourses } = useLearnedCoursesQuery();
+
+  const isEnrolled =
+    isEnrolledProp ??
+    learnedCourses?.some(
+      (item) =>
+        String(item.course.id) ===
+        String(course.id)
+    );
 
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     'sec-1': true,
@@ -381,21 +438,66 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
                 </div>
 
                 <div className="space-y-2.5">
-                  <button
-                    id="sticky-enroll-now-btn"
-                    onClick={() => onEnroll(course)}
-                    className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl shadow-lg shadow-blue-600/30 hover:shadow-blue-600/50 transition-all flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    <span>Enroll Masterclass Now</span>
-                  </button>
+  {isEnrolled ? (
+    <>
+      <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 font-semibold flex items-center justify-center gap-2">
+        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+        <span>Bạn đã đăng ký khóa học này</span>
+      </div>
 
-                  <button
-                    id="sticky-add-cart-btn"
-                    onClick={() => onAddToCart(course)}
-                    className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
-                  >
-                    <span>Add to Shopping Cart</span>
-                  </button>
+      <button
+        id="sticky-go-to-course-btn"
+        onClick={() => navigate(`/courses/${course.id}/learn`)}
+        className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl shadow-lg shadow-emerald-600/30 hover:shadow-emerald-600/50 transition-all flex items-center justify-center gap-2 cursor-pointer"
+      >
+        <PlayCircle className="w-5 h-5 fill-white/20" />
+        <span>Vào khóa học</span>
+      </button>
+    </>
+  ) : isPendingPayment ? (
+    <>
+      <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 font-semibold flex items-center justify-center gap-2">
+        <span>Khóa học đang chờ thanh toán</span>
+      </div>
+
+      <button
+        id="sticky-continue-payment-btn"
+        onClick={() => onEnroll(course)}
+        className="w-full py-3.5 bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm rounded-xl shadow-lg shadow-amber-500/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
+      >
+        <span>Tiếp tục thanh toán</span>
+      </button>
+    </>
+  ) : (
+    <>
+      <button
+        id="sticky-enroll-now-btn"
+        onClick={() => onEnroll(course)}
+        className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl shadow-lg shadow-blue-600/30 hover:shadow-blue-600/50 transition-all flex items-center justify-center gap-2 cursor-pointer"
+      >
+        <span>Đăng ký khóa học ngay</span>
+      </button>
+
+      {isInCart ? (
+        <button
+          id="sticky-open-cart-btn"
+          onClick={() => onOpenCart?.()}
+          className="w-full py-3 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
+        >
+          <CheckCircle2 className="w-4 h-4" />
+          <span>Đã có trong giỏ - Xem giỏ hàng</span>
+        </button>
+      ) : (
+        <button
+          id="sticky-add-cart-btn"
+          onClick={() => onAddToCart(course)}
+          className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
+        >
+          <span>Thêm vào giỏ hàng</span>
+        </button>
+      )}
+    </>
+  )}
 
                   <div className="grid grid-cols-2 gap-2 pt-1">
                     <button

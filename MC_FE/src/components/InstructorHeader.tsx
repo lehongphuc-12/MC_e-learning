@@ -99,6 +99,18 @@ export const InstructorHeader: React.FC<InstructorHeaderProps> = ({ user, onLogo
               </button>
 
               <button
+                onClick={() => navigate('/instructor/speaking-submissions')}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                  currentPath === '/instructor/speaking-submissions' || currentPath.includes('/speaking')
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                }`}
+              >
+                <Mic2 className="w-4 h-4 text-cyan-400" />
+                <span>Chấm bài nói (Speaking)</span>
+              </button>
+
+              <button
                 onClick={() => navigate('/instructor/courses/new')}
                 className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
                   currentPath === '/instructor/courses/new'
@@ -233,6 +245,16 @@ export const InstructorHeader: React.FC<InstructorHeaderProps> = ({ user, onLogo
           >
             <BookOpen className="w-4 h-4 text-emerald-400" />
             <span>Quản lý Khóa học</span>
+          </button>
+          <button
+            onClick={() => {
+              navigate('/instructor/speaking-submissions');
+              setIsMobileMenuOpen(false);
+            }}
+            className="w-full text-left px-3 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2.5 bg-slate-800 text-slate-200"
+          >
+            <Mic2 className="w-4 h-4 text-cyan-400" />
+            <span>Chấm bài nói (Speaking)</span>
           </button>
           <button
             onClick={() => {

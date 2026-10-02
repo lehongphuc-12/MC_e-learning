@@ -126,8 +126,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onNavigate, 
           <div className="lg:col-span-1">
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3.5 space-y-1.5 sticky top-24">
               <div className="px-3 py-2 mb-2 text-xs font-bold text-slate-400 uppercase tracking-wider">
-                Menu settings
+                Cài đặt & Danh mục
               </div>
+
+              {/* Overview (All roles) */}
               <button
                 type="button"
                 onClick={() => setActiveTab('overview')}
@@ -138,41 +140,48 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onNavigate, 
               >
                 <div className="flex items-center gap-3">
                   <BarChart2 className="w-4 h-4" />
-                  <span>Overview</span>
+                  <span>Tổng quan</span>
                 </div>
                 <ChevronRight className={`w-4 h-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all text-slate-400 ${activeTab === 'overview' ? 'opacity-100 text-blue-500' : ''}`} />
               </button>
 
-              <button
-                type="button"
-                onClick={() => setActiveTab('certificates')}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer group
-                  ${activeTab === 'certificates'
-                    ? 'bg-amber-50 text-amber-700 font-bold border border-amber-200'
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
-              >
-                <div className="flex items-center gap-3">
-                  <Award className="w-4 h-4 text-amber-500" />
-                  <span>My Certificates</span>
-                </div>
-                <ChevronRight className={`w-4 h-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all text-slate-400 ${activeTab === 'certificates' ? 'opacity-100 text-amber-500' : ''}`} />
-              </button>
+              {/* Certificates (Student & Instructor) */}
+              {user.role !== 'admin' && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('certificates')}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer group
+                    ${activeTab === 'certificates'
+                      ? 'bg-amber-50 text-amber-700 font-bold border border-amber-200'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Award className="w-4 h-4 text-amber-500" />
+                    <span>Chứng chỉ của tôi</span>
+                  </div>
+                  <ChevronRight className={`w-4 h-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all text-slate-400 ${activeTab === 'certificates' ? 'opacity-100 text-amber-500' : ''}`} />
+                </button>
+              )}
 
-              <button
-                type="button"
-                onClick={() => setActiveTab('purchases')}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer group
-                  ${activeTab === 'purchases'
-                    ? 'bg-emerald-50 text-emerald-700 font-bold border border-emerald-200'
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
-              >
-                <div className="flex items-center gap-3">
-                  <CreditCard className="w-4 h-4 text-emerald-500" />
-                  <span>Lịch Sử Mua Khóa Học</span>
-                </div>
-                <ChevronRight className={`w-4 h-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all text-slate-400 ${activeTab === 'purchases' ? 'opacity-100 text-emerald-500' : ''}`} />
-              </button>
+              {/* Purchase History (Student only) */}
+              {user.role === 'student' && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('purchases')}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all cursor-pointer group
+                    ${activeTab === 'purchases'
+                      ? 'bg-emerald-50 text-emerald-700 font-bold border border-emerald-200'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <CreditCard className="w-4 h-4 text-emerald-500" />
+                    <span>Lịch sử giao dịch</span>
+                  </div>
+                  <ChevronRight className={`w-4 h-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all text-slate-400 ${activeTab === 'purchases' ? 'opacity-100 text-emerald-500' : ''}`} />
+                </button>
+              )}
 
+              {/* Profile Info (All roles) */}
               <button
                 type="button"
                 onClick={() => setActiveTab('profile')}
@@ -183,11 +192,12 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onNavigate, 
               >
                 <div className="flex items-center gap-3">
                   <User className="w-4 h-4" />
-                  <span>Profile Info</span>
+                  <span>Thông tin cá nhân</span>
                 </div>
                 <ChevronRight className={`w-4 h-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all text-slate-400 ${activeTab === 'profile' ? 'opacity-100 text-blue-500' : ''}`} />
               </button>
 
+              {/* Password / Security (All roles) */}
               <button
                 type="button"
                 onClick={() => setActiveTab('password')}
@@ -198,11 +208,12 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onNavigate, 
               >
                 <div className="flex items-center gap-3">
                   <Lock className="w-4 h-4" />
-                  <span>Password / Security</span>
+                  <span>Mật khẩu & Bảo mật</span>
                 </div>
                 <ChevronRight className={`w-4 h-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all text-slate-400 ${activeTab === 'password' ? 'opacity-100 text-blue-500' : ''}`} />
               </button>
 
+              {/* Preferences / Settings (All roles) */}
               <button
                 type="button"
                 onClick={() => setActiveTab('settings')}
@@ -213,7 +224,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onNavigate, 
               >
                 <div className="flex items-center gap-3">
                   <Settings className="w-4 h-4" />
-                  <span>Preferences</span>
+                  <span>Tùy chọn hệ thống</span>
                 </div>
                 <ChevronRight className={`w-4 h-4 opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all text-slate-400 ${activeTab === 'settings' ? 'opacity-100 text-blue-500' : ''}`} />
               </button>

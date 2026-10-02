@@ -8,6 +8,7 @@ import {
   QuizDto,
   QuizListItemDto,
   ApiResponse,
+  LatestQuizResultDto,
 } from '../types/quizTypes';
 
 /**
@@ -39,6 +40,7 @@ export const quizApi = {
       method: 'POST',
       body: JSON.stringify(data),
     });
+    
   },
 
   // ============================================================
@@ -155,5 +157,15 @@ async getQuizzesByCourse(
   return request(`/quizzes/course/${courseId}`, {
     method: 'GET',
   });
+},
+async getLatestQuizResult(
+  quizId: number
+): Promise<ApiResponse<LatestQuizResultDto | null>> {
+  return request(
+    `/quizzes/${quizId}/latest-result`,
+    {
+      method: 'GET',
+    }
+  );
 },
 };

@@ -113,6 +113,573 @@ namespace MC_BE.Migrations
                     b.ToTable("certificates", (string)null);
                 });
 
+            modelBuilder.Entity("MC_BE.Core.Entities.Chat.ChatCall", b =>
+                {
+                    b.Property<long>("CallId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("CallID");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("CallId"));
+
+                    b.Property<DateTime?>("AnsweredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("AnsweredAt");
+
+                    b.Property<string>("CallType")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("CallType");
+
+                    b.Property<int>("CallerId")
+                        .HasColumnType("integer")
+                        .HasColumnName("CallerID");
+
+                    b.Property<int>("ConversationId")
+                        .HasColumnType("integer")
+                        .HasColumnName("ConversationID");
+
+                    b.Property<int?>("DurationSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("DurationSeconds");
+
+                    b.Property<DateTime?>("EndedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("EndedAt");
+
+                    b.Property<int>("ReceiverId")
+                        .HasColumnType("integer")
+                        .HasColumnName("ReceiverID");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("StartedAt");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("Status");
+
+                    b.HasKey("CallId");
+
+                    b.HasIndex("CallerId");
+
+                    b.HasIndex("ConversationId");
+
+                    b.HasIndex("ReceiverId");
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("chat_calls", (string)null);
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.Chat.ChatMessage", b =>
+                {
+                    b.Property<long>("MessageId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("MessageID");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("MessageId"));
+
+                    b.Property<string>("Content")
+                        .HasMaxLength(5000)
+                        .HasColumnType("character varying(5000)")
+                        .HasColumnName("Content");
+
+                    b.Property<int>("ConversationId")
+                        .HasColumnType("integer")
+                        .HasColumnName("ConversationID");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("CreatedAt");
+
+                    b.Property<string>("MessageType")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("MessageType");
+
+                    b.Property<DateTime?>("RecalledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("RecalledAt");
+
+                    b.Property<long?>("ReplyToMessageId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("ReplyToMessageID");
+
+                    b.Property<int>("SenderId")
+                        .HasColumnType("integer")
+                        .HasColumnName("SenderID");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("Status");
+
+                    b.Property<int?>("StickerId")
+                        .HasColumnType("integer")
+                        .HasColumnName("StickerID");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("UpdatedAt");
+
+                    b.HasKey("MessageId");
+
+                    b.HasIndex("ReplyToMessageId");
+
+                    b.HasIndex("SenderId");
+
+                    b.HasIndex("StickerId");
+
+                    b.HasIndex("ConversationId", "MessageId");
+
+                    b.ToTable("chat_messages", (string)null);
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.Chat.Conversation", b =>
+                {
+                    b.Property<int>("ConversationId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("ConversationID");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("ConversationId"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("CreatedAt")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<DateTime?>("LastMessageAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("LastMessageAt");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("UpdatedAt")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<int>("User1Id")
+                        .HasColumnType("integer")
+                        .HasColumnName("User1ID");
+
+                    b.Property<int>("User2Id")
+                        .HasColumnType("integer")
+                        .HasColumnName("User2ID");
+
+                    b.HasKey("ConversationId");
+
+                    b.HasIndex("LastMessageAt");
+
+                    b.HasIndex("User2Id");
+
+                    b.HasIndex("User1Id", "User2Id")
+                        .IsUnique();
+
+                    b.ToTable("conversations", (string)null);
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.Chat.ConversationRead", b =>
+                {
+                    b.Property<long>("ConversationReadId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("ConversationReadID");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("ConversationReadId"));
+
+                    b.Property<int>("ConversationId")
+                        .HasColumnType("integer")
+                        .HasColumnName("ConversationID");
+
+                    b.Property<long?>("LastReadMessageId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("LastReadMessageID");
+
+                    b.Property<DateTime>("ReadAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ReadAt");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer")
+                        .HasColumnName("UserID");
+
+                    b.HasKey("ConversationReadId");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("ConversationId", "UserId")
+                        .IsUnique();
+
+                    b.ToTable("conversation_reads", (string)null);
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.Chat.MessageAttachment", b =>
+                {
+                    b.Property<long>("AttachmentId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("AttachmentID");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("AttachmentId"));
+
+                    b.Property<string>("AttachmentType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("AttachmentType");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("CreatedAt");
+
+                    b.Property<int?>("DurationSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("DurationSeconds");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("FileName");
+
+                    b.Property<long>("FileSize")
+                        .HasColumnType("bigint")
+                        .HasColumnName("FileSize");
+
+                    b.Property<string>("FileUrl")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("FileUrl");
+
+                    b.Property<long>("MessageId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("MessageID");
+
+                    b.Property<string>("MimeType")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("MimeType");
+
+                    b.HasKey("AttachmentId");
+
+                    b.HasIndex("MessageId");
+
+                    b.ToTable("message_attachments", (string)null);
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.Chat.MessageReaction", b =>
+                {
+                    b.Property<long>("ReactionId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("ReactionID");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("ReactionId"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("CreatedAt");
+
+                    b.Property<long>("MessageId")
+                        .HasColumnType("bigint")
+                        .HasColumnName("MessageID");
+
+                    b.Property<string>("Reaction")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("Reaction");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer")
+                        .HasColumnName("UserID");
+
+                    b.HasKey("ReactionId");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("MessageId", "UserId")
+                        .IsUnique();
+
+                    b.ToTable("message_reactions", (string)null);
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.Chat.Sticker", b =>
+                {
+                    b.Property<int>("StickerId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("StickerID");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("StickerId"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("CreatedAt");
+
+                    b.Property<string>("ImageUrl")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("ImageUrl");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("IsActive");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("Name");
+
+                    b.Property<int>("StickerPackId")
+                        .HasColumnType("integer")
+                        .HasColumnName("StickerPackID");
+
+                    b.HasKey("StickerId");
+
+                    b.HasIndex("StickerPackId");
+
+                    b.ToTable("stickers", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            StickerId = 1,
+                            CreatedAt = new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Utc),
+                            ImageUrl = "/uploads/stickers/default/sticker-01.png",
+                            IsActive = true,
+                            Name = "Cười",
+                            StickerPackId = 1
+                        },
+                        new
+                        {
+                            StickerId = 2,
+                            CreatedAt = new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Utc),
+                            ImageUrl = "/uploads/stickers/default/sticker-02.png",
+                            IsActive = true,
+                            Name = "Cười lớn",
+                            StickerPackId = 1
+                        },
+                        new
+                        {
+                            StickerId = 3,
+                            CreatedAt = new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Utc),
+                            ImageUrl = "/uploads/stickers/default/sticker-03.png",
+                            IsActive = true,
+                            Name = "Cười ngặt nghẽo",
+                            StickerPackId = 1
+                        },
+                        new
+                        {
+                            StickerId = 4,
+                            CreatedAt = new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Utc),
+                            ImageUrl = "/uploads/stickers/default/sticker-04.png",
+                            IsActive = true,
+                            Name = "Yêu",
+                            StickerPackId = 1
+                        },
+                        new
+                        {
+                            StickerId = 5,
+                            CreatedAt = new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Utc),
+                            ImageUrl = "/uploads/stickers/default/sticker-05.png",
+                            IsActive = true,
+                            Name = "Hôn",
+                            StickerPackId = 1
+                        },
+                        new
+                        {
+                            StickerId = 6,
+                            CreatedAt = new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Utc),
+                            ImageUrl = "/uploads/stickers/default/sticker-06.png",
+                            IsActive = true,
+                            Name = "Ngầu",
+                            StickerPackId = 1
+                        },
+                        new
+                        {
+                            StickerId = 7,
+                            CreatedAt = new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Utc),
+                            ImageUrl = "/uploads/stickers/default/sticker-07.png",
+                            IsActive = true,
+                            Name = "Suy nghĩ",
+                            StickerPackId = 1
+                        },
+                        new
+                        {
+                            StickerId = 8,
+                            CreatedAt = new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Utc),
+                            ImageUrl = "/uploads/stickers/default/sticker-08.png",
+                            IsActive = true,
+                            Name = "Buồn",
+                            StickerPackId = 1
+                        },
+                        new
+                        {
+                            StickerId = 9,
+                            CreatedAt = new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Utc),
+                            ImageUrl = "/uploads/stickers/default/sticker-09.png",
+                            IsActive = true,
+                            Name = "Khóc",
+                            StickerPackId = 1
+                        },
+                        new
+                        {
+                            StickerId = 10,
+                            CreatedAt = new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Utc),
+                            ImageUrl = "/uploads/stickers/default/sticker-10.png",
+                            IsActive = true,
+                            Name = "Giận",
+                            StickerPackId = 1
+                        },
+                        new
+                        {
+                            StickerId = 11,
+                            CreatedAt = new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Utc),
+                            ImageUrl = "/uploads/stickers/default/sticker-11.png",
+                            IsActive = true,
+                            Name = "Sốc",
+                            StickerPackId = 1
+                        },
+                        new
+                        {
+                            StickerId = 12,
+                            CreatedAt = new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Utc),
+                            ImageUrl = "/uploads/stickers/default/sticker-12.png",
+                            IsActive = true,
+                            Name = "Ngại",
+                            StickerPackId = 1
+                        },
+                        new
+                        {
+                            StickerId = 13,
+                            CreatedAt = new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Utc),
+                            ImageUrl = "/uploads/stickers/default/sticker-13.png",
+                            IsActive = true,
+                            Name = "Nóng",
+                            StickerPackId = 1
+                        },
+                        new
+                        {
+                            StickerId = 14,
+                            CreatedAt = new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Utc),
+                            ImageUrl = "/uploads/stickers/default/sticker-14.png",
+                            IsActive = true,
+                            Name = "Lạnh",
+                            StickerPackId = 1
+                        },
+                        new
+                        {
+                            StickerId = 15,
+                            CreatedAt = new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Utc),
+                            ImageUrl = "/uploads/stickers/default/sticker-15.png",
+                            IsActive = true,
+                            Name = "Tiệc",
+                            StickerPackId = 1
+                        },
+                        new
+                        {
+                            StickerId = 16,
+                            CreatedAt = new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Utc),
+                            ImageUrl = "/uploads/stickers/default/sticker-16.png",
+                            IsActive = true,
+                            Name = "Tim đỏ",
+                            StickerPackId = 1
+                        },
+                        new
+                        {
+                            StickerId = 17,
+                            CreatedAt = new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Utc),
+                            ImageUrl = "/uploads/stickers/default/sticker-17.png",
+                            IsActive = true,
+                            Name = "Thích",
+                            StickerPackId = 1
+                        },
+                        new
+                        {
+                            StickerId = 18,
+                            CreatedAt = new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Utc),
+                            ImageUrl = "/uploads/stickers/default/sticker-18.png",
+                            IsActive = true,
+                            Name = "Không thích",
+                            StickerPackId = 1
+                        },
+                        new
+                        {
+                            StickerId = 19,
+                            CreatedAt = new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Utc),
+                            ImageUrl = "/uploads/stickers/default/sticker-19.png",
+                            IsActive = true,
+                            Name = "Vỗ tay",
+                            StickerPackId = 1
+                        },
+                        new
+                        {
+                            StickerId = 20,
+                            CreatedAt = new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Utc),
+                            ImageUrl = "/uploads/stickers/default/sticker-20.png",
+                            IsActive = true,
+                            Name = "Ăn mừng",
+                            StickerPackId = 1
+                        });
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.Chat.StickerPack", b =>
+                {
+                    b.Property<int>("StickerPackId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("StickerPackID");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("StickerPackId"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("CreatedAt");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("IsActive");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("Name");
+
+                    b.Property<string>("ThumbnailUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("ThumbnailUrl");
+
+                    b.HasKey("StickerPackId");
+
+                    b.ToTable("sticker_packs", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            StickerPackId = 1,
+                            CreatedAt = new DateTime(2026, 9, 24, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Name = "Cảm xúc",
+                            ThumbnailUrl = "/uploads/stickers/default/sticker-01.png"
+                        });
+                });
+
             modelBuilder.Entity("MC_BE.Core.Entities.Choice", b =>
                 {
                     b.Property<int>("ChoiceId")
@@ -346,10 +913,6 @@ namespace MC_BE.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("LearnerID");
 
-                    b.Property<int?>("PaymentId")
-                        .HasColumnType("integer")
-                        .HasColumnName("PaymentID");
-
                     b.Property<string>("Status")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -368,12 +931,390 @@ namespace MC_BE.Migrations
 
                     b.HasIndex("CourseId");
 
-                    b.HasIndex("PaymentId")
-                        .IsUnique();
+                    b.HasIndex("LearnerId", "CourseId")
+                        .IsUnique()
+                        .HasFilter("\"Status\" IN ('PENDING_PAYMENT', 'ACTIVE')");
 
                     b.HasIndex("LearnerId", "CourseId", "Status");
 
                     b.ToTable("enrollments", (string)null);
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.ForumComment", b =>
+                {
+                    b.Property<int>("CommentId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("CommentID");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("CommentId"));
+
+                    b.Property<int>("AuthorId")
+                        .HasColumnType("integer")
+                        .HasColumnName("AuthorID");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("Content");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("CreatedAt")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<int>("DepthLevel")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("DepthLevel");
+
+                    b.Property<string>("ImageUrl")
+                        .HasColumnType("text")
+                        .HasColumnName("ImageUrl");
+
+                    b.Property<bool>("IsAnonymous")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsAnonymous");
+
+                    b.Property<int?>("ParentCommentId")
+                        .HasColumnType("integer")
+                        .HasColumnName("ParentCommentID");
+
+                    b.Property<int>("PostId")
+                        .HasColumnType("integer")
+                        .HasColumnName("PostID");
+
+                    b.Property<int>("ReactionsCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("ReactionsCount");
+
+                    b.Property<int>("ReportsCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("ReportsCount");
+
+                    b.Property<DateTime?>("RestoredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("RestoredAt");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasDefaultValue("ACTIVE")
+                        .HasColumnName("Status");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("UpdatedAt")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.HasKey("CommentId");
+
+                    b.HasIndex("AuthorId");
+
+                    b.HasIndex("ParentCommentId");
+
+                    b.HasIndex("PostId");
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("forum_comments", (string)null);
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.ForumPost", b =>
+                {
+                    b.Property<int>("PostId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("PostID");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("PostId"));
+
+                    b.Property<int>("AuthorId")
+                        .HasColumnType("integer")
+                        .HasColumnName("AuthorID");
+
+                    b.Property<int>("CommentsCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("CommentsCount");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("Content");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("CreatedAt")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("ImageUrl")
+                        .HasColumnType("text")
+                        .HasColumnName("ImageUrl");
+
+                    b.Property<bool>("IsAnonymous")
+                        .HasColumnType("boolean")
+                        .HasColumnName("IsAnonymous");
+
+                    b.Property<bool>("IsLocked")
+                        .HasColumnType("boolean")
+                        .HasColumnName("IsLocked");
+
+                    b.Property<bool>("IsPinned")
+                        .HasColumnType("boolean")
+                        .HasColumnName("IsPinned");
+
+                    b.Property<int>("ReactionsCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("ReactionsCount");
+
+                    b.Property<int>("ReportsCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("ReportsCount");
+
+                    b.Property<DateTime?>("RestoredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("RestoredAt");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasDefaultValue("PUBLISHED")
+                        .HasColumnName("Status");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("Title");
+
+                    b.Property<int>("TopicId")
+                        .HasColumnType("integer")
+                        .HasColumnName("TopicID");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("UpdatedAt")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<int>("ViewsCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("ViewsCount");
+
+                    b.HasKey("PostId");
+
+                    b.HasIndex("AuthorId");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("TopicId");
+
+                    b.ToTable("forum_posts", (string)null);
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.ForumReaction", b =>
+                {
+                    b.Property<int>("ReactionId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("ReactionID");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("ReactionId"));
+
+                    b.Property<int?>("CommentId")
+                        .HasColumnType("integer")
+                        .HasColumnName("CommentID");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("CreatedAt")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<int?>("PostId")
+                        .HasColumnType("integer")
+                        .HasColumnName("PostID");
+
+                    b.Property<string>("ReactionType")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("LIKE")
+                        .HasColumnName("ReactionType");
+
+                    b.Property<string>("TargetType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("TargetType");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer")
+                        .HasColumnName("UserID");
+
+                    b.HasKey("ReactionId");
+
+                    b.HasIndex("CommentId");
+
+                    b.HasIndex("PostId");
+
+                    b.HasIndex("UserId", "TargetType", "PostId", "CommentId")
+                        .IsUnique();
+
+                    b.ToTable("forum_reactions", (string)null);
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.ForumReport", b =>
+                {
+                    b.Property<int>("ReportId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("ReportID");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("ReportId"));
+
+                    b.Property<int?>("CommentId")
+                        .HasColumnType("integer")
+                        .HasColumnName("CommentID");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("CreatedAt")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("Details")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("Details");
+
+                    b.Property<int?>("PostId")
+                        .HasColumnType("integer")
+                        .HasColumnName("PostID");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("Reason");
+
+                    b.Property<int>("ReporterId")
+                        .HasColumnType("integer")
+                        .HasColumnName("ReporterID");
+
+                    b.Property<DateTime?>("ResolvedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ResolvedAt");
+
+                    b.Property<int?>("ResolvedById")
+                        .HasColumnType("integer")
+                        .HasColumnName("ResolvedByID");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("PENDING")
+                        .HasColumnName("Status");
+
+                    b.Property<string>("TargetType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("TargetType");
+
+                    b.HasKey("ReportId");
+
+                    b.HasIndex("CommentId");
+
+                    b.HasIndex("PostId");
+
+                    b.HasIndex("ResolvedById");
+
+                    b.HasIndex("ReporterId", "TargetType", "PostId", "CommentId")
+                        .IsUnique();
+
+                    b.ToTable("forum_reports", (string)null);
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.ForumTopic", b =>
+                {
+                    b.Property<int>("TopicId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("TopicID");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("TopicId"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("CreatedAt")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text")
+                        .HasColumnName("Description");
+
+                    b.Property<string>("Icon")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("Icon");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("Name");
+
+                    b.Property<int>("OrderIndex")
+                        .HasColumnType("integer")
+                        .HasColumnName("OrderIndex");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("Slug");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("ACTIVE")
+                        .HasColumnName("Status");
+
+                    b.HasKey("TopicId");
+
+                    b.HasIndex("Slug")
+                        .IsUnique();
+
+                    b.ToTable("forum_topics", (string)null);
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.Lesson", b =>
@@ -614,10 +1555,6 @@ namespace MC_BE.Migrations
                         .HasColumnType("numeric(18,2)")
                         .HasColumnName("Amount");
 
-                    b.Property<int>("CourseId")
-                        .HasColumnType("integer")
-                        .HasColumnName("CourseID");
-
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -631,10 +1568,6 @@ namespace MC_BE.Migrations
                         .HasColumnType("character varying(10)")
                         .HasDefaultValue("VND")
                         .HasColumnName("Currency");
-
-                    b.Property<int>("EnrollmentId")
-                        .HasColumnType("integer")
-                        .HasColumnName("EnrollmentID");
 
                     b.Property<DateTime>("ExpiresAt")
                         .HasColumnType("timestamp with time zone")
@@ -660,7 +1593,7 @@ namespace MC_BE.Migrations
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)")
-                        .HasDefaultValue("VNPAY")
+                        .HasDefaultValue("PAYOS")
                         .HasColumnName("PaymentMethod");
 
                     b.Property<string>("Status")
@@ -677,36 +1610,62 @@ namespace MC_BE.Migrations
                         .HasColumnName("UpdatedAt")
                         .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
-                    b.Property<string>("VnPayResponseCode")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("VnPayResponseCode");
-
-                    b.Property<string>("VnPayTransactionNo")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("VnPayTransactionNo");
-
-                    b.Property<string>("VnPayTransactionStatus")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("VnPayTransactionStatus");
+                    b.Property<int?>("UserId")
+                        .HasColumnType("integer");
 
                     b.HasKey("PaymentId");
-
-                    b.HasIndex("CourseId");
-
-                    b.HasIndex("EnrollmentId")
-                        .IsUnique();
 
                     b.HasIndex("LearnerId");
 
                     b.HasIndex("MerchantTxnRef")
                         .IsUnique();
 
-                    b.HasIndex("Status");
+                    b.HasIndex("UserId");
 
-                    b.ToTable("payments", (string)null);
+                    b.ToTable("PAYMENT", (string)null);
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.PaymentItem", b =>
+                {
+                    b.Property<int>("PaymentItemId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("PaymentItemID");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("PaymentItemId"));
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("Amount");
+
+                    b.Property<int>("CourseId")
+                        .HasColumnType("integer")
+                        .HasColumnName("CourseID");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("CreatedAt")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<int>("EnrollmentId")
+                        .HasColumnType("integer")
+                        .HasColumnName("EnrollmentID");
+
+                    b.Property<int>("PaymentId")
+                        .HasColumnType("integer")
+                        .HasColumnName("PaymentID");
+
+                    b.HasKey("PaymentItemId");
+
+                    b.HasIndex("CourseId");
+
+                    b.HasIndex("EnrollmentId");
+
+                    b.HasIndex("PaymentId", "EnrollmentId")
+                        .IsUnique();
+
+                    b.ToTable("PAYMENT_ITEM", (string)null);
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.PaymentTransaction", b =>
@@ -746,7 +1705,7 @@ namespace MC_BE.Migrations
                         .ValueGeneratedOnAdd()
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)")
-                        .HasDefaultValue("VNPAY")
+                        .HasDefaultValue("PAYOS")
                         .HasColumnName("Provider");
 
                     b.Property<string>("ProviderTransactionNo")
@@ -780,7 +1739,9 @@ namespace MC_BE.Migrations
 
                     b.HasIndex("PaymentId");
 
-                    b.HasIndex("ProviderTransactionNo");
+                    b.HasIndex("ProviderTransactionNo")
+                        .IsUnique()
+                        .HasFilter("\"ProviderTransactionNo\" IS NOT NULL");
 
                     b.HasIndex("Status");
 
@@ -1066,6 +2027,81 @@ namespace MC_BE.Migrations
                     b.ToTable("roles", (string)null);
                 });
 
+            modelBuilder.Entity("MC_BE.Core.Entities.SpeakingSubmission", b =>
+                {
+                    b.Property<int>("SubmissionId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("SubmissionID");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("SubmissionId"));
+
+                    b.Property<string>("AudioUrl")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("AudioUrl");
+
+                    b.Property<string>("Feedback")
+                        .HasColumnType("text")
+                        .HasColumnName("Feedback");
+
+                    b.Property<DateTime?>("GradedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("GradedAt");
+
+                    b.Property<int?>("GradedById")
+                        .HasColumnType("integer")
+                        .HasColumnName("GradedByID");
+
+                    b.Property<int>("LearnerId")
+                        .HasColumnType("integer")
+                        .HasColumnName("LearnerID");
+
+                    b.Property<int>("LessonId")
+                        .HasColumnType("integer")
+                        .HasColumnName("LessonID");
+
+                    b.Property<string>("Note")
+                        .HasColumnType("text")
+                        .HasColumnName("Note");
+
+                    b.Property<decimal?>("Score")
+                        .HasColumnType("decimal(5,2)")
+                        .HasColumnName("Score");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("SUBMITTED")
+                        .HasColumnName("Status");
+
+                    b.Property<DateTime>("SubmittedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("SubmittedAt")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("UpdatedAt")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.HasKey("SubmissionId");
+
+                    b.HasIndex("GradedById");
+
+                    b.HasIndex("LessonId");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("LearnerId", "LessonId");
+
+                    b.ToTable("speaking_submissions", (string)null);
+                });
+
             modelBuilder.Entity("MC_BE.Core.Entities.User", b =>
                 {
                     b.Property<int>("UserId")
@@ -1105,6 +2141,10 @@ namespace MC_BE.Migrations
                     b.Property<DateTime?>("LastLoginAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("LastLoginAt");
+
+                    b.Property<DateTime?>("LastSeenAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("LastSeenAt");
 
                     b.Property<string>("PasswordHash")
                         .HasMaxLength(255)
@@ -1206,6 +2246,145 @@ namespace MC_BE.Migrations
                     b.Navigation("Enrollment");
                 });
 
+            modelBuilder.Entity("MC_BE.Core.Entities.Chat.ChatCall", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.User", "Caller")
+                        .WithMany("CallsMade")
+                        .HasForeignKey("CallerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MC_BE.Core.Entities.Chat.Conversation", "Conversation")
+                        .WithMany("Calls")
+                        .HasForeignKey("ConversationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MC_BE.Core.Entities.User", "Receiver")
+                        .WithMany("CallsReceived")
+                        .HasForeignKey("ReceiverId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Caller");
+
+                    b.Navigation("Conversation");
+
+                    b.Navigation("Receiver");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.Chat.ChatMessage", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.Chat.Conversation", "Conversation")
+                        .WithMany("Messages")
+                        .HasForeignKey("ConversationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MC_BE.Core.Entities.Chat.ChatMessage", "ReplyToMessage")
+                        .WithMany("Replies")
+                        .HasForeignKey("ReplyToMessageId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("MC_BE.Core.Entities.User", "Sender")
+                        .WithMany("SentChatMessages")
+                        .HasForeignKey("SenderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MC_BE.Core.Entities.Chat.Sticker", "Sticker")
+                        .WithMany()
+                        .HasForeignKey("StickerId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Conversation");
+
+                    b.Navigation("ReplyToMessage");
+
+                    b.Navigation("Sender");
+
+                    b.Navigation("Sticker");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.Chat.Conversation", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.User", "User1")
+                        .WithMany("ConversationsAsUser1")
+                        .HasForeignKey("User1Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MC_BE.Core.Entities.User", "User2")
+                        .WithMany("ConversationsAsUser2")
+                        .HasForeignKey("User2Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("User1");
+
+                    b.Navigation("User2");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.Chat.ConversationRead", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.Chat.Conversation", "Conversation")
+                        .WithMany("Reads")
+                        .HasForeignKey("ConversationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MC_BE.Core.Entities.User", "User")
+                        .WithMany("ConversationReads")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Conversation");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.Chat.MessageAttachment", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.Chat.ChatMessage", "Message")
+                        .WithMany("Attachments")
+                        .HasForeignKey("MessageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Message");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.Chat.MessageReaction", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.Chat.ChatMessage", "Message")
+                        .WithMany("Reactions")
+                        .HasForeignKey("MessageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MC_BE.Core.Entities.User", "User")
+                        .WithMany("MessageReactions")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Message");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.Chat.Sticker", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.Chat.StickerPack", "StickerPack")
+                        .WithMany("Stickers")
+                        .HasForeignKey("StickerPackId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("StickerPack");
+                });
+
             modelBuilder.Entity("MC_BE.Core.Entities.Choice", b =>
                 {
                     b.HasOne("MC_BE.Core.Entities.Question", "Question")
@@ -1285,6 +2464,108 @@ namespace MC_BE.Migrations
                     b.Navigation("Learner");
                 });
 
+            modelBuilder.Entity("MC_BE.Core.Entities.ForumComment", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.User", "Author")
+                        .WithMany()
+                        .HasForeignKey("AuthorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MC_BE.Core.Entities.ForumComment", "ParentComment")
+                        .WithMany("Replies")
+                        .HasForeignKey("ParentCommentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MC_BE.Core.Entities.ForumPost", "Post")
+                        .WithMany("Comments")
+                        .HasForeignKey("PostId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Author");
+
+                    b.Navigation("ParentComment");
+
+                    b.Navigation("Post");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.ForumPost", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.User", "Author")
+                        .WithMany()
+                        .HasForeignKey("AuthorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MC_BE.Core.Entities.ForumTopic", "Topic")
+                        .WithMany("Posts")
+                        .HasForeignKey("TopicId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Author");
+
+                    b.Navigation("Topic");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.ForumReaction", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.ForumComment", "Comment")
+                        .WithMany("Reactions")
+                        .HasForeignKey("CommentId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("MC_BE.Core.Entities.ForumPost", "Post")
+                        .WithMany("Reactions")
+                        .HasForeignKey("PostId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("MC_BE.Core.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Comment");
+
+                    b.Navigation("Post");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.ForumReport", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.ForumComment", "Comment")
+                        .WithMany("Reports")
+                        .HasForeignKey("CommentId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("MC_BE.Core.Entities.ForumPost", "Post")
+                        .WithMany("Reports")
+                        .HasForeignKey("PostId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("MC_BE.Core.Entities.User", "Reporter")
+                        .WithMany()
+                        .HasForeignKey("ReporterId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MC_BE.Core.Entities.User", "ResolvedBy")
+                        .WithMany()
+                        .HasForeignKey("ResolvedById")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Comment");
+
+                    b.Navigation("Post");
+
+                    b.Navigation("Reporter");
+
+                    b.Navigation("ResolvedBy");
+                });
+
             modelBuilder.Entity("MC_BE.Core.Entities.Lesson", b =>
                 {
                     b.HasOne("MC_BE.Core.Entities.Course", "Course")
@@ -1346,6 +2627,21 @@ namespace MC_BE.Migrations
 
             modelBuilder.Entity("MC_BE.Core.Entities.Payment", b =>
                 {
+                    b.HasOne("MC_BE.Core.Entities.User", "Learner")
+                        .WithMany()
+                        .HasForeignKey("LearnerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MC_BE.Core.Entities.User", null)
+                        .WithMany("Payments")
+                        .HasForeignKey("UserId");
+
+                    b.Navigation("Learner");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.PaymentItem", b =>
+                {
                     b.HasOne("MC_BE.Core.Entities.Course", "Course")
                         .WithMany()
                         .HasForeignKey("CourseId")
@@ -1353,22 +2649,22 @@ namespace MC_BE.Migrations
                         .IsRequired();
 
                     b.HasOne("MC_BE.Core.Entities.Enrollment", "Enrollment")
-                        .WithOne("Payment")
-                        .HasForeignKey("MC_BE.Core.Entities.Payment", "EnrollmentId")
+                        .WithMany("PaymentItems")
+                        .HasForeignKey("EnrollmentId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("MC_BE.Core.Entities.User", "Learner")
-                        .WithMany("Payments")
-                        .HasForeignKey("LearnerId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                    b.HasOne("MC_BE.Core.Entities.Payment", "Payment")
+                        .WithMany("Items")
+                        .HasForeignKey("PaymentId")
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("Course");
 
                     b.Navigation("Enrollment");
 
-                    b.Navigation("Learner");
+                    b.Navigation("Payment");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.PaymentTransaction", b =>
@@ -1474,6 +2770,32 @@ namespace MC_BE.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("MC_BE.Core.Entities.SpeakingSubmission", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.User", "GradedBy")
+                        .WithMany()
+                        .HasForeignKey("GradedById")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MC_BE.Core.Entities.User", "Learner")
+                        .WithMany()
+                        .HasForeignKey("LearnerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MC_BE.Core.Entities.Lesson", "Lesson")
+                        .WithMany()
+                        .HasForeignKey("LessonId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("GradedBy");
+
+                    b.Navigation("Learner");
+
+                    b.Navigation("Lesson");
+                });
+
             modelBuilder.Entity("MC_BE.Core.Entities.User", b =>
                 {
                     b.HasOne("MC_BE.Core.Entities.Role", "Role")
@@ -1501,6 +2823,29 @@ namespace MC_BE.Migrations
                     b.Navigation("Courses");
                 });
 
+            modelBuilder.Entity("MC_BE.Core.Entities.Chat.ChatMessage", b =>
+                {
+                    b.Navigation("Attachments");
+
+                    b.Navigation("Reactions");
+
+                    b.Navigation("Replies");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.Chat.Conversation", b =>
+                {
+                    b.Navigation("Calls");
+
+                    b.Navigation("Messages");
+
+                    b.Navigation("Reads");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.Chat.StickerPack", b =>
+                {
+                    b.Navigation("Stickers");
+                });
+
             modelBuilder.Entity("MC_BE.Core.Entities.Choice", b =>
                 {
                     b.Navigation("QuizAnswers");
@@ -1523,7 +2868,30 @@ namespace MC_BE.Migrations
                 {
                     b.Navigation("LessonProgresses");
 
-                    b.Navigation("Payment");
+                    b.Navigation("PaymentItems");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.ForumComment", b =>
+                {
+                    b.Navigation("Reactions");
+
+                    b.Navigation("Replies");
+
+                    b.Navigation("Reports");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.ForumPost", b =>
+                {
+                    b.Navigation("Comments");
+
+                    b.Navigation("Reactions");
+
+                    b.Navigation("Reports");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.ForumTopic", b =>
+                {
+                    b.Navigation("Posts");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.Lesson", b =>
@@ -1542,6 +2910,8 @@ namespace MC_BE.Migrations
 
             modelBuilder.Entity("MC_BE.Core.Entities.Payment", b =>
                 {
+                    b.Navigation("Items");
+
                     b.Navigation("Transactions");
                 });
 
@@ -1571,17 +2941,31 @@ namespace MC_BE.Migrations
 
             modelBuilder.Entity("MC_BE.Core.Entities.User", b =>
                 {
+                    b.Navigation("CallsMade");
+
+                    b.Navigation("CallsReceived");
+
+                    b.Navigation("ConversationReads");
+
+                    b.Navigation("ConversationsAsUser1");
+
+                    b.Navigation("ConversationsAsUser2");
+
                     b.Navigation("CreatedQuizzes");
 
                     b.Navigation("Enrollments");
 
                     b.Navigation("InstructedCourses");
 
+                    b.Navigation("MessageReactions");
+
                     b.Navigation("Payments");
 
                     b.Navigation("QuizAttempts");
 
                     b.Navigation("RefreshTokens");
+
+                    b.Navigation("SentChatMessages");
 
                     b.Navigation("UploadedMaterials");
 

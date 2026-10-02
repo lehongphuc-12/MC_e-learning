@@ -1,7 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using MC_BE.Core.DTOs;
 using MC_BE.Core.Entities;
 using MC_BE.Shared.Data;
@@ -13,719 +9,299 @@ namespace MC_BE.Shared.Services;
 public class AdminPaymentService : IAdminPaymentService
 {
     private readonly SmartMcDbContext _context;
-    private readonly IVnPayService _vnPayService;
+    private readonly IPayOsService _payOsService;
     private readonly ICourseCatalogService _courseCatalog;
 
-    public AdminPaymentService(
-        SmartMcDbContext context,
-        IVnPayService vnPayService,
-        ICourseCatalogService courseCatalog)
+    public AdminPaymentService(SmartMcDbContext context, IPayOsService payOsService, ICourseCatalogService courseCatalog)
     {
         _context = context;
-        _vnPayService = vnPayService;
+        _payOsService = payOsService;
         _courseCatalog = courseCatalog;
     }
 
-    // ============================================================
-    // AD07 - SEARCH PAYMENTS
-    // ============================================================
-
-    public async Task<
-        ApiResponse<PagedResult<PaymentDetailsDto>>
-    > SearchPaymentsAsync(
-        int currentUserId,
-        PaymentFilterRequest filter)
+    public async Task<ApiResponse<PagedResult<PaymentDetailsDto>>> SearchPaymentsAsync(int currentUserId, PaymentFilterRequest filter)
     {
         var query = _context.Payments
             .Include(p => p.Learner)
-            .Include(p => p.Course)
-            .Include(p => p.Enrollment)
+            .Include(p => p.Items)
+                .ThenInclude(i => i.Enrollment)
             .Include(p => p.Transactions)
             .AsNoTracking()
             .AsQueryable();
 
-        // STATUS
         if (!string.IsNullOrWhiteSpace(filter.Status))
         {
-            var status =
-                filter.Status.Trim().ToUpper();
-
-            query = query.Where(
-                p =>
-                    p.Status != null &&
-                    p.Status.ToUpper() == status
-            );
+            var status = filter.Status.Trim().ToUpper();
+            query = query.Where(p => p.Status.ToUpper() == status);
         }
 
-        // KEYWORD
         if (!string.IsNullOrWhiteSpace(filter.Keyword))
         {
-            var keyword =
-                filter.Keyword.Trim().ToLower();
+            var keyword = filter.Keyword.Trim().ToLower();
 
-            query = query.Where(
-                p =>
-                    (
-                        p.MerchantTxnRef != null &&
-                        p.MerchantTxnRef
-                            .ToLower()
-                            .Contains(keyword)
-                    )
-                    ||
-                    (
-                        p.VnPayTransactionNo != null &&
-                        p.VnPayTransactionNo
-                            .ToLower()
-                            .Contains(keyword)
-                    )
-                    ||
-                    (
-                        p.Learner != null &&
-                        p.Learner.FullName != null &&
-                        p.Learner.FullName
-                            .ToLower()
-                            .Contains(keyword)
-                    )
-                    ||
-                    (
-                        p.Learner != null &&
-                        p.Learner.Email != null &&
-                        p.Learner.Email
-                            .ToLower()
-                            .Contains(keyword)
-                    )
-                    ||
-                    (
-                        p.Course != null &&
-                        p.Course.Title != null &&
-                        p.Course.Title
-                            .ToLower()
-                            .Contains(keyword)
-                    )
-            );
+            query = query.Where(p =>
+                p.MerchantTxnRef.ToLower().Contains(keyword) ||
+                p.Learner.FullName.ToLower().Contains(keyword) ||
+                p.Learner.Email.ToLower().Contains(keyword) ||
+                p.Transactions.Any(t =>
+                    t.ProviderTransactionNo != null &&
+                    t.ProviderTransactionNo.ToLower().Contains(keyword)));
         }
 
-        // FROM DATE
         if (filter.FromDate.HasValue)
         {
-            var fromUtc =
-                DateTime.SpecifyKind(
-                    filter.FromDate.Value.Date,
-                    DateTimeKind.Utc
-                );
-
-            query = query.Where(
-                p => p.CreatedAt >= fromUtc
-            );
+            var fromDate = filter.FromDate.Value.ToDateTime(TimeOnly.MinValue);
+            query = query.Where(p => p.CreatedAt >= fromDate);
         }
 
-        // TO DATE
         if (filter.ToDate.HasValue)
         {
-            var toUtc =
-                DateTime.SpecifyKind(
-                    filter.ToDate.Value.Date
-                        .AddDays(1)
-                        .AddTicks(-1),
-                    DateTimeKind.Utc
-                );
-
-            query = query.Where(
-                p => p.CreatedAt <= toUtc
-            );
+            var toDateExclusive = filter.ToDate.Value.AddDays(1).ToDateTime(TimeOnly.MinValue);
+            query = query.Where(p => p.CreatedAt < toDateExclusive);
         }
 
-        // MIN AMOUNT
         if (filter.MinAmount.HasValue)
-        {
-            query = query.Where(
-                p => p.Amount >= filter.MinAmount.Value
-            );
-        }
+            query = query.Where(p => p.Amount >= filter.MinAmount.Value);
 
-        // MAX AMOUNT
         if (filter.MaxAmount.HasValue)
-        {
-            query = query.Where(
-                p => p.Amount <= filter.MaxAmount.Value
-            );
-        }
+            query = query.Where(p => p.Amount <= filter.MaxAmount.Value);
 
-        // COUNT
-        var totalItems =
-            await query.CountAsync();
+        var totalItems = await query.CountAsync();
+        var page = Math.Max(filter.Page, 1);
+        var pageSize = Math.Clamp(filter.PageSize, 1, 100);
 
-        // PAGINATION
-        var page =
-            Math.Max(1, filter.Page);
+        var payments = await query
+            .OrderByDescending(p => p.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
 
-        var pageSize =
-            Math.Clamp(
-                filter.PageSize,
-                1,
-                100
-            );
-
-        var payments =
-            await query
-                .OrderByDescending(
-                    p => p.CreatedAt
-                )
-                .Skip(
-                    (page - 1) * pageSize
-                )
-                .Take(pageSize)
-                .ToListAsync();
-
-        var items =
-            new List<PaymentDetailsDto>();
+        var items = new List<PaymentDetailsDto>();
 
         foreach (var payment in payments)
         {
-            var course =
-                await _courseCatalog.GetCourseByIdAsync(
-                    payment.CourseId
-                );
+            var firstItem = payment.Items.OrderBy(i => i.PaymentItemId).FirstOrDefault();
+            CoursePaymentDto? course = null;
 
-            items.Add(
-                MapToDetailsDto(
-                    payment,
-                    course
-                )
-            );
+            if (firstItem != null)
+                course = await _courseCatalog.GetCourseByIdAsync(firstItem.CourseId);
+
+            items.Add(MapPayment(payment, firstItem, course));
         }
 
-        var result =
-            new PagedResult<PaymentDetailsDto>
-            {
-                Items = items,
-
-                TotalCount = totalItems,
-
-                TotalItems = totalItems,
-
-                TotalPages =
-                    totalItems == 0
-                        ? 0
-                        : (int)Math.Ceiling(
-                            (double)totalItems /
-                            pageSize
-                        ),
-
-                Page = page,
-
-                PageSize = pageSize
-            };
-
-        return
-            ApiResponse<
-                PagedResult<PaymentDetailsDto>
-            >.SuccessResponse(result);
+        return ApiResponse<PagedResult<PaymentDetailsDto>>.SuccessResponse(new PagedResult<PaymentDetailsDto>
+        {
+            Items = items,
+            TotalItems = totalItems,
+            TotalPages = totalItems == 0 ? 0 : (int)Math.Ceiling(totalItems / (double)pageSize),
+            Page = page,
+            PageSize = pageSize
+        });
     }
 
-    // ============================================================
-    // AD07 - GET PAYMENT DETAIL
-    // ============================================================
-
-    public async Task<
-        ApiResponse<PaymentDetailsDto>
-    > GetPaymentAsync(
-        int currentUserId,
-        int paymentId)
+    public async Task<ApiResponse<PaymentDetailsDto>> GetPaymentAsync(int currentUserId, int paymentId)
     {
-        var payment =
-            await _context.Payments
-                .Include(p => p.Learner)
-                .Include(p => p.Enrollment)
-                .Include(p => p.Transactions)
-                .AsNoTracking()
-                .FirstOrDefaultAsync(
-                    p => p.PaymentId == paymentId
-                );
+        var payment = await _context.Payments
+            .Include(p => p.Learner)
+            .Include(p => p.Items)
+                .ThenInclude(i => i.Enrollment)
+            .Include(p => p.Transactions)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.PaymentId == paymentId);
 
         if (payment == null)
-        {
-            return
-                ApiResponse<
-                    PaymentDetailsDto
-                >.FailureResponse(
-                    "Payment not found."
-                );
-        }
+            return ApiResponse<PaymentDetailsDto>.FailureResponse("Payment not found.");
 
-        var course =
-            await _courseCatalog.GetCourseByIdAsync(
-                payment.CourseId
-            );
+        var firstItem = payment.Items.OrderBy(i => i.PaymentItemId).FirstOrDefault();
+        CoursePaymentDto? course = null;
 
-        return
-            ApiResponse<
-                PaymentDetailsDto
-            >.SuccessResponse(
-                MapToDetailsDto(
-                    payment,
-                    course
-                )
-            );
+        if (firstItem != null)
+            course = await _courseCatalog.GetCourseByIdAsync(firstItem.CourseId);
+
+        return ApiResponse<PaymentDetailsDto>.SuccessResponse(MapPayment(payment, firstItem, course));
     }
 
-    // ============================================================
-    // AD06 - VERIFY WITH VNPAY
-    // ============================================================
-
-    public async Task<
-        ApiResponse<VerifyPaymentResultDto>
-    > VerifyPaymentAsync(
-        int currentUserId,
-        int paymentId,
-        string ipAddress)
+    public async Task<ApiResponse<VerifyPaymentResultDto>> VerifyPaymentAsync(int currentUserId, int paymentId)
     {
-        var payment =
-            await _context.Payments
-                .Include(p => p.Learner)
-                .Include(p => p.Enrollment)
-                .Include(p => p.Transactions)
-                .FirstOrDefaultAsync(
-                    p => p.PaymentId == paymentId
-                );
+        var payment = await _context.Payments
+            .Include(p => p.Learner)
+            .Include(p => p.Items)
+                .ThenInclude(i => i.Enrollment)
+            .Include(p => p.Transactions)
+            .FirstOrDefaultAsync(p => p.PaymentId == paymentId);
 
         if (payment == null)
+            return ApiResponse<VerifyPaymentResultDto>.FailureResponse("Payment not found.");
+
+        if (!string.Equals(payment.PaymentMethod, "PAYOS", StringComparison.OrdinalIgnoreCase))
+            return ApiResponse<VerifyPaymentResultDto>.FailureResponse("Payment này không sử dụng payOS.");
+
+        if (!long.TryParse(payment.MerchantTxnRef, out var orderCode))
+            return ApiResponse<VerifyPaymentResultDto>.FailureResponse("OrderCode payOS không hợp lệ.");
+
+        var payOs = await _payOsService.GetPaymentInformationAsync(orderCode);
+
+        if (!payOs.RequestSucceeded)
+            return ApiResponse<VerifyPaymentResultDto>.FailureResponse($"Không truy vấn được payOS: {payOs.Message}");
+
+        var issues = new List<string>();
+
+        if (payOs.Amount != payment.Amount)
+            issues.Add($"Sai số tiền: DB={payment.Amount}, payOS={payOs.Amount}");
+
+        var payOsPaid = string.Equals(payOs.Status, "PAID", StringComparison.OrdinalIgnoreCase);
+        var dbPaid = string.Equals(payment.Status, "SUCCESS", StringComparison.OrdinalIgnoreCase);
+
+        if (payOsPaid != dbPaid)
+            issues.Add($"Sai trạng thái: DB={payment.Status}, payOS={payOs.Status}");
+
+        // Recovery nếu webhook bị miss nhưng payOS xác nhận PAID.
+        if (payOsPaid && payOs.Amount == payment.Amount && !dbPaid)
         {
-            return
-                ApiResponse<
-                    VerifyPaymentResultDto
-                >.FailureResponse(
-                    "Payment not found."
-                );
-        }
+            await using var transaction = await _context.Database.BeginTransactionAsync();
 
-        var issues =
-            new List<string>();
-
-        VnPayQueryResultDto? vnPayResult = null;
-
-        bool vnPaySuccess = false;
-
-        try
-        {
-            vnPayResult =
-                await _vnPayService.QueryTransactionAsync(
-                    payment,
-                    ipAddress
-                );
-
-            if (!vnPayResult.RequestSucceeded)
+            try
             {
-                issues.Add(
-                    "VNPay query thất bại: " +
-                    (
-                        vnPayResult.Message ??
-                        vnPayResult.ResponseCode ??
-                        "Unknown error"
-                    )
-                );
+                var now = DateTime.UtcNow;
+
+                payment.Status = "SUCCESS";
+                payment.PaymentMethod = "PAYOS";
+                payment.UpdatedAt = now;
+
+                foreach (var item in payment.Items)
+                {
+                    if (item.Enrollment == null)
+                        continue;
+
+                    item.Enrollment.Status = "ACTIVE";
+                    item.Enrollment.EnrolledAt ??= now;
+                    item.Enrollment.ExpiresAt ??= now.AddDays(90);
+                    item.Enrollment.UpdatedAt = now;
+                }
+
+                var exists = !string.IsNullOrWhiteSpace(payOs.Reference) &&
+                    await _context.PaymentTransactions.AnyAsync(t =>
+                        t.Provider == "PAYOS" &&
+                        t.ProviderTransactionNo == payOs.Reference);
+
+                if (!exists)
+                {
+                    _context.PaymentTransactions.Add(new PaymentTransaction
+                    {
+                        PaymentId = payment.PaymentId,
+                        Provider = "PAYOS",
+                        ProviderTransactionNo = payOs.Reference,
+                        ResponseCode = "00",
+                        TransactionStatus = "PAID",
+                        Amount = payment.Amount,
+                        Status = "SUCCESS",
+                        SignatureValid = false,
+                        ProcessedAt = now,
+                        CreatedAt = now
+                    });
+                }
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                issues.RemoveAll(x => x.StartsWith("Sai trạng thái:", StringComparison.OrdinalIgnoreCase));
             }
-            else
+            catch
             {
-                // ------------------------------------------------
-                // CHECK AMOUNT
-                // ------------------------------------------------
-
-                if (vnPayResult.Amount.HasValue)
-                {
-                    if (
-                        vnPayResult.Amount.Value !=
-                        payment.Amount
-                    )
-                    {
-                        issues.Add(
-                            $"Sai lệch số tiền. " +
-                            $"System: {payment.Amount}, " +
-                            $"VNPay: {vnPayResult.Amount.Value}"
-                        );
-                    }
-                }
-
-                // ------------------------------------------------
-                // CHECK VNPAY STATUS
-                // ------------------------------------------------
-
-                vnPaySuccess =
-                    vnPayResult.ResponseCode == "00" &&
-                    vnPayResult.TransactionStatus == "00";
-
-                // ------------------------------------------------
-                // CHECK SYSTEM STATUS
-                // ------------------------------------------------
-
-                var systemSuccess =
-                    string.Equals(
-                        payment.Status,
-                        "SUCCESS",
-                        StringComparison.OrdinalIgnoreCase
-                    );
-
-                if (vnPaySuccess != systemSuccess)
-                {
-                    issues.Add(
-                        $"Sai lệch trạng thái. " +
-                        $"System: {payment.Status}, " +
-                        $"VNPay: {vnPayResult.TransactionStatus}"
-                    );
-                }
-
-                // ------------------------------------------------
-                // CHECK TRANSACTION NUMBER
-                // ------------------------------------------------
-
-                if (
-                    !string.IsNullOrWhiteSpace(
-                        vnPayResult.TransactionNo
-                    )
-                    &&
-                    !string.IsNullOrWhiteSpace(
-                        payment.VnPayTransactionNo
-                    )
-                    &&
-                    payment.VnPayTransactionNo !=
-                    vnPayResult.TransactionNo
-                )
-                {
-                    issues.Add(
-                        $"Sai lệch mã giao dịch VNPay. " +
-                        $"System: {payment.VnPayTransactionNo}, " +
-                        $"VNPay: {vnPayResult.TransactionNo}"
-                    );
-                }
-
-                // ------------------------------------------------
-                // AUTHORITATIVE VNPAY SUCCESS
-                // ------------------------------------------------
-
-                var amountValid =
-                    !vnPayResult.Amount.HasValue ||
-                    vnPayResult.Amount.Value == payment.Amount;
-
-                if (
-                    vnPaySuccess &&
-                    amountValid
-                )
-                {
-                    payment.Status = "SUCCESS";
-
-                    payment.VnPayResponseCode =
-                        vnPayResult.ResponseCode;
-
-                    payment.VnPayTransactionStatus =
-                        vnPayResult.TransactionStatus;
-
-                    payment.VnPayTransactionNo =
-                        vnPayResult.TransactionNo;
-
-                    payment.UpdatedAt =
-                        DateTime.UtcNow;
-
-                    // ACTIVE ENROLLMENT
-                    if (
-                        payment.Enrollment != null
-                    )
-                    {
-                        payment.Enrollment.Status =
-                            "ACTIVE";
-
-                        payment.Enrollment.EnrolledAt =
-                            payment.Enrollment.EnrolledAt
-                            ?? DateTime.UtcNow;
-
-                        payment.Enrollment.ExpiresAt =
-                            payment.Enrollment.ExpiresAt
-                            ?? DateTime.UtcNow.AddDays(90);
-
-                        payment.Enrollment.UpdatedAt =
-                            DateTime.UtcNow;
-                    }
-
-                    // ------------------------------------------------
-                    // CREATE TRANSACTION HISTORY
-                    // ------------------------------------------------
-
-                    var transactionExists =
-                        !string.IsNullOrWhiteSpace(
-                            vnPayResult.TransactionNo
-                        )
-                        &&
-                        await _context.PaymentTransactions
-                            .AnyAsync(
-                                t =>
-                                    t.PaymentId ==
-                                    payment.PaymentId
-                                    &&
-                                    t.ProviderTransactionNo ==
-                                    vnPayResult.TransactionNo
-                            );
-
-                    if (!transactionExists)
-                    {
-                        var transaction =
-                            new PaymentTransaction
-                            {
-                                PaymentId =
-                                    payment.PaymentId,
-
-                                Provider =
-                                    "VNPAY",
-
-                                ProviderTransactionNo =
-                                    vnPayResult.TransactionNo,
-
-                                ResponseCode =
-                                    vnPayResult.ResponseCode,
-
-                                TransactionStatus =
-                                    vnPayResult.TransactionStatus,
-
-                                BankCode =
-                                    vnPayResult.BankCode,
-
-                                Amount =
-                                    payment.Amount,
-
-                                Status =
-                                    "SUCCESS",
-
-                                SignatureValid =
-                                    true,
-
-                                ProcessedAt =
-                                    DateTime.UtcNow,
-
-                                CreatedAt =
-                                    DateTime.UtcNow
-                            };
-
-                        _context.PaymentTransactions
-                            .Add(transaction);
-                    }
-
-                    await _context.SaveChangesAsync();
-                }
+                await transaction.RollbackAsync();
+                throw;
             }
         }
-        catch (Exception ex)
+
+        var firstItem = payment.Items.OrderBy(i => i.PaymentItemId).FirstOrDefault();
+        CoursePaymentDto? course = null;
+
+        if (firstItem != null)
+            course = await _courseCatalog.GetCourseByIdAsync(firstItem.CourseId);
+
+        var dto = MapPayment(payment, firstItem, course);
+        var valid = payOs.Amount == payment.Amount;
+
+        return ApiResponse<VerifyPaymentResultDto>.SuccessResponse(new VerifyPaymentResultDto
         {
-            issues.Add(
-                $"Không thể kết nối VNPay: {ex.Message}"
-            );
-        }
-
-        var course =
-            await _courseCatalog.GetCourseByIdAsync(
-                payment.CourseId
-            );
-
-        var paymentDto =
-            MapToDetailsDto(
-                payment,
-                course
-            );
-
-        var verifyResult =
-            new VerifyPaymentResultDto
-            {
-                Valid =
-                    issues.Count == 0,
-
-                IsSuccess =
-                    vnPaySuccess,
-
-                Message =
-                    issues.Count == 0
-                        ? (
-                            vnPaySuccess
-                                ? "Giao dịch VNPay thành công và dữ liệu khớp."
-                                : "Giao dịch VNPay chưa thành công."
-                        )
-                        : "Phát hiện sai lệch dữ liệu giao dịch.",
-
-                TransactionStatus =
-                    vnPayResult?.TransactionStatus
-                    ?? payment.Status,
-
-                Issues = issues,
-
-                Payment = paymentDto,
-
-                VnPay = vnPayResult
-            };
-
-        return
-            ApiResponse<
-                VerifyPaymentResultDto
-            >.SuccessResponse(
-                verifyResult
-            );
+            Valid = valid,
+            IsSuccess = payOsPaid && valid,
+            Message = payOsPaid && valid
+                ? "payOS xác nhận giao dịch đã thanh toán."
+                : $"Trạng thái payOS: {payOs.Status}.",
+            TransactionStatus = payOs.Status,
+            Issues = issues,
+            Payment = dto,
+            PayOs = payOs
+        });
     }
 
-    // ============================================================
-    // GET VNPAY INFORMATION
-    // ============================================================
-
-    public async Task<
-        ApiResponse<VnPayQueryResultDto>
-    > RetrieveVnPayInformationAsync(
-        int currentUserId,
-        int paymentId,
-        string ipAddress)
+    public async Task<ApiResponse<PayOsQueryResultDto>> RetrievePayOsInformationAsync(int currentUserId, int paymentId)
     {
-        var payment =
-            await _context.Payments
-                .FirstOrDefaultAsync(
-                    p => p.PaymentId == paymentId
-                );
+        var payment = await _context.Payments
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.PaymentId == paymentId);
 
         if (payment == null)
-        {
-            return
-                ApiResponse<
-                    VnPayQueryResultDto
-                >.FailureResponse(
-                    "Payment not found."
-                );
-        }
+            return ApiResponse<PayOsQueryResultDto>.FailureResponse("Payment not found.");
 
-        var result =
-            await _vnPayService.QueryTransactionAsync(
-                payment,
-                ipAddress
-            );
+        if (!string.Equals(payment.PaymentMethod, "PAYOS", StringComparison.OrdinalIgnoreCase))
+            return ApiResponse<PayOsQueryResultDto>.FailureResponse("Payment này không sử dụng payOS.");
 
-        return
-            ApiResponse<
-                VnPayQueryResultDto
-            >.SuccessResponse(
-                result
-            );
+        if (!long.TryParse(payment.MerchantTxnRef, out var orderCode))
+            return ApiResponse<PayOsQueryResultDto>.FailureResponse("OrderCode không hợp lệ.");
+
+        var result = await _payOsService.GetPaymentInformationAsync(orderCode);
+
+        if (!result.RequestSucceeded)
+            return ApiResponse<PayOsQueryResultDto>.FailureResponse(
+                result.Message ?? "Không truy vấn được payOS.");
+
+        return ApiResponse<PayOsQueryResultDto>.SuccessResponse(result);
     }
 
-    // ============================================================
-    // MAP DTO
-    // ============================================================
-
-    private static PaymentDetailsDto MapToDetailsDto(
-        Payment payment,
-        CoursePaymentDto? course)
+    private static PaymentDetailsDto MapPayment(Payment payment, PaymentItem? firstItem, CoursePaymentDto? course)
     {
-        var latestTxn =
-            payment.Transactions
-                .OrderByDescending(
-                    t => t.TransactionId
-                )
-                .FirstOrDefault();
+        var transaction = payment.Transactions
+            .OrderByDescending(t => t.TransactionId)
+            .FirstOrDefault();
 
         return new PaymentDetailsDto
         {
-            PaymentId =
-                payment.PaymentId,
+            PaymentId = payment.PaymentId,
+            LearnerId = payment.LearnerId,
+            LearnerName = payment.Learner?.FullName ?? string.Empty,
+            LearnerEmail = payment.Learner?.Email ?? string.Empty,
 
-            LearnerId =
-                payment.LearnerId,
+            // Giữ item đầu tiên để không phá Admin UI cũ.
+            CourseId = firstItem?.CourseId ?? 0,
+            CourseTitle = course?.Title ?? (firstItem == null ? string.Empty : $"Course #{firstItem.CourseId}"),
+            CourseThumbnailUrl = course?.ThumbnailUrl ?? string.Empty,
+            CourseDescription = course?.Description ?? string.Empty,
+            EnrollmentId = firstItem?.EnrollmentId ?? 0,
+            EnrollmentStatus = firstItem?.Enrollment?.Status ?? string.Empty,
 
-            LearnerName =
-                payment.Learner?.FullName ??
-                string.Empty,
+            Amount = payment.Amount,
+            Currency = payment.Currency,
+            PaymentMethod = payment.PaymentMethod,
+            PaymentStatus = payment.Status,
+            MerchantTxnRef = payment.MerchantTxnRef,
+            CreatedAt = payment.CreatedAt,
+            UpdatedAt = payment.UpdatedAt,
 
-            LearnerEmail =
-                payment.Learner?.Email ??
-                string.Empty,
-
-            CourseId =
-                payment.CourseId,
-
-            CourseTitle =
-                course?.Title ??
-                $"Course #{payment.CourseId}",
-
-            CourseThumbnailUrl =
-                course?.ThumbnailUrl ??
-                string.Empty,
-
-            CourseDescription =
-                course?.Description ??
-                string.Empty,
-
-            EnrollmentId =
-                payment.EnrollmentId,
-
-            EnrollmentStatus =
-                payment.Enrollment?.Status ??
-                string.Empty,
-
-            Amount =
-                payment.Amount,
-
-            Currency =
-                payment.Currency,
-
-            PaymentMethod =
-                payment.PaymentMethod,
-
-            PaymentStatus =
-                payment.Status,
-
-            MerchantTxnRef =
-                payment.MerchantTxnRef,
-
-            VnPayTransactionNo =
-                payment.VnPayTransactionNo,
-
-            VnPayResponseCode =
-                payment.VnPayResponseCode,
-
-            VnPayTransactionStatus =
-                payment.VnPayTransactionStatus,
-
-            CreatedAt =
-                payment.CreatedAt,
-
-            UpdatedAt =
-                payment.UpdatedAt,
-
-            LatestTransaction =
-                latestTxn == null
-                    ? null
-                    : new PaymentTransactionDto
-                    {
-                        TransactionId =
-                            latestTxn.TransactionId,
-
-                        Provider =
-                            latestTxn.Provider,
-
-                        ProviderTransactionNo =
-                            latestTxn.ProviderTransactionNo,
-
-                        ResponseCode =
-                            latestTxn.ResponseCode,
-
-                        TransactionStatus =
-                            latestTxn.TransactionStatus,
-
-                        BankCode =
-                            latestTxn.BankCode,
-
-                        Amount =
-                            latestTxn.Amount,
-
-                        Status =
-                            latestTxn.Status,
-
-                        SignatureValid =
-                            latestTxn.SignatureValid,
-
-                        ProcessedAt =
-                            latestTxn.ProcessedAt
-                            ?? DateTime.UtcNow
-                    }
+            LatestTransaction = transaction == null ? null : new PaymentTransactionDto
+            {
+                TransactionId = transaction.TransactionId,
+                Provider = transaction.Provider,
+                ProviderTransactionNo = transaction.ProviderTransactionNo,
+                ResponseCode = transaction.ResponseCode,
+                TransactionStatus = transaction.TransactionStatus,
+                BankCode = transaction.BankCode,
+                Amount = transaction.Amount,
+                Status = transaction.Status,
+                SignatureValid = transaction.SignatureValid,
+                ProcessedAt = transaction.ProcessedAt ?? transaction.CreatedAt
+            }
         };
     }
 }

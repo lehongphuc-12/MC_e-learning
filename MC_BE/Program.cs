@@ -1,16 +1,38 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+
 using MC_BE.Core.Entities;
+
 using MC_BE.Features.Admin.Services;
 using MC_BE.Features.Admin.Services.Interfaces;
+
+using MC_BE.Features.Forum.Services;
+using MC_BE.Features.Forum.Services.Interfaces;
+
 using MC_BE.Features.Auth.Services;
 using MC_BE.Features.Auth.Services.Interfaces;
+
 using MC_BE.Features.Courses.Services;
 using MC_BE.Features.Courses.Services.Interfaces;
+
 using MC_BE.Features.Users.Services;
 using MC_BE.Features.Users.Services.Interfaces;
+
+using MC_BE.Features.Learning.Repositories;
+using MC_BE.Features.Learning.Repositories.Interfaces;
+using MC_BE.Features.Learning.Services;
+using MC_BE.Features.Learning.Services.Interfaces;
+
+using MC_BE.Features.Chat.Hubs;
+using MC_BE.Features.Chat.Services;
+using MC_BE.Features.Chat.Services.Interfaces;
+
+using MC_BE.Features.Quizzes.Services;
+using MC_BE.Features.Quizzes.Services.Interfaces;
+
+
 using MC_BE.Shared.Data;
 using MC_BE.Shared.Middleware;
 using MC_BE.Shared.Repositories;
@@ -18,83 +40,146 @@ using MC_BE.Shared.Repositories.Interfaces;
 using MC_BE.Shared.Services;
 using MC_BE.Shared.Services.Interfaces;
 using MC_BE.Shared.Settings;
+
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-// 08.Quiz Management
-using MC_BE.Features.Quizzes.Services;
-using MC_BE.Features.Quizzes.Services.Interfaces;
-using MC_BE.Features.Learning.Services;
-using MC_BE.Features.Learning.Services.Interfaces;
+using MC_BE.Features.Forum.Services;
+using MC_BE.Features.Forum.Services.Interfaces;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add DbContext
-builder.Services.AddDbContext<SmartMcDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+// ============================================================
+// DATABASE
+// ============================================================
 
-// Configure Settings
+builder.Services.AddDbContext<SmartMcDbContext>(options =>
+{
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"));
+});
+
+// ============================================================
+// SETTINGS
+// ============================================================
+
 builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection("Cloudinary"));
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
-builder.Services.Configure<VnPaySettings>(builder.Configuration.GetSection("VnPay"));
+builder.Services.Configure<PayOsSettings>(builder.Configuration.GetSection("PayOS"));
+// ============================================================
+// CORS
+// ============================================================
 
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
     {
         policy.SetIsOriginAllowed(_ => true)
-              .AllowAnyMethod()
-              .AllowAnyHeader()
-              .AllowCredentials();
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .AllowCredentials();
     });
 });
+
+// ============================================================
+// REPOSITORY / UNIT OF WORK
+// ============================================================
 
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddHttpContextAccessor();
 
-// Register Auth, User, Admin & Profile Services
+// ============================================================
+// AUTH / USER / ADMIN
+// ============================================================
+
 builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserProfileService, UserProfileService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
+builder.Services.AddScoped<IAdminStatsService, AdminStatsService>();
 
-// Course Management Services
+// ============================================================
+// COURSE MANAGEMENT
+// ============================================================
+
 builder.Services.AddScoped<ICourseService, CourseService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<IModuleService, ModuleService>();
 builder.Services.AddScoped<ILessonService, LessonService>();
 
-// 08.Quiz Management Services
+// ============================================================
+// QUIZ MANAGEMENT
+// ============================================================
+
 builder.Services.AddScoped<IQuizService, QuizService>();
 
-// Learning & Certification Services
+// ============================================================
+// FORUM
+// ============================================================
+builder.Services.AddScoped<IForumPostService, ForumPostService>();
+builder.Services.AddScoped<IForumCommentService, ForumCommentService>();
+builder.Services.AddScoped<IForumInteractionService, ForumInteractionService>();
+builder.Services.AddScoped<IAdminForumService, AdminForumService>();
+
+// ============================================================
+// LEARNING / CERTIFICATION
+// ============================================================
 builder.Services.AddScoped<ICertificateService, CertificateService>();
 builder.Services.AddScoped<ILearningProgressService, LearningProgressService>();
+builder.Services.AddScoped<ISpeakingSubmissionRepository, SpeakingSubmissionRepository>();
+builder.Services.AddScoped<ISpeakingSubmissionService, SpeakingSubmissionService>();
 
-// Register Email & Cloudinary Services
+// ============================================================
+// FORUM
+// ============================================================
+builder.Services.AddScoped<IForumPostService, ForumPostService>();
+builder.Services.AddScoped<IForumCommentService, ForumCommentService>();
+builder.Services.AddScoped<IForumInteractionService, ForumInteractionService>();
+builder.Services.AddScoped<IAdminForumService, AdminForumService>();
+
+// ============================================================
+// EMAIL / CLOUDINARY
+// ============================================================
+
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
 
-// Register Course Enrollment & Payment Services
+// ============================================================
+// ENROLLMENT / PAYMENT
+// ============================================================
+
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<ICourseCatalogService, CourseCatalogService>();
 builder.Services.AddScoped<IEnrollmentService, EnrollmentService>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddScoped<IAdminPaymentService, AdminPaymentService>();
-builder.Services.AddHttpClient<IVnPayService, VnPayService>();
+builder.Services.AddScoped<IPayOsService, PayOsService>();
 builder.Services.AddHostedService<EnrollmentExpirationWorker>();
 
-// Configure JWT Authentication
+// ============================================================
+// CHAT / CALL
+// ============================================================
+builder.Services.AddScoped<IChatService, ChatService>();
+builder.Services.AddScoped<ICallService, CallService>();
+// ============================================================
+// SIGNALR
+// ============================================================
+
+builder.Services.AddSignalR(options =>
+{
+    options.EnableDetailedErrors = builder.Environment.IsDevelopment();
+    options.MaximumReceiveMessageSize = 128 * 1024;
+});
+
+// ============================================================
+// JWT AUTHENTICATION
+// ============================================================
+
 var secretKey = builder.Configuration["Jwt:Secret"] ?? throw new InvalidOperationException("JWT Secret not found.");
+
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -112,7 +197,29 @@ builder.Services.AddAuthentication(options =>
         ValidAudience = builder.Configuration["Jwt:Audience"],
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey))
     };
+
+    // SignalR sends JWT through ?access_token=... when using WebSocket.
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            var accessToken = context.Request.Query["access_token"];
+            var path = context.HttpContext.Request.Path;
+
+            if (!string.IsNullOrEmpty(accessToken) &&
+                (path.StartsWithSegments("/hubs/chat") || path.StartsWithSegments("/hubs/call")))
+            {
+                context.Token = accessToken;
+            }
+
+            return Task.CompletedTask;
+        }
+    };
 });
+
+// ============================================================
+// CONTROLLERS / JSON
+// ============================================================
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
@@ -120,11 +227,21 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
     });
 
+// ============================================================
+// OPEN API / SWAGGER
+// ============================================================
+
 builder.Services.AddOpenApi();
 builder.Services.AddEndpointsApiExplorer();
+
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new OpenApiInfo { Title = "MC E-Learning API", Version = "v1" });
+    c.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "MC E-Learning API",
+        Version = "v1"
+    });
+
     c.CustomSchemaIds(x => x.FullName?.Replace("+", "."));
 
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
@@ -155,49 +272,111 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
+// ============================================================
+// BUILD APP
+// ============================================================
+
 var app = builder.Build();
+
+// ============================================================
+// GLOBAL EXCEPTION
+// ============================================================
 
 app.UseMiddleware<GlobalExceptionMiddleware>();
 
-// Seed roles
+// ============================================================
+// DATABASE MIGRATION + SEED ROLES
+// ============================================================
+
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<SmartMcDbContext>();
+
     try
     {
+        Console.WriteLine("====================================");
+        Console.WriteLine("Running database migrations...");
+
         context.Database.Migrate();
 
+        Console.WriteLine("Database migration completed.");
         if (!context.Roles.Any())
         {
+            Console.WriteLine("Seeding default roles...");
+
             context.Roles.AddRange(
-                new Role { RoleName = "Learner", Description = "Student user who consumes learning materials." },
-                new Role { RoleName = "Instructor", Description = "Teacher user who teaches classes and uploads materials." },
-                new Role { RoleName = "Admin", Description = "Administrator user with system-wide permissions." }
+                new Role
+                {
+                    RoleName = "Learner",
+                    Description = "Student user who consumes learning materials."
+                },
+                new Role
+                {
+                    RoleName = "Instructor",
+                    Description = "Teacher user who teaches classes and uploads materials."
+                },
+                new Role
+                {
+                    RoleName = "Admin",
+                    Description = "Administrator user with system-wide permissions."
+                }
             );
+
             context.SaveChanges();
+            Console.WriteLine("Default roles seeded.");
         }
+
+        Console.WriteLine("Database initialization completed.");
+        Console.WriteLine("====================================");
     }
-    catch (Exception)
+    catch (Exception ex)
     {
-        // Suppress migration errors
+        Console.WriteLine("====================================");
+        Console.WriteLine("DATABASE INITIALIZATION ERROR");
+        Console.WriteLine("====================================");
+        Console.WriteLine(ex);
+        Console.WriteLine("====================================");
+        throw;
     }
 }
 
+// ============================================================
+// HTTP PIPELINE
+// ============================================================
+
 app.UseRouting();
 app.UseCors("AllowAll");
-
+app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Enable Swagger UI across environments
+// ============================================================
+// SIGNALR HUBS
+// ============================================================
+
+app.MapHub<ChatHub>("/hubs/chat");
+app.MapHub<CallHub>("/hubs/call");
+
+// ============================================================
+// SWAGGER
+// ============================================================
+
 app.UseSwagger();
+
 app.UseSwaggerUI(c =>
 {
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "MC E-Learning API v1");
-    c.SwaggerEndpoint("v1/swagger.json", "MC E-Learning API v1 (Relative)");
     c.RoutePrefix = "swagger";
 });
 
+// ============================================================
+// CONTROLLERS
+// ============================================================
+
 app.MapControllers();
+
+// ============================================================
+// RUN
+// ============================================================
 
 app.Run();

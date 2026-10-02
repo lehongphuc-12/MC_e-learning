@@ -124,7 +124,7 @@ public class RejectCourseRequest
 }
 
 // ---------------------------------------------------------------------------
-// Category response DTO
+// Category response & request DTOs
 // ---------------------------------------------------------------------------
 public class CategoryDto
 {
@@ -132,7 +132,31 @@ public class CategoryDto
     public string CategoryName { get; set; } = string.Empty;
     public string? Description { get; set; }
     public string Status { get; set; } = "ACTIVE";
+    public int CoursesCount { get; set; }
 }
+
+public class CreateCategoryRequest
+{
+    [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Tên danh mục không được để trống")]
+    [System.ComponentModel.DataAnnotations.MaxLength(100, ErrorMessage = "Tên danh mục không được vượt quá 100 ký tự")]
+    public string CategoryName { get; set; } = string.Empty;
+
+    public string? Description { get; set; }
+
+    public string Status { get; set; } = "ACTIVE";
+}
+
+public class UpdateCategoryRequest
+{
+    [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Tên danh mục không được để trống")]
+    [System.ComponentModel.DataAnnotations.MaxLength(100, ErrorMessage = "Tên danh mục không được vượt quá 100 ký tự")]
+    public string CategoryName { get; set; } = string.Empty;
+
+    public string? Description { get; set; }
+
+    public string Status { get; set; } = "ACTIVE";
+}
+
 
 // ---------------------------------------------------------------------------
 // Learned course response DTO — returned for learner's enrolled courses with progress

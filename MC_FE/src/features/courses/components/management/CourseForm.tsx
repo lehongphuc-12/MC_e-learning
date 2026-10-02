@@ -61,6 +61,7 @@ export const courseSchema = z.object({
     .optional(),
 
   status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']),
+  submissionNote: z.string().optional(),
 });
 
 export type CourseFormInput = z.input<typeof courseSchema>;

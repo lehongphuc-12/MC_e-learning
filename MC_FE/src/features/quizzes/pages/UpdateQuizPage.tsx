@@ -1,7 +1,18 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import React, {
+  useEffect,
+  useState,
+} from 'react';
 
-import { useQuiz, useUpdateQuiz } from '../hooks/useQuiz';
+import {
+  useLocation,
+  useNavigate,
+  useParams,
+} from 'react-router-dom';
+
+import {
+  useQuiz,
+  useUpdateQuiz,
+} from '../hooks/useQuiz';
 
 import {
   QuizStatus,
@@ -10,6 +21,20 @@ import {
   UpdateQuestionRequest,
   UpdateChoiceRequest,
 } from '../types/quizTypes';
+
+import { ToastType } from '../../../components/common/Toast';
+
+interface UpdateQuizPageProps {
+  onToast?: (
+    title: string,
+    desc?: string,
+    type?: ToastType
+  ) => void;
+}
+
+interface QuizNavigationState {
+  returnTo?: string;
+}
 
 const QUIZ_STATUS_OPTIONS: {
   value: QuizStatus;
@@ -20,8 +45,12 @@ const QUIZ_STATUS_OPTIONS: {
     label: 'Nháp',
   },
   {
-    value: 'PUBLISHED',
+    value: 'ACTIVE',
     label: 'Đã xuất bản',
+  },
+  {
+    value: 'INACTIVE',
+    label: 'Ngừng hoạt động',
   },
   {
     value: 'ARCHIVED',
@@ -48,7 +77,7 @@ const QUESTION_TYPE_OPTIONS: {
 ];
 
 const createEmptyChoice = (
-  orderIndex: number,
+  orderIndex: number
 ): UpdateChoiceRequest => ({
   choiceId: 0,
   choiceText: '',
@@ -57,7 +86,7 @@ const createEmptyChoice = (
 });
 
 const createEmptyQuestion = (
-  orderIndex: number,
+  orderIndex: number
 ): UpdateQuestionRequest => ({
   questionId: 0,
   questionText: '',
@@ -70,16 +99,32 @@ const createEmptyQuestion = (
   ],
 });
 
-export const UpdateQuizPage: React.FC = () => {
+export const UpdateQuizPage: React.FC<
+  UpdateQuizPageProps
+> = ({ onToast }) => {
   const navigate = useNavigate();
+  const location = useLocation();
 
-  const { id } = useParams<{ id: string }>();
-
-  const quizId = id ? Number(id) : null;
+  const { id } =
+    useParams<{ id: string }>();
 
   // ============================================================
-  // GET QUIZ
+  // NAVIGATION STATE
   // ============================================================
+
+  const navigationState =
+    location.state as QuizNavigationState | null;
+
+  const returnTo =
+    navigationState?.returnTo;
+
+  // ============================================================
+  // QUIZ ID
+  // ============================================================
+
+  const quizId = id
+    ? Number(id)
+    : null;
 
   const validQuizId =
     quizId !== null &&
@@ -87,6 +132,10 @@ export const UpdateQuizPage: React.FC = () => {
     quizId > 0
       ? quizId
       : null;
+
+  // ============================================================
+  // GET QUIZ
+  // ============================================================
 
   const {
     data: quiz,
@@ -99,25 +148,35 @@ export const UpdateQuizPage: React.FC = () => {
   // UPDATE QUIZ
   // ============================================================
 
-  const updateQuizMutation = useUpdateQuiz();
+  const updateQuizMutation =
+    useUpdateQuiz();
 
   // ============================================================
   // FORM - QUIZ INFORMATION
   // ============================================================
 
-  const [title, setTitle] = useState('');
-
-  const [description, setDescription] =
+  const [title, setTitle] =
     useState('');
 
-  const [timeLimitMinutes, setTimeLimitMinutes] =
-    useState(0);
+  const [
+    description,
+    setDescription,
+  ] = useState('');
 
-  const [passingScore, setPassingScore] =
-    useState(80);
+  const [
+    timeLimitMinutes,
+    setTimeLimitMinutes,
+  ] = useState(0);
 
-  const [maxAttempts, setMaxAttempts] =
-    useState(1);
+  const [
+    passingScore,
+    setPassingScore,
+  ] = useState(80);
+
+  const [
+    maxAttempts,
+    setMaxAttempts,
+  ] = useState(1);
 
   const [status, setStatus] =
     useState<QuizStatus>('DRAFT');
@@ -126,19 +185,78 @@ export const UpdateQuizPage: React.FC = () => {
   // FORM - QUESTIONS
   // ============================================================
 
-  const [questions, setQuestions] = useState<
+  const [
+    questions,
+    setQuestions,
+  ] = useState<
     UpdateQuestionRequest[]
   >([]);
+
+  // ============================================================
+  // DELETE QUESTION CONFIRM
+  // ============================================================
+
+  const [
+    questionToDelete,
+    setQuestionToDelete,
+  ] = useState<number | null>(
+    null
+  );
 
   // ============================================================
   // MESSAGE
   // ============================================================
 
-  const [errorMessage, setErrorMessage] =
-    useState('');
+  const [
+    errorMessage,
+    setErrorMessage,
+  ] = useState('');
 
-  const [successMessage, setSuccessMessage] =
-    useState('');
+  const [
+    successMessage,
+    setSuccessMessage,
+  ] = useState('');
+
+  // ============================================================
+  // NAVIGATION
+  // ============================================================
+
+  /**
+   * Update Quiz luôn quay về Quiz Detail.
+   *
+   * Đồng thời truyền tiếp returnTo để:
+   *
+   * QuizManagement / CourseLessons
+   *          ↓
+   *     QuizDetail
+   *          ↓
+   *     UpdateQuiz
+   *          ↓
+   *     QuizDetail
+   *          ↓
+   * returnTo ban đầu
+   */
+  const handleBackToDetail = () => {
+    if (validQuizId !== null) {
+      navigate(
+        `/instructor/quizzes/${validQuizId}`,
+        {
+          replace: true,
+          state: returnTo
+            ? {
+                returnTo,
+              }
+            : undefined,
+        }
+      );
+
+      return;
+    }
+
+    navigate('/instructor/courses', {
+      replace: true,
+    });
+  };
 
   // ============================================================
   // LOAD QUIZ DATA
@@ -149,31 +267,31 @@ export const UpdateQuizPage: React.FC = () => {
       return;
     }
 
-    setTitle(quiz.title ?? '');
+    setTitle(
+      quiz.title ?? ''
+    );
 
     setDescription(
-      quiz.description ?? '',
+      quiz.description ?? ''
     );
 
     setTimeLimitMinutes(
-      quiz.timeLimitMinutes ?? 0,
+      quiz.timeLimitMinutes ?? 0
     );
 
     setPassingScore(
-      Number(quiz.passingScore ?? 0),
+      Number(
+        quiz.passingScore ?? 0
+      )
     );
 
     setMaxAttempts(
-      quiz.maxAttempts ?? 1,
+      quiz.maxAttempts ?? 1
     );
 
     setStatus(
-      quiz.status ?? 'DRAFT',
+      quiz.status ?? 'DRAFT'
     );
-
-    // ----------------------------------------------------------
-    // LOAD QUESTIONS
-    // ----------------------------------------------------------
 
     const loadedQuestions: UpdateQuestionRequest[] =
       (quiz.questions ?? []).map(
@@ -182,44 +300,51 @@ export const UpdateQuizPage: React.FC = () => {
             question.questionId,
 
           questionText:
-            question.questionText ?? '',
+            question.questionText ??
+            '',
 
           questionType:
             question.questionType,
 
           explanation:
-            question.explanation ?? null,
+            question.explanation ??
+            null,
 
           orderIndex:
             question.orderIndex,
 
           choices:
-            (question.choices ?? []).map(
+            (
+              question.choices ??
+              []
+            ).map(
               (choice) => ({
                 choiceId:
                   choice.choiceId,
 
                 choiceText:
-                  choice.choiceText ?? '',
+                  choice.choiceText ??
+                  '',
 
                 isCorrect:
-                  choice.isCorrect ?? false,
+                  choice.isCorrect ??
+                  false,
 
                 orderIndex:
                   choice.orderIndex,
-              }),
+              })
             ),
-        }),
+        })
       );
 
     loadedQuestions.sort(
       (a, b) =>
         a.orderIndex -
-        b.orderIndex,
+        b.orderIndex
     );
 
     setQuestions(
-      loadedQuestions,
+      loadedQuestions
     );
   }, [quiz]);
 
@@ -229,180 +354,216 @@ export const UpdateQuizPage: React.FC = () => {
 
   const updateQuestion = (
     questionIndex: number,
-    updates: Partial<UpdateQuestionRequest>,
+    updates: Partial<UpdateQuestionRequest>
   ) => {
-    setQuestions((currentQuestions) =>
-      currentQuestions.map(
-        (question, index) =>
-          index === questionIndex
-            ? {
-                ...question,
-                ...updates,
-              }
-            : question,
-      ),
+    setQuestions(
+      (currentQuestions) =>
+        currentQuestions.map(
+          (
+            question,
+            index
+          ) =>
+            index ===
+            questionIndex
+              ? {
+                  ...question,
+                  ...updates,
+                }
+              : question
+        )
     );
   };
 
   const updateQuestionText = (
     questionIndex: number,
-    value: string,
+    value: string
   ) => {
     updateQuestion(
       questionIndex,
       {
         questionText: value,
-      },
+      }
     );
   };
 
   const updateQuestionType = (
     questionIndex: number,
-    value: QuestionType,
+    value: QuestionType
   ) => {
-    setQuestions((currentQuestions) =>
-      currentQuestions.map(
-        (question, index) => {
-          if (
-            index !== questionIndex
-          ) {
-            return question;
-          }
+    setQuestions(
+      (currentQuestions) =>
+        currentQuestions.map(
+          (
+            question,
+            index
+          ) => {
+            if (
+              index !==
+              questionIndex
+            ) {
+              return question;
+            }
 
-          // ----------------------------------------------------
-          // TRUE / FALSE
-          // ----------------------------------------------------
+            // ==================================================
+            // TRUE / FALSE
+            // ==================================================
 
-          if (
-            value === 'TRUE_FALSE'
-          ) {
+            if (
+              value ===
+              'TRUE_FALSE'
+            ) {
+              return {
+                ...question,
+
+                questionType:
+                  value,
+
+                choices: [
+                  {
+                    choiceId:
+                      question
+                        .choices[0]
+                        ?.choiceId ??
+                      0,
+
+                    choiceText:
+                      'Đúng',
+
+                    isCorrect:
+                      question
+                        .choices[0]
+                        ?.isCorrect ??
+                      false,
+
+                    orderIndex: 1,
+                  },
+                  {
+                    choiceId:
+                      question
+                        .choices[1]
+                        ?.choiceId ??
+                      0,
+
+                    choiceText:
+                      'Sai',
+
+                    isCorrect:
+                      question
+                        .choices[1]
+                        ?.isCorrect ??
+                      false,
+
+                    orderIndex: 2,
+                  },
+                ],
+              };
+            }
+
+            // ==================================================
+            // MULTIPLE / SINGLE CHOICE
+            // ==================================================
+
+            let updatedChoices =
+              question.choices.map(
+                (choice) => ({
+                  ...choice,
+                })
+              );
+
+            if (
+              updatedChoices.length <
+              2
+            ) {
+              while (
+                updatedChoices.length <
+                2
+              ) {
+                updatedChoices.push(
+                  createEmptyChoice(
+                    updatedChoices.length +
+                      1
+                  )
+                );
+              }
+            }
+
+            // ==================================================
+            // SINGLE CHOICE
+            // ==================================================
+
+            if (
+              value ===
+                'SINGLE_CHOICE' &&
+              updatedChoices.length >
+                0
+            ) {
+              let foundCorrect =
+                false;
+
+              updatedChoices =
+                updatedChoices.map(
+                  (choice) => {
+                    if (
+                      choice.isCorrect &&
+                      !foundCorrect
+                    ) {
+                      foundCorrect =
+                        true;
+
+                      return choice;
+                    }
+
+                    return {
+                      ...choice,
+                      isCorrect:
+                        false,
+                    };
+                  }
+                );
+            }
+
             return {
               ...question,
               questionType:
                 value,
-              choices: [
-                {
-                  choiceId:
-                    question.choices[0]
-                      ?.choiceId ?? 0,
-                  choiceText:
-                    'Đúng',
-                  isCorrect:
-                    question.choices[0]
-                      ?.isCorrect ?? false,
-                  orderIndex: 1,
-                },
-                {
-                  choiceId:
-                    question.choices[1]
-                      ?.choiceId ?? 0,
-                  choiceText:
-                    'Sai',
-                  isCorrect:
-                    question.choices[1]
-                      ?.isCorrect ?? false,
-                  orderIndex: 2,
-                },
-              ],
+              choices:
+                updatedChoices,
             };
           }
-
-          // ----------------------------------------------------
-          // MULTIPLE / SINGLE CHOICE
-          // ----------------------------------------------------
-
-          let updatedChoices =
-            question.choices.map(
-              (choice) => ({
-                ...choice,
-              }),
-            );
-
-          if (
-            updatedChoices.length <
-            2
-          ) {
-            while (
-              updatedChoices.length <
-              2
-            ) {
-              updatedChoices.push(
-                createEmptyChoice(
-                  updatedChoices.length +
-                    1,
-                ),
-              );
-            }
-          }
-
-          // SINGLE CHOICE chỉ cho phép
-          // một đáp án đúng.
-          if (
-            value ===
-              'SINGLE_CHOICE' &&
-            updatedChoices.length > 0
-          ) {
-            let foundCorrect =
-              false;
-
-            updatedChoices =
-              updatedChoices.map(
-                (choice) => {
-                  if (
-                    choice.isCorrect &&
-                    !foundCorrect
-                  ) {
-                    foundCorrect =
-                      true;
-
-                    return choice;
-                  }
-
-                  return {
-                    ...choice,
-                    isCorrect:
-                      false,
-                  };
-                },
-              );
-          }
-
-          return {
-            ...question,
-            questionType:
-              value,
-            choices:
-              updatedChoices,
-          };
-        },
-      ),
+        )
     );
   };
 
-  const updateQuestionExplanation = (
-    questionIndex: number,
-    value: string,
-  ) => {
-    updateQuestion(
-      questionIndex,
-      {
-        explanation:
-          value.trim() || null,
-      },
-    );
-  };
+  const updateQuestionExplanation =
+    (
+      questionIndex: number,
+      value: string
+    ) => {
+      updateQuestion(
+        questionIndex,
+        {
+          explanation:
+            value.trim() ||
+            null,
+        }
+      );
+    };
 
   // ============================================================
   // ADD QUESTION
   // ============================================================
 
   const handleAddQuestion = () => {
-    setQuestions((currentQuestions) => [
-      ...currentQuestions,
-      createEmptyQuestion(
-        currentQuestions.length + 1,
-      ),
-    ]);
+    setQuestions(
+      (currentQuestions) => [
+        ...currentQuestions,
+
+        createEmptyQuestion(
+          currentQuestions.length +
+            1
+        ),
+      ]
+    );
   };
 
   // ============================================================
@@ -410,35 +571,60 @@ export const UpdateQuizPage: React.FC = () => {
   // ============================================================
 
   const handleDeleteQuestion = (
-    questionIndex: number,
+    questionIndex: number
   ) => {
-    const confirmed =
-      window.confirm(
-        'Bạn có chắc muốn xóa câu hỏi này không?',
-      );
-
-    if (!confirmed) {
-      return;
-    }
-
-    setQuestions((currentQuestions) =>
-      currentQuestions
-        .filter(
-          (_, index) =>
-            index !== questionIndex,
-        )
-        .map(
-          (
-            question,
-            index,
-          ) => ({
-            ...question,
-            orderIndex:
-              index + 1,
-          }),
-        ),
+    setQuestionToDelete(
+      questionIndex
     );
   };
+
+  const confirmDeleteQuestion =
+    () => {
+      if (
+        questionToDelete ===
+        null
+      ) {
+        return;
+      }
+
+      setQuestions(
+        (currentQuestions) =>
+          currentQuestions
+            .filter(
+              (_, index) =>
+                index !==
+                questionToDelete
+            )
+            .map(
+              (
+                question,
+                index
+              ) => ({
+                ...question,
+
+                orderIndex:
+                  index + 1,
+              })
+            )
+      );
+
+      setQuestionToDelete(
+        null
+      );
+
+      onToast?.(
+        'Đã xóa câu hỏi',
+        'Câu hỏi sẽ được xóa khi bạn lưu thay đổi.',
+        'success'
+      );
+    };
+
+  const cancelDeleteQuestion =
+    () => {
+      setQuestionToDelete(
+        null
+      );
+    };
 
   // ============================================================
   // CHOICE HELPERS
@@ -447,37 +633,42 @@ export const UpdateQuizPage: React.FC = () => {
   const updateChoice = (
     questionIndex: number,
     choiceIndex: number,
-    updates: Partial<UpdateChoiceRequest>,
+    updates: Partial<UpdateChoiceRequest>
   ) => {
-    setQuestions((currentQuestions) =>
-      currentQuestions.map(
-        (question, qIndex) => {
-          if (
-            qIndex !==
-            questionIndex
-          ) {
-            return question;
-          }
+    setQuestions(
+      (currentQuestions) =>
+        currentQuestions.map(
+          (
+            question,
+            qIndex
+          ) => {
+            if (
+              qIndex !==
+              questionIndex
+            ) {
+              return question;
+            }
 
-          return {
-            ...question,
-            choices:
-              question.choices.map(
-                (
-                  choice,
-                  cIndex,
-                ) =>
-                  cIndex ===
-                  choiceIndex
-                    ? {
-                        ...choice,
-                        ...updates,
-                      }
-                    : choice,
-              ),
-          };
-        },
-      ),
+            return {
+              ...question,
+
+              choices:
+                question.choices.map(
+                  (
+                    choice,
+                    cIndex
+                  ) =>
+                    cIndex ===
+                    choiceIndex
+                      ? {
+                          ...choice,
+                          ...updates,
+                        }
+                      : choice
+                ),
+            };
+          }
+        )
     );
   };
 
@@ -488,14 +679,14 @@ export const UpdateQuizPage: React.FC = () => {
   const updateChoiceText = (
     questionIndex: number,
     choiceIndex: number,
-    value: string,
+    value: string
   ) => {
     updateChoice(
       questionIndex,
       choiceIndex,
       {
         choiceText: value,
-      },
+      }
     );
   };
 
@@ -503,133 +694,150 @@ export const UpdateQuizPage: React.FC = () => {
   // SELECT CORRECT CHOICE
   // ============================================================
 
-  const handleToggleCorrectChoice = (
-    questionIndex: number,
-    choiceIndex: number,
-  ) => {
-    setQuestions((currentQuestions) =>
-      currentQuestions.map(
-        (question, qIndex) => {
-          if (
-            qIndex !==
-            questionIndex
-          ) {
-            return question;
-          }
+  const handleToggleCorrectChoice =
+    (
+      questionIndex: number,
+      choiceIndex: number
+    ) => {
+      setQuestions(
+        (currentQuestions) =>
+          currentQuestions.map(
+            (
+              question,
+              qIndex
+            ) => {
+              if (
+                qIndex !==
+                questionIndex
+              ) {
+                return question;
+              }
 
-          // ----------------------------------------------------
-          // SINGLE CHOICE
-          // ----------------------------------------------------
+              // ================================================
+              // SINGLE CHOICE
+              // ================================================
 
-          if (
-            question.questionType ===
-            'SINGLE_CHOICE'
-          ) {
-            return {
-              ...question,
-              choices:
-                question.choices.map(
-                  (
-                    choice,
-                    cIndex,
-                  ) => ({
-                    ...choice,
-                    isCorrect:
-                      cIndex ===
-                      choiceIndex,
-                  }),
-                ),
-            };
-          }
+              if (
+                question.questionType ===
+                'SINGLE_CHOICE'
+              ) {
+                return {
+                  ...question,
 
-          // ----------------------------------------------------
-          // MULTIPLE CHOICE
-          // ----------------------------------------------------
+                  choices:
+                    question.choices.map(
+                      (
+                        choice,
+                        cIndex
+                      ) => ({
+                        ...choice,
 
-          if (
-            question.questionType ===
-            'MULTIPLE_CHOICE'
-          ) {
-            return {
-              ...question,
-              choices:
-                question.choices.map(
-                  (
-                    choice,
-                    cIndex,
-                  ) =>
-                    cIndex ===
-                    choiceIndex
-                      ? {
-                          ...choice,
-                          isCorrect:
-                            !choice.isCorrect,
-                        }
-                      : choice,
-                ),
-            };
-          }
+                        isCorrect:
+                          cIndex ===
+                          choiceIndex,
+                      })
+                    ),
+                };
+              }
 
-          // ----------------------------------------------------
-          // TRUE / FALSE
-          // ----------------------------------------------------
+              // ================================================
+              // MULTIPLE CHOICE
+              // ================================================
 
-          if (
-            question.questionType ===
-            'TRUE_FALSE'
-          ) {
-            return {
-              ...question,
-              choices:
-                question.choices.map(
-                  (
-                    choice,
-                    cIndex,
-                  ) => ({
-                    ...choice,
-                    isCorrect:
-                      cIndex ===
-                      choiceIndex,
-                  }),
-                ),
-            };
-          }
+              if (
+                question.questionType ===
+                'MULTIPLE_CHOICE'
+              ) {
+                return {
+                  ...question,
 
-          return question;
-        },
-      ),
-    );
-  };
+                  choices:
+                    question.choices.map(
+                      (
+                        choice,
+                        cIndex
+                      ) =>
+                        cIndex ===
+                        choiceIndex
+                          ? {
+                              ...choice,
+
+                              isCorrect:
+                                !choice.isCorrect,
+                            }
+                          : choice
+                    ),
+                };
+              }
+
+              // ================================================
+              // TRUE / FALSE
+              // ================================================
+
+              if (
+                question.questionType ===
+                'TRUE_FALSE'
+              ) {
+                return {
+                  ...question,
+
+                  choices:
+                    question.choices.map(
+                      (
+                        choice,
+                        cIndex
+                      ) => ({
+                        ...choice,
+
+                        isCorrect:
+                          cIndex ===
+                          choiceIndex,
+                      })
+                    ),
+                };
+              }
+
+              return question;
+            }
+          )
+      );
+    };
 
   // ============================================================
   // ADD CHOICE
   // ============================================================
 
   const handleAddChoice = (
-    questionIndex: number,
+    questionIndex: number
   ) => {
-    setQuestions((currentQuestions) =>
-      currentQuestions.map(
-        (question, qIndex) => {
-          if (
-            qIndex !==
-            questionIndex
-          ) {
-            return question;
-          }
+    setQuestions(
+      (currentQuestions) =>
+        currentQuestions.map(
+          (
+            question,
+            qIndex
+          ) => {
+            if (
+              qIndex !==
+              questionIndex
+            ) {
+              return question;
+            }
 
-          return {
-            ...question,
-            choices: [
-              ...question.choices,
-              createEmptyChoice(
-                question.choices
-                  .length + 1,
-              ),
-            ],
-          };
-        },
-      ),
+            return {
+              ...question,
+
+              choices: [
+                ...question.choices,
+
+                createEmptyChoice(
+                  question.choices
+                    .length + 1
+                ),
+              ],
+            };
+          }
+        )
     );
   };
 
@@ -639,50 +847,56 @@ export const UpdateQuizPage: React.FC = () => {
 
   const handleDeleteChoice = (
     questionIndex: number,
-    choiceIndex: number,
+    choiceIndex: number
   ) => {
-    setQuestions((currentQuestions) =>
-      currentQuestions.map(
-        (question, qIndex) => {
-          if (
-            qIndex !==
-            questionIndex
-          ) {
-            return question;
-          }
+    setQuestions(
+      (currentQuestions) =>
+        currentQuestions.map(
+          (
+            question,
+            qIndex
+          ) => {
+            if (
+              qIndex !==
+              questionIndex
+            ) {
+              return question;
+            }
 
-          if (
-            question.choices
-              .length <= 2
-          ) {
-            return question;
-          }
-
-          return {
-            ...question,
-            choices:
+            if (
               question.choices
-                .filter(
-                  (
-                    _,
-                    index,
-                  ) =>
-                    index !==
-                    choiceIndex,
-                )
-                .map(
-                  (
-                    choice,
-                    index,
-                  ) => ({
-                    ...choice,
-                    orderIndex:
-                      index + 1,
-                  }),
-                ),
-          };
-        },
-      ),
+                .length <= 2
+            ) {
+              return question;
+            }
+
+            return {
+              ...question,
+
+              choices:
+                question.choices
+                  .filter(
+                    (
+                      _,
+                      index
+                    ) =>
+                      index !==
+                      choiceIndex
+                  )
+                  .map(
+                    (
+                      choice,
+                      index
+                    ) => ({
+                      ...choice,
+
+                      orderIndex:
+                        index + 1,
+                    })
+                  ),
+            };
+          }
+        )
     );
   };
 
@@ -716,28 +930,27 @@ export const UpdateQuizPage: React.FC = () => {
         }
 
         if (
-          question.choices.length ===
-            0 &&
+          question.choices
+            .length === 0 &&
           question.questionType !==
             'TRUE_FALSE'
         ) {
           return `Câu hỏi ${questionNumber} phải có đáp án.`;
         }
 
-        // ------------------------------------------------------
-        // Check duplicate choice text
-        // ------------------------------------------------------
+        // ======================================================
+        // CHECK DUPLICATE CHOICE TEXT
+        // ======================================================
 
         const choiceTexts =
           question.choices
-            .map(
-              (choice) =>
-                choice.choiceText
-                  .trim()
-                  .toLowerCase(),
+            .map((choice) =>
+              choice.choiceText
+                .trim()
+                .toLowerCase()
             )
             .filter(
-              (text) => text,
+              (text) => text
             );
 
         const uniqueChoiceTexts =
@@ -750,14 +963,15 @@ export const UpdateQuizPage: React.FC = () => {
           return `Các đáp án của câu hỏi ${questionNumber} không được trùng nhau.`;
         }
 
-        // ------------------------------------------------------
-        // Check empty choice
-        // ------------------------------------------------------
+        // ======================================================
+        // CHECK EMPTY CHOICE
+        // ======================================================
 
         for (
           let j = 0;
           j <
-          question.choices.length;
+          question.choices
+            .length;
           j++
         ) {
           if (
@@ -769,9 +983,9 @@ export const UpdateQuizPage: React.FC = () => {
           }
         }
 
-        // ------------------------------------------------------
+        // ======================================================
         // SINGLE CHOICE
-        // ------------------------------------------------------
+        // ======================================================
 
         if (
           question.questionType ===
@@ -780,7 +994,7 @@ export const UpdateQuizPage: React.FC = () => {
           const correctCount =
             question.choices.filter(
               (choice) =>
-                choice.isCorrect,
+                choice.isCorrect
             ).length;
 
           if (
@@ -790,9 +1004,9 @@ export const UpdateQuizPage: React.FC = () => {
           }
         }
 
-        // ------------------------------------------------------
+        // ======================================================
         // MULTIPLE CHOICE
-        // ------------------------------------------------------
+        // ======================================================
 
         if (
           question.questionType ===
@@ -801,7 +1015,7 @@ export const UpdateQuizPage: React.FC = () => {
           const correctCount =
             question.choices.filter(
               (choice) =>
-                choice.isCorrect,
+                choice.isCorrect
             ).length;
 
           if (
@@ -811,9 +1025,9 @@ export const UpdateQuizPage: React.FC = () => {
           }
         }
 
-        // ------------------------------------------------------
+        // ======================================================
         // TRUE / FALSE
-        // ------------------------------------------------------
+        // ======================================================
 
         if (
           question.questionType ===
@@ -829,7 +1043,7 @@ export const UpdateQuizPage: React.FC = () => {
           const correctCount =
             question.choices.filter(
               (choice) =>
-                choice.isCorrect,
+                choice.isCorrect
             ).length;
 
           if (
@@ -896,7 +1110,7 @@ export const UpdateQuizPage: React.FC = () => {
 
       if (validationError) {
         setErrorMessage(
-          validationError,
+          validationError
         );
 
         window.scrollTo({
@@ -911,21 +1125,21 @@ export const UpdateQuizPage: React.FC = () => {
         validQuizId === null
       ) {
         setErrorMessage(
-          'Quiz ID không hợp lệ.',
+          'Quiz ID không hợp lệ.'
         );
 
         return;
       }
 
-      // --------------------------------------------------------
-      // Normalize question + choice order
-      // --------------------------------------------------------
+      // ========================================================
+      // NORMALIZE QUESTION + CHOICE ORDER
+      // ========================================================
 
       const normalizedQuestions =
         questions.map(
           (
             question,
-            questionIndex,
+            questionIndex
           ) => ({
             ...question,
 
@@ -934,7 +1148,8 @@ export const UpdateQuizPage: React.FC = () => {
 
             explanation:
               question.explanation
-                ?.trim() || null,
+                ?.trim() ||
+              null,
 
             orderIndex:
               questionIndex + 1,
@@ -943,7 +1158,7 @@ export const UpdateQuizPage: React.FC = () => {
               question.choices.map(
                 (
                   choice,
-                  choiceIndex,
+                  choiceIndex
                 ) => ({
                   ...choice,
 
@@ -952,14 +1167,15 @@ export const UpdateQuizPage: React.FC = () => {
 
                   orderIndex:
                     choiceIndex + 1,
-                }),
+                })
               ),
-          }),
+          })
         );
 
       const payload: UpdateQuizRequest =
         {
-          title: title.trim(),
+          title:
+            title.trim(),
 
           description:
             description.trim() ||
@@ -980,13 +1196,15 @@ export const UpdateQuizPage: React.FC = () => {
       try {
         await updateQuizMutation.mutateAsync(
           {
-            quizId: validQuizId,
+            quizId:
+              validQuizId,
+
             data: payload,
-          },
+          }
         );
 
         setSuccessMessage(
-          'Cập nhật quiz thành công.',
+          'Cập nhật quiz thành công.'
         );
 
         window.scrollTo({
@@ -994,19 +1212,23 @@ export const UpdateQuizPage: React.FC = () => {
           behavior: 'smooth',
         });
 
-        // ------------------------------------------------------
-        // Navigate to detail
-        // ------------------------------------------------------
+        onToast?.(
+          'Cập nhật thành công',
+          'Bài kiểm tra đã được cập nhật thành công.',
+          'success'
+        );
+
+        // ======================================================
+        // SUCCESS -> QUIZ DETAIL
+        // ======================================================
 
         setTimeout(() => {
-          navigate(
-            `/instructor/quizzes/${validQuizId}`,
-          );
+          handleBackToDetail();
         }, 800);
       } catch (err) {
         console.error(
           'Update quiz failed:',
-          err,
+          err
         );
 
         const message =
@@ -1015,7 +1237,7 @@ export const UpdateQuizPage: React.FC = () => {
             : 'Không thể cập nhật quiz. Vui lòng thử lại.';
 
         setErrorMessage(
-          message,
+          message
         );
 
         window.scrollTo({
@@ -1036,6 +1258,7 @@ export const UpdateQuizPage: React.FC = () => {
       <div className="min-h-[60vh] bg-slate-50 px-4 py-10">
         <div className="mx-auto max-w-5xl">
           <div className="rounded-2xl bg-white p-8 text-center shadow-sm">
+
             <h1 className="text-xl font-bold text-slate-900">
               Không thể cập nhật quiz
             </h1>
@@ -1048,13 +1271,14 @@ export const UpdateQuizPage: React.FC = () => {
 
             <button
               type="button"
-              onClick={() =>
-                navigate(-1)
+              onClick={
+                handleBackToDetail
               }
               className="mt-5 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
             >
               Quay lại
             </button>
+
           </div>
         </div>
       </div>
@@ -1069,13 +1293,16 @@ export const UpdateQuizPage: React.FC = () => {
     return (
       <div className="min-h-[60vh] bg-slate-50 px-4 py-10">
         <div className="flex items-center justify-center">
+
           <div className="text-center">
+
             <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600" />
 
             <p className="mt-4 text-sm text-slate-500">
               Đang tải thông tin
               quiz...
             </p>
+
           </div>
         </div>
       </div>
@@ -1086,11 +1313,16 @@ export const UpdateQuizPage: React.FC = () => {
   // LOAD ERROR
   // ============================================================
 
-  if (isError || !quiz) {
+  if (
+    isError ||
+    !quiz
+  ) {
     return (
       <div className="min-h-[60vh] bg-slate-50 px-4 py-10">
         <div className="mx-auto max-w-5xl">
+
           <div className="rounded-2xl bg-white p-8 text-center shadow-sm">
+
             <h1 className="text-xl font-bold text-slate-900">
               Không thể tải quiz
             </h1>
@@ -1104,13 +1336,14 @@ export const UpdateQuizPage: React.FC = () => {
 
             <button
               type="button"
-              onClick={() =>
-                navigate(-1)
+              onClick={
+                handleBackToDetail
               }
               className="mt-5 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
             >
               Quay lại
             </button>
+
           </div>
         </div>
       </div>
@@ -1123,6 +1356,7 @@ export const UpdateQuizPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50">
+
       <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
 
         {/* =====================================================
@@ -1130,10 +1364,11 @@ export const UpdateQuizPage: React.FC = () => {
         ====================================================== */}
 
         <div className="mb-6">
+
           <button
             type="button"
-            onClick={() =>
-              navigate(-1)
+            onClick={
+              handleBackToDetail
             }
             className="mb-4 text-sm font-medium text-slate-500 hover:text-slate-700"
           >
@@ -1141,6 +1376,7 @@ export const UpdateQuizPage: React.FC = () => {
           </button>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+
             <div>
               <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">
                 Cập nhật Quiz
@@ -1154,8 +1390,10 @@ export const UpdateQuizPage: React.FC = () => {
             </div>
 
             <span className="text-sm text-slate-400">
-              Quiz ID: {quiz.quizId}
+              Quiz ID:{' '}
+              {quiz.quizId}
             </span>
+
           </div>
         </div>
 
@@ -1165,6 +1403,7 @@ export const UpdateQuizPage: React.FC = () => {
 
         {errorMessage && (
           <div className="mb-5 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4">
+
             <div className="mt-0.5 font-bold text-red-500">
               !
             </div>
@@ -1178,6 +1417,7 @@ export const UpdateQuizPage: React.FC = () => {
                 {errorMessage}
               </p>
             </div>
+
           </div>
         )}
 
@@ -1187,9 +1427,11 @@ export const UpdateQuizPage: React.FC = () => {
 
         {successMessage && (
           <div className="mb-5 rounded-xl border border-green-200 bg-green-50 p-4">
+
             <p className="text-sm font-semibold text-green-700">
               {successMessage}
             </p>
+
           </div>
         )}
 
@@ -1198,7 +1440,9 @@ export const UpdateQuizPage: React.FC = () => {
         ====================================================== */}
 
         <div className="rounded-2xl bg-white p-6 shadow-sm">
+
           <div className="mb-6">
+
             <h2 className="text-lg font-semibold text-slate-900">
               Thông tin Quiz
             </h2>
@@ -1207,6 +1451,7 @@ export const UpdateQuizPage: React.FC = () => {
               Các thông tin chung của
               bài kiểm tra.
             </p>
+
           </div>
 
           <div className="space-y-5">
@@ -1214,8 +1459,10 @@ export const UpdateQuizPage: React.FC = () => {
             {/* TITLE */}
 
             <div>
+
               <label className="mb-2 block text-sm font-medium text-slate-700">
                 Tiêu đề
+
                 <span className="ml-1 text-red-500">
                   *
                 </span>
@@ -1227,7 +1474,7 @@ export const UpdateQuizPage: React.FC = () => {
                 maxLength={255}
                 onChange={(event) =>
                   setTitle(
-                    event.target.value,
+                    event.target.value
                   )
                 }
                 placeholder="Nhập tiêu đề quiz..."
@@ -1237,13 +1484,16 @@ export const UpdateQuizPage: React.FC = () => {
               <p className="mt-1 text-right text-xs text-slate-400">
                 {title.length}/255
               </p>
+
             </div>
 
             {/* DESCRIPTION */}
 
             <div>
+
               <label className="mb-2 block text-sm font-medium text-slate-700">
                 Mô tả
+
                 <span className="ml-1 text-xs font-normal text-slate-400">
                   (không bắt buộc)
                 </span>
@@ -1255,14 +1505,14 @@ export const UpdateQuizPage: React.FC = () => {
                 }
                 onChange={(event) =>
                   setDescription(
-                    event.target
-                      .value,
+                    event.target.value
                   )
                 }
                 placeholder="Nhập mô tả quiz..."
                 rows={4}
                 className="w-full resize-none rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
               />
+
             </div>
 
             {/* SETTINGS */}
@@ -1272,29 +1522,27 @@ export const UpdateQuizPage: React.FC = () => {
               {/* TIME */}
 
               <div>
+
                 <label className="mb-2 block text-sm font-medium text-slate-700">
                   Thời gian làm bài
                 </label>
 
                 <div className="relative">
+
                   <input
                     type="number"
                     min={0}
                     value={
                       timeLimitMinutes
                     }
-                    onChange={(
-                      event,
-                    ) =>
+                    onChange={(event) =>
                       setTimeLimitMinutes(
                         Math.max(
                           0,
                           Number(
-                            event
-                              .target
-                              .value,
-                          ),
-                        ),
+                            event.target.value
+                          )
+                        )
                       )
                     }
                     className="w-full rounded-xl border border-slate-200 px-4 py-3 pr-16 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
@@ -1303,22 +1551,25 @@ export const UpdateQuizPage: React.FC = () => {
                   <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs text-slate-400">
                     phút
                   </span>
+
                 </div>
 
                 <p className="mt-1 text-xs text-slate-400">
-                  0 = không giới
-                  hạn
+                  0 = không giới hạn
                 </p>
+
               </div>
 
               {/* PASSING SCORE */}
 
               <div>
+
                 <label className="mb-2 block text-sm font-medium text-slate-700">
                   Điểm đạt
                 </label>
 
                 <div className="relative">
+
                   <input
                     type="number"
                     min={0}
@@ -1327,15 +1578,11 @@ export const UpdateQuizPage: React.FC = () => {
                     value={
                       passingScore
                     }
-                    onChange={(
-                      event,
-                    ) =>
+                    onChange={(event) =>
                       setPassingScore(
                         Number(
-                          event
-                            .target
-                            .value,
-                        ),
+                          event.target.value
+                        )
                       )
                     }
                     className="w-full rounded-xl border border-slate-200 px-4 py-3 pr-10 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
@@ -1344,12 +1591,14 @@ export const UpdateQuizPage: React.FC = () => {
                   <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs text-slate-400">
                     %
                   </span>
+
                 </div>
               </div>
 
               {/* MAX ATTEMPTS */}
 
               <div>
+
                 <label className="mb-2 block text-sm font-medium text-slate-700">
                   Số lần làm tối đa
                 </label>
@@ -1365,21 +1614,21 @@ export const UpdateQuizPage: React.FC = () => {
                       Math.max(
                         1,
                         Number(
-                          event
-                            .target
-                            .value,
-                        ),
-                      ),
+                          event.target.value
+                        )
+                      )
                     )
                   }
                   className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 />
+
               </div>
             </div>
 
             {/* STATUS */}
 
             <div>
+
               <label className="mb-2 block text-sm font-medium text-slate-700">
                 Trạng thái
               </label>
@@ -1389,7 +1638,7 @@ export const UpdateQuizPage: React.FC = () => {
                 onChange={(event) =>
                   setStatus(
                     event.target
-                      .value as QuizStatus,
+                      .value as QuizStatus
                   )
                 }
                 className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:max-w-sm"
@@ -1406,9 +1655,10 @@ export const UpdateQuizPage: React.FC = () => {
                     >
                       {option.label}
                     </option>
-                  ),
+                  )
                 )}
               </select>
+
             </div>
           </div>
         </div>
@@ -1419,10 +1669,10 @@ export const UpdateQuizPage: React.FC = () => {
 
         <div className="mt-6 rounded-2xl bg-white p-6 shadow-sm">
 
-          {/* HEADER */}
-
           <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+
             <div>
+
               <h2 className="text-lg font-semibold text-slate-900">
                 Câu hỏi
               </h2>
@@ -1431,6 +1681,7 @@ export const UpdateQuizPage: React.FC = () => {
                 Chỉnh sửa câu hỏi và
                 đáp án của quiz.
               </p>
+
             </div>
 
             <button
@@ -1442,6 +1693,7 @@ export const UpdateQuizPage: React.FC = () => {
             >
               + Thêm câu hỏi
             </button>
+
           </div>
 
           {/* EMPTY */}
@@ -1449,9 +1701,9 @@ export const UpdateQuizPage: React.FC = () => {
           {questions.length ===
             0 && (
             <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+
               <p className="text-sm text-slate-500">
-                Quiz chưa có câu
-                hỏi.
+                Quiz chưa có câu hỏi.
               </p>
 
               <button
@@ -1463,6 +1715,7 @@ export const UpdateQuizPage: React.FC = () => {
               >
                 + Thêm câu hỏi
               </button>
+
             </div>
           )}
 
@@ -1473,7 +1726,7 @@ export const UpdateQuizPage: React.FC = () => {
             {questions.map(
               (
                 question,
-                questionIndex,
+                questionIndex
               ) => (
                 <div
                   key={`${question.questionId}-${questionIndex}`}
@@ -1485,12 +1738,14 @@ export const UpdateQuizPage: React.FC = () => {
                   <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 
                     <div className="flex items-center gap-3">
+
                       <span className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-700">
                         {questionIndex +
                           1}
                       </span>
 
                       <div>
+
                         <p className="text-sm font-semibold text-slate-800">
                           Câu hỏi{' '}
                           {questionIndex +
@@ -1506,6 +1761,7 @@ export const UpdateQuizPage: React.FC = () => {
                             }
                           </p>
                         )}
+
                       </div>
                     </div>
 
@@ -1513,21 +1769,23 @@ export const UpdateQuizPage: React.FC = () => {
                       type="button"
                       onClick={() =>
                         handleDeleteQuestion(
-                          questionIndex,
+                          questionIndex
                         )
                       }
                       className="self-start rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 sm:self-auto"
                     >
                       Xóa câu hỏi
                     </button>
+
                   </div>
 
                   {/* QUESTION TEXT */}
 
                   <div className="mb-5">
+
                     <label className="mb-2 block text-sm font-medium text-slate-700">
-                      Nội dung câu
-                      hỏi
+                      Nội dung câu hỏi
+
                       <span className="ml-1 text-red-500">
                         *
                       </span>
@@ -1537,24 +1795,23 @@ export const UpdateQuizPage: React.FC = () => {
                       value={
                         question.questionText
                       }
-                      onChange={(
-                        event,
-                      ) =>
+                      onChange={(event) =>
                         updateQuestionText(
                           questionIndex,
-                          event.target
-                            .value,
+                          event.target.value
                         )
                       }
                       placeholder="Nhập nội dung câu hỏi..."
                       rows={3}
                       className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                     />
+
                   </div>
 
                   {/* QUESTION TYPE */}
 
                   <div className="mb-5">
+
                     <label className="mb-2 block text-sm font-medium text-slate-700">
                       Loại câu hỏi
                     </label>
@@ -1563,20 +1820,18 @@ export const UpdateQuizPage: React.FC = () => {
                       value={
                         question.questionType
                       }
-                      onChange={(
-                        event,
-                      ) =>
+                      onChange={(event) =>
                         updateQuestionType(
                           questionIndex,
                           event.target
-                            .value as QuestionType,
+                            .value as QuestionType
                         )
                       }
                       className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:max-w-md"
                     >
                       {QUESTION_TYPE_OPTIONS.map(
                         (
-                          option,
+                          option
                         ) => (
                           <option
                             key={
@@ -1590,16 +1845,20 @@ export const UpdateQuizPage: React.FC = () => {
                               option.label
                             }
                           </option>
-                        ),
+                        )
                       )}
                     </select>
+
                   </div>
 
                   {/* CHOICES */}
 
                   <div>
+
                     <div className="mb-3 flex items-center justify-between">
+
                       <div>
+
                         <label className="block text-sm font-medium text-slate-700">
                           Đáp án
                         </label>
@@ -1613,6 +1872,7 @@ export const UpdateQuizPage: React.FC = () => {
                               ? 'Có thể chọn nhiều đáp án đúng.'
                               : 'Chọn đáp án Đúng hoặc Sai.'}
                         </p>
+
                       </div>
 
                       {question.questionType !==
@@ -1621,7 +1881,7 @@ export const UpdateQuizPage: React.FC = () => {
                           type="button"
                           onClick={() =>
                             handleAddChoice(
-                              questionIndex,
+                              questionIndex
                             )
                           }
                           className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-blue-600 hover:bg-blue-50"
@@ -1629,6 +1889,7 @@ export const UpdateQuizPage: React.FC = () => {
                           + Thêm đáp án
                         </button>
                       )}
+
                     </div>
 
                     <div className="space-y-3">
@@ -1636,7 +1897,7 @@ export const UpdateQuizPage: React.FC = () => {
                       {question.choices.map(
                         (
                           choice,
-                          choiceIndex,
+                          choiceIndex
                         ) => (
                           <div
                             key={`${choice.choiceId}-${choiceIndex}`}
@@ -1646,6 +1907,7 @@ export const UpdateQuizPage: React.FC = () => {
                                 : 'border-slate-200 bg-white'
                             }`}
                           >
+
                             <div className="flex items-start gap-3">
 
                               {/* CORRECT */}
@@ -1655,7 +1917,7 @@ export const UpdateQuizPage: React.FC = () => {
                                 onClick={() =>
                                   handleToggleCorrectChoice(
                                     questionIndex,
-                                    choiceIndex,
+                                    choiceIndex
                                   )
                                 }
                                 className={`mt-1 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border text-xs font-bold transition ${
@@ -1675,12 +1937,14 @@ export const UpdateQuizPage: React.FC = () => {
                               {/* TEXT */}
 
                               <div className="min-w-0 flex-1">
+
                                 <div className="mb-1 flex items-center justify-between">
+
                                   <span className="text-xs font-semibold text-slate-400">
                                     Đáp án{' '}
                                     {String.fromCharCode(
                                       65 +
-                                        choiceIndex,
+                                        choiceIndex
                                     )}
                                   </span>
 
@@ -1689,6 +1953,7 @@ export const UpdateQuizPage: React.FC = () => {
                                       Đáp án đúng
                                     </span>
                                   )}
+
                                 </div>
 
                                 <input
@@ -1700,23 +1965,20 @@ export const UpdateQuizPage: React.FC = () => {
                                     question.questionType ===
                                     'TRUE_FALSE'
                                   }
-                                  onChange={(
-                                    event,
-                                  ) =>
+                                  onChange={(event) =>
                                     updateChoiceText(
                                       questionIndex,
                                       choiceIndex,
-                                      event
-                                        .target
-                                        .value,
+                                      event.target.value
                                     )
                                   }
                                   placeholder={`Nhập đáp án ${String.fromCharCode(
                                     65 +
-                                      choiceIndex,
+                                      choiceIndex
                                   )}...`}
                                   className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-100"
                                 />
+
                               </div>
 
                               {/* DELETE */}
@@ -1732,7 +1994,7 @@ export const UpdateQuizPage: React.FC = () => {
                                     onClick={() =>
                                       handleDeleteChoice(
                                         questionIndex,
-                                        choiceIndex,
+                                        choiceIndex
                                       )
                                     }
                                     className="mt-6 rounded-lg p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-500"
@@ -1741,18 +2003,22 @@ export const UpdateQuizPage: React.FC = () => {
                                     ✕
                                   </button>
                                 )}
+
                             </div>
                           </div>
-                        ),
+                        )
                       )}
+
                     </div>
                   </div>
 
                   {/* EXPLANATION */}
 
                   <div className="mt-5">
+
                     <label className="mb-2 block text-sm font-medium text-slate-700">
                       Giải thích đáp án
+
                       <span className="ml-1 text-xs font-normal text-slate-400">
                         (không bắt buộc)
                       </span>
@@ -1763,23 +2029,23 @@ export const UpdateQuizPage: React.FC = () => {
                         question.explanation ??
                         ''
                       }
-                      onChange={(
-                        event,
-                      ) =>
+                      onChange={(event) =>
                         updateQuestionExplanation(
                           questionIndex,
-                          event.target
-                            .value,
+                          event.target.value
                         )
                       }
                       placeholder="Nhập giải thích cho câu hỏi..."
                       rows={2}
                       className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                     />
+
                   </div>
+
                 </div>
-              ),
+              )
             )}
+
           </div>
 
           {/* ADD QUESTION BOTTOM */}
@@ -1796,6 +2062,7 @@ export const UpdateQuizPage: React.FC = () => {
               + Thêm câu hỏi
             </button>
           )}
+
         </div>
 
         {/* =====================================================
@@ -1803,6 +2070,7 @@ export const UpdateQuizPage: React.FC = () => {
         ====================================================== */}
 
         <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4">
+
           <p className="text-sm font-semibold text-amber-800">
             Lưu ý
           </p>
@@ -1822,6 +2090,7 @@ export const UpdateQuizPage: React.FC = () => {
             đảm bảo dữ liệu lịch sử làm
             bài.
           </p>
+
         </div>
 
         {/* =====================================================
@@ -1832,8 +2101,8 @@ export const UpdateQuizPage: React.FC = () => {
 
           <button
             type="button"
-            onClick={() =>
-              navigate(-1)
+            onClick={
+              handleBackToDetail
             }
             disabled={
               updateQuizMutation.isPending
@@ -1857,8 +2126,110 @@ export const UpdateQuizPage: React.FC = () => {
               ? 'Đang cập nhật...'
               : 'Lưu thay đổi'}
           </button>
+
         </div>
+
       </div>
+
+      {/* ========================================================
+          DELETE QUESTION CONFIRM MODAL
+      ======================================================== */}
+
+      {questionToDelete !==
+        null && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4">
+
+          {/* BACKDROP */}
+
+          <button
+            type="button"
+            aria-label="Đóng"
+            onClick={
+              cancelDeleteQuestion
+            }
+            className="absolute inset-0 bg-slate-950/40 backdrop-blur-[2px]"
+          />
+
+          {/* MODAL */}
+
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-question-title"
+            className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl"
+          >
+
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-xl font-bold text-red-600">
+              !
+            </div>
+
+            <h2
+              id="delete-question-title"
+              className="mt-4 text-xl font-bold text-slate-900"
+            >
+              Xóa câu hỏi?
+            </h2>
+
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Bạn có chắc chắn muốn
+              xóa{' '}
+
+              <span className="font-semibold text-slate-900">
+                câu hỏi{' '}
+                {questionToDelete +
+                  1}
+              </span>{' '}
+
+              khỏi Quiz?
+            </p>
+
+            <div className="mt-4 rounded-xl border border-red-100 bg-red-50 p-3">
+
+              <p className="text-sm leading-5 text-red-700">
+                Câu hỏi và các đáp án
+                liên quan sẽ bị xóa
+                khỏi danh sách chỉnh
+                sửa.
+              </p>
+
+            </div>
+
+            <p className="mt-3 text-xs leading-5 text-slate-500">
+              Thay đổi chỉ được gửi
+              lên hệ thống khi bạn bấm
+
+              <span className="font-semibold text-slate-700">
+                {' '}Lưu thay đổi
+              </span>.
+            </p>
+
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+
+              <button
+                type="button"
+                onClick={
+                  cancelDeleteQuestion
+                }
+                className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Hủy
+              </button>
+
+              <button
+                type="button"
+                onClick={
+                  confirmDeleteQuestion
+                }
+                className="rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700"
+              >
+                Xóa câu hỏi
+              </button>
+
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
