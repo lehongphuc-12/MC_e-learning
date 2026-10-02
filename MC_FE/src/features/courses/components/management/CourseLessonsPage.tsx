@@ -4,6 +4,7 @@
 // =============================================================================
 
 import React, { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import {
@@ -45,7 +46,10 @@ import {
   useCreateLesson,
   useUpdateLesson,
   useDeleteLesson,
+  lessonQueryKeys,
 } from '../../hooks/useLessonQueries';
+
+import { lessonApi } from '../../api/lessonApi';
 
 import {
   useCourseModules,
@@ -55,6 +59,7 @@ import {
 } from '../../hooks/useModuleQueries';
 
 import { LessonFormModal } from './LessonFormModal';
+import { LessonStatusModal } from './LessonStatusModal';
 import { ImportLessonModal } from './ImportLessonModal';
 import { ModuleFormModal } from './ModuleFormModal';
 import { ImportModuleModal } from './ImportModuleModal';
@@ -66,6 +71,7 @@ import type { CourseModule, CreateModuleDto } from '../../types/moduleTypes';
 
 export const CourseLessonsPage: React.FC = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const { id } = useParams<{ id?: string }>();
   const courseId = id ? Number(id) : 0;
@@ -76,7 +82,7 @@ export const CourseLessonsPage: React.FC = () => {
 
   const { data: course, isLoading: isCourseLoading } = useCourseDetail(courseId);
 
-  const { data: lessons = [], isLoading: isLessonsLoading } =
+  const { data: lessons = [], isLoading: isLessonsLoading, refetch: refetchLessons } =
     useCourseLessons(courseId);
 
   const { data: modules = [], isLoading: isModulesLoading } =
@@ -163,14 +169,29 @@ export const CourseLessonsPage: React.FC = () => {
 
   const [isStudentsModalOpen, setIsStudentsModalOpen] = useState(false);
 
+  // Status Notification Modal State
+  const [statusModal, setStatusModal] = useState<{
+    isOpen: boolean;
+    type: 'success' | 'error' | 'loading';
+    title: string;
+    message: string;
+    reason?: string | null;
+  }>({
+    isOpen: false,
+    type: 'success',
+    title: '',
+    message: '',
+    reason: null,
+  });
+
   // ===========================================================================
   // MUTATIONS
   // ===========================================================================
 
-  const { mutate: createLesson, isPending: isCreatingLesson } =
+  const { mutateAsync: createLessonAsync, isPending: isCreatingLesson } =
     useCreateLesson(courseId);
 
-  const { mutate: updateLesson, isPending: isUpdatingLesson } =
+  const { mutateAsync: updateLessonAsync, isPending: isUpdatingLesson } =
     useUpdateLesson(courseId);
 
   const { mutate: deleteLesson, isPending: isDeletingLesson } =
@@ -386,31 +407,104 @@ export const CourseLessonsPage: React.FC = () => {
 
   const handleOpenEditLesson = (lesson: Lesson) => {
     setEditingLesson(lesson);
-
     setTargetModuleId(lesson.moduleId ?? null);
-
+    setTargetLessonType(lesson.lessonType || 'VIDEO');
     setIsLessonModalOpen(true);
   };
 
-  const handleLessonFormSubmit = (dto: CreateLessonDto) => {
-    if (editingLesson) {
-      updateLesson(
-        {
+  const handleLessonFormSubmit = async (dto: CreateLessonDto, file?: File | null) => {
+    try {
+      if (editingLesson) {
+        await updateLessonAsync({
           lessonId: editingLesson.lessonId,
           dto,
-        },
-        {
-          onSuccess: () => {
+        });
+
+        if (file && editingLesson.lessonId) {
+          try {
+            await lessonApi.uploadVideo(editingLesson.lessonId, file);
+          } catch (uploadErr: any) {
+            console.error('File upload error:', uploadErr);
+            const reason = uploadErr?.response?.data?.message || uploadErr?.message || String(uploadErr);
             setIsLessonModalOpen(false);
             setEditingLesson(null);
-          },
+            setStatusModal({
+              isOpen: true,
+              type: 'error',
+              title: 'Cập nhật bài học thành công nhưng tải video thất bại',
+              message: `Bài học "${dto.title}" đã được lưu thông tin, nhưng quá trình tải file video lên Cloudflare R2 gặp sự cố.`,
+              reason: reason,
+            });
+            await queryClient.invalidateQueries({
+              queryKey: lessonQueryKeys.courseLessons(courseId),
+            });
+            refetchLessons?.();
+            return;
+          }
         }
-      );
-    } else {
-      createLesson(dto, {
-        onSuccess: () => {
-          setIsLessonModalOpen(false);
-        },
+
+        setIsLessonModalOpen(false);
+        setEditingLesson(null);
+        setTargetLessonType('VIDEO');
+        setStatusModal({
+          isOpen: true,
+          type: 'success',
+          title: 'Cập nhật bài học thành công!',
+          message: `Bài học "${dto.title}" đã được cập nhật thông tin thành công${file ? ' và video đã tải lên.' : '.'}`,
+          reason: null,
+        });
+      } else {
+        const createdLesson = await createLessonAsync(dto);
+
+        if (file && createdLesson?.lessonId) {
+          try {
+            await lessonApi.uploadVideo(createdLesson.lessonId, file);
+          } catch (uploadErr: any) {
+            console.error('File upload error:', uploadErr);
+            const reason = uploadErr?.response?.data?.message || uploadErr?.message || String(uploadErr);
+            setIsLessonModalOpen(false);
+            setEditingLesson(null);
+            setStatusModal({
+              isOpen: true,
+              type: 'error',
+              title: 'Tạo bài học thành công nhưng tải video thất bại',
+              message: `Bài học "${dto.title}" đã khởi tạo trong cơ sở dữ liệu, nhưng không thể đẩy file video lên máy chủ Cloudflare R2.`,
+              reason: reason,
+            });
+            await queryClient.invalidateQueries({
+              queryKey: lessonQueryKeys.courseLessons(courseId),
+            });
+            refetchLessons?.();
+            return;
+          }
+        }
+
+        setIsLessonModalOpen(false);
+        setEditingLesson(null);
+        setTargetLessonType('VIDEO');
+        setStatusModal({
+          isOpen: true,
+          type: 'success',
+          title: 'Tạo bài học thành công!',
+          message: `Bài học "${dto.title}" đã được tạo thành công${file ? ' cùng với video đi kèm.' : '.'}`,
+          reason: null,
+        });
+      }
+
+      await queryClient.invalidateQueries({
+        queryKey: lessonQueryKeys.courseLessons(courseId),
+      });
+      refetchLessons?.();
+    } catch (err: any) {
+      console.error('Lesson submit error:', err);
+      const reason = err?.response?.data?.message || err?.message || String(err);
+      setIsLessonModalOpen(false);
+      setStatusModal({
+        isOpen: true,
+        type: 'error',
+        title: editingLesson ? 'Cập nhật bài học thất bại' : 'Tạo bài học thất bại',
+        message: `Đã xảy ra lỗi trong quá trình lưu thông tin bài học "${dto.title}" vào hệ thống.`,
+        reason: reason,
       });
     }
   };
@@ -1711,8 +1805,18 @@ export const CourseLessonsPage: React.FC = () => {
         defaultModuleId={targetModuleId}
         defaultLessonType={targetLessonType}
         isSubmitting={isCreatingLesson || isUpdatingLesson}
-        onClose={() => setIsLessonModalOpen(false)}
+        onClose={() => {
+          setIsLessonModalOpen(false);
+          setEditingLesson(null);
+          setTargetLessonType('VIDEO');
+        }}
         onSubmit={handleLessonFormSubmit}
+        onVideoUploaded={(updatedLesson) => {
+          // Update local editingLesson state with new videoUrl so re-render retains R2 URL
+          setEditingLesson(updatedLesson);
+          // Refresh lesson list so main table updates immediately
+          refetchLessons?.();
+        }}
       />
 
       <ModuleFormModal
@@ -1868,6 +1972,16 @@ export const CourseLessonsPage: React.FC = () => {
           <p className="text-xs font-bold">{approvalSuccessMessage}</p>
         </div>
       )}
+
+      {/* STATUS NOTIFICATION MODAL */}
+      <LessonStatusModal
+        isOpen={statusModal.isOpen}
+        type={statusModal.type}
+        title={statusModal.title}
+        message={statusModal.message}
+        reason={statusModal.reason}
+        onClose={() => setStatusModal((prev) => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 };

@@ -102,4 +102,55 @@ public class LessonsController : ControllerBase
 
         return Ok(ApiResponse<string>.SuccessResponse("Deleted", "Lesson deleted successfully."));
     }
+
+    // POST /api/lessons/{id}/upload-video  — multipart/form-data
+    [HttpPost("lessons/{id:int}/upload-video")]
+    [Authorize(Roles = "Instructor")]
+    [RequestSizeLimit(500 * 1024 * 1024)]          // 500 MB
+    [RequestFormLimits(MultipartBodyLengthLimit = 500 * 1024 * 1024)]
+    public async Task<ActionResult<ApiResponse<LessonDto>>> UploadVideo(
+        int id,
+        IFormFile file)
+    {
+        if (file == null || file.Length == 0)
+            return BadRequest(ApiResponse<LessonDto>.FailureResponse("No file provided."));
+
+        // Basic MIME validation — allow common video formats
+        var allowedTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "video/mp4", "video/webm", "video/ogg", "video/quicktime",
+            "video/x-msvideo", "video/x-matroska", "video/mpeg",
+        };
+
+        if (!allowedTypes.Contains(file.ContentType))
+            return BadRequest(ApiResponse<LessonDto>.FailureResponse(
+                $"File type '{file.ContentType}' is not supported. Please upload a video file (mp4, webm, mov, avi, mkv)."));
+
+        var instructorId = GetCurrentUserId();
+        if (instructorId is null)
+            return Unauthorized(ApiResponse<LessonDto>.FailureResponse("Unauthorized."));
+
+        var updated = await _lessonService.UploadVideoAsync(id, instructorId.Value, file);
+        if (updated is null)
+            return NotFound(ApiResponse<LessonDto>.FailureResponse("Lesson not found or you are not the owner."));
+
+        return Ok(ApiResponse<LessonDto>.SuccessResponse(updated, "Video uploaded successfully."));
+    }
+
+    // DELETE /api/lessons/{id}/video  — remove video from R2 + DB
+    [HttpDelete("lessons/{id:int}/video")]
+    [Authorize(Roles = "Instructor")]
+    public async Task<ActionResult<ApiResponse<string>>> DeleteVideo(int id)
+    {
+        var instructorId = GetCurrentUserId();
+        if (instructorId is null)
+            return Unauthorized(ApiResponse<string>.FailureResponse("Unauthorized."));
+
+        var deleted = await _lessonService.DeleteVideoAsync(id, instructorId.Value);
+        if (!deleted)
+            return NotFound(ApiResponse<string>.FailureResponse(
+                "Lesson not found, no video attached, or you are not the owner."));
+
+        return Ok(ApiResponse<string>.SuccessResponse("Deleted", "Video removed successfully."));
+    }
 }

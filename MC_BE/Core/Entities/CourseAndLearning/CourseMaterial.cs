@@ -23,7 +23,7 @@ public class CourseMaterial
     public int UploaderId { get; set; }
 
     [Required]
-    [MaxLength(255)]
+    [MaxLength(500)]
     [Column("Title")]
     public string Title { get; set; } = string.Empty;
 
@@ -31,7 +31,6 @@ public class CourseMaterial
     public MaterialType? MaterialType { get; set; }
 
     [Required]
-    [MaxLength(255)]
     [Column("FileUrl")]
     public string FileUrl { get; set; } = string.Empty;
 
