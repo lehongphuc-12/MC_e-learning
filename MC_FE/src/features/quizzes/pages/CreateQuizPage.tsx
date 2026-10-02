@@ -1,87 +1,482 @@
 import React, { useState } from 'react';
-import {
-  useNavigate,
-  useSearchParams,
-} from 'react-router-dom';
-
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, Plus, Save } from 'lucide-react';
 import { useCreateQuiz } from '../hooks/useQuiz';
 import { QuizQuestionEditor } from '../components/QuizQuestionEditor';
-
 import {
   CreateQuestionRequest,
   CreateQuizRequest,
+  QuestionType,
   QuizStatus,
 } from '../types/quizTypes';
-
 import { ToastType } from '../../../components/common/Toast';
 
 interface CreateQuizPageProps {
-  onToast?: (
-    title: string,
-    desc?: string,
-    type?: ToastType
-  ) => void;
+  onToast?: (title: string, desc?: string, type?: ToastType) => void;
 }
 
-// ============================================================
-// CREATE EMPTY QUESTION
-// ============================================================
+const CHOICE_TYPES: QuestionType[] = [
+  'SINGLE_CHOICE',
+  'MULTIPLE_CHOICE',
+  'TRUE_FALSE',
+  'LISTEN_IDENTIFY_ERROR',
+  'AUDIO_COMPARISON',
+  'LISTEN_CLASSIFY',
+];
 
-const createEmptyQuestion = (
-  orderIndex: number
-): CreateQuestionRequest => ({
+const createEmptyQuestion = (orderIndex: number): CreateQuestionRequest => ({
   questionText: '',
   questionType: 'SINGLE_CHOICE',
-  explanation: '',
+  instruction: null,
+  explanation: null,
+  points: 1,
+  isRequired: true,
   orderIndex,
   choices: [
-    {
-      choiceText: '',
-      isCorrect: false,
-      orderIndex: 1,
-    },
-    {
-      choiceText: '',
-      isCorrect: false,
-      orderIndex: 2,
-    },
+    { choiceText: '', optionValue: null, isCorrect: false, explanation: null, orderIndex: 1 },
+    { choiceText: '', optionValue: null, isCorrect: false, explanation: null, orderIndex: 2 },
   ],
+  media: [],
+  errorRegions: [],
+  annotations: [],
+  arrangeItems: [],
+  writingConfig: null,
+  scenarioNodes: [],
 });
 
-export const CreateQuizPage: React.FC<
-  CreateQuizPageProps
-> = ({ onToast }) => {
+const hasAudio = (question: CreateQuestionRequest) =>
+  (question.media ?? []).some(
+    (media: any) =>
+      media.mediaType === 'AUDIO' &&
+      typeof media.mediaUrl === 'string' &&
+      media.mediaUrl.trim() !== ''
+  );
+
+const validateChoices = (
+  question: CreateQuestionRequest,
+  questionNumber: number
+): string | null => {
+  const choices = question.choices ?? [];
+
+  if (choices.length < 2) {
+    return `Câu ${questionNumber}: phải có ít nhất 2 đáp án.`;
+  }
+
+  if (choices.some((choice) => !choice.choiceText.trim())) {
+    return `Câu ${questionNumber}: nội dung các đáp án không được để trống.`;
+  }
+
+  const correctCount = choices.filter((choice) => choice.isCorrect).length;
+
+  if (question.questionType === 'MULTIPLE_CHOICE') {
+    if (correctCount < 1) {
+      return `Câu ${questionNumber}: phải có ít nhất 1 đáp án đúng.`;
+    }
+    return null;
+  }
+
+  if (correctCount !== 1) {
+    return `Câu ${questionNumber}: phải có đúng 1 đáp án đúng.`;
+  }
+
+  return null;
+};
+
+const validateQuestion = (
+  question: CreateQuestionRequest,
+  index: number
+): string | null => {
+  const number = index + 1;
+
+  if (!question.questionText.trim()) {
+    return `Câu ${number}: nội dung câu hỏi không được để trống.`;
+  }
+
+  if ((question.points ?? 0) <= 0) {
+    return `Câu ${number}: điểm phải lớn hơn 0.`;
+  }
+
+  if (CHOICE_TYPES.includes(question.questionType)) {
+    const choiceError = validateChoices(question, number);
+    if (choiceError) return choiceError;
+  }
+
+  switch (question.questionType) {
+    case 'SINGLE_CHOICE':
+    case 'MULTIPLE_CHOICE':
+      return null;
+
+    case 'TRUE_FALSE': {
+      if (question.choices.length !== 2) {
+        return `Câu ${number}: dạng Đúng/Sai phải có đúng 2 đáp án.`;
+      }
+      return null;
+    }
+
+    case 'FILL_BLANK': {
+      const correctAnswers = (question.choices ?? []).filter(
+        (choice) =>
+          choice.isCorrect &&
+          !!(choice.optionValue?.trim() || choice.choiceText.trim())
+      );
+
+      if (correctAnswers.length < 1) {
+        return `Câu ${number}: phải nhập ít nhất 1 đáp án đúng cho ô trống.`;
+      }
+      return null;
+    }
+
+    case 'LISTEN_IDENTIFY_ERROR': {
+      if (!hasAudio(question)) {
+        return `Câu ${number}: Listen & Identify Error phải có audio.`;
+      }
+      return null;
+    }
+
+    case 'LISTEN_LOCATE_ERROR': {
+      if (!hasAudio(question)) {
+        return `Câu ${number}: Listen & Locate Error phải có audio.`;
+      }
+
+      const regions = question.errorRegions ?? [];
+
+      if (regions.length < 1) {
+        return `Câu ${number}: phải có ít nhất 1 vùng lỗi trên timeline.`;
+      }
+
+      for (let i = 0; i < regions.length; i++) {
+        const region: any = regions[i];
+
+        if (
+          region.startTimeMs < 0 ||
+          region.endTimeMs <= region.startTimeMs
+        ) {
+          return `Câu ${number}: vùng lỗi ${i + 1} có thời gian không hợp lệ.`;
+        }
+
+        if (!region.errorCategory?.trim()) {
+          return `Câu ${number}: vùng lỗi ${i + 1} chưa có nhóm lỗi.`;
+        }
+
+        if (!region.errorCode?.trim()) {
+          return `Câu ${number}: vùng lỗi ${i + 1} chưa có mã lỗi.`;
+        }
+      }
+
+      return null;
+    }
+
+    case 'AUDIO_COMPARISON': {
+      const audioCount = (question.media ?? []).filter(
+        (media: any) =>
+          media.mediaType === 'AUDIO' &&
+          typeof media.mediaUrl === 'string' &&
+          media.mediaUrl.trim() !== ''
+      ).length;
+
+      if (audioCount < 2) {
+        return `Câu ${number}: Audio Comparison phải có ít nhất 2 audio.`;
+      }
+
+      return null;
+    }
+
+    case 'LISTEN_CLASSIFY': {
+      if (!hasAudio(question)) {
+        return `Câu ${number}: Listen & Classify phải có audio.`;
+      }
+      return null;
+    }
+
+    case 'SCRIPT_ANNOTATION': {
+      const annotations = question.annotations ?? [];
+
+      if (annotations.length < 1) {
+        return `Câu ${number}: Script Annotation phải có ít nhất 1 annotation.`;
+      }
+
+      for (let i = 0; i < annotations.length; i++) {
+        const annotation: any = annotations[i];
+
+        if (
+          annotation.startIndex < 0 ||
+          annotation.endIndex <= annotation.startIndex
+        ) {
+          return `Câu ${number}: annotation ${i + 1} có vị trí không hợp lệ.`;
+        }
+
+        if ((annotation.points ?? 0) <= 0) {
+          return `Câu ${number}: điểm annotation ${i + 1} phải lớn hơn 0.`;
+        }
+      }
+
+      return null;
+    }
+
+    case 'SCRIPT_WRITING': {
+      const config: any = question.writingConfig;
+
+      if (!config) {
+        return `Câu ${number}: Script Writing chưa có cấu hình bài viết.`;
+      }
+
+      if (
+        config.minWords != null &&
+        config.maxWords != null &&
+        config.minWords > config.maxWords
+      ) {
+        return `Câu ${number}: số từ tối thiểu không được lớn hơn số từ tối đa.`;
+      }
+
+      if (config.minWords != null && config.minWords < 0) {
+        return `Câu ${number}: số từ tối thiểu không hợp lệ.`;
+      }
+
+      if (config.maxWords != null && config.maxWords < 0) {
+        return `Câu ${number}: số từ tối đa không hợp lệ.`;
+      }
+
+      return null;
+    }
+
+    case 'ARRANGE_SCRIPT': {
+      const items: any[] = question.arrangeItems ?? [];
+
+      if (items.length < 2) {
+        return `Câu ${number}: Arrange Script phải có ít nhất 2 đoạn.`;
+      }
+
+      if (items.some((item) => !item.content?.trim())) {
+        return `Câu ${number}: nội dung các đoạn sắp xếp không được để trống.`;
+      }
+
+      const normalItems = items.filter((item) => !item.isDistractor);
+
+      if (normalItems.length < 2) {
+        return `Câu ${number}: Arrange Script phải có ít nhất 2 đoạn không phải distractor.`;
+      }
+
+      const orders = normalItems.map((item) => item.correctOrder);
+
+      if (
+        orders.some(
+          (order) =>
+            order == null ||
+            !Number.isInteger(Number(order)) ||
+            Number(order) <= 0
+        )
+      ) {
+        return `Câu ${number}: thứ tự đúng của các đoạn không hợp lệ.`;
+      }
+
+      if (new Set(orders.map(Number)).size !== orders.length) {
+        return `Câu ${number}: thứ tự đúng của các đoạn không được trùng nhau.`;
+      }
+
+      return null;
+    }
+
+    case 'ERROR_CORRECTION_LAB': {
+      const regions: any[] = question.errorRegions ?? [];
+
+      if (regions.length < 1) {
+        return `Câu ${number}: Error Correction Lab phải có ít nhất 1 lỗi.`;
+      }
+
+      for (let i = 0; i < regions.length; i++) {
+        const region = regions[i];
+
+        if (
+          region.startTimeMs < 0 ||
+          region.endTimeMs <= region.startTimeMs
+        ) {
+          return `Câu ${number}: lỗi ${i + 1} có khoảng thời gian không hợp lệ.`;
+        }
+
+        if (!region.errorCategory?.trim()) {
+          return `Câu ${number}: lỗi ${i + 1} chưa có nhóm lỗi.`;
+        }
+
+        if (!region.errorCode?.trim()) {
+          return `Câu ${number}: lỗi ${i + 1} chưa có mã lỗi.`;
+        }
+
+        if ((region.points ?? 0) <= 0) {
+          return `Câu ${number}: điểm của lỗi ${i + 1} phải lớn hơn 0.`;
+        }
+      }
+
+      if ((question.choices ?? []).length > 0) {
+        const choiceError = validateChoices(question, number);
+        if (choiceError) return choiceError;
+      }
+
+      return null;
+    }
+
+    case 'SCENARIO_DECISION_TREE': {
+      const nodes: any[] = question.scenarioNodes ?? [];
+
+      if (nodes.length < 2) {
+        return `Câu ${number}: Scenario phải có ít nhất 2 node.`;
+      }
+
+      const keys = nodes.map((node) => node.clientKey?.trim());
+
+      if (keys.some((key) => !key)) {
+        return `Câu ${number}: tất cả scenario node phải có Client Key.`;
+      }
+
+      if (new Set(keys).size !== keys.length) {
+        return `Câu ${number}: Client Key của scenario node không được trùng nhau.`;
+      }
+
+      const startNodes = nodes.filter((node) => node.isStartNode);
+
+      if (startNodes.length !== 1) {
+        return `Câu ${number}: Scenario phải có đúng 1 Start Node.`;
+      }
+
+      for (let i = 0; i < nodes.length; i++) {
+        const node = nodes[i];
+
+        if (!node.content?.trim()) {
+          return `Câu ${number}: node ${i + 1} chưa có nội dung.`;
+        }
+
+        if (!node.isEndNode) {
+          const choices: any[] = node.choices ?? [];
+
+          if (choices.length < 1) {
+            return `Câu ${number}: node ${i + 1} chưa phải End Node nên phải có ít nhất 1 lựa chọn.`;
+          }
+
+          for (let j = 0; j < choices.length; j++) {
+            const choice = choices[j];
+
+            if (!choice.choiceText?.trim()) {
+              return `Câu ${number}: lựa chọn ${j + 1} của node ${i + 1} chưa có nội dung.`;
+            }
+
+            if (
+              !choice.nextNodeClientKey ||
+              !keys.includes(choice.nextNodeClientKey)
+            ) {
+              return `Câu ${number}: lựa chọn ${j + 1} của node ${i + 1} chưa trỏ tới node hợp lệ.`;
+            }
+          }
+        }
+      }
+
+      return null;
+    }
+
+    case 'ESSAY':
+      return null;
+
+    default:
+      return `Câu ${number}: dạng câu hỏi không hợp lệ.`;
+  }
+};
+
+const normalizeQuestion = (
+  question: CreateQuestionRequest,
+  questionIndex: number
+): CreateQuestionRequest => ({
+  ...question,
+  questionText: question.questionText.trim(),
+  instruction: question.instruction?.trim() || null,
+  explanation: question.explanation?.trim() || null,
+  points: question.points ?? 1,
+  isRequired: question.isRequired ?? true,
+  orderIndex: questionIndex + 1,
+
+  choices: (question.choices ?? []).map((choice, choiceIndex) => ({
+    ...choice,
+    choiceText: choice.choiceText.trim(),
+    optionValue: choice.optionValue?.trim() || null,
+    explanation: choice.explanation?.trim() || null,
+    orderIndex: choiceIndex + 1,
+  })),
+
+  media: (question.media ?? []).map((media: any, mediaIndex: number) => ({
+    ...media,
+    mediaUrl: media.mediaUrl?.trim() ?? '',
+    label: media.label?.trim() || null,
+    orderIndex: mediaIndex + 1,
+  })),
+
+  errorRegions: (question.errorRegions ?? []).map((region: any) => ({
+    ...region,
+    errorCategory: region.errorCategory?.trim() ?? '',
+    errorCode: region.errorCode?.trim() ?? '',
+    description: region.description?.trim() || null,
+    correctionText: region.correctionText?.trim() || null,
+  })),
+
+  annotations: (question.annotations ?? []).map((annotation: any) => ({
+    ...annotation,
+    annotationValue: annotation.annotationValue?.trim() || null,
+    explanation: annotation.explanation?.trim() || null,
+  })),
+
+  arrangeItems: (question.arrangeItems ?? []).map((item: any) => ({
+    ...item,
+    content: item.content?.trim() ?? '',
+    correctOrder: item.isDistractor ? null : item.correctOrder,
+  })),
+
+  writingConfig: question.writingConfig
+    ? {
+        ...question.writingConfig,
+        eventType: question.writingConfig.eventType?.trim() || null,
+        audience: question.writingConfig.audience?.trim() || null,
+        style: question.writingConfig.style?.trim() || null,
+        requiredElementsJson:
+          question.writingConfig.requiredElementsJson?.trim() || null,
+        gradingRubricJson:
+          question.writingConfig.gradingRubricJson?.trim() || null,
+      }
+    : null,
+
+  scenarioNodes: (question.scenarioNodes ?? []).map(
+    (node: any) => ({
+      ...node,
+      clientKey: node.clientKey?.trim() ?? '',
+      title: node.title?.trim() || null,
+      content: node.content?.trim() ?? '',
+      mediaUrl: node.mediaUrl?.trim() || null,
+      choices: (node.choices ?? []).map(
+        (choice: any, choiceIndex: number) => ({
+          ...choice,
+          choiceText: choice.choiceText?.trim() ?? '',
+          nextNodeClientKey:
+            choice.nextNodeClientKey?.trim() || null,
+          feedback: choice.feedback?.trim() || null,
+          orderIndex: choiceIndex + 1,
+        })
+      ),
+    })
+  ),
+});
+
+export const CreateQuizPage: React.FC<CreateQuizPageProps> = ({
+  onToast,
+}) => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-
   const createQuizMutation = useCreateQuiz();
 
-  // ============================================================
-  // COURSE / LESSON
-  // ============================================================
+  const courseIdParam = searchParams.get('courseId');
+  const lessonIdParam = searchParams.get('lessonId');
 
-  const courseIdParam =
-    searchParams.get('courseId');
-
-  const lessonIdParam =
-    searchParams.get('lessonId');
-
-  const courseId = courseIdParam
-    ? Number(courseIdParam)
-    : null;
-
-  const lessonId = lessonIdParam
-    ? Number(lessonIdParam)
-    : null;
+  const courseId = courseIdParam ? Number(courseIdParam) : null;
+  const lessonId = lessonIdParam ? Number(lessonIdParam) : null;
 
   const isValidCourseId =
     courseId !== null &&
     Number.isInteger(courseId) &&
     courseId > 0;
-
-  // ============================================================
-  // QUIZ SCOPE
-  // ============================================================
 
   const isLessonQuiz =
     lessonId !== null &&
@@ -93,413 +488,147 @@ export const CreateQuizPage: React.FC<
     : 'Tạo Quiz tổng khóa học';
 
   const quizScopeDescription = isLessonQuiz
-    ? 'Tạo bài kiểm tra kiến thức cho bài học này.'
+    ? 'Tạo bài kiểm tra và bài tập tương tác cho bài học này.'
     : 'Tạo bài kiểm tra tổng hợp kiến thức của toàn bộ khóa học.';
 
-  // ============================================================
-  // QUIZ INFORMATION
-  // ============================================================
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [timeLimitMinutes, setTimeLimitMinutes] = useState(0);
+  const [passingScore, setPassingScore] = useState(80);
+  const [maxAttempts, setMaxAttempts] = useState(1);
+  const [status, setStatus] = useState<QuizStatus>('DRAFT');
+  const [questions, setQuestions] = useState<CreateQuestionRequest[]>([
+    createEmptyQuestion(1),
+  ]);
+  const [errorMessage, setErrorMessage] = useState('');
 
-  const [title, setTitle] =
-    useState('');
-
-  const [description, setDescription] =
-    useState('');
-
-  const [
-    timeLimitMinutes,
-    setTimeLimitMinutes,
-  ] = useState(0);
-
-  const [
-    passingScore,
-    setPassingScore,
-  ] = useState(80);
-
-  const [
-    maxAttempts,
-    setMaxAttempts,
-  ] = useState(1);
-
-  const [status, setStatus] =
-    useState<QuizStatus>('DRAFT');
-
-  // ============================================================
-  // QUESTIONS
-  // ============================================================
-
-  const [questions, setQuestions] =
-    useState<CreateQuestionRequest[]>([
-      createEmptyQuestion(1),
-    ]);
-
-  // ============================================================
-  // VALIDATION
-  // ============================================================
-
-  const [
-    errorMessage,
-    setErrorMessage,
-  ] = useState('');
-
-  // ============================================================
-  // BACK
-  // ============================================================
-
-  /**
-   * Không dùng navigate(-1).
-   *
-   * Create Quiz luôn được mở từ màn quản lý
-   * Lessons / Quiz của Instructor.
-   *
-   * Vì vậy Back / Cancel / Create Success
-   * đều quay về đúng:
-   *
-   * /instructor/courses/{courseId}/lessons#quiz-management
-   */
   const handleBack = () => {
     if (isValidCourseId) {
-      navigate(
-        `/instructor/courses/${courseId}/lessons#quiz-management`,
-        {
-          replace: true,
-        }
-      );
-
+      navigate(`/instructor/courses/${courseId}`);
       return;
     }
-
-    /**
-     * Fallback nếu URL Create Quiz
-     * không có Course ID hợp lệ.
-     */
-    navigate('/instructor/courses', {
-      replace: true,
-    });
+    navigate(-1);
   };
-
-  // ============================================================
-  // ADD QUESTION
-  // ============================================================
 
   const handleAddQuestion = () => {
     setQuestions((current) => [
       ...current,
-      createEmptyQuestion(
-        current.length + 1
-      ),
+      createEmptyQuestion(current.length + 1),
     ]);
-
     setErrorMessage('');
   };
-
-  // ============================================================
-  // UPDATE QUESTION
-  // ============================================================
 
   const handleQuestionChange = (
     index: number,
-    question: CreateQuestionRequest
+    updatedQuestion: CreateQuestionRequest
   ) => {
     setQuestions((current) =>
-      current.map(
-        (item, itemIndex) =>
-          itemIndex === index
-            ? question
-            : item
+      current.map((question, i) =>
+        i === index ? updatedQuestion : question
       )
     );
-
     setErrorMessage('');
   };
 
-  // ============================================================
-  // REMOVE QUESTION
-  // ============================================================
+  const handleRemoveQuestion = (index: number) => {
+    setQuestions((current) =>
+      current
+        .filter((_, i) => i !== index)
+        .map((question, i) => ({
+          ...question,
+          orderIndex: i + 1,
+        }))
+    );
+    setErrorMessage('');
+  };
 
-  const handleRemoveQuestion = (
-    index: number
-  ) => {
-    if (questions.length <= 1) {
+  const validateForm = (): string | null => {
+    if (!isValidCourseId) {
+      return 'Course ID không hợp lệ.';
+    }
+
+    if (!title.trim()) {
+      return 'Vui lòng nhập tên Quiz.';
+    }
+
+    if (timeLimitMinutes < 0) {
+      return 'Thời gian làm bài không được nhỏ hơn 0.';
+    }
+
+    if (
+      !Number.isFinite(passingScore) ||
+      passingScore < 0 ||
+      passingScore > 100
+    ) {
+      return 'Điểm đạt phải nằm trong khoảng từ 0 đến 100.';
+    }
+
+    if (
+      !Number.isInteger(maxAttempts) ||
+      maxAttempts <= 0
+    ) {
+      return 'Số lần làm bài phải là số nguyên lớn hơn 0.';
+    }
+
+    if (questions.length === 0) {
+      return 'Quiz phải có ít nhất 1 câu hỏi.';
+    }
+
+    for (let i = 0; i < questions.length; i++) {
+      const error = validateQuestion(questions[i], i);
+      if (error) return error;
+    }
+
+    return null;
+  };
+
+  const handleCreateQuiz = async () => {
+    setErrorMessage('');
+
+    const validationError = validateForm();
+
+    if (validationError) {
+      setErrorMessage(validationError);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
 
-    setQuestions((current) =>
-      current
-        .filter(
-          (_, itemIndex) =>
-            itemIndex !== index
-        )
-        .map(
-          (
-            question,
-            itemIndex
-          ) => ({
-            ...question,
-            orderIndex:
-              itemIndex + 1,
-          })
-        )
-    );
+    if (!isValidCourseId || courseId === null) return;
 
-    setErrorMessage('');
+    const payload: CreateQuizRequest = {
+      courseId,
+      lessonId: isLessonQuiz ? lessonId : null,
+      title: title.trim(),
+      description: description.trim() || null,
+      timeLimitMinutes,
+      passingScore,
+      maxAttempts,
+      status,
+      questions: questions.map(normalizeQuestion),
+    };
+
+    try {
+      await createQuizMutation.mutateAsync(payload);
+
+      onToast?.(
+        'Tạo Quiz thành công',
+        'Bài kiểm tra đã được khởi tạo thành công.',
+        'success'
+      );
+
+      navigate(-1);
+    } catch (error) {
+      console.error('Create quiz failed:', error);
+
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Không thể tạo quiz. Vui lòng thử lại.';
+
+      setErrorMessage(message);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
-
-  // ============================================================
-  // VALIDATE FORM
-  // ============================================================
-
-  const validateForm =
-    (): string | null => {
-      if (!isValidCourseId) {
-        return 'Không tìm thấy Course ID hợp lệ.';
-      }
-
-      if (!title.trim()) {
-        return 'Vui lòng nhập tiêu đề quiz.';
-      }
-
-      if (
-        title.trim().length > 255
-      ) {
-        return 'Tiêu đề quiz không được vượt quá 255 ký tự.';
-      }
-
-      if (timeLimitMinutes < 0) {
-        return 'Thời gian làm bài không hợp lệ.';
-      }
-
-      if (
-        passingScore < 0 ||
-        passingScore > 100
-      ) {
-        return 'Điểm đạt phải nằm trong khoảng từ 0 đến 100.';
-      }
-
-      if (maxAttempts < 1) {
-        return 'Số lần làm bài phải lớn hơn hoặc bằng 1.';
-      }
-
-      if (questions.length < 1) {
-        return 'Quiz phải có ít nhất một câu hỏi.';
-      }
-
-      for (
-        let questionIndex = 0;
-        questionIndex <
-        questions.length;
-        questionIndex++
-      ) {
-        const question =
-          questions[
-            questionIndex
-          ];
-
-        const questionNumber =
-          questionIndex + 1;
-
-        if (
-          !question.questionText.trim()
-        ) {
-          return `Vui lòng nhập nội dung câu hỏi ${questionNumber}.`;
-        }
-
-        if (
-          question.choices.length <
-          2
-        ) {
-          return `Câu hỏi ${questionNumber} phải có ít nhất 2 đáp án.`;
-        }
-
-        const hasEmptyChoice =
-          question.choices.some(
-            (choice) =>
-              !choice.choiceText.trim()
-          );
-
-        if (hasEmptyChoice) {
-          return `Vui lòng nhập đầy đủ đáp án cho câu hỏi ${questionNumber}.`;
-        }
-
-        const correctChoices =
-          question.choices.filter(
-            (choice) =>
-              choice.isCorrect
-          );
-
-        if (
-          correctChoices.length ===
-          0
-        ) {
-          return `Vui lòng chọn đáp án đúng cho câu hỏi ${questionNumber}.`;
-        }
-
-        if (
-          question.questionType !==
-            'MULTIPLE_CHOICE' &&
-          correctChoices.length > 1
-        ) {
-          return `Câu hỏi ${questionNumber} chỉ được có một đáp án đúng.`;
-        }
-
-        if (
-          question.questionType ===
-            'MULTIPLE_CHOICE' &&
-          correctChoices.length < 1
-        ) {
-          return `Câu hỏi ${questionNumber} phải có ít nhất một đáp án đúng.`;
-        }
-      }
-
-      return null;
-    };
-
-  // ============================================================
-  // CREATE QUIZ
-  // ============================================================
-
-  const handleCreateQuiz =
-    async () => {
-      setErrorMessage('');
-
-      const validationError =
-        validateForm();
-
-      if (validationError) {
-        setErrorMessage(
-          validationError
-        );
-
-        window.scrollTo({
-          top: 0,
-          behavior: 'smooth',
-        });
-
-        return;
-      }
-
-      if (!isValidCourseId) {
-        return;
-      }
-
-      const payload: CreateQuizRequest =
-        {
-          courseId,
-
-          /**
-           * Quiz tổng khóa học:
-           * lessonId = null
-           *
-           * Quiz bài học:
-           * lessonId = ID của lesson
-           */
-          lessonId:
-            lessonId !== null &&
-            Number.isInteger(
-              lessonId
-            ) &&
-            lessonId > 0
-              ? lessonId
-              : null,
-
-          title: title.trim(),
-
-          description:
-            description.trim() ||
-            null,
-
-          timeLimitMinutes,
-
-          passingScore,
-
-          maxAttempts,
-
-          status,
-
-          questions:
-            questions.map(
-              (
-                question,
-                questionIndex
-              ) => ({
-                ...question,
-
-                questionText:
-                  question.questionText.trim(),
-
-                explanation:
-                  question.explanation?.trim() ||
-                  null,
-
-                orderIndex:
-                  questionIndex +
-                  1,
-
-                choices:
-                  question.choices.map(
-                    (
-                      choice,
-                      choiceIndex
-                    ) => ({
-                      ...choice,
-
-                      choiceText:
-                        choice.choiceText.trim(),
-
-                      orderIndex:
-                        choiceIndex +
-                        1,
-                    })
-                  ),
-              })
-            ),
-        };
-
-      try {
-        await createQuizMutation.mutateAsync(
-          payload
-        );
-
-        // ======================================================
-        // SUCCESS
-        // ======================================================
-
-        onToast?.(
-          'Tạo Quiz thành công',
-          'Bài kiểm tra đã được khởi tạo thành công.',
-          'success'
-        );
-
-        /**
-         * Không dùng navigate(-1).
-         *
-         * Sau khi tạo thành công quay thẳng
-         * về Quiz Management của Course.
-         */
-        handleBack();
-      } catch (error) {
-        console.error(
-          'Create quiz failed:',
-          error
-        );
-
-        const message =
-          error instanceof Error
-            ? error.message
-            : 'Không thể tạo quiz. Vui lòng thử lại.';
-
-        setErrorMessage(message);
-
-        window.scrollTo({
-          top: 0,
-          behavior: 'smooth',
-        });
-      }
-    };
-
-  // ============================================================
-  // INVALID COURSE
-  // ============================================================
 
   if (!isValidCourseId) {
     return (
@@ -509,15 +638,12 @@ export const CreateQuizPage: React.FC<
             <h1 className="text-xl font-bold text-slate-900">
               Không thể tạo quiz
             </h1>
-
             <p className="mt-2 text-sm text-slate-500">
-              Course ID không hợp lệ
-              hoặc chưa được cung cấp.
+              Course ID không hợp lệ hoặc chưa được cung cấp.
             </p>
-
             <button
               type="button"
-              onClick={handleBack}
+              onClick={() => navigate(-1)}
               className="mt-5 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
             >
               Quay lại
@@ -530,394 +656,219 @@ export const CreateQuizPage: React.FC<
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
-
-        {/* ====================================================
-            PAGE HEADER
-        ==================================================== */}
-
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-6">
           <button
             type="button"
             onClick={handleBack}
-            className="mb-4 text-sm font-medium text-slate-500 transition hover:text-slate-700"
+            className="mb-4 inline-flex items-center gap-2 text-sm font-semibold text-slate-500 transition hover:text-blue-600"
           >
-            ← Quay lại quản lý Quiz
+            <ArrowLeft className="h-4 w-4" />
+            Quay lại
           </button>
 
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">
-              {quizScopeTitle}
-            </h1>
+          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-600">
+                Quiz Management
+              </p>
+              <h1 className="mt-2 text-2xl font-black text-slate-900 sm:text-3xl">
+                {quizScopeTitle}
+              </h1>
+              <p className="mt-2 max-w-2xl text-sm text-slate-500">
+                {quizScopeDescription}
+              </p>
+            </div>
 
-            <span
-              className={`w-fit rounded-full px-3 py-1 text-xs font-semibold ${
-                isLessonQuiz
-                  ? 'bg-violet-50 text-violet-600'
-                  : 'bg-blue-50 text-blue-600'
-              }`}
+            <button
+              type="button"
+              onClick={handleCreateQuiz}
+              disabled={createQuizMutation.isPending}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isLessonQuiz
-                ? 'Quiz bài học'
-                : 'Quiz tổng khóa học'}
-            </span>
+              <Save className="h-4 w-4" />
+              {createQuizMutation.isPending
+                ? 'Đang tạo...'
+                : 'Tạo Quiz'}
+            </button>
           </div>
-
-          <p className="mt-2 text-sm text-slate-500">
-            {quizScopeDescription}
-          </p>
         </div>
 
-        {/* ====================================================
-            ERROR
-        ==================================================== */}
-
         {errorMessage && (
-          <div className="mb-6 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4">
-            <div className="mt-0.5 font-bold text-red-500">
-              !
-            </div>
-
-            <div>
-              <p className="text-sm font-semibold text-red-700">
-                Không thể tạo quiz
-              </p>
-
-              <p className="mt-1 text-sm text-red-600">
-                {errorMessage}
-              </p>
-            </div>
+          <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+            {errorMessage}
           </div>
         )}
 
-        {/* ====================================================
-            QUIZ INFORMATION
-        ==================================================== */}
-
-        <div className="rounded-2xl bg-white p-6 shadow-sm">
+        <section className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
           <div className="mb-5">
-            <h2 className="text-lg font-semibold text-slate-900">
+            <h2 className="text-lg font-bold text-slate-900">
               Thông tin Quiz
             </h2>
-
             <p className="mt-1 text-sm text-slate-500">
-              Thiết lập thông tin cơ bản
-              cho bài kiểm tra.
+              Thiết lập thông tin chung trước khi thêm các dạng bài tập.
             </p>
           </div>
 
-          <div className="space-y-5">
-
-            {/* TITLE */}
-
-            <div>
-              <label className="mb-2 block text-sm font-medium text-slate-700">
-                Tiêu đề
-
-                <span className="ml-1 text-red-500">
-                  *
-                </span>
-              </label>
-
+          <div className="grid gap-5 md:grid-cols-2">
+            <label className="md:col-span-2">
+              <span className={labelClass}>Tên Quiz *</span>
               <input
-                type="text"
                 value={title}
-                maxLength={255}
-                onChange={(event) =>
-                  setTitle(
-                    event.target.value
-                  )
-                }
-                placeholder={
-                  isLessonQuiz
-                    ? 'Ví dụ: Quiz bài học Lễ Vu Quy'
-                    : 'Ví dụ: Quiz tổng kết MC Đám Cưới'
-                }
-                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                onChange={(e) => {
+                  setTitle(e.target.value);
+                  setErrorMessage('');
+                }}
+                placeholder="Ví dụ: Luyện tập kỹ năng dẫn chương trình"
+                className={inputClass}
               />
+            </label>
 
-              <p className="mt-1 text-right text-xs text-slate-400">
-                {title.length}/255
-              </p>
-            </div>
-
-            {/* DESCRIPTION */}
-
-            <div>
-              <label className="mb-2 block text-sm font-medium text-slate-700">
-                Mô tả
-
-                <span className="ml-1 text-xs font-normal text-slate-400">
-                  (không bắt buộc)
-                </span>
-              </label>
-
+            <label className="md:col-span-2">
+              <span className={labelClass}>Mô tả</span>
               <textarea
                 value={description}
-                onChange={(event) =>
-                  setDescription(
-                    event.target.value
+                onChange={(e) => setDescription(e.target.value)}
+                rows={3}
+                placeholder="Mô tả nội dung và mục tiêu của Quiz..."
+                className={`${inputClass} resize-none`}
+              />
+            </label>
+
+            <label>
+              <span className={labelClass}>
+                Thời gian làm bài (phút)
+              </span>
+              <input
+                type="number"
+                min={0}
+                value={timeLimitMinutes}
+                onChange={(e) =>
+                  setTimeLimitMinutes(
+                    Math.max(0, Number(e.target.value))
                   )
                 }
-                placeholder={
-                  isLessonQuiz
-                    ? 'Nhập mô tả cho bài quiz của bài học...'
-                    : 'Nhập mô tả cho bài quiz tổng khóa học...'
-                }
-                rows={3}
-                className="w-full resize-none rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                className={inputClass}
               />
-            </div>
+              <span className="mt-1 block text-xs text-slate-400">
+                0 = không giới hạn thời gian.
+              </span>
+            </label>
 
-            {/* SETTINGS */}
+            <label>
+              <span className={labelClass}>Điểm đạt (%)</span>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={passingScore}
+                onChange={(e) =>
+                  setPassingScore(Number(e.target.value))
+                }
+                className={inputClass}
+              />
+            </label>
 
-            <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+            <label>
+              <span className={labelClass}>Số lần được làm</span>
+              <input
+                type="number"
+                min={1}
+                step={1}
+                value={maxAttempts}
+                onChange={(e) =>
+                  setMaxAttempts(Number(e.target.value))
+                }
+                className={inputClass}
+              />
+            </label>
 
-              {/* TIME */}
-
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">
-                  Thời gian làm bài
-                </label>
-
-                <div className="relative">
-                  <input
-                    type="number"
-                    min={0}
-                    value={
-                      timeLimitMinutes
-                    }
-                    onChange={(event) =>
-                      setTimeLimitMinutes(
-                        Math.max(
-                          0,
-                          Number(
-                            event.target
-                              .value
-                          )
-                        )
-                      )
-                    }
-                    className="w-full rounded-xl border border-slate-200 px-4 py-3 pr-16 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                  />
-
-                  <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs text-slate-400">
-                    phút
-                  </span>
-                </div>
-
-                <p className="mt-1 text-xs text-slate-400">
-                  0 = không giới hạn
-                </p>
-              </div>
-
-              {/* PASSING SCORE */}
-
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">
-                  Điểm đạt
-                </label>
-
-                <div className="relative">
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    step={0.01}
-                    value={passingScore}
-                    onChange={(event) =>
-                      setPassingScore(
-                        Number(
-                          event.target
-                            .value
-                        )
-                      )
-                    }
-                    className="w-full rounded-xl border border-slate-200 px-4 py-3 pr-10 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                  />
-
-                  <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs text-slate-400">
-                    %
-                  </span>
-                </div>
-              </div>
-
-              {/* MAX ATTEMPTS */}
-
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">
-                  Số lần làm tối đa
-                </label>
-
-                <input
-                  type="number"
-                  min={1}
-                  value={maxAttempts}
-                  onChange={(event) =>
-                    setMaxAttempts(
-                      Math.max(
-                        1,
-                        Number(
-                          event.target
-                            .value
-                        )
-                      )
-                    )
-                  }
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                />
-              </div>
-            </div>
-
-            {/* STATUS */}
-
-            <div>
-              <label className="mb-2 block text-sm font-medium text-slate-700">
-                Trạng thái
-              </label>
-
+            <label>
+              <span className={labelClass}>Trạng thái</span>
               <select
                 value={status}
-                onChange={(event) =>
-                  setStatus(
-                    event.target
-                      .value as QuizStatus
-                  )
+                onChange={(e) =>
+                  setStatus(e.target.value as QuizStatus)
                 }
-                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:max-w-sm"
+                className={inputClass}
               >
-                <option value="DRAFT">
-                  Nháp
-                </option>
-
-                <option value="ACTIVE">
-                  Đã xuất bản
-                </option>
-
-                <option value="ARCHIVED">
-                  Lưu trữ
-                </option>
+                <option value="DRAFT">Nháp</option>
+                <option value="ACTIVE">Đã xuất bản</option>
+                <option value="INACTIVE">Ngừng hoạt động</option>
+                <option value="ARCHIVED">Lưu trữ</option>
               </select>
-            </div>
+            </label>
           </div>
-        </div>
+        </section>
 
-        {/* ====================================================
-            QUESTIONS
-        ==================================================== */}
-
-        <div className="mt-6">
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <section>
+          <div className="mb-4 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
             <div>
-              <h2 className="text-lg font-semibold text-slate-900">
-                Câu hỏi
+              <h2 className="text-lg font-bold text-slate-900">
+                Câu hỏi & bài tập
               </h2>
-
               <p className="mt-1 text-sm text-slate-500">
-                Thêm câu hỏi và thiết lập
-                đáp án đúng.
+                Quiz hiện có {questions.length} câu hỏi/bài tập.
               </p>
             </div>
 
-            <span className="text-sm font-medium text-slate-500">
-              {questions.length} câu hỏi
-            </span>
+            <button
+              type="button"
+              onClick={handleAddQuestion}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-bold text-blue-600 transition hover:border-blue-300 hover:bg-blue-100"
+            >
+              <Plus className="h-4 w-4" />
+              Thêm câu hỏi
+            </button>
           </div>
 
           <div className="space-y-5">
-            {questions.map(
-              (
-                question,
-                index
-              ) => (
-                <QuizQuestionEditor
-                  key={`question-${index}`}
-                  question={
-                    question
-                  }
-                  questionNumber={
-                    index + 1
-                  }
-                  onChange={(
-                    updatedQuestion
-                  ) =>
-                    handleQuestionChange(
-                      index,
-                      updatedQuestion
-                    )
-                  }
-                  onRemove={() =>
-                    handleRemoveQuestion(
-                      index
-                    )
-                  }
-                  canRemove={
-                    questions.length >
-                    1
-                  }
-                />
-              )
-            )}
+            {questions.map((question, index) => (
+              <QuizQuestionEditor
+                key={index}
+                question={question}
+                questionNumber={index + 1}
+                onChange={(updatedQuestion) =>
+                  handleQuestionChange(index, updatedQuestion)
+                }
+                onRemove={() => handleRemoveQuestion(index)}
+                canRemove={questions.length > 1}
+              />
+            ))}
           </div>
-
-          {/* ADD QUESTION */}
-
-          <button
-            type="button"
-            onClick={
-              handleAddQuestion
-            }
-            className="mt-5 flex w-full items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-white px-5 py-4 text-sm font-semibold text-blue-600 transition hover:border-blue-300 hover:bg-blue-50"
-          >
-            + Thêm câu hỏi
-          </button>
-        </div>
-
-        {/* ====================================================
-            ACTIONS
-        ==================================================== */}
+        </section>
 
         <div className="mt-8 flex flex-col-reverse gap-3 border-t border-slate-200 pt-6 sm:flex-row sm:justify-end">
-
-          {/* CANCEL */}
-
           <button
             type="button"
             onClick={handleBack}
-            disabled={
-              createQuizMutation.isPending
-            }
-            className="rounded-xl border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={createQuizMutation.isPending}
+            className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50 disabled:opacity-60"
           >
             Hủy
           </button>
 
-          {/* CREATE */}
-
           <button
             type="button"
-            onClick={
-              handleCreateQuiz
-            }
-            disabled={
-              createQuizMutation.isPending
-            }
-            className={`rounded-xl px-6 py-3 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60 ${
-              isLessonQuiz
-                ? 'bg-violet-600 hover:bg-violet-700'
-                : 'bg-blue-600 hover:bg-blue-700'
-            }`}
+            onClick={handleCreateQuiz}
+            disabled={createQuizMutation.isPending}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
+            <Save className="h-4 w-4" />
             {createQuizMutation.isPending
-              ? 'Đang tạo quiz...'
-              : isLessonQuiz
-                ? 'Tạo Quiz bài học'
-                : 'Tạo Quiz tổng khóa học'}
+              ? 'Đang tạo...'
+              : 'Tạo Quiz'}
           </button>
         </div>
       </div>
     </div>
   );
 };
+
+const inputClass =
+  'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100';
+
+const labelClass =
+  'mb-1.5 block text-xs font-bold text-slate-600';
 
 export default CreateQuizPage;
