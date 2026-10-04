@@ -851,8 +851,7 @@ namespace MC_BE.Migrations
 
                     b.Property<string>("FileUrl")
                         .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)")
+                        .HasColumnType("text")
                         .HasColumnName("FileUrl");
 
                     b.Property<int?>("LessonId")
@@ -865,8 +864,8 @@ namespace MC_BE.Migrations
 
                     b.Property<string>("Title")
                         .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
                         .HasColumnName("Title");
 
                     b.Property<int>("UploaderId")
