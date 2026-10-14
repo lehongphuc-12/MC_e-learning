@@ -35,6 +35,7 @@ export function useChat() {
   const [searching, setSearching] = useState(false);
   const [onlineUserIds, setOnlineUserIds] = useState<Set<number>>(new Set());
   const [lastSeenByUserId, setLastSeenByUserId] = useState<Record<number, string | null>>({});
+  const [initialized, setInitialized] = useState(false);
 
   const activeRef = useRef<Conversation | null>(null);
   const currentUserIdRef = useRef(currentUserId);
@@ -402,12 +403,15 @@ export function useChat() {
               .filter((id) => Number.isFinite(id))
           )
         );
+        
+        if (!disposed) setInitialized(true);
       } catch (error) {
         if (!disposed) {
           console.error(
             "Chat SignalR initialize error:",
             error
           );
+          setInitialized(true);
         }
       }
     };
@@ -1007,6 +1011,7 @@ export function useChat() {
   );
 
   return {
+    initialized,
     conversations,
     activeConversation,
     messages,

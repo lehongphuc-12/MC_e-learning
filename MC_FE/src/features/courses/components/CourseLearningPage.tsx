@@ -340,21 +340,21 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full w-full bg-slate-950 p-5 md:p-8 overflow-y-auto text-slate-100 scrollbar-thin scrollbar-thumb-slate-800">
+    <div className="flex flex-col h-full w-full bg-[#f4f7fa] p-5 md:p-8 overflow-y-auto text-slate-900 scrollbar-thin scrollbar-thumb-slate-800">
       {/* ── Top Header ────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center justify-between gap-4 pb-6 border-b border-slate-800">
+      <div className="flex flex-wrap items-center justify-between gap-4 pb-6 border-b border-slate-200">
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 text-xs font-bold mb-2">
             <Mic className="w-3.5 h-3.5" />
             <span>BÀI KIỂM TRA NÓI CUỐI KHÓA</span>
           </div>
-          <h2 className="text-xl md:text-2xl font-black text-white tracking-tight">
+          <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
             {lesson.title}
           </h2>
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs font-medium text-slate-400">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs font-medium text-slate-500">
             <Clock className="w-4 h-4 text-indigo-400" />
             <span>Thời lượng: {lesson.durationMinutes || 15} phút</span>
           </div>
@@ -365,22 +365,22 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-6">
         {/* Left / Prompt Area (5 cols) */}
         <div className="lg:col-span-5 flex flex-col gap-5">
-          <div className="rounded-2xl border border-slate-800/80 bg-slate-900/80 p-5 backdrop-blur-sm shadow-lg">
+          <div className="rounded-2xl border border-slate-200/80 bg-white/80 p-5 backdrop-blur-sm shadow-lg">
             <h3 className="text-sm font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-2 mb-3">
               <FileText className="w-4 h-4" />
               <span>Đề Bài & Yêu Cầu</span>
             </h3>
 
-            <div className="text-sm text-slate-300 leading-relaxed whitespace-pre-line bg-slate-950/60 p-4 rounded-xl border border-slate-800/60">
+            <div className="text-sm text-slate-600 leading-relaxed whitespace-pre-line bg-[#f4f7fa]/60 p-4 rounded-xl border border-slate-200/60">
               {lesson.description ||
                 'Hãy đọc kỹ kịch bản bài học và thực hiện thu âm giọng nói của bạn. Giảng viên sẽ nghe trực tiếp bài thu âm này để đánh giá ngữ điệu, tốc độ, cảm xúc và đưa ra điểm số kèm nhận xét chi tiết.'}
             </div>
 
             <div className="mt-4 space-y-2">
-              <div className="text-xs font-bold text-slate-400 uppercase tracking-wide">
+              <div className="text-xs font-bold text-slate-500 uppercase tracking-wide">
                 Hướng dẫn thực hiện:
               </div>
-              <ul className="text-xs text-slate-400 space-y-1.5 pl-4 list-disc">
+              <ul className="text-xs text-slate-500 space-y-1.5 pl-4 list-disc">
                 <li>Bấm nút ghi âm và đọc theo đúng kịch bản yêu cầu.</li>
                 <li>Hệ thống tự động lưu file lên Cloudinary để giảng viên nghe và chấm điểm.</li>
                 <li>Bạn có thể nghe lại bài ghi âm trước khi chính thức bấm nộp bài.</li>
@@ -392,15 +392,15 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
         {/* Right / Recording & Grading Workspace (7 cols) */}
         <div className="lg:col-span-7 flex flex-col gap-5">
           {isLoading ? (
-            <div className="flex flex-col items-center justify-center p-12 bg-slate-900/60 rounded-2xl border border-slate-800">
+            <div className="flex flex-col items-center justify-center p-12 bg-white/60 rounded-2xl border border-slate-200">
               <div className="w-8 h-8 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin mb-3" />
-              <p className="text-xs text-slate-400">Đang tải thông tin bài làm...</p>
+              <p className="text-xs text-slate-500">Đang tải thông tin bài làm...</p>
             </div>
           ) : submission && !isReRecording ? (
             /* ── Existing Submission View ────────────────────────────────── */
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/90 p-6 shadow-xl backdrop-blur-md">
+            <div className="rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-xl backdrop-blur-md">
               {/* Status Header */}
-              <div className="flex items-center justify-between mb-5 pb-4 border-b border-slate-800">
+              <div className="flex items-center justify-between mb-5 pb-4 border-b border-slate-200">
                 <div className="flex items-center gap-2">
                   {submission.status === 'GRADED' ? (
                     <span className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-extrabold flex items-center gap-1.5">
@@ -420,7 +420,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                   )}
                 </div>
 
-                <span className="text-[11px] text-slate-400">
+                <span className="text-[11px] text-slate-500">
                   Nộp lúc: {new Date(submission.submittedAt).toLocaleDateString('vi-VN', {
                     day: '2-digit',
                     month: '2-digit',
@@ -447,16 +447,16 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                   </div>
 
                   {submission.feedback ? (
-                    <div className="mt-3 text-xs text-slate-200 bg-slate-950/70 p-3.5 rounded-xl border border-emerald-500/20 leading-relaxed">
+                    <div className="mt-3 text-xs text-slate-200 bg-[#f4f7fa]/70 p-3.5 rounded-xl border border-emerald-500/20 leading-relaxed">
                       <span className="font-bold text-emerald-400 block mb-1">Lời nhận xét:</span>
                       "{submission.feedback}"
                     </div>
                   ) : (
-                    <p className="text-xs text-slate-400 italic">Không có nhận xét thêm.</p>
+                    <p className="text-xs text-slate-500 italic">Không có nhận xét thêm.</p>
                   )}
 
                   {submission.gradedByName && (
-                    <div className="mt-3 text-[11px] text-slate-400 text-right">
+                    <div className="mt-3 text-[11px] text-slate-500 text-right">
                       Người chấm: <span className="font-semibold text-slate-200">{submission.gradedByName}</span>
                     </div>
                   )}
@@ -465,18 +465,18 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
 
               {/* Submitted Audio Player */}
               <div className="mb-5">
-                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2 flex items-center gap-2">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2 flex items-center gap-2">
                   <Volume2 className="w-4 h-4 text-indigo-400" />
                   <span>Bài thu âm của bạn đã lưu trên Cloud:</span>
                 </label>
-                <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
+                <div className="p-3 bg-[#f4f7fa] rounded-xl border border-slate-200">
                   <audio controls src={submission.audioUrl} className="w-full h-10" />
                 </div>
               </div>
 
               {submission.note && (
-                <div className="mb-5 text-xs text-slate-400 bg-slate-950/50 p-3 rounded-xl border border-slate-800">
-                  <span className="font-bold text-slate-300 block mb-0.5">Ghi chú đã gửi:</span>
+                <div className="mb-5 text-xs text-slate-500 bg-[#f4f7fa]/50 p-3 rounded-xl border border-slate-200">
+                  <span className="font-bold text-slate-600 block mb-0.5">Ghi chú đã gửi:</span>
                   "{submission.note}"
                 </div>
               )}
@@ -494,24 +494,24 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
             </div>
           ) : (
             /* ── Interactive Audio Recording Workspace ────────────────── */
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/90 p-6 shadow-xl backdrop-blur-md">
+            <div className="rounded-2xl border border-slate-200 bg-white/90 p-6 shadow-xl backdrop-blur-md">
               {/* Header & Submission Mode Selector Tabs */}
-              <div className="flex flex-wrap items-center justify-between gap-3 mb-5 pb-3 border-b border-slate-800">
-                <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-5 pb-3 border-b border-slate-200">
+                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
                   <Mic className="w-4 h-4 text-indigo-400" />
                   <span>Khu Vực Làm Bài Thi Nói</span>
                 </h3>
 
                 {/* Mode Selector Tabs */}
-                <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
+                <div className="flex items-center gap-1 bg-[#f4f7fa] p-1 rounded-xl border border-slate-200">
                   <button
                     type="button"
                     onClick={() => setSubmissionMode('MIC')}
                     disabled={isRecording || isSubmitting}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                       submissionMode === 'MIC'
-                        ? 'bg-indigo-600 text-white shadow-md'
-                        : 'text-slate-400 hover:text-slate-200'
+                        ? 'bg-indigo-600 text-slate-900 shadow-md'
+                        : 'text-slate-500 hover:text-slate-200'
                     }`}
                   >
                     <Mic className="w-3.5 h-3.5" />
@@ -524,8 +524,8 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                     disabled={isRecording || isSubmitting}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                       submissionMode === 'UPLOAD'
-                        ? 'bg-indigo-600 text-white shadow-md'
-                        : 'text-slate-400 hover:text-slate-200'
+                        ? 'bg-indigo-600 text-slate-900 shadow-md'
+                        : 'text-slate-500 hover:text-slate-200'
                     }`}
                   >
                     <UploadCloud className="w-3.5 h-3.5" />
@@ -545,9 +545,9 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
               {submissionMode === 'MIC' && (
                 <>
                   {/* Microphone Device Selector Dropdown */}
-                  <div className="mb-5 bg-slate-950/80 p-3.5 rounded-xl border border-slate-800">
+                  <div className="mb-5 bg-[#f4f7fa]/80 p-3.5 rounded-xl border border-slate-200">
                     <div className="flex items-center justify-between mb-2">
-                      <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                      <label className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
                         <Sliders className="w-3.5 h-3.5 text-indigo-400" />
                         <span>Chọn thiết bị Micrô ghi âm:</span>
                       </label>
@@ -563,7 +563,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                         value={selectedDeviceId}
                         onChange={(e) => setSelectedDeviceId(e.target.value)}
                         disabled={isRecording || isSubmitting}
-                        className="w-full pl-9 pr-8 py-2 bg-slate-900 border border-slate-700/80 rounded-lg text-xs font-semibold text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 transition-all cursor-pointer"
+                        className="w-full pl-9 pr-8 py-2 bg-white border border-slate-700/80 rounded-lg text-xs font-semibold text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 transition-all cursor-pointer"
                       >
                         {audioDevices.length === 0 ? (
                           <option value="">(Micrô mặc định của thiết bị)</option>
@@ -584,16 +584,16 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
 
                   {/* Record State 1: IDLE (Not Recording, No Audio Blob) */}
                   {!isRecording && !audioBlob && (
-                    <div className="flex flex-col items-center justify-center p-8 bg-slate-950/70 rounded-2xl border border-slate-800/80 text-center">
+                    <div className="flex flex-col items-center justify-center p-8 bg-[#f4f7fa]/70 rounded-2xl border border-slate-200/80 text-center">
                       <button
                         onClick={handleStartRecording}
-                        className="w-20 h-20 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white flex items-center justify-center shadow-lg shadow-indigo-500/30 hover:scale-105 active:scale-95 transition-all cursor-pointer mb-4 group"
+                        className="w-20 h-20 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-slate-900 flex items-center justify-center shadow-lg shadow-indigo-500/30 hover:scale-105 active:scale-95 transition-all cursor-pointer mb-4 group"
                       >
                         <Mic className="w-9 h-9 group-hover:scale-110 transition-transform" />
                       </button>
 
-                      <h4 className="text-base font-bold text-white">Bắt đầu Ghi âm giọng nói</h4>
-                      <p className="text-xs text-slate-400 max-w-xs mt-1">
+                      <h4 className="text-base font-bold text-slate-900">Bắt đầu Ghi âm giọng nói</h4>
+                      <p className="text-xs text-slate-500 max-w-xs mt-1">
                         Nhấn vào nút micro phía trên để cho phép trình duyệt truy cập và bắt đầu thu âm bài phát biểu của bạn.
                       </p>
                     </div>
@@ -601,13 +601,13 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
 
                   {/* Record State 2: RECORDING IN PROGRESS */}
                   {isRecording && (
-                    <div className="flex flex-col items-center justify-center p-8 bg-slate-950/90 rounded-2xl border border-rose-500/30 text-center relative overflow-hidden">
+                    <div className="flex flex-col items-center justify-center p-8 bg-[#f4f7fa]/90 rounded-2xl border border-rose-500/30 text-center relative overflow-hidden">
                       <div className="absolute top-3 right-3 flex items-center gap-2 px-3 py-1 rounded-full bg-rose-500/20 border border-rose-500/40 text-rose-400 text-[11px] font-bold animate-pulse">
                         <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
                         ĐANG GHI ÂM
                       </div>
 
-                      <div className="text-4xl font-black text-white font-mono tracking-wider mb-4 mt-2">
+                      <div className="text-4xl font-black text-slate-900 font-mono tracking-wider mb-4 mt-2">
                         {formatTime(recordingTime)}
                       </div>
 
@@ -627,7 +627,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
 
                       <button
                         onClick={handleStopRecording}
-                        className="px-6 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all shadow-lg shadow-rose-600/30 flex items-center gap-2 cursor-pointer active:scale-95"
+                        className="px-6 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-slate-900 text-xs font-bold transition-all shadow-lg shadow-rose-600/30 flex items-center gap-2 cursor-pointer active:scale-95"
                       >
                         <Square className="w-4 h-4 fill-white" />
                         <span>Dừng & Kiểm Tra Bài Ghi Âm</span>
@@ -638,9 +638,9 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                   {/* Record State 3: RECORDED (PREVIEW & SUBMIT) */}
                   {!isRecording && audioBlob && audioUrl && (
                     <div className="space-y-4">
-                      <div className="p-4 bg-slate-950 rounded-2xl border border-slate-800">
+                      <div className="p-4 bg-[#f4f7fa] rounded-2xl border border-slate-200">
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-bold text-slate-300 flex items-center gap-2">
+                          <span className="text-xs font-bold text-slate-600 flex items-center gap-2">
                             <Volume2 className="w-4 h-4 text-emerald-400" />
                             <span>Nghe lại bản thu âm (Thời lượng: {formatTime(recordingTime)})</span>
                           </span>
@@ -651,7 +651,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
 
                       {/* Optional Learner Note Input */}
                       <div>
-                        <label className="text-xs font-bold text-slate-400 block mb-1">
+                        <label className="text-xs font-bold text-slate-500 block mb-1">
                           Ghi chú cho giảng viên (Không bắt buộc):
                         </label>
                         <textarea
@@ -659,7 +659,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                           value={learnerNote}
                           onChange={(e) => setLearnerNote(e.target.value)}
                           placeholder="Nhập ghi chú hoặc thắc mắc nếu có..."
-                          className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          className="w-full p-3 bg-[#f4f7fa] border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         />
                       </div>
 
@@ -668,7 +668,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                         <button
                           onClick={handleResetRecording}
                           disabled={isSubmitting}
-                          className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all flex items-center gap-2 cursor-pointer border border-slate-700 disabled:opacity-50"
+                          className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-600 text-xs font-bold transition-all flex items-center gap-2 cursor-pointer border border-slate-700 disabled:opacity-50"
                         >
                           <RotateCcw className="w-4 h-4" />
                           <span>Thực hiện lại</span>
@@ -679,7 +679,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                             <button
                               onClick={() => setIsReRecording(false)}
                               disabled={isSubmitting}
-                              className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 text-xs font-bold transition-all cursor-pointer border border-slate-800"
+                              className="px-4 py-2.5 rounded-xl bg-white hover:bg-slate-800 text-slate-500 text-xs font-bold transition-all cursor-pointer border border-slate-200"
                             >
                               Hủy
                             </button>
@@ -688,7 +688,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                           <button
                             onClick={handleSubmitAssignment}
                             disabled={isSubmitting}
-                            className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-bold shadow-lg shadow-indigo-500/30 transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
+                            className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-slate-900 text-xs font-bold shadow-lg shadow-indigo-500/30 transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
                           >
                             {isSubmitting ? (
                               <>
@@ -723,13 +723,13 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                   {!uploadedFile ? (
                     <div
                       onClick={() => fileInputRef.current?.click()}
-                      className="flex flex-col items-center justify-center p-8 bg-slate-950/70 rounded-2xl border-2 border-dashed border-slate-700/80 hover:border-indigo-500/80 text-center transition-all cursor-pointer group"
+                      className="flex flex-col items-center justify-center p-8 bg-[#f4f7fa]/70 rounded-2xl border-2 border-dashed border-slate-700/80 hover:border-indigo-500/80 text-center transition-all cursor-pointer group"
                     >
                       <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
                         <UploadCloud className="w-8 h-8" />
                       </div>
-                      <h4 className="text-sm font-bold text-white">Tải file ghi âm từ máy cá nhân</h4>
-                      <p className="text-xs text-slate-400 mt-1 max-w-xs">
+                      <h4 className="text-sm font-bold text-slate-900">Tải file ghi âm từ máy cá nhân</h4>
+                      <p className="text-xs text-slate-500 mt-1 max-w-xs">
                         Bấm vào đây để chọn file âm thanh bài phát biểu của bạn từ máy tính.
                       </p>
                       <span className="mt-3 text-[11px] font-semibold text-indigo-400 bg-indigo-500/10 px-3 py-1 rounded-full border border-indigo-500/20">
@@ -739,17 +739,17 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                   ) : (
                     <div className="space-y-4">
                       {/* Selected File Card */}
-                      <div className="p-4 bg-slate-950 rounded-2xl border border-indigo-500/30">
+                      <div className="p-4 bg-[#f4f7fa] rounded-2xl border border-indigo-500/30">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3 min-w-0">
                             <div className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center shrink-0">
                               <FileAudio className="w-5 h-5" />
                             </div>
                             <div className="min-w-0">
-                              <div className="text-xs font-bold text-white truncate max-w-[220px] sm:max-w-[300px]">
+                              <div className="text-xs font-bold text-slate-900 truncate max-w-[220px] sm:max-w-[300px]">
                                 {uploadedFile.name}
                               </div>
-                              <div className="text-[11px] text-slate-400 font-mono">
+                              <div className="text-[11px] text-slate-500 font-mono">
                                 {(uploadedFile.size / (1024 * 1024)).toFixed(2)} MB
                               </div>
                             </div>
@@ -759,7 +759,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                             type="button"
                             onClick={handleResetUploadedFile}
                             disabled={isSubmitting}
-                            className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all cursor-pointer border border-slate-700 shrink-0"
+                            className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-600 text-xs font-bold transition-all cursor-pointer border border-slate-700 shrink-0"
                           >
                             Đổi file khác
                           </button>
@@ -767,8 +767,8 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
 
                         {/* Inline Preview Player */}
                         {uploadedAudioUrl && (
-                          <div className="mt-4 pt-3 border-t border-slate-800">
-                            <label className="text-xs font-bold text-slate-400 block mb-1.5 flex items-center gap-1.5">
+                          <div className="mt-4 pt-3 border-t border-slate-200">
+                            <label className="text-xs font-bold text-slate-500 block mb-1.5 flex items-center gap-1.5">
                               <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
                               <span>Nghe thử trước khi nộp:</span>
                             </label>
@@ -779,7 +779,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
 
                       {/* Optional Note */}
                       <div>
-                        <label className="text-xs font-bold text-slate-400 block mb-1">
+                        <label className="text-xs font-bold text-slate-500 block mb-1">
                           Ghi chú cho giảng viên (Không bắt buộc):
                         </label>
                         <textarea
@@ -787,7 +787,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                           value={learnerNote}
                           onChange={(e) => setLearnerNote(e.target.value)}
                           placeholder="Nhập ghi chú hoặc thắc mắc nếu có..."
-                          className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          className="w-full p-3 bg-[#f4f7fa] border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                         />
                       </div>
 
@@ -798,7 +798,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                             type="button"
                             onClick={() => setIsReRecording(false)}
                             disabled={isSubmitting}
-                            className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 text-xs font-bold transition-all cursor-pointer border border-slate-800"
+                            className="px-4 py-2.5 rounded-xl bg-white hover:bg-slate-800 text-slate-500 text-xs font-bold transition-all cursor-pointer border border-slate-200"
                           >
                             Hủy
                           </button>
@@ -808,7 +808,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                           type="button"
                           onClick={handleSubmitAssignment}
                           disabled={isSubmitting}
-                          className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-bold shadow-lg shadow-indigo-500/30 transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
+                          className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-slate-900 text-xs font-bold shadow-lg shadow-indigo-500/30 transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
                         >
                           {isSubmitting ? (
                             <>
@@ -1318,7 +1318,7 @@ export const CourseLearningPage: React.FC = () => {
             lessonId,
           )
         }
-        className="mt-1 ml-7 inline-flex items-center gap-1.5 rounded-lg bg-violet-600/20 px-2.5 py-1.5 text-[10px] font-bold text-violet-300 border border-violet-500/30 transition-all hover:bg-violet-600/30 hover:text-white active:scale-95"
+        className="mt-1 ml-7 inline-flex items-center gap-1.5 rounded-lg bg-violet-600/20 px-2.5 py-1.5 text-[10px] font-bold text-violet-300 border border-violet-500/30 transition-all hover:bg-violet-600/30 hover:text-slate-900 active:scale-95"
       >
         <ClipboardList className="h-3 w-3" />
         Làm Quiz
@@ -1766,11 +1766,11 @@ export const CourseLearningPage: React.FC = () => {
     isQuizzesLoading
   ) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-slate-950 text-white">
+      <div className="flex h-screen w-full items-center justify-center bg-[#f4f7fa] text-slate-900">
         <div className="flex flex-col items-center gap-3">
           <div className="h-10 w-10 animate-spin rounded-full border-4 border-indigo-500 border-t-transparent" />
 
-          <p className="text-xs font-medium text-slate-400">
+          <p className="text-xs font-medium text-slate-500">
             Đang tải không gian học tập...
           </p>
         </div>
@@ -1878,34 +1878,34 @@ export const CourseLearningPage: React.FC = () => {
   // ===========================================================================
 
   return (
-    <div className="flex h-screen w-full flex-col bg-slate-950 text-slate-100 overflow-hidden font-sans">
+    <div className="flex h-screen w-full flex-col bg-[#f4f7fa] text-slate-900 overflow-hidden font-sans">
       {/* ── Top Bar ─────────────────────────────────────────────────────── */}
 
-      <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-800/80 bg-slate-900/90 px-4 backdrop-blur-md z-30">
+      <header className="flex h-14 shrink-0 items-center justify-between border-b border-blue-200 bg-blue-50 px-4 backdrop-blur-md z-30">
         <div className="flex items-center gap-3">
           <button
             onClick={handleBackToLessons}
             title="Quay lại quản lý bài học"
-            className="flex items-center gap-2 rounded-xl bg-slate-800/90 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-slate-700 hover:text-white transition-all cursor-pointer border border-slate-700/60"
+            className="flex items-center gap-2 rounded-xl bg-white text-blue-700 hover:bg-blue-100 border border-blue-200 transition-all cursor-pointer"
           >
-            <ArrowLeft className="h-4 w-4 text-indigo-400" />
+            <ArrowLeft className="h-4 w-4 text-blue-600" />
 
             <span>
               Thoát / Về quản lý bài học
             </span>
           </button>
 
-          <div className="h-5 w-[1px] bg-slate-800" />
+          <div className="h-5 w-[1px] bg-blue-200" />
 
           <div>
-            <h1 className="text-sm font-bold text-white flex items-center gap-2">
+            <h1 className="text-sm font-bold text-blue-950 flex items-center gap-2">
               <span>
                 {course?.title ??
                   'Chi tiết khóa học'}
               </span>
             </h1>
 
-            <p className="text-[11px] text-slate-400 flex items-center gap-2">
+            <p className="text-[11px] text-blue-700/80 flex items-center gap-2">
               <span>
                 {sortedModules.length}{' '}
                 Chương
@@ -1932,7 +1932,7 @@ export const CourseLearningPage: React.FC = () => {
         <div className="flex items-center gap-3">
           {/* Progress Badge */}
 
-          <div className="hidden sm:flex items-center gap-2 rounded-full bg-slate-800/90 border border-slate-700 px-3 py-1 text-xs text-slate-200 font-semibold">
+          <div className="hidden sm:flex items-center gap-2 rounded-full bg-white border border-blue-200 px-3 py-1 text-xs text-blue-800 font-semibold">
             <div className="w-16 bg-slate-700 rounded-full h-1.5 overflow-hidden">
               <div
                 className="bg-emerald-400 h-full rounded-full transition-all duration-500"
@@ -1972,7 +1972,7 @@ export const CourseLearningPage: React.FC = () => {
             </button>
           )}
 
-          <div className="hidden md:flex items-center gap-2 rounded-full bg-indigo-500/10 border border-indigo-500/20 px-3 py-1 text-xs text-indigo-400 font-semibold">
+          <div className="hidden md:flex items-center gap-2 rounded-full bg-blue-100 border border-blue-200 px-3 py-1 text-xs text-blue-800 font-semibold">
             <Sparkles className="h-3.5 w-3.5" />
 
             <span>
@@ -1990,7 +1990,7 @@ export const CourseLearningPage: React.FC = () => {
                 !isSidebarOpen,
               )
             }
-            className="flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-500 transition-all cursor-pointer shadow-md shadow-indigo-600/20"
+            className="flex items-center gap-1.5 rounded-xl bg-blue-600 text-white hover:bg-blue-500 transition-all cursor-pointer shadow-md shadow-indigo-600/20"
           >
             {isSidebarOpen ? (
               <X className="h-4 w-4" />
@@ -2012,15 +2012,15 @@ export const CourseLearningPage: React.FC = () => {
       <div className="flex flex-1 overflow-hidden relative">
         {/* Left / Center Main Content */}
 
-        <main className="flex-1 overflow-y-auto bg-slate-950 p-4 md:p-6 scrollbar-thin scrollbar-thumb-slate-800">
+        <main className="flex-1 overflow-y-auto bg-[#f4f7fa] p-4 md:p-6 scrollbar-thin scrollbar-thumb-slate-800">
           <div className="mx-auto max-w-5xl space-y-6">
             {/* Main Workspace Container (Video or Speaking Assignment) */}
 
             <div
-              className={`relative w-full overflow-hidden rounded-2xl border border-slate-800/80 shadow-2xl group ${
+              className={`relative w-full overflow-hidden rounded-2xl border border-slate-200/80 shadow-2xl group ${
                 activeLesson?.lessonType?.toUpperCase() === 'ASSIGNMENT' ||
                 (!activeLesson?.videoUrl && activeLesson !== null)
-                  ? 'min-h-[550px] bg-slate-950'
+                  ? 'min-h-[550px] bg-[#f4f7fa]'
                   : 'aspect-video bg-black'
               }`}
             >
@@ -2038,23 +2038,23 @@ export const CourseLearningPage: React.FC = () => {
                   {/* Custom Completion Overlay */}
 
                   {isVideoEnded && (
-                    <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-950/95 backdrop-blur-md p-6 text-center animate-fadeIn">
+                    <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-[#f4f7fa]/95 backdrop-blur-md p-6 text-center animate-fadeIn">
                       <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 mb-4 shadow-lg shadow-emerald-500/20">
                         <CheckCircle2 className="h-8 w-8" />
                       </div>
 
-                      <h3 className="text-xl font-bold text-white">
+                      <h3 className="text-xl font-bold text-slate-900">
                         Bạn đã hoàn thành bài học này!
                       </h3>
 
-                      <p className="mt-1.5 text-xs text-slate-300 max-w-md line-clamp-2">
+                      <p className="mt-1.5 text-xs text-slate-600 max-w-md line-clamp-2">
                         {activeLesson?.title}
                       </p>
 
                       <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
                         <button
                           onClick={() => setIsVideoEnded(false)}
-                          className="inline-flex items-center gap-2 rounded-xl bg-slate-800 px-4 py-2.5 text-xs font-semibold text-slate-200 hover:bg-slate-700 hover:text-white transition-all cursor-pointer border border-slate-700"
+                          className="inline-flex items-center gap-2 rounded-xl bg-slate-800 px-4 py-2.5 text-xs font-semibold text-slate-200 hover:bg-slate-700 hover:text-slate-900 transition-all cursor-pointer border border-slate-700"
                         >
                           <RotateCcw className="h-4 w-4" />
                           Phát lại bài này
@@ -2067,7 +2067,7 @@ export const CourseLearningPage: React.FC = () => {
 
                               handleSelectLesson(nextLesson);
                             }}
-                            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-5 py-2.5 text-xs font-semibold text-white shadow-lg shadow-indigo-500/30 hover:from-indigo-500 hover:to-purple-500 active:scale-95 transition-all cursor-pointer"
+                            className="inline-flex items-center gap-2 rounded-xl bg-blue-600 text-white shadow-blue-500/30 hover:bg-blue-500 active:scale-95 transition-all cursor-pointer"
                           >
                             <span>
                               Bài tiếp theo: {nextLesson.title}
@@ -2136,15 +2136,15 @@ export const CourseLearningPage: React.FC = () => {
                     )
                   ) : (
                     <div className="flex h-full w-full flex-col items-center justify-center p-6 text-center bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900">
-                      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 mb-3">
+                      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-500/10 text-blue-600 border border-indigo-500/20 mb-3">
                         <Video className="h-8 w-8" />
                       </div>
 
-                      <h3 className="text-base font-bold text-white">
+                      <h3 className="text-base font-bold text-slate-900">
                         Chưa chọn hoặc chưa có Video bài học
                       </h3>
 
-                      <p className="mt-1 text-xs text-slate-400 max-w-sm">
+                      <p className="mt-1 text-xs text-slate-500 max-w-sm">
                         {activeLesson
                           ? 'Bài học này chưa được cập nhật liên kết Video. Vui lòng chọn bài học khác.'
                           : 'Vui lòng chọn bài học từ danh sách bên phải để bắt đầu xem video.'}
@@ -2157,7 +2157,7 @@ export const CourseLearningPage: React.FC = () => {
 
             {/* Navigation & Controls Bar */}
 
-            <div className="flex items-center justify-between rounded-2xl border border-slate-800/80 bg-slate-900/60 p-4 backdrop-blur-sm">
+            <div className="flex items-center justify-between rounded-2xl border border-slate-200/80 bg-white/60 p-4 backdrop-blur-sm">
               <button
                 disabled={!prevLesson}
                 onClick={() =>
@@ -2166,7 +2166,7 @@ export const CourseLearningPage: React.FC = () => {
                     prevLesson,
                   )
                 }
-                className="flex items-center gap-2 rounded-xl bg-slate-800/80 px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700 hover:text-white disabled:opacity-40 disabled:hover:bg-slate-800/80 transition-all cursor-pointer"
+                className="flex items-center gap-2 rounded-xl bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700 hover:text-slate-900 disabled:opacity-40 disabled:hover:bg-slate-50 transition-all cursor-pointer"
               >
                 <ChevronLeft className="h-4 w-4" />
 
@@ -2241,7 +2241,7 @@ export const CourseLearningPage: React.FC = () => {
                     nextLesson,
                   )
                 }
-                className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-500 disabled:opacity-40 disabled:hover:bg-indigo-600 transition-all cursor-pointer shadow-md shadow-indigo-600/20"
+                className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-slate-900 hover:bg-indigo-500 disabled:opacity-40 disabled:hover:bg-indigo-600 transition-all cursor-pointer shadow-md shadow-indigo-600/20"
               >
                 <span className="hidden sm:inline">
                   Bài tiếp:
@@ -2259,11 +2259,11 @@ export const CourseLearningPage: React.FC = () => {
 
             {/* Lesson Title & Info */}
 
-            <div className="rounded-2xl border border-slate-800/80 bg-slate-900/40 p-6 space-y-4">
+            <div className="rounded-2xl border border-slate-200/80 bg-white/40 p-6 space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <div className="flex items-center gap-2 mb-1.5">
-                    <span className="rounded-md bg-indigo-500/10 px-2 py-0.5 text-[11px] font-bold text-indigo-400 border border-indigo-500/20">
+                    <span className="rounded-md bg-indigo-500/10 px-2 py-0.5 text-[11px] font-bold text-blue-600 border border-indigo-500/20">
                       Bài #
                       {activeLesson?.orderIndex ??
                         (currentIndex >= 0
@@ -2278,7 +2278,7 @@ export const CourseLearningPage: React.FC = () => {
                       </span>
                     )}
 
-                    <span className="text-xs text-slate-400 flex items-center gap-1">
+                    <span className="text-xs text-slate-500 flex items-center gap-1">
                       <Clock className="h-3.5 w-3.5 text-slate-500" />
 
                       {activeLesson?.durationMinutes ??
@@ -2287,7 +2287,7 @@ export const CourseLearningPage: React.FC = () => {
                     </span>
                   </div>
 
-                  <h2 className="text-xl font-bold text-white tracking-tight">
+                  <h2 className="text-xl font-bold text-slate-900 tracking-tight">
                     {activeLesson?.title ??
                       'Bài học chưa có tiêu đề'}
                   </h2>
@@ -2300,7 +2300,7 @@ export const CourseLearningPage: React.FC = () => {
                     }
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-indigo-400 transition-colors"
+                    className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-blue-600 transition-colors"
                   >
                     <ExternalLink className="h-3.5 w-3.5" />
                     <span>
@@ -2312,7 +2312,7 @@ export const CourseLearningPage: React.FC = () => {
 
               {/* Tabs */}
 
-              <div className="border-b border-slate-800 flex items-center gap-6 text-xs font-semibold text-slate-400 pt-2">
+              <div className="border-b border-slate-200 flex items-center gap-6 text-xs font-semibold text-slate-500 pt-2">
                 <button
                   onClick={() =>
                     setActiveTab(
@@ -2322,7 +2322,7 @@ export const CourseLearningPage: React.FC = () => {
                   className={`pb-2.5 transition-colors relative cursor-pointer ${
                     activeTab ===
                     'overview'
-                      ? 'text-indigo-400 font-bold'
+                      ? 'text-blue-600 font-bold'
                       : 'hover:text-slate-200'
                   }`}
                 >
@@ -2343,7 +2343,7 @@ export const CourseLearningPage: React.FC = () => {
                   className={`pb-2.5 transition-colors relative cursor-pointer ${
                     activeTab ===
                     'notes'
-                      ? 'text-indigo-400 font-bold'
+                      ? 'text-blue-600 font-bold'
                       : 'hover:text-slate-200'
                   }`}
                 >
@@ -2364,7 +2364,7 @@ export const CourseLearningPage: React.FC = () => {
                   className={`pb-2.5 transition-colors relative cursor-pointer ${
                     activeTab ===
                     'discussion'
-                      ? 'text-indigo-400 font-bold'
+                      ? 'text-blue-600 font-bold'
                       : 'hover:text-slate-200'
                   }`}
                 >
@@ -2379,10 +2379,10 @@ export const CourseLearningPage: React.FC = () => {
 
               {/* Tab Content */}
 
-              <div className="pt-2 text-xs text-slate-300 leading-relaxed">
+              <div className="pt-2 text-xs text-slate-600 leading-relaxed">
                 {activeTab ===
                   'overview' && (
-                  <p className="whitespace-pre-line text-slate-300">
+                  <p className="whitespace-pre-line text-slate-600">
                     {activeLesson?.description ||
                       'Bài học này chưa có nội dung mô tả chi tiết.'}
                   </p>
@@ -2391,12 +2391,12 @@ export const CourseLearningPage: React.FC = () => {
                 {activeTab ===
                   'notes' && (
                   <div className="space-y-3">
-                    <p className="text-slate-400">
+                    <p className="text-slate-500">
                       Các tài liệu đính kèm hoặc ghi chú quan trọng cho bài học này:
                     </p>
 
-                    <div className="flex items-center gap-3 rounded-xl bg-slate-900 p-3 border border-slate-800">
-                      <FileText className="h-5 w-5 text-indigo-400" />
+                    <div className="flex items-center gap-3 rounded-xl bg-white p-3 border border-slate-200">
+                      <FileText className="h-5 w-5 text-blue-600" />
 
                       <div>
                         <p className="font-semibold text-slate-200">
@@ -2416,17 +2416,17 @@ export const CourseLearningPage: React.FC = () => {
                 {activeTab ===
                   'discussion' && (
                   <div className="space-y-3">
-                    <p className="text-slate-400">
+                    <p className="text-slate-500">
                       Bình luận và trao đổi ý kiến với học viên & giảng viên:
                     </p>
 
-                    <div className="flex items-center gap-3 rounded-xl bg-slate-900 p-3 border border-slate-800">
-                      <MessageSquare className="h-5 w-5 text-indigo-400" />
+                    <div className="flex items-center gap-3 rounded-xl bg-white p-3 border border-slate-200">
+                      <MessageSquare className="h-5 w-5 text-blue-600" />
 
                       <input
                         type="text"
                         placeholder="Viết câu hỏi hoặc nhận xét của bạn..."
-                        className="w-full bg-transparent text-xs text-white outline-none placeholder:text-slate-500"
+                        className="w-full bg-transparent text-xs text-slate-900 outline-none placeholder:text-slate-500"
                       />
                     </div>
                   </div>
@@ -2439,15 +2439,15 @@ export const CourseLearningPage: React.FC = () => {
         {/* ── Right Sidebar Playlist ───────────────────────────────────── */}
 
         {isSidebarOpen && (
-          <aside className="w-80 shrink-0 border-l border-slate-800/80 bg-slate-900/90 flex flex-col h-full z-20 transition-all duration-300">
-            <div className="p-4 border-b border-slate-800/80 flex items-center justify-between">
+          <aside className="w-80 shrink-0 border-l border-blue-200 bg-blue-50/80 flex flex-col h-full z-20 transition-all duration-300">
+            <div className="p-4 border-b border-blue-200 flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <BookOpen className="h-4 w-4 text-indigo-400" />
+                <h3 className="text-sm font-bold text-blue-950 flex items-center gap-2">
+                  <BookOpen className="h-4 w-4 text-blue-600" />
                   Lộ trình học tập
                 </h3>
 
-                <p className="text-[11px] text-slate-400 mt-0.5">
+                <p className="text-[11px] text-blue-600/70 mt-0.5">
                   {completedLessonIds.length}/
                   {totalLessonCount}{' '}
                   bài đã xem
@@ -2483,7 +2483,7 @@ export const CourseLearningPage: React.FC = () => {
                           key={
                             mod.moduleId
                           }
-                          className="rounded-xl border border-slate-800/80 overflow-hidden bg-slate-950/50"
+                          className="rounded-xl border border-blue-200 overflow-hidden bg-white/60"
                         >
                           {/* Module Header */}
 
@@ -2493,12 +2493,12 @@ export const CourseLearningPage: React.FC = () => {
                                 mod.moduleId,
                               )
                             }
-                            className="w-full flex items-center justify-between p-3 bg-slate-900/80 hover:bg-slate-800/80 text-left transition-colors cursor-pointer"
+                            className="w-full flex items-center justify-between p-3 bg-white/80 hover:bg-blue-100/50 text-left transition-colors cursor-pointer"
                           >
                             <div className="flex items-center gap-2 min-w-0 pr-2">
-                              <Layers className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
+                              <Layers className="h-3.5 w-3.5 text-blue-600 shrink-0" />
 
-                              <span className="text-xs font-bold text-slate-200 truncate">
+                              <span className="text-xs font-bold text-blue-950 truncate">
                                 Chương{' '}
                                 {
                                   mod.orderIndex
@@ -2508,8 +2508,8 @@ export const CourseLearningPage: React.FC = () => {
                               </span>
                             </div>
 
-                            <div className="flex items-center gap-1 shrink-0 text-slate-400">
-                              <span className="text-[10px] bg-slate-800 px-1.5 py-0.5 rounded font-medium">
+                            <div className="flex items-center gap-1 shrink-0 text-slate-500">
+                              <span className="text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded font-medium">
                                 {
                                   modLessons.length
                                 }
@@ -2562,15 +2562,15 @@ export const CourseLearningPage: React.FC = () => {
                                           }
                                           className={`w-full flex items-start gap-2.5 p-2.5 rounded-lg text-left text-xs transition-all cursor-pointer ${
                                             isActive
-                                              ? 'bg-indigo-600/25 border border-indigo-500/40 text-white shadow-md'
-                                              : 'hover:bg-slate-800/60 text-slate-300 border border-transparent'
+                                              ? 'bg-blue-600/15 border border-blue-500/40 text-blue-900 shadow-sm'
+                                              : 'hover:bg-white border border-transparent text-slate-700'
                                           }`}
                                         >
                                           <div className="shrink-0 mt-0.5">
                                             {isCompleted ? (
                                               <CheckCircle2 className="h-4 w-4 text-emerald-400" />
                                             ) : isActive ? (
-                                              <PlayCircle className="h-4 w-4 text-indigo-400 animate-pulse" />
+                                              <PlayCircle className="h-4 w-4 text-blue-600 animate-pulse" />
                                             ) : (
                                               <span className="flex h-4 w-4 items-center justify-center text-[10px] font-bold text-slate-500">
                                                 #
@@ -2585,8 +2585,8 @@ export const CourseLearningPage: React.FC = () => {
                                             <p
                                               className={`font-semibold line-clamp-2 ${
                                                 isActive
-                                                  ? 'text-indigo-300'
-                                                  : 'text-slate-200'
+                                                  ? 'text-blue-700'
+                                                  : 'text-slate-700'
                                               }`}
                                             >
                                               {
@@ -2594,7 +2594,7 @@ export const CourseLearningPage: React.FC = () => {
                                               }
                                             </p>
 
-                                            <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-400">
+                                            <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-500">
                                               <span className="flex items-center gap-1">
                                                 <Clock className="h-3 w-3" />
 
@@ -2634,8 +2634,8 @@ export const CourseLearningPage: React.FC = () => {
 
                   {unassignedLessons.length >
                     0 && (
-                    <div className="rounded-xl border border-slate-800/80 overflow-hidden bg-slate-950/50">
-                      <div className="p-3 bg-slate-900/80 text-xs font-bold text-amber-400 flex items-center justify-between">
+                    <div className="rounded-xl border border-slate-200/80 overflow-hidden bg-[#f4f7fa]/50">
+                      <div className="p-3 bg-white/80 text-xs font-bold text-amber-400 flex items-center justify-between">
                         <span>
                           Bài học tự do (
                           {
@@ -2673,8 +2673,8 @@ export const CourseLearningPage: React.FC = () => {
                                   }
                                   className={`w-full flex items-start gap-2.5 p-2.5 rounded-lg text-left text-xs transition-all cursor-pointer ${
                                     isActive
-                                      ? 'bg-amber-600/25 border border-amber-500/40 text-white shadow-md'
-                                      : 'hover:bg-slate-800/60 text-slate-300 border border-transparent'
+                                      ? 'bg-amber-600/25 border border-amber-500/40 text-slate-900 shadow-md'
+                                      : 'hover:bg-slate-800/60 text-slate-600 border border-transparent'
                                   }`}
                                 >
                                   <div className="shrink-0 mt-0.5">
@@ -2705,7 +2705,7 @@ export const CourseLearningPage: React.FC = () => {
                                       }
                                     </p>
 
-                                    <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-400">
+                                    <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-500">
                                       <span>
                                         {
                                           lesson.durationMinutes
@@ -2755,8 +2755,8 @@ export const CourseLearningPage: React.FC = () => {
                               onClick={() => handleSelectLesson(lesson)}
                               className={`w-full flex items-center justify-between p-2.5 rounded-lg text-left text-xs transition-all cursor-pointer ${
                                 isActive
-                                  ? 'bg-purple-600/40 border border-purple-400 text-white shadow-md'
-                                  : 'bg-slate-900/80 hover:bg-slate-800 text-slate-200 border border-purple-500/20'
+                                  ? 'bg-purple-600/40 border border-purple-400 text-slate-900 shadow-md'
+                                  : 'bg-white/80 hover:bg-slate-800 text-slate-200 border border-purple-500/20'
                               }`}
                             >
                               <div className="flex items-center gap-2 min-w-0">
@@ -2796,11 +2796,11 @@ export const CourseLearningPage: React.FC = () => {
                             Quiz tổng hợp khóa học
                           </p>
 
-                          <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
+                          <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
                             Kiểm tra tổng hợp kiến thức của toàn bộ khóa học.
                           </p>
 
-                          <div className="mt-2 flex items-center gap-2 text-[10px] text-slate-400">
+                          <div className="mt-2 flex items-center gap-2 text-[10px] text-slate-500">
                             <span>
                               {
                                 overallQuiz.questionCount ??
@@ -2839,7 +2839,7 @@ export const CourseLearningPage: React.FC = () => {
                                 activeLesson?.lessonId,
                               )
                             }
-                            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-3 py-2 text-[11px] font-bold text-white shadow-lg shadow-violet-600/20 transition-all hover:bg-violet-500 active:scale-[0.98]"
+                            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-3 py-2 text-[11px] font-bold text-slate-900 shadow-lg shadow-violet-600/20 transition-all hover:bg-violet-500 active:scale-[0.98]"
                           >
                             <ClipboardList className="h-3.5 w-3.5" />
 
@@ -2880,8 +2880,8 @@ export const CourseLearningPage: React.FC = () => {
                           }
                           className={`w-full flex items-start gap-3 p-3 rounded-xl text-left text-xs transition-all cursor-pointer ${
                             isActive
-                              ? 'bg-indigo-600/20 border border-indigo-500/40 text-white shadow-md'
-                              : 'hover:bg-slate-800/60 text-slate-300 border border-transparent'
+                              ? 'bg-indigo-600/20 border border-indigo-500/40 text-slate-900 shadow-md'
+                              : 'hover:bg-slate-800/60 text-slate-600 border border-transparent'
                           }`}
                         >
                           <div className="shrink-0 mt-0.5">

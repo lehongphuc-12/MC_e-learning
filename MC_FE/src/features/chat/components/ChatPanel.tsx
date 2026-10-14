@@ -135,13 +135,16 @@ export function ChatPanel({ onClose, calls, initialConversation, onClearTarget }
     requestAnimationFrame(() => scrollToBottom("smooth"));
   }, [chat.typingUserId]);
 
+  const lastInitialConversationIdRef = useRef<number | null>(null);
+
   useEffect(() => {
-    if (initialConversation) {
+    if (chat.initialized && initialConversation && initialConversation.conversationId !== lastInitialConversationIdRef.current) {
+      lastInitialConversationIdRef.current = initialConversation.conversationId;
       void chat.openConversation(initialConversation).finally(() => {
         onClearTarget?.();
       });
     }
-  }, [initialConversation, chat, onClearTarget]);
+  }, [initialConversation, chat.openConversation, chat.initialized]);
 
   const selectConversation = async (conversation: Conversation) => {
     setReply(null);

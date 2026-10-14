@@ -12,84 +12,80 @@ namespace MC_BE.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.Sql("""
+                CREATE INDEX IF NOT EXISTS "IX_forum_comments_AuthorID"
+                ON forum_comments ("AuthorID");
+            """);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_forum_comments_AuthorID",
-                table: "forum_comments",
-                column: "AuthorID");
+            migrationBuilder.Sql("""
+                CREATE INDEX IF NOT EXISTS "IX_forum_comments_ParentCommentID"
+                ON forum_comments ("ParentCommentID");
+            """);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_forum_comments_ParentCommentID",
-                table: "forum_comments",
-                column: "ParentCommentID");
+            migrationBuilder.Sql("""
+                CREATE INDEX IF NOT EXISTS "IX_forum_comments_PostID"
+                ON forum_comments ("PostID");
+            """);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_forum_comments_PostID",
-                table: "forum_comments",
-                column: "PostID");
+            migrationBuilder.Sql("""
+                CREATE INDEX IF NOT EXISTS "IX_forum_comments_Status"
+                ON forum_comments ("Status");
+            """);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_forum_comments_Status",
-                table: "forum_comments",
-                column: "Status");
+            migrationBuilder.Sql("""
+                CREATE INDEX IF NOT EXISTS "IX_forum_posts_AuthorID"
+                ON forum_posts ("AuthorID");
+            """);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_forum_posts_AuthorID",
-                table: "forum_posts",
-                column: "AuthorID");
+            migrationBuilder.Sql("""
+                CREATE INDEX IF NOT EXISTS "IX_forum_posts_Status"
+                ON forum_posts ("Status");
+            """);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_forum_posts_Status",
-                table: "forum_posts",
-                column: "Status");
+            migrationBuilder.Sql("""
+                CREATE INDEX IF NOT EXISTS "IX_forum_posts_TopicID"
+                ON forum_posts ("TopicID");
+            """);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_forum_posts_TopicID",
-                table: "forum_posts",
-                column: "TopicID");
+            migrationBuilder.Sql("""
+                CREATE INDEX IF NOT EXISTS "IX_forum_reactions_CommentID"
+                ON forum_reactions ("CommentID");
+            """);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_forum_reactions_CommentID",
-                table: "forum_reactions",
-                column: "CommentID");
+            migrationBuilder.Sql("""
+                CREATE INDEX IF NOT EXISTS "IX_forum_reactions_PostID"
+                ON forum_reactions ("PostID");
+            """);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_forum_reactions_PostID",
-                table: "forum_reactions",
-                column: "PostID");
+            migrationBuilder.Sql("""
+                CREATE UNIQUE INDEX IF NOT EXISTS "IX_forum_reactions_UserID_TargetType_PostID_CommentID"
+                ON forum_reactions ("UserID", "TargetType", "PostID", "CommentID");
+            """);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_forum_reactions_UserID_TargetType_PostID_CommentID",
-                table: "forum_reactions",
-                columns: new[] { "UserID", "TargetType", "PostID", "CommentID" },
-                unique: true);
+            migrationBuilder.Sql("""
+                CREATE INDEX IF NOT EXISTS "IX_forum_reports_CommentID"
+                ON forum_reports ("CommentID");
+            """);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_forum_reports_CommentID",
-                table: "forum_reports",
-                column: "CommentID");
+            migrationBuilder.Sql("""
+                CREATE INDEX IF NOT EXISTS "IX_forum_reports_PostID"
+                ON forum_reports ("PostID");
+            """);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_forum_reports_PostID",
-                table: "forum_reports",
-                column: "PostID");
+            migrationBuilder.Sql("""
+                CREATE UNIQUE INDEX IF NOT EXISTS "IX_forum_reports_ReporterID_TargetType_PostID_CommentID"
+                ON forum_reports ("ReporterID", "TargetType", "PostID", "CommentID");
+            """);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_forum_reports_ReporterID_TargetType_PostID_CommentID",
-                table: "forum_reports",
-                columns: new[] { "ReporterID", "TargetType", "PostID", "CommentID" },
-                unique: true);
+            migrationBuilder.Sql("""
+                CREATE INDEX IF NOT EXISTS "IX_forum_reports_ResolvedByID"
+                ON forum_reports ("ResolvedByID");
+            """);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_forum_reports_ResolvedByID",
-                table: "forum_reports",
-                column: "ResolvedByID");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_forum_topics_Slug",
-                table: "forum_topics",
-                column: "Slug",
-                unique: true);
+            migrationBuilder.Sql("""
+                CREATE UNIQUE INDEX IF NOT EXISTS "IX_forum_topics_Slug"
+                ON forum_topics ("Slug");
+            """);
         }
 
         /// <inheritdoc />
