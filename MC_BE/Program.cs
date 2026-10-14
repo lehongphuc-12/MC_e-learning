@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -51,6 +51,23 @@ using MC_BE.Features.Forum.Services.Interfaces;
 var builder = WebApplication.CreateBuilder(args);
 
 // ============================================================
+// KESTREL — allow large file uploads (max 500 MB for video)
+// ============================================================
+
+builder.WebHost.ConfigureKestrel(options =>
+{
+    // Per-request limit; individual endpoints can be lower via [RequestSizeLimit]
+    options.Limits.MaxRequestBodySize = 500L * 1024L * 1024L; // 500 MB
+});
+
+builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
+{
+    options.ValueLengthLimit = int.MaxValue;
+    options.MultipartBodyLengthLimit = 500L * 1024L * 1024L; // 500 MB
+    options.MultipartHeadersLengthLimit = int.MaxValue;
+});
+
+// ============================================================
 // DATABASE
 // ============================================================
 
@@ -66,6 +83,8 @@ builder.Services.AddDbContext<SmartMcDbContext>(options =>
 builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection("Cloudinary"));
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
 builder.Services.Configure<PayOsSettings>(builder.Configuration.GetSection("PayOS"));
+builder.Services.Configure<R2Settings>(builder.Configuration.GetSection("CloudflareR2"));
+
 // ============================================================
 // CORS
 // ============================================================
@@ -146,6 +165,8 @@ builder.Services.AddScoped<IAdminForumService, AdminForumService>();
 
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
+builder.Services.AddScoped<IR2StorageService, R2StorageService>();
+
 
 // ============================================================
 // ENROLLMENT / PAYMENT
@@ -287,58 +308,74 @@ app.UseMiddleware<GlobalExceptionMiddleware>();
 // ============================================================
 // DATABASE MIGRATION + SEED ROLES
 // ============================================================
-
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<SmartMcDbContext>();
-
     try
     {
-        Console.WriteLine("====================================");
-        Console.WriteLine("Running database migrations...");
-
-        context.Database.Migrate();
-
-        Console.WriteLine("Database migration completed.");
-        if (!context.Roles.Any())
-        {
-            Console.WriteLine("Seeding default roles...");
-
-            context.Roles.AddRange(
-                new Role
-                {
-                    RoleName = "Learner",
-                    Description = "Student user who consumes learning materials."
-                },
-                new Role
-                {
-                    RoleName = "Instructor",
-                    Description = "Teacher user who teaches classes and uploads materials."
-                },
-                new Role
-                {
-                    RoleName = "Admin",
-                    Description = "Administrator user with system-wide permissions."
-                }
-            );
-
-            context.SaveChanges();
-            Console.WriteLine("Default roles seeded.");
-        }
-
-        Console.WriteLine("Database initialization completed.");
-        Console.WriteLine("====================================");
+        // Execute DDL to patch existing Postgres table column types if needed
+        context.Database.ExecuteSqlRaw(@"
+            ALTER TABLE course_materials ALTER COLUMN ""FileUrl"" TYPE text;
+            ALTER TABLE course_materials ALTER COLUMN ""Title"" TYPE character varying(500);
+        ");
     }
     catch (Exception ex)
     {
-        Console.WriteLine("====================================");
-        Console.WriteLine("DATABASE INITIALIZATION ERROR");
-        Console.WriteLine("====================================");
-        Console.WriteLine(ex);
-        Console.WriteLine("====================================");
-        throw;
+        Console.WriteLine($"Database column patch notice: {ex.Message}");
     }
 }
+
+//using (var scope = app.Services.CreateScope())
+//{
+//    var context = scope.ServiceProvider.GetRequiredService<SmartMcDbContext>();
+
+//    try
+//    {
+//        Console.WriteLine("====================================");
+//        Console.WriteLine("Running database migrations...");
+
+//        context.Database.Migrate();
+
+//        Console.WriteLine("Database migration completed.");
+//        if (!context.Roles.Any())
+//        {
+//            Console.WriteLine("Seeding default roles...");
+
+//            context.Roles.AddRange(
+//                new Role
+//                {
+//                    RoleName = "Learner",
+//                    Description = "Student user who consumes learning materials."
+//                },
+//                new Role
+//                {
+//                    RoleName = "Instructor",
+//                    Description = "Teacher user who teaches classes and uploads materials."
+//                },
+//                new Role
+//                {
+//                    RoleName = "Admin",
+//                    Description = "Administrator user with system-wide permissions."
+//                }
+//            );
+
+//            context.SaveChanges();
+//            Console.WriteLine("Default roles seeded.");
+//        }
+
+//        Console.WriteLine("Database initialization completed.");
+//        Console.WriteLine("====================================");
+//    }
+//    catch (Exception ex)
+//    {
+//        Console.WriteLine("====================================");
+//        Console.WriteLine("DATABASE INITIALIZATION ERROR");
+//        Console.WriteLine("====================================");
+//        Console.WriteLine(ex);
+//        Console.WriteLine("====================================");
+//        throw;
+//    }
+//}
 
 // ============================================================
 // HTTP PIPELINE

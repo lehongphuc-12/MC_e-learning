@@ -2,7 +2,7 @@ import React from 'react';
 import { Route } from 'react-router-dom';
 import { ScreenType, User } from '../../types';
 import { CreateQuizPage } from './pages/CreateQuizPage';
-import { UpdateQuizPage } from './pages/UpdateQuizPage';
+import { EditQuizPage } from './pages/EditQuizPage';
 import { TakeQuizPage } from './pages/TakeQuizPage';
 import { QuizResultPage } from './pages/QuizResultPage';
 import { QuizDetailPage } from './pages/QuizDetailPage';
@@ -44,6 +44,7 @@ export const renderQuizRoutes = ({
           </ProtectedRoute>
         }
       />
+
       <Route
         path="/instructor/quizzes/:id/edit"
         element={
@@ -54,10 +55,11 @@ export const renderQuizRoutes = ({
             onNavigate={onNavigate}
             onToast={onToast}
           >
-            {withInstructorLayout(<UpdateQuizPage onToast={onToast} />)}
+            {withInstructorLayout(<EditQuizPage onToast={onToast} />)}
           </ProtectedRoute>
         }
       />
+
       <Route
         path="/instructor/quizzes/:id"
         element={
@@ -72,6 +74,7 @@ export const renderQuizRoutes = ({
           </ProtectedRoute>
         }
       />
+
       <Route
         path="/instructor/courses/:courseId/quizzes"
         element={
@@ -102,6 +105,7 @@ export const renderQuizRoutes = ({
           </ProtectedRoute>
         }
       />
+
       <Route
         path="/quizzes/:quizId/result/:attemptId"
         element={

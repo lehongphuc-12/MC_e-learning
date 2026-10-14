@@ -21,9 +21,6 @@ public class Enrollment
     [Column("CourseID")]
     public int CourseId { get; set; }
 
-    [Column("PaymentID")]
-    public int? PaymentId { get; set; }
-
     [Required]
     [MaxLength(50)]
     [Column("Status")]
@@ -44,15 +41,13 @@ public class Enrollment
     [Column("UpdatedAt")]
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-    // Navigation properties
     [ForeignKey(nameof(LearnerId))]
     public virtual User Learner { get; set; } = null!;
 
     [ForeignKey(nameof(CourseId))]
     public virtual Course Course { get; set; } = null!;
 
-    [ForeignKey(nameof(PaymentId))]
-    public virtual Payment? Payment { get; set; }
+    public virtual ICollection<PaymentItem> PaymentItems { get; set; } = new List<PaymentItem>();
 
     public virtual ICollection<LessonProgress> LessonProgresses { get; set; } = new List<LessonProgress>();
 }

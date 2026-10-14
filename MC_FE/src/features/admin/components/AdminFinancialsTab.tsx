@@ -642,8 +642,8 @@ export const AdminFinancialsTab: React.FC<AdminFinancialsTabProps> = ({
                         <td className="px-6 py-4 font-mono font-bold text-blue-400">
                           {p.merchantTxnRef}
                           <div className="text-[10px] font-normal text-slate-500">
-                            VNPay No: {p.vnPayTransactionNo || 'Chưa có'}
-                          </div>
+  payOS Ref: {p.latestTransaction?.providerTransactionNo || 'Chưa có'}
+</div>
                         </td>
                         <td className="px-6 py-4">
                           <div className="font-semibold text-white">{p.learnerName}</div>
@@ -888,13 +888,13 @@ export const AdminFinancialsTab: React.FC<AdminFinancialsTabProps> = ({
                   ),
                 },
                 {
-                  label: 'Mã VNPay',
-                  node: (
-                    <span className="font-mono text-slate-300">
-                      {selectedPayment.vnPayTransactionNo || 'Chưa có'}
-                    </span>
-                  ),
-                },
+  label: 'Mã giao dịch payOS',
+  node: (
+    <span className="font-mono text-slate-300">
+      {selectedPayment.latestTransaction?.providerTransactionNo || 'Chưa có'}
+    </span>
+  ),
+},
                 {
                   label: 'Trạng thái ghi danh',
                   node: (
@@ -956,21 +956,25 @@ export const AdminFinancialsTab: React.FC<AdminFinancialsTabProps> = ({
               </div>
 
               <div className="flex items-center justify-between gap-3">
-                <span className="text-slate-400">VNPay thành công</span>
+                <span className="text-slate-400">payOS thành công</span>
                 <span className={`font-bold ${verifyModal.isSuccess ? 'text-emerald-400' : 'text-amber-400'}`}>
                   {verifyModal.isSuccess ? 'Có' : 'Chưa'}
                 </span>
               </div>
 
               <div className="flex items-center justify-between gap-3">
-                <span className="text-slate-400">Trạng thái giao dịch</span>
-                <span className="font-bold text-slate-200">{verifyModal.transactionStatus || 'N/A'}</span>
-              </div>
+              <span className="text-slate-400">Trạng thái payOS</span>
+              <span className="font-semibold text-white">
+    {verifyModal.payOs?.status || 'N/A'}
+  </span>
+</div>
 
               <div className="flex items-center justify-between gap-3">
-                <span className="text-slate-400">Mã VNPay</span>
-                <span className="font-mono text-slate-300">{verifyModal.vnPay?.transactionNo || 'N/A'}</span>
-              </div>
+  <span className="text-slate-400">Mã giao dịch payOS</span>
+  <span className="font-mono text-slate-300">
+    {verifyModal.payOs?.reference || 'N/A'}
+  </span>
+</div>
 
               {verifyModal.issues && verifyModal.issues.length > 0 && (
                 <div className="mt-1 border-t border-slate-800 pt-2">

@@ -2,6 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 
+import { authApi } from './features/auth/api/authApi';
+import { paymentApi } from './features/payment/api/paymentApi';
+import { ChatWidget } from './features/chat/components/ChatWidget';
+
 import { Course, User } from './types';
 import { mockCourses } from './data/mockData';
 
@@ -10,9 +14,6 @@ import { Toast } from './components/common/Toast';
 import { CartDrawer } from './components/modals/CartDrawer';
 import { CheckoutModal } from './components/modals/CheckoutModal';
 import { VideoPreviewModal } from './components/modals/VideoPreviewModal';
-
-import { authApi } from './features/auth/api/authApi';
-import { ChatWidget } from './features/chat/components/ChatWidget';
 
 import { useAppStore } from './hooks/useAppStore';
 import { useAuth } from './hooks/useAuth';
@@ -47,6 +48,9 @@ export default function App() {
   const [searchQuery, setSearchQuery] =
     useState<string>('');
 
+  const [isCartCheckingOut, setIsCartCheckingOut] =
+    useState(false);
+
   // ============================================================
   // HOOKS
   // ============================================================
@@ -58,7 +62,12 @@ export default function App() {
     logout: authLogout,
   } = useAuth();
 
-  const store = useAppStore();
+  // QUAN TRỌNG:
+  // Truyền user vào store để Cart biết:
+  // - đang guest hay đã login
+  // - cart thuộc account nào
+  // - có cần sync Enrollment hay không
+  const store = useAppStore(user);
 
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -143,13 +152,192 @@ export default function App() {
   };
 
   // ============================================================
-  // CHECKOUT
+  // CART CHECKOUT
   // ============================================================
 
-  const handleCheckoutSuccess = (
+  const handleCartCheckout = async (
+    courses: Course[]
+  ) => {
+    if (
+      courses.length === 0 ||
+      isCartCheckingOut
+    ) {
+      return;
+    }
+
+    if (!user) {
+      store.showToast(
+        'Login Required',
+        'Please login before checking out your cart.',
+        'info'
+      );
+
+      navigate('/login');
+      return;
+    }
+
+    setIsCartCheckingOut(true);
+
+    try {
+      const enrollmentIds: number[] = [];
+      const checkoutCourseIds: string[] = [];
+
+      for (const course of courses) {
+        const courseId = Number(course.id);
+
+        if (
+          !Number.isInteger(courseId) ||
+          courseId <= 0
+        ) {
+          throw new Error(
+            `Invalid course ID: ${course.id}`
+          );
+        }
+
+        const enrollmentResult =
+          await paymentApi.enrollCourse(
+            courseId
+          );
+
+        if (
+          !enrollmentResult.success ||
+          !enrollmentResult.data
+        ) {
+          throw new Error(
+            enrollmentResult.message ||
+              `Unable to enroll in ${course.title}.`
+          );
+        }
+
+        const enrollment =
+          enrollmentResult.data;
+
+        if (
+          enrollment.status === 'ACTIVE'
+        ) {
+          store.handleRemoveFromCart(
+            course.id
+          );
+          continue;
+        }
+
+        if (
+          enrollment.status !==
+          'PENDING_PAYMENT'
+        ) {
+          throw new Error(
+            `Course "${course.title}" cannot be checked out because enrollment status is ${enrollment.status}.`
+          );
+        }
+
+        enrollmentIds.push(
+          enrollment.enrollmentId
+        );
+
+        checkoutCourseIds.push(
+          course.id
+        );
+      }
+
+      if (enrollmentIds.length === 0) {
+        store.showToast(
+          'Already Enrolled',
+          'All courses in your cart are already available in your account.',
+          'info'
+        );
+
+        return;
+      }
+
+      const paymentResult =
+        await paymentApi.createCartPayment(
+          enrollmentIds
+        );
+
+      if (
+        !paymentResult.success ||
+        !paymentResult.data
+      ) {
+        throw new Error(
+          paymentResult.message ||
+            'Unable to create cart payment.'
+        );
+      }
+
+      const payment =
+        paymentResult.data;
+
+      if (!payment.paymentUrl) {
+        throw new Error(
+          'PayOS did not return a payment URL.'
+        );
+      }
+
+      sessionStorage.setItem(
+        'mseek_active_payment_id',
+        String(payment.paymentId)
+      );
+
+      if (
+        checkoutCourseIds.length === 1
+      ) {
+        sessionStorage.setItem(
+          'mseek_active_payment_course_id',
+          checkoutCourseIds[0]
+        );
+      } else {
+        sessionStorage.removeItem(
+          'mseek_active_payment_course_id'
+        );
+      }
+
+      sessionStorage.setItem(
+        'mseek_active_payment_course_ids',
+        JSON.stringify(
+          checkoutCourseIds
+        )
+      );
+
+      window.location.href =
+        payment.paymentUrl;
+    } catch (error) {
+      console.error(
+        'Cart checkout failed:',
+        error
+      );
+
+      store.showToast(
+        'Checkout Failed',
+        error instanceof Error
+          ? error.message
+          : 'Unable to process your cart checkout.',
+        'error'
+      );
+    } finally {
+      setIsCartCheckingOut(false);
+    }
+  };
+
+  // ============================================================
+  // CHECKOUT SUCCESS
+  //
+  // Sau khi Enrollment/Payment thành công:
+  // 1. remove course khỏi cart
+  // 2. sync lại Enrollment thật từ backend
+  // 3. invalidate query liên quan course/enrollment
+  // 4. thông báo thành công
+  // 5. chuyển tới course
+  // ============================================================
+
+  const handleCheckoutSuccess = async (
     course: Course
   ) => {
     store.handleRemoveFromCart(course.id);
+
+    await store.syncEnrollments();
+
+    // Đảm bảo các màn hình dùng React Query không giữ dữ liệu cũ.
+    await queryClient.invalidateQueries();
 
     store.showToast(
       'Enrollment Confirmed!',
@@ -219,6 +407,13 @@ export default function App() {
 
   // ============================================================
   // LOGOUT
+  //
+  // Cart của user KHÔNG bị xóa khỏi localStorage.
+  // useAppStore sẽ tự chuyển về guest cart sau khi user = null.
+  //
+  // Như vậy:
+  // Account A logout -> cart A vẫn được lưu.
+  // Account B login -> chỉ thấy cart B.
   // ============================================================
 
   const handleLogout = async () => {
@@ -325,6 +520,15 @@ export default function App() {
         onOpenCart={() =>
           store.setIsCartOpen(true)
         }
+        isCourseInCart={
+          store.isCourseInCart
+        }
+        isCourseEnrolled={
+          store.isCourseEnrolled
+        }
+        isCoursePendingPayment={
+          store.isCoursePendingPayment
+        }
       />
 
       {/* ======================================================
@@ -350,19 +554,9 @@ export default function App() {
         onRemoveItem={
           store.handleRemoveFromCart
         }
-        onCheckout={() => {
-          if (
-            store.cartItems.length === 0
-          ) {
-            return;
-          }
-
-          store.setCheckoutModalCourse(
-            store.cartItems[0]
-          );
-
-          store.setIsCartOpen(false);
-        }}
+        onCheckoutAll={
+          handleCartCheckout
+        }
         onNavigateToCourse={
           handleSelectCourse
         }

@@ -30,10 +30,9 @@ public class EnrollmentController : ControllerBase
         var userId = int.Parse(_currentUserService.GetUserId());
 
         var response = await _enrollmentService.EnrollCourseAsync(userId, courseId);
+
         if (!response.Success)
-        {
             return BadRequest(response);
-        }
 
         return Ok(response);
     }
@@ -41,20 +40,24 @@ public class EnrollmentController : ControllerBase
     [HttpGet("me")]
     public async Task<ActionResult<ApiResponse<List<EnrollmentDto>>>> GetMyEnrollments()
     {
+        _currentUserService.RequireLearner();
         var userId = int.Parse(_currentUserService.GetUserId());
+
         var response = await _enrollmentService.GetMyEnrollmentsAsync(userId);
+
         return Ok(response);
     }
 
     [HttpDelete("{enrollmentId:int}")]
     public async Task<ActionResult<ApiResponse<bool>>> CancelPendingEnrollment(int enrollmentId)
     {
+        _currentUserService.RequireLearner();
         var userId = int.Parse(_currentUserService.GetUserId());
+
         var response = await _enrollmentService.CancelPendingEnrollmentAsync(userId, enrollmentId);
+
         if (!response.Success)
-        {
             return BadRequest(response);
-        }
 
         return Ok(response);
     }

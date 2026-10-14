@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -38,21 +37,13 @@ public class CourseCatalogService : ICourseCatalogService
 
     public async Task<CoursePaymentDto?> GetCourseByIdAsync(int courseId)
     {
-        // 1. Tìm chính xác theo CourseId
+        if (courseId <= 0) return null;
+
         var course = await _context.Courses
             .AsNoTracking()
             .FirstOrDefaultAsync(c => c.CourseId == courseId);
 
-        // 2. Nếu không tìm thấy ID khớp (ví dụ DB tạo khóa bắt đầu từ 2, 3...), lấy khóa đầu tiên làm fallback để tránh crash 500
-        if (course == null)
-        {
-            course = await _context.Courses
-                .AsNoTracking()
-                .FirstOrDefaultAsync(c => c.Status == CourseStatus.PUBLISHED) 
-                ?? await _context.Courses.AsNoTracking().FirstOrDefaultAsync();
-
-            if (course == null) return null;
-        }
+        if (course == null) return null;
 
         return new CoursePaymentDto
         {

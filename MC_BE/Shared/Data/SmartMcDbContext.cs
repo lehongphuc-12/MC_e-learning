@@ -51,17 +51,36 @@ public class SmartMcDbContext : DbContext
     // ============================================================
 
     public DbSet<Payment> Payments { get; set; } = null!;
-    public DbSet<PaymentTransaction> PaymentTransactions { get; set; } = null!;
+public DbSet<PaymentItem> PaymentItems { get; set; } = null!;
+public DbSet<PaymentTransaction> PaymentTransactions { get; set; } = null!;
 
     // ============================================================
-    // Section 4: Quiz & Assessment
-    // ============================================================
+// Section 4: Quiz & Assessment
+// ============================================================
 
-    public DbSet<Quiz> Quizzes { get; set; } = null!;
-    public DbSet<Question> Questions { get; set; } = null!;
-    public DbSet<Choice> Choices { get; set; } = null!;
-    public DbSet<QuizAttempt> QuizAttempts { get; set; } = null!;
-    public DbSet<QuizAnswer> QuizAnswers { get; set; } = null!;
+public DbSet<Quiz> Quizzes { get; set; } = null!;
+public DbSet<Question> Questions { get; set; } = null!;
+public DbSet<Choice> Choices { get; set; } = null!;
+public DbSet<QuizAttempt> QuizAttempts { get; set; } = null!;
+public DbSet<QuizAnswer> QuizAnswers { get; set; } = null!;
+
+// Question configuration
+public DbSet<QuestionMedia> QuestionMedia { get; set; } = null!;
+public DbSet<QuestionErrorRegion> QuestionErrorRegions { get; set; } = null!;
+public DbSet<QuestionAnnotation> QuestionAnnotations { get; set; } = null!;
+public DbSet<QuestionArrangeItem> QuestionArrangeItems { get; set; } = null!;
+public DbSet<QuestionWritingConfig> QuestionWritingConfigs { get; set; } = null!;
+
+// Scenario Decision Tree
+public DbSet<ScenarioNode> ScenarioNodes { get; set; } = null!;
+public DbSet<ScenarioChoice> ScenarioChoices { get; set; } = null!;
+
+// Learner answers
+public DbSet<QuizAnswerSelectedChoice> QuizAnswerSelectedChoices { get; set; } = null!;
+public DbSet<QuizAnswerErrorRegion> QuizAnswerErrorRegions { get; set; } = null!;
+public DbSet<QuizAnswerAnnotation> QuizAnswerAnnotations { get; set; } = null!;
+public DbSet<QuizAnswerArrangeItem> QuizAnswerArrangeItems { get; set; } = null!;
+public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = null!;
 
     // ============================================================
     // Section 5: Chat
@@ -278,6 +297,12 @@ public class SmartMcDbContext : DbContext
             entity.Property(e => e.CreatedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
+            entity.Property(e => e.FileUrl)
+                .HasColumnType("text");
+
+            entity.Property(e => e.Title)
+                .HasMaxLength(500);
+
             entity.HasOne(d => d.Course)
                 .WithMany(p => p.CourseMaterials)
                 .HasForeignKey(d => d.CourseId)
@@ -311,7 +336,13 @@ public class SmartMcDbContext : DbContext
                 e.Status
             });
 
-            entity.HasIndex(e => e.PaymentId);
+            entity.HasIndex(e => new
+{
+    e.LearnerId,
+    e.CourseId
+})
+.IsUnique()
+.HasFilter("\"Status\" IN ('PENDING_PAYMENT', 'ACTIVE')");
 
             entity.Property(e => e.Status)
                 .HasDefaultValue("PENDING_PAYMENT");
@@ -334,12 +365,7 @@ public class SmartMcDbContext : DbContext
                 .WithMany(c => c.Enrollments)
                 .HasForeignKey(e => e.CourseId)
                 .OnDelete(DeleteBehavior.Cascade);
-
-            entity.HasOne(e => e.Payment)
-                .WithOne(p => p.Enrollment)
-                .HasForeignKey<Payment>(p => p.EnrollmentId)
-                .OnDelete(DeleteBehavior.Restrict);
-        });
+                });
 
         modelBuilder.Entity<LessonProgress>(entity =>
         {
@@ -663,49 +689,71 @@ public class SmartMcDbContext : DbContext
         // ============================================================
 
         modelBuilder.Entity<Payment>(entity =>
-        {
-            entity.ToTable("payments");
+{
+    entity.ToTable("PAYMENT");
 
-            entity.HasKey(e => e.PaymentId);
+    entity.HasKey(e => e.PaymentId);
 
-            entity.HasIndex(e => e.MerchantTxnRef)
-                .IsUnique();
+    entity.HasIndex(e => e.MerchantTxnRef)
+        .IsUnique();
 
-            entity.HasIndex(e => e.LearnerId);
-            entity.HasIndex(e => e.CourseId);
-            entity.HasIndex(e => e.EnrollmentId);
-            entity.HasIndex(e => e.Status);
+    entity.HasIndex(e => e.LearnerId);
 
-            entity.Property(e => e.Currency)
-                .HasDefaultValue("VND");
+    entity.Property(e => e.Currency)
+        .HasDefaultValue("VND");
 
-            entity.Property(e => e.PaymentMethod)
-    .HasDefaultValue("PAYOS");
+    entity.Property(e => e.PaymentMethod)
+        .HasDefaultValue("PAYOS");
 
-            entity.Property(e => e.Status)
-                .HasDefaultValue("PENDING");
+    entity.Property(e => e.Status)
+        .HasDefaultValue("PENDING");
 
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+    entity.Property(e => e.CreatedAt)
+        .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
-            entity.Property(e => e.UpdatedAt)
-                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+    entity.Property(e => e.UpdatedAt)
+        .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
-            entity.HasOne(e => e.Learner)
-                .WithMany("Payments")
-                .HasForeignKey(e => e.LearnerId)
-                .OnDelete(DeleteBehavior.Restrict);
+    entity.HasOne(e => e.Learner)
+        .WithMany()
+        .HasForeignKey(e => e.LearnerId)
+        .OnDelete(DeleteBehavior.Restrict);
+});
 
-            entity.HasOne(e => e.Course)
-                .WithMany()
-                .HasForeignKey(e => e.CourseId)
-                .OnDelete(DeleteBehavior.Restrict);
+         modelBuilder.Entity<PaymentItem>(entity =>
+{
+    entity.ToTable("PAYMENT_ITEM");
 
-            entity.HasOne(e => e.Enrollment)
-                .WithOne(en => en.Payment)
-                .HasForeignKey<Payment>(p => p.EnrollmentId)
-                .OnDelete(DeleteBehavior.Restrict);
-        });
+    entity.HasKey(e => e.PaymentItemId);
+
+    entity.HasIndex(e => new
+    {
+        e.PaymentId,
+        e.EnrollmentId
+    }).IsUnique();
+
+    entity.HasIndex(e => e.EnrollmentId);
+
+    entity.HasIndex(e => e.CourseId);
+
+    entity.Property(e => e.CreatedAt)
+        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+    entity.HasOne(e => e.Payment)
+        .WithMany(p => p.Items)
+        .HasForeignKey(e => e.PaymentId)
+        .OnDelete(DeleteBehavior.Cascade);
+
+    entity.HasOne(e => e.Enrollment)
+    .WithMany(e => e.PaymentItems)
+    .HasForeignKey(e => e.EnrollmentId)
+    .OnDelete(DeleteBehavior.Restrict);
+
+    entity.HasOne(e => e.Course)
+        .WithMany()
+        .HasForeignKey(e => e.CourseId)
+        .OnDelete(DeleteBehavior.Restrict);
+});
 
         // ============================================================
         // PAYMENT TRANSACTION CONFIGURATION
@@ -757,7 +805,9 @@ public class SmartMcDbContext : DbContext
                 .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
             entity.HasIndex(e => e.PaymentId);
-            entity.HasIndex(e => e.ProviderTransactionNo);
+            entity.HasIndex(e => e.ProviderTransactionNo)
+    .IsUnique()
+    .HasFilter("\"ProviderTransactionNo\" IS NOT NULL");
             entity.HasIndex(e => e.Status);
 
             entity.HasOne(e => e.Payment)
@@ -767,123 +817,367 @@ public class SmartMcDbContext : DbContext
         });
 
         // ============================================================
-        // Section 4: Quiz & Assessment Configuration
-        // ============================================================
+// Section 4: Quiz & Assessment Configuration
+// ============================================================
 
-        modelBuilder.Entity<Quiz>(entity =>
-        {
-            entity.ToTable("quizzes");
+modelBuilder.Entity<Quiz>(entity =>
+{
+    entity.ToTable("quizzes");
 
-            entity.Property(e => e.TimeLimitMinutes)
-                .HasDefaultValue(0);
+    entity.Property(e => e.TimeLimitMinutes)
+        .HasDefaultValue(0);
 
-            entity.Property(e => e.PassingScore)
-                .HasDefaultValue(80.00m);
+    entity.Property(e => e.PassingScore)
+        .HasDefaultValue(80.00m);
 
-            entity.Property(e => e.MaxAttempts)
-                .HasDefaultValue(1);
+    entity.Property(e => e.MaxAttempts)
+        .HasDefaultValue(1);
 
-            entity.Property(e => e.Status)
-                .HasConversion<string>()
-                .HasDefaultValue(QuizStatus.ACTIVE);
+    entity.Property(e => e.Status)
+        .HasConversion<string>()
+        .HasDefaultValue(QuizStatus.ACTIVE);
 
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+    entity.Property(e => e.CreatedAt)
+        .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
-            entity.HasOne(d => d.Course)
-                .WithMany(p => p.Quizzes)
-                .HasForeignKey(d => d.CourseId)
-                .OnDelete(DeleteBehavior.Cascade);
+    entity.HasOne(d => d.Course)
+        .WithMany(p => p.Quizzes)
+        .HasForeignKey(d => d.CourseId)
+        .OnDelete(DeleteBehavior.Cascade);
 
-            entity.HasOne(d => d.Lesson)
-                .WithMany(p => p.Quizzes)
-                .HasForeignKey(d => d.LessonId)
-                .OnDelete(DeleteBehavior.SetNull);
+    entity.HasOne(d => d.Lesson)
+        .WithMany(p => p.Quizzes)
+        .HasForeignKey(d => d.LessonId)
+        .OnDelete(DeleteBehavior.SetNull);
 
-            entity.HasOne(d => d.CreatedBy)
-                .WithMany(p => p.CreatedQuizzes)
-                .HasForeignKey(d => d.CreatedById)
-                .OnDelete(DeleteBehavior.Restrict);
-        });
+    entity.HasOne(d => d.CreatedBy)
+        .WithMany(p => p.CreatedQuizzes)
+        .HasForeignKey(d => d.CreatedById)
+        .OnDelete(DeleteBehavior.Restrict);
+});
 
-        modelBuilder.Entity<Question>(entity =>
-        {
-            entity.ToTable("questions");
+modelBuilder.Entity<Question>(entity =>
+{
+    entity.ToTable("questions");
 
-            entity.Property(e => e.QuestionType)
-                .HasConversion<string>();
+    entity.Property(e => e.QuestionType)
+        .HasConversion<string>();
 
-            entity.Property(e => e.OrderIndex)
-                .HasDefaultValue(1);
+    entity.Property(e => e.Points)
+        .HasDefaultValue(1.00m);
 
-            entity.HasOne(d => d.Quiz)
-                .WithMany(p => p.Questions)
-                .HasForeignKey(d => d.QuizId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
+    entity.Property(e => e.IsRequired)
+        .HasDefaultValue(true);
 
-        modelBuilder.Entity<Choice>(entity =>
-        {
-            entity.ToTable("choices");
+    entity.Property(e => e.OrderIndex)
+        .HasDefaultValue(1);
 
-            entity.Property(e => e.IsCorrect)
-                .HasDefaultValue(false);
+    entity.HasIndex(e => new { e.QuizId, e.OrderIndex });
 
-            entity.Property(e => e.OrderIndex)
-                .HasDefaultValue(1);
+    entity.HasOne(d => d.Quiz)
+        .WithMany(p => p.Questions)
+        .HasForeignKey(d => d.QuizId)
+        .OnDelete(DeleteBehavior.Cascade);
+});
 
-            entity.HasOne(d => d.Question)
-                .WithMany(p => p.Choices)
-                .HasForeignKey(d => d.QuestionId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
+modelBuilder.Entity<Choice>(entity =>
+{
+    entity.ToTable("choices");
 
-        modelBuilder.Entity<QuizAttempt>(entity =>
-        {
-            entity.ToTable("quiz_attempts");
+    entity.Property(e => e.IsCorrect)
+        .HasDefaultValue(false);
 
-            entity.Property(e => e.AttemptNumber)
-                .HasDefaultValue(1);
+    entity.Property(e => e.OrderIndex)
+        .HasDefaultValue(1);
 
-            entity.Property(e => e.ResultStatus)
-                .HasConversion<string>();
+    entity.HasIndex(e => e.QuestionId);
 
-            entity.Property(e => e.StartedAt)
-                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+    entity.HasOne(d => d.Question)
+        .WithMany(p => p.Choices)
+        .HasForeignKey(d => d.QuestionId)
+        .OnDelete(DeleteBehavior.Cascade);
+});
 
-            entity.HasOne(d => d.Quiz)
-                .WithMany(p => p.QuizAttempts)
-                .HasForeignKey(d => d.QuizId)
-                .OnDelete(DeleteBehavior.Cascade);
+modelBuilder.Entity<QuestionMedia>(entity =>
+{
+    entity.ToTable("question_media");
 
-            entity.HasOne(d => d.User)
-                .WithMany(p => p.QuizAttempts)
-                .HasForeignKey(d => d.UserId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
+    entity.Property(e => e.MediaType)
+        .HasConversion<string>();
 
-        modelBuilder.Entity<QuizAnswer>(entity =>
-        {
-            entity.ToTable("quiz_answers");
+    entity.Property(e => e.OrderIndex)
+        .HasDefaultValue(1);
 
-            entity.Property(e => e.AnsweredAt)
-                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+    entity.HasIndex(e => new { e.QuestionId, e.OrderIndex });
 
-            entity.HasOne(d => d.Attempt)
-                .WithMany(p => p.QuizAnswers)
-                .HasForeignKey(d => d.AttemptId)
-                .OnDelete(DeleteBehavior.Cascade);
+    entity.HasOne(e => e.Question)
+        .WithMany(q => q.Media)
+        .HasForeignKey(e => e.QuestionId)
+        .OnDelete(DeleteBehavior.Cascade);
+});
 
-            entity.HasOne(d => d.Question)
-                .WithMany(p => p.QuizAnswers)
-                .HasForeignKey(d => d.QuestionId)
-                .OnDelete(DeleteBehavior.Cascade);
+modelBuilder.Entity<QuestionErrorRegion>(entity =>
+{
+    entity.ToTable("question_error_regions");
 
-            entity.HasOne(d => d.SelectedChoice)
-                .WithMany(p => p.QuizAnswers)
-                .HasForeignKey(d => d.SelectedChoiceId)
-                .OnDelete(DeleteBehavior.SetNull);
-        });
+    entity.Property(e => e.Points)
+        .HasDefaultValue(1.00m);
+
+    entity.HasIndex(e => e.QuestionId);
+
+    entity.HasOne(e => e.Question)
+        .WithMany(q => q.ErrorRegions)
+        .HasForeignKey(e => e.QuestionId)
+        .OnDelete(DeleteBehavior.Cascade);
+});
+
+modelBuilder.Entity<QuestionAnnotation>(entity =>
+{
+    entity.ToTable("question_annotations");
+
+    entity.Property(e => e.AnnotationType)
+        .HasConversion<string>();
+
+    entity.Property(e => e.Points)
+        .HasDefaultValue(1.00m);
+
+    entity.HasIndex(e => e.QuestionId);
+
+    entity.HasOne(e => e.Question)
+        .WithMany(q => q.Annotations)
+        .HasForeignKey(e => e.QuestionId)
+        .OnDelete(DeleteBehavior.Cascade);
+});
+
+modelBuilder.Entity<QuestionArrangeItem>(entity =>
+{
+    entity.ToTable("question_arrange_items");
+
+    entity.Property(e => e.IsDistractor)
+        .HasDefaultValue(false);
+
+    entity.HasIndex(e => e.QuestionId);
+
+    entity.HasOne(e => e.Question)
+        .WithMany(q => q.ArrangeItems)
+        .HasForeignKey(e => e.QuestionId)
+        .OnDelete(DeleteBehavior.Cascade);
+});
+
+modelBuilder.Entity<QuestionWritingConfig>(entity =>
+{
+    entity.ToTable("question_writing_configs");
+
+    entity.HasIndex(e => e.QuestionId)
+        .IsUnique();
+
+    entity.HasOne(e => e.Question)
+        .WithOne(q => q.WritingConfig)
+        .HasForeignKey<QuestionWritingConfig>(e => e.QuestionId)
+        .OnDelete(DeleteBehavior.Cascade);
+});
+
+modelBuilder.Entity<ScenarioNode>(entity =>
+{
+    entity.ToTable("scenario_nodes");
+
+    entity.Property(e => e.NodeType)
+        .HasConversion<string>();
+
+    entity.Property(e => e.IsStartNode)
+        .HasDefaultValue(false);
+
+    entity.Property(e => e.IsEndNode)
+        .HasDefaultValue(false);
+
+    entity.HasIndex(e => e.QuestionId);
+
+    entity.HasOne(e => e.Question)
+        .WithMany(q => q.ScenarioNodes)
+        .HasForeignKey(e => e.QuestionId)
+        .OnDelete(DeleteBehavior.Cascade);
+});
+
+modelBuilder.Entity<ScenarioChoice>(entity =>
+{
+    entity.ToTable("scenario_choices");
+
+    entity.Property(e => e.Score)
+        .HasDefaultValue(0m);
+
+    entity.Property(e => e.OrderIndex)
+        .HasDefaultValue(1);
+
+    entity.HasIndex(e => e.NodeId);
+    entity.HasIndex(e => e.NextNodeId);
+
+    entity.HasOne(e => e.Node)
+        .WithMany(n => n.Choices)
+        .HasForeignKey(e => e.NodeId)
+        .OnDelete(DeleteBehavior.Cascade);
+
+    entity.HasOne(e => e.NextNode)
+        .WithMany(n => n.IncomingChoices)
+        .HasForeignKey(e => e.NextNodeId)
+        .OnDelete(DeleteBehavior.Restrict);
+});
+
+modelBuilder.Entity<QuizAttempt>(entity =>
+{
+    entity.ToTable("quiz_attempts");
+
+    entity.Property(e => e.AttemptNumber)
+        .HasDefaultValue(1);
+
+    entity.Property(e => e.ResultStatus)
+        .HasConversion<string>();
+
+    entity.Property(e => e.StartedAt)
+        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+    entity.HasIndex(e => new { e.QuizId, e.UserId });
+
+    entity.HasOne(d => d.Quiz)
+        .WithMany(p => p.QuizAttempts)
+        .HasForeignKey(d => d.QuizId)
+        .OnDelete(DeleteBehavior.Cascade);
+
+    entity.HasOne(d => d.User)
+        .WithMany(p => p.QuizAttempts)
+        .HasForeignKey(d => d.UserId)
+        .OnDelete(DeleteBehavior.Cascade);
+});
+
+modelBuilder.Entity<QuizAnswer>(entity =>
+{
+    entity.ToTable("quiz_answers");
+
+    entity.Property(e => e.MaxScore)
+        .HasDefaultValue(1.00m);
+
+    entity.Property(e => e.AnsweredAt)
+        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+    entity.HasIndex(e => new { e.AttemptId, e.QuestionId })
+        .IsUnique();
+
+    entity.HasOne(d => d.Attempt)
+        .WithMany(p => p.QuizAnswers)
+        .HasForeignKey(d => d.AttemptId)
+        .OnDelete(DeleteBehavior.Cascade);
+
+    entity.HasOne(d => d.Question)
+        .WithMany(p => p.QuizAnswers)
+        .HasForeignKey(d => d.QuestionId)
+        .OnDelete(DeleteBehavior.Restrict);
+
+    // Legacy SelectedChoiceID: giữ tương thích dữ liệu cũ.
+    entity.HasOne(d => d.SelectedChoice)
+        .WithMany(p => p.QuizAnswers)
+        .HasForeignKey(d => d.SelectedChoiceId)
+        .OnDelete(DeleteBehavior.SetNull);
+
+    entity.HasOne(d => d.GradedBy)
+        .WithMany()
+        .HasForeignKey(d => d.GradedById)
+        .OnDelete(DeleteBehavior.Restrict);
+});
+
+modelBuilder.Entity<QuizAnswerSelectedChoice>(entity =>
+{
+    entity.ToTable("quiz_answer_selected_choices");
+
+    entity.HasIndex(e => new { e.QuizAnswerId, e.ChoiceId })
+        .IsUnique();
+
+    entity.HasOne(e => e.QuizAnswer)
+        .WithMany(a => a.SelectedChoices)
+        .HasForeignKey(e => e.QuizAnswerId)
+        .OnDelete(DeleteBehavior.Cascade);
+
+    entity.HasOne(e => e.Choice)
+        .WithMany(c => c.SelectedByAnswers)
+        .HasForeignKey(e => e.ChoiceId)
+        .OnDelete(DeleteBehavior.Restrict);
+});
+
+modelBuilder.Entity<QuizAnswerErrorRegion>(entity =>
+{
+    entity.ToTable("quiz_answer_error_regions");
+
+    entity.HasIndex(e => e.QuizAnswerId);
+
+    entity.HasOne(e => e.QuizAnswer)
+        .WithMany(a => a.ErrorRegions)
+        .HasForeignKey(e => e.QuizAnswerId)
+        .OnDelete(DeleteBehavior.Cascade);
+
+    entity.HasOne(e => e.MatchedErrorRegion)
+        .WithMany(r => r.AnswerErrorRegions)
+        .HasForeignKey(e => e.MatchedErrorRegionId)
+        .OnDelete(DeleteBehavior.SetNull);
+});
+
+modelBuilder.Entity<QuizAnswerAnnotation>(entity =>
+{
+    entity.ToTable("quiz_answer_annotations");
+
+    entity.Property(e => e.AnnotationType)
+        .HasConversion<string>();
+
+    entity.HasIndex(e => e.QuizAnswerId);
+
+    entity.HasOne(e => e.QuizAnswer)
+        .WithMany(a => a.Annotations)
+        .HasForeignKey(e => e.QuizAnswerId)
+        .OnDelete(DeleteBehavior.Cascade);
+
+    entity.HasOne(e => e.MatchedAnnotation)
+        .WithMany(a => a.AnswerAnnotations)
+        .HasForeignKey(e => e.MatchedAnnotationId)
+        .OnDelete(DeleteBehavior.SetNull);
+});
+
+modelBuilder.Entity<QuizAnswerArrangeItem>(entity =>
+{
+    entity.ToTable("quiz_answer_arrange_items");
+
+    entity.HasIndex(e => new { e.QuizAnswerId, e.ArrangeItemId })
+        .IsUnique();
+
+    entity.HasOne(e => e.QuizAnswer)
+        .WithMany(a => a.ArrangeItems)
+        .HasForeignKey(e => e.QuizAnswerId)
+        .OnDelete(DeleteBehavior.Cascade);
+
+    entity.HasOne(e => e.ArrangeItem)
+        .WithMany(i => i.AnswerArrangeItems)
+        .HasForeignKey(e => e.ArrangeItemId)
+        .OnDelete(DeleteBehavior.Restrict);
+});
+
+modelBuilder.Entity<QuizAnswerScenarioPath>(entity =>
+{
+    entity.ToTable("quiz_answer_scenario_paths");
+
+    entity.HasIndex(e => new { e.QuizAnswerId, e.StepOrder })
+        .IsUnique();
+
+    entity.HasOne(e => e.QuizAnswer)
+        .WithMany(a => a.ScenarioPaths)
+        .HasForeignKey(e => e.QuizAnswerId)
+        .OnDelete(DeleteBehavior.Cascade);
+
+    entity.HasOne(e => e.Node)
+        .WithMany(n => n.AnswerPaths)
+        .HasForeignKey(e => e.NodeId)
+        .OnDelete(DeleteBehavior.Restrict);
+
+    entity.HasOne(e => e.ScenarioChoice)
+        .WithMany(c => c.AnswerPaths)
+        .HasForeignKey(e => e.ScenarioChoiceId)
+        .OnDelete(DeleteBehavior.Restrict);
+});
 
         // ============================================================
         // Section 6: Forum Configuration
@@ -1004,4 +1298,4 @@ public class SmartMcDbContext : DbContext
                 .OnDelete(DeleteBehavior.Cascade);
         });
     }
-}
+    }

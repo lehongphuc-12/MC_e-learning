@@ -52,13 +52,15 @@ public class CurrentUserService : ICurrentUserService
         }
     }
 
-    public void RequireLearner()
+public void RequireLearner()
+{
+    if (!IsInRole("Learner"))
     {
-        if (!IsInRole("Learner") && !IsInRole("Admin"))
-        {
-            throw new UnauthorizedAccessException("Forbidden: Learner role required.");
-        }
+        throw new UnauthorizedAccessException(
+            "Forbidden: Learner role required."
+        );
     }
+}
 
     public void RequireInstructor()
     {

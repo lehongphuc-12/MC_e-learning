@@ -11,6 +11,7 @@ import { Course, ScreenType } from '../../../types';
 import { CourseCard } from '../../../components/common/CourseCard';
 import { useCoursesQuery } from '../hooks/useCoursesQuery';
 import { useCategoriesQuery } from '../hooks/useInstructorCourses';
+import { useNavigate } from 'react-router-dom';
 
 interface CourseCatalogScreenProps {
   onNavigate: (screen: ScreenType) => void;
@@ -21,6 +22,11 @@ interface CourseCatalogScreenProps {
   wishlistCourseIds: string[];
   searchQuery: string;
   onSearchChange: (q: string) => void;
+  onOpenCart: () => void;
+  isCourseInCart: (courseId: string | number) => boolean;
+  isCourseEnrolled: (courseId: string | number) => boolean;
+  isCoursePendingPayment: (courseId: string | number) => boolean;
+  onContinuePayment: (course: Course) => void;
 }
 
 export const CourseCatalogScreen: React.FC<CourseCatalogScreenProps> = ({
@@ -32,6 +38,11 @@ export const CourseCatalogScreen: React.FC<CourseCatalogScreenProps> = ({
   wishlistCourseIds,
   searchQuery,
   onSearchChange,
+  onOpenCart,
+  isCourseInCart,
+  isCourseEnrolled,
+  isCoursePendingPayment,
+  onContinuePayment,
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [selectedLevel, setSelectedLevel] = useState<string>('All');
@@ -40,6 +51,12 @@ export const CourseCatalogScreen: React.FC<CourseCatalogScreenProps> = ({
   const [sortBy, setSortBy] = useState<'popular' | 'rating' | 'price-low' | 'price-high' | 'newest'>('popular');
   const [currentPage, setCurrentPage] = useState<number>(1);
   const itemsPerPage = 6;
+
+  const navigate = useNavigate();
+
+  const onNavigateToLearning = (course: Course) => {
+    navigate(`/courses/${course.id}/learn`);
+  };
 
   const coursesQuery = useCoursesQuery();
   const categoriesQuery = useCategoriesQuery();
@@ -103,11 +120,7 @@ export const CourseCatalogScreen: React.FC<CourseCatalogScreenProps> = ({
     <div id="course-catalog-screen" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 animate-fadeIn">
       {/* Breadcrumb & Header */}
       <div className="space-y-2">
-        <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
-          <button onClick={() => onNavigate('home')} className="hover:text-blue-600">Trang chủ</button>
-          <span>/</span>
-          <span className="text-slate-900 font-bold">Danh mục khóa học</span>
-        </div>
+        
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-black text-slate-900">Khám phá các Khóa học Masterclass</h1>
@@ -318,20 +331,26 @@ export const CourseCatalogScreen: React.FC<CourseCatalogScreenProps> = ({
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {displayedCourses.map((course) => (
-                <CourseCard
-                  key={course.id}
-                  idPrefix="catalog-card"
-                  course={course}
-                  isWishlisted={wishlistCourseIds.includes(course.id)}
-                  onSelect={onSelectCourse}
-                  onPreview={onPreviewVideo}
-                  onToggleWishlist={onToggleWishlist}
-                  onAddToCart={onAddToCart}
-                  showCartButton={true}
-                />
-              ))}
-            </div>
+  {displayedCourses.map((course) => (
+    <CourseCard
+      key={course.id}
+      idPrefix="catalog-card"
+      course={course}
+      isWishlisted={wishlistCourseIds.includes(course.id)}
+      onSelect={onSelectCourse}
+      onPreview={onPreviewVideo}
+      onToggleWishlist={onToggleWishlist}
+      onAddToCart={onAddToCart}
+      showCartButton={true}
+      isInCart={isCourseInCart(course.id)}
+      isEnrolled={isCourseEnrolled(course.id)}
+      isPendingPayment={isCoursePendingPayment(course.id)}
+      onOpenCart={onOpenCart}
+      onContinuePayment={onContinuePayment}
+      onGoToCourse={(selectedCourse) => onNavigateToLearning(selectedCourse)}
+    />
+  ))}
+</div>
           )}
 
           {totalPages > 1 && (

@@ -1,597 +1,137 @@
 import React from 'react';
-import {
-  useLocation,
-  useNavigate,
-  useParams,
-} from 'react-router-dom';
-
+import { ArrowLeft, Check, Clock3, FileText, RotateCcw, Sparkles, Trophy } from 'lucide-react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useQuizResult } from '../hooks/useQuiz';
 
-interface QuizNavigationState {
-  returnTo?: string;
-}
+interface QuizNavigationState { returnTo?: string; }
+
+const formatDuration = (start: string, end?: string | null) => {
+  if (!end) return 'Đang chờ';
+  const sec = Math.max(0, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 1000));
+  return `${Math.floor(sec / 60)} phút ${sec % 60} giây`;
+};
 
 export const QuizResultPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { quizId, attemptId } = useParams<{ quizId: string; attemptId: string }>();
+  const qid = quizId && Number(quizId) > 0 ? Number(quizId) : null;
+  const aid = attemptId && Number(attemptId) > 0 ? Number(attemptId) : null;
+  const { data: result, isLoading, isError, error } = useQuizResult(qid, aid);
+  const returnTo = (location.state as QuizNavigationState | null)?.returnTo;
 
-  const {
-    quizId: quizIdParam,
-    attemptId: attemptIdParam,
-  } = useParams<{
-    quizId: string;
-    attemptId: string;
-  }>();
+  if (isLoading) return <div className="flex min-h-[70vh] items-center justify-center bg-slate-50"><div className="h-10 w-10 animate-spin rounded-full border-4 border-blue-100 border-t-blue-600"/></div>;
+  if (isError || !result) return <div className="mx-auto max-w-xl p-10 text-center text-red-600">{error instanceof Error ? error.message : 'Không thể tải kết quả Quiz.'}</div>;
 
-  // =========================
-  // NAVIGATION STATE
-  // =========================
+  const score = result.score ?? 0;
+  const graded = result.answers.filter(x => x.score !== null && x.score !== undefined);
+  const correct = graded.filter(x => x.isCorrect === true).length;
+  const wrong = graded.filter(x => x.isCorrect === false).length;
+  const pending = result.answers.length - graded.length;
+  const passed = result.resultStatus === 'PASSED';
 
-  /**
-   * Flow:
-   *
-   * CourseLearningPage
-   *    ↓ state.returnTo
-   * TakeQuizPage
-   *    ↓ state.returnTo
-   * QuizResultPage
-   *
-   * Ví dụ:
-   * returnTo = "/courses/12/learn?lessonId=35"
-   */
-  const navigationState =
-    location.state as QuizNavigationState | null;
+  return <div className="min-h-screen bg-[#f5f7fb] pb-14">
+    <section className="relative overflow-hidden bg-gradient-to-br from-[#102c7a] via-[#1645b8] to-[#1f63ed] text-white">
+      <div className="absolute inset-0 opacity-20" style={{backgroundImage:'radial-gradient(circle at 20% 20%,white 0,transparent 24%),radial-gradient(circle at 80% 10%,#facc15 0,transparent 18%)'}}/>
+      <div className="relative mx-auto max-w-6xl px-5 py-10 text-center">
+        <div className={`mx-auto flex h-16 w-16 items-center justify-center rounded-full ${result.requiresManualGrading ? 'bg-amber-400 text-slate-900' : passed ? 'bg-emerald-400 text-white' : 'bg-white/20 text-white'}`}>
+          {result.requiresManualGrading ? <Clock3 className="h-8 w-8"/> : passed ? <Check className="h-8 w-8"/> : <FileText className="h-8 w-8"/>}
+        </div>
+        <h1 className="mt-4 text-3xl font-extrabold">{result.requiresManualGrading ? 'Đã nộp bài thành công!' : 'Hoàn thành bài kiểm tra!'}</h1>
+        <p className="mt-2 text-sm text-blue-100">{result.requiresManualGrading ? 'Một số câu cần giảng viên chấm. Điểm cuối cùng sẽ được cập nhật sau.' : passed ? 'Bạn đã đạt yêu cầu của bài kiểm tra này.' : 'Xem lại chi tiết bên dưới để cải thiện ở lần tiếp theo.'}</p>
+      </div>
+    </section>
 
-  const returnTo =
-    navigationState?.returnTo;
+    <div className="mx-auto -mt-5 max-w-6xl px-5">
+      <div className="grid gap-4 md:grid-cols-[0.9fr_1.3fr]">
+        <div className="rounded-3xl border border-slate-200 bg-white p-7 text-center shadow-sm">
+          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full border-[7px] border-blue-100 bg-blue-50"><Trophy className="h-8 w-8 text-blue-600"/></div>
+          <p className="mt-5 text-sm font-semibold text-slate-500">Điểm của bạn</p>
+          <div className="mt-1 text-5xl font-black text-blue-700">{result.score === null || result.score === undefined ? '—' : score.toFixed(1)}<span className="text-2xl text-slate-300"> / 100</span></div>
+          {result.score !== null && result.score !== undefined && <p className="mt-2 text-xl font-bold text-emerald-600">{score}%</p>}
+          <span className={`mt-4 inline-flex rounded-full px-4 py-2 text-sm font-bold ${result.requiresManualGrading ? 'bg-amber-100 text-amber-700' : passed ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>{result.requiresManualGrading ? 'Đang chờ chấm' : passed ? 'Đạt yêu cầu ✓' : 'Chưa đạt'}</span>
+        </div>
 
-  /**
-   * Không sử dụng navigate(-1) tại Result.
-   *
-   * Nếu dùng navigate(-1), browser history có thể đưa
-   * người dùng quay lại TakeQuizPage vừa nộp xong.
-   *
-   * Thay vào đó quay trực tiếp về CourseLearningPage
-   * đã được lưu trong returnTo.
-   */
-  const handleBack = () => {
-    if (returnTo) {
-      navigate(returnTo, {
-        replace: true,
-      });
-
-      return;
-    }
-
-    /**
-     * Fallback khi user truy cập trực tiếp URL Result
-     * hoặc refresh làm mất navigation state.
-     */
-    navigate('/my-courses', {
-      replace: true,
-    });
-  };
-
-  // =========================
-  // PARAMS
-  // =========================
-
-  const quizId = quizIdParam
-    ? Number(quizIdParam)
-    : null;
-
-  const attemptId = attemptIdParam
-    ? Number(attemptIdParam)
-    : null;
-
-  const validQuizId =
-    quizId !== null &&
-    Number.isInteger(quizId) &&
-    quizId > 0
-      ? quizId
-      : null;
-
-  const validAttemptId =
-    attemptId !== null &&
-    Number.isInteger(attemptId) &&
-    attemptId > 0
-      ? attemptId
-      : null;
-
-  // =========================
-  // GET QUIZ RESULT
-  // =========================
-
-  const {
-    data: result,
-    isLoading,
-    isError,
-    error,
-  } = useQuizResult(
-    validQuizId,
-    validAttemptId
-  );
-
-  // =========================
-  // INVALID PARAMS
-  // =========================
-
-  if (
-    validQuizId === null ||
-    validAttemptId === null
-  ) {
-    return (
-      <div className="min-h-[60vh] bg-slate-50 px-4 py-10">
-        <div className="mx-auto max-w-3xl">
-          <div className="rounded-2xl bg-white p-8 text-center shadow-sm">
-            <h1 className="text-xl font-bold text-slate-900">
-              Không thể xem kết quả
-            </h1>
-
-            <p className="mt-2 text-sm text-slate-500">
-              Quiz ID hoặc Attempt ID không hợp lệ.
-            </p>
-
-            <button
-              type="button"
-              onClick={handleBack}
-              className="mt-5 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
-            >
-              Quay lại
-            </button>
+        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="font-bold text-slate-900">Thông tin bài làm</h2>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            {[
+              ['Thời gian làm bài', formatDuration(result.startedAt, result.submittedAt)],
+              ['Tổng số câu hỏi', String(result.answers.length)],
+              ['Đã chấm', String(graded.length)],
+              ['Chờ chấm', String(pending)],
+              ['Điểm đạt', `${result.passingScore}%`],
+              ['Trạng thái', result.resultStatus]
+            ].map(([label,value]) => <div key={label} className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3"><span className="text-sm text-slate-500">{label}</span><b className="text-sm text-slate-800">{value}</b></div>)}
           </div>
         </div>
       </div>
-    );
-  }
 
-  // =========================
-  // LOADING
-  // =========================
-
-  if (isLoading) {
-    return (
-      <div className="min-h-[60vh] bg-slate-50 px-4 py-10">
-        <div className="flex items-center justify-center">
-          <div className="text-center">
-            <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600" />
-
-            <p className="mt-4 text-sm text-slate-500">
-              Đang tải kết quả...
-            </p>
-          </div>
-        </div>
+      <div className="mt-6 flex flex-wrap justify-center gap-3">
+        <button onClick={()=>document.getElementById('quiz-detail-result')?.scrollIntoView({behavior:'smooth'})} className="rounded-xl bg-blue-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-blue-100">Xem chi tiết kết quả</button>
+        <button onClick={()=>returnTo ? navigate(returnTo) : navigate('/my-courses')} className="rounded-xl border border-slate-200 bg-white px-6 py-3 text-sm font-bold text-slate-700">Quay lại khóa học</button>
       </div>
-    );
-  }
 
-  // =========================
-  // ERROR
-  // =========================
-
-  if (isError || !result) {
-    return (
-      <div className="min-h-[60vh] bg-slate-50 px-4 py-10">
-        <div className="mx-auto max-w-3xl">
-          <div className="rounded-2xl bg-white p-8 text-center shadow-sm">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-red-50 text-2xl text-red-500">
-              !
-            </div>
-
-            <h1 className="mt-4 text-xl font-bold text-slate-900">
-              Không thể tải kết quả
-            </h1>
-
-            <p className="mt-2 text-sm text-slate-500">
-              {error instanceof Error
-                ? error.message
-                : 'Đã xảy ra lỗi khi tải kết quả bài quiz.'}
-            </p>
-
-            <button
-              type="button"
-              onClick={handleBack}
-              className="mt-5 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700"
-            >
-              Quay lại
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // =========================
-  // STATISTICS
-  // =========================
-
-  const totalQuestions =
-    result.answers.length;
-
-  const correctAnswers =
-    result.answers.filter(
-      (answer) => answer.isCorrect
-    ).length;
-
-  const wrongAnswers =
-    totalQuestions - correctAnswers;
-
-  const answeredQuestions =
-    result.answers.filter(
-      (answer) =>
-        answer.selectedChoiceId !== null
-    ).length;
-
-  // =========================
-  // DATE FORMAT
-  // =========================
-
-  const formatDate = (
-    value: string | null
-  ) => {
-    if (!value) {
-      return '—';
-    }
-
-    return new Date(value).toLocaleString(
-      'vi-VN',
-      {
-        dateStyle: 'short',
-        timeStyle: 'short',
-      }
-    );
-  };
-
-  // =========================
-  // RETAKE QUIZ
-  // =========================
-
-  /**
-   * Khi làm lại Quiz, tiếp tục giữ returnTo.
-   *
-   * Flow:
-   *
-   * Result
-   *   ↓ Làm lại
-   * TakeQuiz
-   *   ↓ Submit
-   * Result
-   *   ↓ Quay lại
-   * CourseLearning
-   */
-  const handleRetakeQuiz = () => {
-    navigate(
-      `/quizzes/${result.quizId}/take`,
-      {
-        replace: true,
-        state: {
-          returnTo,
-        },
-      }
-    );
-  };
-
-  return (
-    <div className="min-h-screen bg-slate-50">
-      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
-
-        {/* =========================
-            HEADER
-        ========================= */}
-
-        <div className="mb-6">
-          <button
-            type="button"
-            onClick={handleBack}
-            className="mb-4 text-sm font-medium text-slate-500 transition hover:text-slate-700"
-          >
-            ← Quay lại
-          </button>
-
-          <p className="text-sm font-medium text-blue-600">
-            Kết quả bài kiểm tra
-          </p>
-
-          <h1 className="mt-1 text-2xl font-bold text-slate-900 md:text-3xl">
-            {result.quizTitle}
-          </h1>
-        </div>
-
-        {/* =========================
-            RESULT SUMMARY
-        ========================= */}
-
-        <div className="rounded-2xl bg-white p-6 shadow-sm">
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-
-            {/* SCORE */}
-
-            <div className="flex flex-col items-center justify-center rounded-2xl bg-slate-50 p-6 text-center">
-              <p className="text-sm font-medium text-slate-500">
-                Điểm số
-              </p>
-
-              <p className="mt-2 text-5xl font-bold text-slate-900">
-                {result.score}
-              </p>
-
-              <p className="mt-1 text-sm text-slate-500">
-                Điểm đạt: {result.passingScore}
-              </p>
-            </div>
-
-            {/* PASS STATUS */}
-
-            <div
-              className={`flex flex-col items-center justify-center rounded-2xl p-6 text-center ${
-                result.isPassed
-                  ? 'bg-green-50'
-                  : 'bg-red-50'
-              }`}
-            >
-              <div
-                className={`flex h-14 w-14 items-center justify-center rounded-full text-2xl ${
-                  result.isPassed
-                    ? 'bg-green-100 text-green-600'
-                    : 'bg-red-100 text-red-600'
-                }`}
-              >
-                {result.isPassed
-                  ? '✓'
-                  : '✕'}
-              </div>
-
-              <p
-                className={`mt-3 text-lg font-bold ${
-                  result.isPassed
-                    ? 'text-green-700'
-                    : 'text-red-700'
-                }`}
-              >
-                {result.isPassed
-                  ? 'Đạt'
-                  : 'Chưa đạt'}
-              </p>
-
-              <p className="mt-1 text-sm text-slate-500">
-                {result.isPassed
-                  ? 'Bạn đã đạt yêu cầu của bài quiz.'
-                  : 'Bạn chưa đạt điểm yêu cầu.'}
-              </p>
-            </div>
-
-            {/* CORRECT ANSWERS */}
-
-            <div className="flex flex-col items-center justify-center rounded-2xl bg-blue-50 p-6 text-center">
-              <p className="text-sm font-medium text-slate-500">
-                Câu trả lời đúng
-              </p>
-
-              <p className="mt-2 text-5xl font-bold text-blue-600">
-                {correctAnswers}
-              </p>
-
-              <p className="mt-1 text-sm text-slate-500">
-                / {totalQuestions} câu
-              </p>
-            </div>
-          </div>
-
-          {/* =========================
-              STATISTICS
-          ========================= */}
-
-          <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
-            <div className="rounded-xl border border-slate-200 p-4">
-              <p className="text-xs text-slate-500">
-                Tổng số câu
-              </p>
-
-              <p className="mt-1 text-xl font-bold text-slate-900">
-                {totalQuestions}
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-green-200 bg-green-50 p-4">
-              <p className="text-xs text-green-600">
-                Đúng
-              </p>
-
-              <p className="mt-1 text-xl font-bold text-green-700">
-                {correctAnswers}
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-red-200 bg-red-50 p-4">
-              <p className="text-xs text-red-600">
-                Sai
-              </p>
-
-              <p className="mt-1 text-xl font-bold text-red-700">
-                {wrongAnswers}
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-              <p className="text-xs text-blue-600">
-                Đã trả lời
-              </p>
-
-              <p className="mt-1 text-xl font-bold text-blue-700">
-                {answeredQuestions}
-              </p>
-            </div>
+      <section id="quiz-detail-result" className="mt-8">
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+          <div><p className="text-sm font-semibold text-blue-600">CHI TIẾT KẾT QUẢ</p><h2 className="mt-1 text-2xl font-extrabold text-slate-900">{result.quizTitle}</h2></div>
+          <div className="flex gap-2 text-xs font-bold">
+            <span className="rounded-full bg-emerald-100 px-3 py-1.5 text-emerald-700">Đúng {correct}</span>
+            <span className="rounded-full bg-red-100 px-3 py-1.5 text-red-600">Sai {wrong}</span>
+            {pending > 0 && <span className="rounded-full bg-amber-100 px-3 py-1.5 text-amber-700">Chờ chấm {pending}</span>}
           </div>
         </div>
 
-        {/* =========================
-            ATTEMPT INFORMATION
-        ========================= */}
-
-        <div className="mt-6 rounded-2xl bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-slate-900">
-            Thông tin lần làm bài
-          </h2>
-
-          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div>
-              <p className="text-xs text-slate-500">
-                Lần thử
-              </p>
-
-              <p className="mt-1 text-sm font-semibold text-slate-800">
-                Lần {result.attemptNumber}
-              </p>
-            </div>
-
-            <div>
-              <p className="text-xs text-slate-500">
-                Bắt đầu
-              </p>
-
-              <p className="mt-1 text-sm font-semibold text-slate-800">
-                {formatDate(
-                  result.startedAt
-                )}
-              </p>
-            </div>
-
-            <div>
-              <p className="text-xs text-slate-500">
-                Nộp bài
-              </p>
-
-              <p className="mt-1 text-sm font-semibold text-slate-800">
-                {formatDate(
-                  result.submittedAt
-                )}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* =========================
-            ANSWER REVIEW
-        ========================= */}
-
-        <div className="mt-6">
-          <div className="mb-4">
-            <h2 className="text-lg font-semibold text-slate-900">
-              Chi tiết câu trả lời
-            </h2>
-
-            <p className="mt-1 text-sm text-slate-500">
-              Xem lại đáp án bạn đã chọn và đáp
-              án đúng.
-            </p>
-          </div>
-
-          <div className="space-y-4">
-            {result.answers.map(
-              (answer, index) => (
-                <div
-                  key={answer.questionId}
-                  className={`rounded-2xl border bg-white p-5 shadow-sm ${
-                    answer.isCorrect
-                      ? 'border-green-200'
-                      : 'border-red-200'
-                  }`}
-                >
-                  {/* QUESTION */}
-
-                  <div className="flex gap-3">
-                    <div
-                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${
-                        answer.isCorrect
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-red-100 text-red-700'
-                      }`}
-                    >
-                      {index + 1}
-                    </div>
-
-                    <div className="flex-1">
-                      <p className="text-sm font-semibold leading-6 text-slate-900">
-                        {answer.questionText}
-                      </p>
-                    </div>
-
-                    <div
-                      className={`shrink-0 text-sm font-semibold ${
-                        answer.isCorrect
-                          ? 'text-green-600'
-                          : 'text-red-600'
-                      }`}
-                    >
-                      {answer.isCorrect
-                        ? 'Đúng'
-                        : 'Sai'}
-                    </div>
-                  </div>
-
-                  {/* SELECTED ANSWER */}
-
-                  <div className="mt-4 rounded-xl bg-slate-50 p-4">
-                    <p className="text-xs font-medium text-slate-500">
-                      Câu trả lời của bạn
-                    </p>
-
-                    <p
-                      className={`mt-1 text-sm font-medium ${
-                        answer.selectedChoiceText
-                          ? 'text-slate-800'
-                          : 'italic text-slate-400'
-                      }`}
-                    >
-                      {answer.selectedChoiceText ??
-                        'Chưa trả lời'}
-                    </p>
-                  </div>
-
-                  {/* CORRECT ANSWER */}
-
-                  {!answer.isCorrect && (
-                    <div className="mt-3 rounded-xl bg-green-50 p-4">
-                      <p className="text-xs font-medium text-green-600">
-                        Đáp án đúng
-                      </p>
-
-                      <p className="mt-1 text-sm font-medium text-green-700">
-                        {answer.correctChoiceText ??
-                          'Không có dữ liệu'}
-                      </p>
-                    </div>
-                  )}
+        <div className="space-y-4">
+          {result.answers.map((a,index) => <article key={a.quizAnswerId || a.questionId} className={`rounded-2xl border bg-white p-5 shadow-sm ${a.score === null || a.score === undefined ? 'border-amber-200' : a.isCorrect ? 'border-emerald-200' : 'border-red-200'}`}>
+            <div className="flex gap-3">
+              <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-black ${a.score === null || a.score === undefined ? 'bg-amber-100 text-amber-700' : a.isCorrect ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>{index+1}</div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="font-bold leading-6 text-slate-900">{a.questionText}</h3>
+                  <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{a.score === null || a.score === undefined ? 'Chờ chấm' : `${a.score}/${a.maxScore ?? 1} điểm`}</span>
                 </div>
-              )
-            )}
-          </div>
+                <p className="mt-1 text-xs font-semibold text-slate-400">{a.questionType}</p>
+              </div>
+            </div>
+
+            {(a.selectedChoices?.length || a.selectedChoiceText) ? <div className="mt-4 rounded-xl bg-slate-50 p-4">
+              <p className="text-xs font-bold text-slate-400">CÂU TRẢ LỜI CỦA BẠN</p>
+              <div className="mt-2 space-y-2">{(a.selectedChoices?.length ? a.selectedChoices : [{choiceId:a.selectedChoiceId??0,choiceText:a.selectedChoiceText??''}]).map(c=><p key={c.choiceId} className="text-sm font-semibold text-slate-700">• {c.choiceText}</p>)}</div>
+            </div> : null}
+
+            {a.textAnswer && <div className="mt-4 rounded-xl bg-slate-50 p-4">
+              <p className="text-xs font-bold text-slate-400">BÀI LÀM</p>
+              <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">{a.textAnswer}</p>
+            </div>}
+
+            {a.correctChoices && a.correctChoices.length > 0 && a.isCorrect === false && <div className="mt-3 rounded-xl bg-emerald-50 p-4">
+              <p className="text-xs font-bold text-emerald-600">ĐÁP ÁN ĐÚNG</p>
+              <p className="mt-2 text-sm font-semibold text-emerald-800">{a.correctChoices.map(c=>c.choiceText).join(', ')}</p>
+            </div>}
+
+            {a.arrangeItems && a.arrangeItems.length > 0 && <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              {[...a.arrangeItems].sort((x,y)=>(x.selectedOrder??999)-(y.selectedOrder??999)).map(item=><div key={item.arrangeItemId} className="rounded-xl bg-slate-50 p-3 text-sm"><b className="mr-2 text-blue-600">{item.selectedOrder ?? '—'}.</b>{item.content}<span className="float-right text-xs text-slate-400">Đúng: {item.correctOrder ?? '—'}</span></div>)}
+            </div>}
+
+            {a.scenarioPath && a.scenarioPath.length > 0 && <div className="mt-4 space-y-2">
+              {a.scenarioPath.map(p=><div key={`${p.nodeId}-${p.stepOrder}`} className="rounded-xl bg-indigo-50 p-3 text-sm"><b className="text-indigo-700">Bước {p.stepOrder}:</b> {p.choiceText}{p.feedback&&<p className="mt-1 text-xs text-slate-500">{p.feedback}</p>}</div>)}
+            </div>}
+
+            {a.teacherFeedback && <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-4">
+              <p className="flex items-center gap-2 text-xs font-bold text-blue-700"><Sparkles className="h-4 w-4"/>NHẬN XÉT CỦA GIẢNG VIÊN</p>
+              <p className="mt-2 text-sm leading-6 text-blue-950">{a.teacherFeedback}</p>
+            </div>}
+          </article>)}
         </div>
+      </section>
 
-        {/* =========================
-            ACTIONS
-        ========================= */}
-
-        <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
-          <button
-            type="button"
-            onClick={handleRetakeQuiz}
-            className="rounded-xl border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-          >
-            Làm lại Quiz
-          </button>
-
-          <button
-            type="button"
-            onClick={handleBack}
-            className="rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
-          >
-            Quay lại
-          </button>
-        </div>
+      <div className="mt-8 flex justify-center gap-3">
+        <button onClick={()=>qid&&navigate(`/quizzes/${qid}/take`,{state:{returnTo}})} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-700"><RotateCcw className="h-4 w-4"/>Làm lại Quiz</button>
+        <button onClick={()=>returnTo?navigate(returnTo):navigate('/my-courses')} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white"><ArrowLeft className="h-4 w-4"/>Quay lại</button>
       </div>
     </div>
-  );
+  </div>;
 };
 
 export default QuizResultPage;

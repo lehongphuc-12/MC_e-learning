@@ -16,14 +16,6 @@ public class Payment
     public int LearnerId { get; set; }
 
     [Required]
-    [Column("CourseID")]
-    public int CourseId { get; set; }
-
-    [Required]
-    [Column("EnrollmentID")]
-    public int EnrollmentId { get; set; }
-
-    [Required]
     [Column("Amount", TypeName = "numeric(18,2)")]
     public decimal Amount { get; set; }
 
@@ -63,11 +55,7 @@ public class Payment
     [ForeignKey(nameof(LearnerId))]
     public virtual User Learner { get; set; } = null!;
 
-    [ForeignKey(nameof(CourseId))]
-    public virtual Course Course { get; set; } = null!;
-
-    [ForeignKey(nameof(EnrollmentId))]
-    public virtual Enrollment Enrollment { get; set; } = null!;
+    public virtual ICollection<PaymentItem> Items { get; set; } = new List<PaymentItem>();
 
     public virtual ICollection<PaymentTransaction> Transactions { get; set; } = new List<PaymentTransaction>();
 }

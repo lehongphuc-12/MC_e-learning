@@ -2,8 +2,28 @@ namespace MC_BE.Core.Enums;
 
 public enum QuestionType
 {
-    SINGLE_CHOICE,
-    MULTIPLE_CHOICE,
-    TRUE_FALSE,
-    ESSAY
+    SINGLE_CHOICE = 1,
+    MULTIPLE_CHOICE = 2,
+    TRUE_FALSE = 3,
+    FILL_BLANK = 4,
+
+    LISTEN_IDENTIFY_ERROR = 5,
+
+    LISTEN_LOCATE_ERROR = 6,
+
+    AUDIO_COMPARISON = 7,
+
+    LISTEN_CLASSIFY = 8,
+
+    SCRIPT_ANNOTATION = 9,
+
+    SCRIPT_WRITING = 10,
+
+    ARRANGE_SCRIPT = 11,
+
+    ERROR_CORRECTION_LAB = 12,
+
+    SCENARIO_DECISION_TREE = 13,
+
+    ESSAY = 99
 }

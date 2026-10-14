@@ -4,36 +4,13 @@ namespace MC_BE.Features.Quizzes.Services.Interfaces;
 
 public interface IQuizService
 {
-    Task<QuizDto?> CreateQuizAsync(
-        int instructorId,
-        CreateQuizRequest request);
-
-        Task<QuizDto?> GetQuizByIdAsync(
-        int quizId);    
-
-    Task<QuizDto?> UpdateQuizAsync(
-        int instructorId,
-        int quizId,
-        UpdateQuizRequest request);
-
-    Task<TakeQuizDto?> TakeQuizAsync(
-        int learnerId,
-        int quizId);
-
-    Task<QuizResultDto?> SubmitQuizAsync(
-        int learnerId,
-        int quizId,
-        SubmitQuizRequest request);
-    Task<QuizResultDto?> GetQuizResultAsync(
-        int learnerId,
-        int quizId,
-        int attemptId);
-    Task<List<QuizListItemDto>> GetQuizzesByCourseAsync(
-        int courseId
-    );
-
-    Task<int?> GetLatestQuizResultAsync(
-        int quizId,
-        int learnerId
-    );
+    Task<QuizDto?> CreateQuizAsync(int instructorId, CreateQuizRequest request);
+    Task<QuizDto?> GetQuizByIdAsync(int quizId);
+    Task<QuizDto?> UpdateQuizAsync(int instructorId, int quizId, UpdateQuizRequest request);
+    Task<TakeQuizDto?> TakeQuizAsync(int learnerId, int quizId);
+    Task<QuizResultDto?> SubmitQuizAsync(int learnerId, int quizId, SubmitQuizRequest request);
+    Task<QuizResultDto?> GetQuizResultAsync(int learnerId, int quizId, int attemptId);
+    Task<QuizResultDto?> GradeQuizAnswerAsync(int instructorId, int quizAnswerId, ManualGradeQuizAnswerRequest request);
+    Task<List<QuizListItemDto>> GetQuizzesByCourseAsync(int courseId);
+    Task<int?> GetLatestQuizResultAsync(int quizId, int learnerId);
 }
