@@ -194,7 +194,18 @@ export const ImportModuleModal: React.FC<ImportModuleModalProps> = ({
             lessonTitle: lessonTitle.trim(),
             lessonDescription: lessonDescription.trim() || undefined,
             videoUrl: videoUrl.trim() || undefined,
-            durationMinutes: !isNaN(duration) && duration > 0 ? duration : 10,
+            durationMinutes:
+              !isNaN(duration) && duration > 0
+                ? duration
+                : Math.max(
+                    1,
+                    Math.ceil(
+                      (lessonDescription || '')
+                        .trim()
+                        .split(/\s+/)
+                        .filter(Boolean).length / 150,
+                    ) || 10,
+                  ),
             isPreview,
             lessonOrder: !isNaN(lessonOrder) && lessonOrder > 0 ? lessonOrder : 1,
             isValid,

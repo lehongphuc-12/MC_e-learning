@@ -510,8 +510,8 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                     disabled={isRecording || isSubmitting}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                       submissionMode === 'MIC'
-                        ? 'bg-indigo-600 text-slate-900 shadow-md'
-                        : 'text-slate-500 hover:text-slate-200'
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
                     <Mic className="w-3.5 h-3.5" />
@@ -524,8 +524,8 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                     disabled={isRecording || isSubmitting}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                       submissionMode === 'UPLOAD'
-                        ? 'bg-indigo-600 text-slate-900 shadow-md'
-                        : 'text-slate-500 hover:text-slate-200'
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
                     <UploadCloud className="w-3.5 h-3.5" />
@@ -535,8 +535,8 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
               </div>
 
               {errorMsg && (
-                <div className="mb-4 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                <div className="mb-4 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-500 shrink-0" />
                   <span>{errorMsg}</span>
                 </div>
               )}
@@ -547,12 +547,12 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                   {/* Microphone Device Selector Dropdown */}
                   <div className="mb-5 bg-[#f4f7fa]/80 p-3.5 rounded-xl border border-slate-200">
                     <div className="flex items-center justify-between mb-2">
-                      <label className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
-                        <Sliders className="w-3.5 h-3.5 text-indigo-400" />
+                      <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                        <Sliders className="w-3.5 h-3.5 text-blue-600" />
                         <span>Chọn thiết bị Micrô ghi âm:</span>
                       </label>
                       {audioDevices.length > 0 && (
-                        <span className="text-[10px] text-indigo-300 bg-indigo-500/20 px-2 py-0.5 rounded-full font-bold border border-indigo-500/30">
+                        <span className="text-[10px] text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full font-bold border border-blue-200">
                           {audioDevices.length} thiết bị
                         </span>
                       )}
@@ -563,7 +563,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                         value={selectedDeviceId}
                         onChange={(e) => setSelectedDeviceId(e.target.value)}
                         disabled={isRecording || isSubmitting}
-                        className="w-full pl-9 pr-8 py-2 bg-white border border-slate-700/80 rounded-lg text-xs font-semibold text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 transition-all cursor-pointer"
+                        className="w-full pl-9 pr-8 py-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 transition-all cursor-pointer"
                       >
                         {audioDevices.length === 0 ? (
                           <option value="">(Micrô mặc định của thiết bị)</option>
@@ -578,7 +578,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                           ))
                         )}
                       </select>
-                      <Mic className="w-4 h-4 text-indigo-400 absolute left-3 top-2.5 pointer-events-none" />
+                      <Mic className="w-4 h-4 text-blue-600 absolute left-3 top-2.5 pointer-events-none" />
                     </div>
                   </div>
 
@@ -587,7 +587,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                     <div className="flex flex-col items-center justify-center p-8 bg-[#f4f7fa]/70 rounded-2xl border border-slate-200/80 text-center">
                       <button
                         onClick={handleStartRecording}
-                        className="w-20 h-20 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-slate-900 flex items-center justify-center shadow-lg shadow-indigo-500/30 hover:scale-105 active:scale-95 transition-all cursor-pointer mb-4 group"
+                        className="w-20 h-20 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white flex items-center justify-center shadow-lg shadow-blue-500/30 hover:scale-105 active:scale-95 transition-all cursor-pointer mb-4 group"
                       >
                         <Mic className="w-9 h-9 group-hover:scale-110 transition-transform" />
                       </button>
@@ -601,8 +601,8 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
 
                   {/* Record State 2: RECORDING IN PROGRESS */}
                   {isRecording && (
-                    <div className="flex flex-col items-center justify-center p-8 bg-[#f4f7fa]/90 rounded-2xl border border-rose-500/30 text-center relative overflow-hidden">
-                      <div className="absolute top-3 right-3 flex items-center gap-2 px-3 py-1 rounded-full bg-rose-500/20 border border-rose-500/40 text-rose-400 text-[11px] font-bold animate-pulse">
+                    <div className="flex flex-col items-center justify-center p-8 bg-[#f4f7fa]/90 rounded-2xl border border-rose-300 text-center relative overflow-hidden">
+                      <div className="absolute top-3 right-3 flex items-center gap-2 px-3 py-1 rounded-full bg-rose-100 border border-rose-200 text-rose-700 text-[11px] font-bold animate-pulse">
                         <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
                         ĐANG GHI ÂM
                       </div>
@@ -616,7 +616,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                         {[40, 70, 30, 90, 60, 100, 50, 80, 40, 70].map((h, i) => (
                           <div
                             key={i}
-                            className="w-1.5 rounded-full bg-indigo-500 animate-pulse"
+                            className="w-1.5 rounded-full bg-blue-600 animate-pulse"
                             style={{
                               height: `${h}%`,
                               animationDelay: `${i * 100}ms`,
@@ -627,7 +627,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
 
                       <button
                         onClick={handleStopRecording}
-                        className="px-6 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-slate-900 text-xs font-bold transition-all shadow-lg shadow-rose-600/30 flex items-center gap-2 cursor-pointer active:scale-95"
+                        className="px-6 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all shadow-lg shadow-rose-600/30 flex items-center gap-2 cursor-pointer active:scale-95"
                       >
                         <Square className="w-4 h-4 fill-white" />
                         <span>Dừng & Kiểm Tra Bài Ghi Âm</span>
@@ -668,9 +668,9 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                         <button
                           onClick={handleResetRecording}
                           disabled={isSubmitting}
-                          className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-600 text-xs font-bold transition-all flex items-center gap-2 cursor-pointer border border-slate-700 disabled:opacity-50"
+                          className="px-4 py-2.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold transition-all flex items-center gap-2 cursor-pointer border border-slate-300 shadow-2xs disabled:opacity-50"
                         >
-                          <RotateCcw className="w-4 h-4" />
+                          <RotateCcw className="w-4 h-4 text-slate-500" />
                           <span>Thực hiện lại</span>
                         </button>
 
@@ -679,7 +679,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                             <button
                               onClick={() => setIsReRecording(false)}
                               disabled={isSubmitting}
-                              className="px-4 py-2.5 rounded-xl bg-white hover:bg-slate-800 text-slate-500 text-xs font-bold transition-all cursor-pointer border border-slate-200"
+                              className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer border border-slate-200"
                             >
                               Hủy
                             </button>
@@ -688,7 +688,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                           <button
                             onClick={handleSubmitAssignment}
                             disabled={isSubmitting}
-                            className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-slate-900 text-xs font-bold shadow-lg shadow-indigo-500/30 transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
+                            className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
                           >
                             {isSubmitting ? (
                               <>
@@ -723,26 +723,26 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                   {!uploadedFile ? (
                     <div
                       onClick={() => fileInputRef.current?.click()}
-                      className="flex flex-col items-center justify-center p-8 bg-[#f4f7fa]/70 rounded-2xl border-2 border-dashed border-slate-700/80 hover:border-indigo-500/80 text-center transition-all cursor-pointer group"
+                      className="flex flex-col items-center justify-center p-8 bg-[#f4f7fa]/70 rounded-2xl border-2 border-dashed border-slate-300 hover:border-blue-500 text-center transition-all cursor-pointer group"
                     >
-                      <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                      <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
                         <UploadCloud className="w-8 h-8" />
                       </div>
                       <h4 className="text-sm font-bold text-slate-900">Tải file ghi âm từ máy cá nhân</h4>
                       <p className="text-xs text-slate-500 mt-1 max-w-xs">
                         Bấm vào đây để chọn file âm thanh bài phát biểu của bạn từ máy tính.
                       </p>
-                      <span className="mt-3 text-[11px] font-semibold text-indigo-400 bg-indigo-500/10 px-3 py-1 rounded-full border border-indigo-500/20">
+                      <span className="mt-3 text-[11px] font-semibold text-blue-700 bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
                         Định dạng hỗ trợ: .MP3, .WAV, .M4A, .OGG, .WEBM (Tối đa 50MB)
                       </span>
                     </div>
                   ) : (
                     <div className="space-y-4">
                       {/* Selected File Card */}
-                      <div className="p-4 bg-[#f4f7fa] rounded-2xl border border-indigo-500/30">
+                      <div className="p-4 bg-[#f4f7fa] rounded-2xl border border-slate-200">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center shrink-0">
+                            <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 border border-blue-200 flex items-center justify-center shrink-0">
                               <FileAudio className="w-5 h-5" />
                             </div>
                             <div className="min-w-0">
@@ -759,7 +759,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                             type="button"
                             onClick={handleResetUploadedFile}
                             disabled={isSubmitting}
-                            className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-600 text-xs font-bold transition-all cursor-pointer border border-slate-700 shrink-0"
+                            className="px-3 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold transition-all cursor-pointer border border-slate-300 shadow-2xs shrink-0"
                           >
                             Đổi file khác
                           </button>
@@ -769,7 +769,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                         {uploadedAudioUrl && (
                           <div className="mt-4 pt-3 border-t border-slate-200">
                             <label className="text-xs font-bold text-slate-500 block mb-1.5 flex items-center gap-1.5">
-                              <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
+                              <Volume2 className="w-3.5 h-3.5 text-emerald-500" />
                               <span>Nghe thử trước khi nộp:</span>
                             </label>
                             <audio controls src={uploadedAudioUrl} className="w-full h-10" />
@@ -787,7 +787,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                           value={learnerNote}
                           onChange={(e) => setLearnerNote(e.target.value)}
                           placeholder="Nhập ghi chú hoặc thắc mắc nếu có..."
-                          className="w-full p-3 bg-[#f4f7fa] border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          className="w-full p-3 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
                       </div>
 
@@ -798,7 +798,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                             type="button"
                             onClick={() => setIsReRecording(false)}
                             disabled={isSubmitting}
-                            className="px-4 py-2.5 rounded-xl bg-white hover:bg-slate-800 text-slate-500 text-xs font-bold transition-all cursor-pointer border border-slate-200"
+                            className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer border border-slate-200"
                           >
                             Hủy
                           </button>
@@ -808,7 +808,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                           type="button"
                           onClick={handleSubmitAssignment}
                           disabled={isSubmitting}
-                          className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-slate-900 text-xs font-bold shadow-lg shadow-indigo-500/30 transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
+                          className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
                         >
                           {isSubmitting ? (
                             <>
@@ -1072,6 +1072,119 @@ export const CourseLearningPage: React.FC = () => {
   const [collapsedModules, setCollapsedModules] =
     useState<Record<number, boolean>>({});
 
+  // Dynamic video durations in seconds (mapped by lessonId)
+  const [detectedDurations, setDetectedDurations] = useState<Record<number, number>>(() => {
+    const initial: Record<number, number> = {};
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('mseek_lesson_duration_')) {
+          const lId = Number(key.replace('mseek_lesson_duration_', ''));
+          const val = parseFloat(localStorage.getItem(key) || '');
+          if (!isNaN(lId) && !isNaN(val) && val > 0) {
+            initial[lId] = val;
+          }
+        }
+      }
+    } catch (_) {}
+    return initial;
+  });
+
+  const handleSaveLessonDuration = (lessonId: number, durationSec: number) => {
+    if (!lessonId || isNaN(durationSec) || durationSec <= 0) return;
+    const rounded = Math.round(durationSec);
+    try {
+      localStorage.setItem(`mseek_lesson_duration_${lessonId}`, rounded.toString());
+    } catch (_) {}
+    setDetectedDurations((prev) => {
+      if (prev[lessonId] === rounded) return prev;
+      return { ...prev, [lessonId]: rounded };
+    });
+  };
+
+  // Pre-load durations for direct video files in the playlist in background
+  useEffect(() => {
+    orderedLessons.forEach((l) => {
+      if (l.videoUrl && l.videoUrl.trim() !== '') {
+        if (detectedDurations[l.lessonId]) return;
+
+        const isEmbed =
+          l.videoUrl.includes('youtube.com') ||
+          l.videoUrl.includes('youtu.be') ||
+          l.videoUrl.includes('vimeo.com') ||
+          l.videoUrl.includes('drive.google.com');
+
+        if (!isEmbed) {
+          const v = document.createElement('video');
+          v.preload = 'metadata';
+          v.src = l.videoUrl;
+          v.onloadedmetadata = () => {
+            if (v.duration && !isNaN(v.duration) && v.duration > 0) {
+              handleSaveLessonDuration(l.lessonId, v.duration);
+            }
+          };
+        }
+      }
+    });
+  }, [orderedLessons, detectedDurations]);
+
+  // Format lesson duration: if no video => calculate by content or default '10 phút', if has video => actual video duration
+  const getLessonDuration = (lesson?: Lesson | null): string => {
+    if (!lesson) return '10 phút';
+    const hasVideo = !!(
+      lesson.videoUrl &&
+      lesson.videoUrl.trim() !== '' &&
+      lesson.lessonType?.toUpperCase() !== 'ASSIGNMENT'
+    );
+    if (!hasVideo) {
+      // Calculate according to content length
+      const desc = (lesson.description || '').trim();
+      const wordCount = desc.split(/\s+/).filter(Boolean).length;
+      if (wordCount >= 20) {
+        const readingMins = Math.max(1, Math.ceil(wordCount / 150));
+        return `${readingMins} phút`;
+      }
+      if (lesson.durationMinutes && lesson.durationMinutes > 0 && lesson.durationMinutes !== 10) {
+        return `${lesson.durationMinutes} phút`;
+      }
+      return '10 phút';
+    }
+
+    const durationSec = detectedDurations[lesson.lessonId];
+    if (durationSec && durationSec > 0) {
+      const totalSecs = Math.round(durationSec);
+      const hrs = Math.floor(totalSecs / 3600);
+      const mins = Math.floor((totalSecs % 3600) / 60);
+      const secs = totalSecs % 60;
+
+      if (hrs > 0) {
+        return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+      }
+      return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    // If video duration is not yet detected, check if lesson has custom durationMinutes from DB
+    if (
+      lesson.durationMinutes &&
+      lesson.durationMinutes > 0 &&
+      lesson.durationMinutes !== 10 &&
+      lesson.durationMinutes !== 35
+    ) {
+      return `${lesson.durationMinutes} phút`;
+    }
+
+    // If no video duration yet, check content
+    const desc = (lesson.description || '').trim();
+    const wordCount = desc.split(/\s+/).filter(Boolean).length;
+    if (wordCount >= 20) {
+      const readingMins = Math.max(1, Math.ceil(wordCount / 150));
+      return `${readingMins} phút`;
+    }
+
+    // Default when video is not loaded yet
+    return '10 phút';
+  };
+
   // ===========================================================================
   // Sync activeCert from query
   // ===========================================================================
@@ -1316,9 +1429,9 @@ export const CourseLearningPage: React.FC = () => {
             lessonId,
           )
         }
-        className="mt-1 ml-7 inline-flex items-center gap-1.5 rounded-lg bg-violet-600/20 px-2.5 py-1.5 text-[10px] font-bold text-violet-300 border border-violet-500/30 transition-all hover:bg-violet-600/30 hover:text-slate-900 active:scale-95"
+        className="mt-1 ml-7 inline-flex items-center gap-1.5 rounded-lg bg-violet-50 px-2.5 py-1 text-[11px] font-bold text-violet-700 border border-violet-200 transition-all hover:bg-violet-100 hover:text-violet-900 active:scale-95 shadow-2xs"
       >
-        <ClipboardList className="h-3 w-3" />
+        <ClipboardList className="h-3 w-3 text-violet-600" />
         Làm Quiz
       </button>
     );
@@ -1386,6 +1499,14 @@ export const CourseLearningPage: React.FC = () => {
             'video-player-iframe',
             {
               events: {
+                onReady: (event: any) => {
+                  try {
+                    const dur = event.target.getDuration();
+                    if (dur && dur > 0 && activeLessonRef.current) {
+                      handleSaveLessonDuration(activeLessonRef.current.lessonId, dur);
+                    }
+                  } catch (_) {}
+                },
                 onStateChange: (
                   event: any,
                 ) => {
@@ -1430,6 +1551,13 @@ export const CourseLearningPage: React.FC = () => {
                   'number' &&
                 duration > 0
               ) {
+                if (activeLessonRef.current) {
+                  handleSaveLessonDuration(
+                    activeLessonRef.current.lessonId,
+                    duration,
+                  );
+                }
+
                 handleVideoTimeUpdate(
                   currentTime,
                 );
@@ -1528,6 +1656,21 @@ export const CourseLearningPage: React.FC = () => {
           info?.duration ??
           data?.duration;
 
+        // Automatically save detected duration whenever received from video player
+        if (typeof duration === 'number' && duration > 0 && !isNaN(duration)) {
+          if (activeLessonRef.current) {
+            handleSaveLessonDuration(
+              activeLessonRef.current.lessonId,
+              duration,
+            );
+          }
+        }
+
+        // Track playback progress
+        if (typeof currentTime === 'number' && currentTime > 0 && !isNaN(currentTime)) {
+          handleVideoTimeUpdate(currentTime);
+        }
+
         const isEndedByState =
           data.event === 'finish' ||
           data.ended === true ||
@@ -1582,11 +1725,24 @@ export const CourseLearningPage: React.FC = () => {
       handleMessage,
     );
 
-    return () =>
+    // Periodically ping YouTube iframe to request duration metadata
+    const pingTimer = setInterval(() => {
+      const iframe = document.getElementById('video-player-iframe') as HTMLIFrameElement;
+      if (iframe && iframe.contentWindow) {
+        try {
+          iframe.contentWindow.postMessage(JSON.stringify({ event: 'listening' }), '*');
+          iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'getDuration', args: [] }), '*');
+        } catch (_) {}
+      }
+    }, 1000);
+
+    return () => {
+      clearInterval(pingTimer);
       window.removeEventListener(
         'message',
         handleMessage,
       );
+    };
   }, []);
 
   // ===========================================================================
@@ -1746,13 +1902,28 @@ export const CourseLearningPage: React.FC = () => {
   // Total duration
   // ===========================================================================
 
-  const totalDuration =
-    orderedLessons.reduce(
-      (sum, l) =>
-        sum +
-        l.durationMinutes,
-      0,
+  const totalDuration = orderedLessons.reduce((sum, l) => {
+    const hasVideo = !!(
+      l.videoUrl &&
+      l.videoUrl.trim() !== '' &&
+      l.lessonType?.toUpperCase() !== 'ASSIGNMENT'
     );
+    if (hasVideo) {
+      const sec = detectedDurations[l.lessonId];
+      if (sec && sec > 0) {
+        return sum + Math.max(1, Math.round(sec / 60));
+      }
+      if (l.durationMinutes && l.durationMinutes > 0 && l.durationMinutes !== 10 && l.durationMinutes !== 35) {
+        return sum + l.durationMinutes;
+      }
+    }
+    const desc = (l.description || '').trim();
+    const wordCount = desc.split(/\s+/).filter(Boolean).length;
+    if (wordCount >= 20) {
+      return sum + Math.max(1, Math.ceil(wordCount / 150));
+    }
+    return sum + (l.durationMinutes || 10);
+  }, 0);
 
   // ===========================================================================
   // Loading state
@@ -1879,31 +2050,31 @@ export const CourseLearningPage: React.FC = () => {
     <div className="flex h-screen w-full flex-col bg-[#f4f7fa] text-slate-900 overflow-hidden font-sans">
       {/* ── Top Bar ─────────────────────────────────────────────────────── */}
 
-      <header className="flex h-14 shrink-0 items-center justify-between border-b border-blue-200 bg-blue-50 px-4 backdrop-blur-md z-30">
+      <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 shadow-2xs z-30">
         <div className="flex items-center gap-3">
           <button
             onClick={handleBackToLessons}
             title="Quay lại quản lý bài học"
-            className="flex items-center gap-2 rounded-xl bg-white text-blue-700 hover:bg-blue-100 border border-blue-200 transition-all cursor-pointer"
+            className="flex items-center gap-2 rounded-xl bg-slate-50 text-slate-700 hover:bg-slate-100 hover:text-blue-600 border border-slate-200 px-3 py-1.5 text-xs font-bold transition-all cursor-pointer shadow-2xs"
           >
-            <ArrowLeft className="h-4 w-4 text-blue-600" />
+            <ArrowLeft className="h-4 w-4 text-slate-500" />
 
             <span>
               Thoát / Về quản lý bài học
             </span>
           </button>
 
-          <div className="h-5 w-[1px] bg-blue-200" />
+          <div className="h-5 w-[1px] bg-slate-200" />
 
           <div>
-            <h1 className="text-sm font-bold text-blue-950 flex items-center gap-2">
+            <h1 className="text-sm font-black text-slate-900 flex items-center gap-2 tracking-tight">
               <span>
                 {course?.title ??
                   'Chi tiết khóa học'}
               </span>
             </h1>
 
-            <p className="text-[11px] text-blue-700/80 flex items-center gap-2">
+            <p className="text-[11px] text-slate-500 flex items-center gap-1.5 font-medium">
               <span>
                 {sortedModules.length}{' '}
                 Chương
@@ -1930,10 +2101,10 @@ export const CourseLearningPage: React.FC = () => {
         <div className="flex items-center gap-3">
           {/* Progress Badge */}
 
-          <div className="hidden sm:flex items-center gap-2 rounded-full bg-white border border-blue-200 px-3 py-1 text-xs text-blue-800 font-semibold">
-            <div className="w-16 bg-slate-700 rounded-full h-1.5 overflow-hidden">
+          <div className="hidden sm:flex items-center gap-2 rounded-full bg-slate-100 border border-slate-200 px-3 py-1 text-xs text-slate-700 font-semibold">
+            <div className="w-16 bg-slate-200 rounded-full h-1.5 overflow-hidden">
               <div
-                className="bg-emerald-400 h-full rounded-full transition-all duration-500"
+                className="bg-emerald-500 h-full rounded-full transition-all duration-500"
                 style={{
                   width: `${Math.min(
                     100,
@@ -1943,7 +2114,7 @@ export const CourseLearningPage: React.FC = () => {
               />
             </div>
 
-            <span className="text-[11px] text-emerald-400 font-bold">
+            <span className="text-[11px] text-emerald-600 font-black">
               {completionPercentage}%
             </span>
           </div>
@@ -1957,7 +2128,7 @@ export const CourseLearningPage: React.FC = () => {
               onClick={
                 handleOpenCertificate
               }
-              className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 px-3.5 py-1.5 text-xs font-extrabold text-slate-950 hover:from-amber-400 hover:to-amber-500 transition-all cursor-pointer shadow-md shadow-amber-500/20"
+              className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 px-3.5 py-1.5 text-xs font-bold text-white hover:from-amber-400 hover:to-amber-500 transition-all cursor-pointer shadow-md shadow-amber-500/20"
             >
               <Award className="h-4 w-4" />
 
@@ -1970,8 +2141,8 @@ export const CourseLearningPage: React.FC = () => {
             </button>
           )}
 
-          <div className="hidden md:flex items-center gap-2 rounded-full bg-blue-100 border border-blue-200 px-3 py-1 text-xs text-blue-800 font-semibold">
-            <Sparkles className="h-3.5 w-3.5" />
+          <div className="hidden md:flex items-center gap-1.5 rounded-full bg-blue-50 border border-blue-200 px-3 py-1 text-xs text-blue-700 font-bold">
+            <Sparkles className="h-3.5 w-3.5 text-blue-600" />
 
             <span>
               Bài{' '}
@@ -1988,7 +2159,7 @@ export const CourseLearningPage: React.FC = () => {
                 !isSidebarOpen,
               )
             }
-            className="flex items-center gap-1.5 rounded-xl bg-blue-600 text-white hover:bg-blue-500 transition-all cursor-pointer shadow-md shadow-indigo-600/20"
+            className="flex items-center gap-1.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 px-3 py-1.5 text-xs font-bold transition-all cursor-pointer shadow-sm shadow-blue-500/20"
           >
             {isSidebarOpen ? (
               <X className="h-4 w-4" />
@@ -2095,6 +2266,14 @@ export const CourseLearningPage: React.FC = () => {
                         src={embedUrl}
                         controls
                         autoPlay
+                        onLoadedMetadata={(e) => {
+                          if (activeLesson && e.currentTarget.duration) {
+                            handleSaveLessonDuration(
+                              activeLesson.lessonId,
+                              e.currentTarget.duration,
+                            );
+                          }
+                        }}
                         onTimeUpdate={(e) => {
                           const v = e.currentTarget;
 
@@ -2132,16 +2311,16 @@ export const CourseLearningPage: React.FC = () => {
                       </video>
                     )
                   ) : (
-                    <div className="flex h-full w-full flex-col items-center justify-center p-6 text-center bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900">
-                      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-500/10 text-blue-600 border border-indigo-500/20 mb-3">
+                    <div className="flex h-full w-full flex-col items-center justify-center p-6 text-center bg-slate-950">
+                      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-500/10 text-blue-400 border border-blue-500/20 mb-3">
                         <Video className="h-8 w-8" />
                       </div>
 
-                      <h3 className="text-base font-bold text-slate-900">
+                      <h3 className="text-base font-bold text-white">
                         Chưa chọn hoặc chưa có Video bài học
                       </h3>
 
-                      <p className="mt-1 text-xs text-slate-500 max-w-sm">
+                      <p className="mt-1 text-xs text-slate-400 max-w-sm">
                         {activeLesson
                           ? 'Bài học này chưa được cập nhật liên kết Video. Vui lòng chọn bài học khác.'
                           : 'Vui lòng chọn bài học từ danh sách bên phải để bắt đầu xem video.'}
@@ -2154,7 +2333,7 @@ export const CourseLearningPage: React.FC = () => {
 
             {/* Navigation & Controls Bar */}
 
-            <div className="flex items-center justify-between rounded-2xl border border-slate-200/80 bg-white/60 p-4 backdrop-blur-sm">
+            <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm backdrop-blur-sm">
               <button
                 disabled={!prevLesson}
                 onClick={() =>
@@ -2163,15 +2342,15 @@ export const CourseLearningPage: React.FC = () => {
                     prevLesson,
                   )
                 }
-                className="flex items-center gap-2 rounded-xl bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700 hover:text-slate-900 disabled:opacity-40 disabled:hover:bg-slate-50 transition-all cursor-pointer"
+                className="flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-blue-600 border border-slate-300 shadow-2xs disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-slate-700 transition-all cursor-pointer"
               >
-                <ChevronLeft className="h-4 w-4" />
+                <ChevronLeft className="h-4 w-4 text-slate-500" />
 
-                <span className="hidden sm:inline">
+                <span className="hidden sm:inline text-slate-900 font-bold">
                   Bài trước:
                 </span>
 
-                <span className="truncate max-w-[140px]">
+                <span className="truncate max-w-[140px] text-slate-600">
                   {prevLesson
                     ? prevLesson.title
                     : '---'}
@@ -2180,26 +2359,25 @@ export const CourseLearningPage: React.FC = () => {
 
               {activeLesson?.lessonType?.toUpperCase() === 'ASSIGNMENT' ||
               (!activeLesson?.videoUrl && activeLesson !== null) ? (
-                <button
-                  disabled
-                  className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold border transition-all cursor-not-allowed ${
+                <div
+                  className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold border transition-all ${
                     activeLesson && completedLessonIds.includes(activeLesson.lessonId)
-                      ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
-                      : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                      : 'bg-amber-50 text-amber-700 border-amber-300 shadow-2xs'
                   }`}
                 >
                   {activeLesson && completedLessonIds.includes(activeLesson.lessonId) ? (
                     <>
-                      <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                       <span>Đã hoàn thành (Đã chấm điểm)</span>
                     </>
                   ) : (
                     <>
-                      <Clock className="h-4 w-4 text-amber-400 animate-pulse" />
+                      <Clock className="h-4 w-4 text-amber-600 animate-pulse" />
                       <span>Chờ Giảng viên chấm điểm...</span>
                     </>
                   )}
-                </button>
+                </div>
               ) : (
                 <button
                   onClick={() =>
@@ -2208,16 +2386,16 @@ export const CourseLearningPage: React.FC = () => {
                       activeLesson.lessonId,
                     )
                   }
-                  className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold transition-all cursor-pointer ${
+                  className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all cursor-pointer shadow-2xs border ${
                     activeLesson &&
                     completedLessonIds.includes(
                       activeLesson.lessonId,
                     )
-                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                      : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
+                      : 'bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 border-slate-300'
                   }`}
                 >
-                  <CheckCircle2 className="h-4 w-4" />
+                  <CheckCircle2 className={`h-4 w-4 ${activeLesson && completedLessonIds.includes(activeLesson.lessonId) ? 'text-emerald-600' : 'text-slate-400'}`} />
 
                   <span>
                     {activeLesson &&
@@ -2238,7 +2416,7 @@ export const CourseLearningPage: React.FC = () => {
                     nextLesson,
                   )
                 }
-                className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-slate-900 hover:bg-indigo-500 disabled:opacity-40 disabled:hover:bg-indigo-600 transition-all cursor-pointer shadow-md shadow-indigo-600/20"
+                className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-blue-600 transition-all cursor-pointer shadow-md shadow-blue-500/20"
               >
                 <span className="hidden sm:inline">
                   Bài tiếp:
@@ -2250,17 +2428,17 @@ export const CourseLearningPage: React.FC = () => {
                     : '---'}
                 </span>
 
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="h-4 w-4 text-white" />
               </button>
             </div>
 
             {/* Lesson Title & Info */}
 
-            <div className="rounded-2xl border border-slate-200/80 bg-white/40 p-6 space-y-4">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <div className="flex items-center gap-2 mb-1.5">
-                    <span className="rounded-md bg-indigo-500/10 px-2 py-0.5 text-[11px] font-bold text-blue-600 border border-indigo-500/20">
+                    <span className="rounded-md bg-blue-50 px-2 py-0.5 text-[11px] font-bold text-blue-700 border border-blue-200">
                       Bài #
                       {activeLesson?.orderIndex ??
                         (currentIndex >= 0
@@ -2269,22 +2447,20 @@ export const CourseLearningPage: React.FC = () => {
                     </span>
 
                     {activeLesson?.isPreview && (
-                      <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 px-2 py-0.5 text-[11px] font-bold text-emerald-400 border border-emerald-500/20">
-                        <Eye className="h-3 w-3" />
+                      <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700 border border-emerald-200">
+                        <Eye className="h-3 w-3 text-emerald-600" />
                         Xem thử
                       </span>
                     )}
 
-                    <span className="text-xs text-slate-500 flex items-center gap-1">
-                      <Clock className="h-3.5 w-3.5 text-slate-500" />
+                    <span className="text-xs text-slate-500 flex items-center gap-1 font-medium">
+                      <Clock className="h-3.5 w-3.5 text-slate-400" />
 
-                      {activeLesson?.durationMinutes ??
-                        0}{' '}
-                      phút
+                      {getLessonDuration(activeLesson)}
                     </span>
                   </div>
 
-                  <h2 className="text-xl font-bold text-slate-900 tracking-tight">
+                  <h2 className="text-xl font-black text-slate-900 tracking-tight">
                     {activeLesson?.title ??
                       'Bài học chưa có tiêu đề'}
                   </h2>
@@ -2297,7 +2473,7 @@ export const CourseLearningPage: React.FC = () => {
                     }
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-blue-600 transition-colors"
+                    className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 transition-colors"
                   >
                     <ExternalLink className="h-3.5 w-3.5" />
                     <span>
@@ -2320,14 +2496,14 @@ export const CourseLearningPage: React.FC = () => {
                     activeTab ===
                     'overview'
                       ? 'text-blue-600 font-bold'
-                      : 'hover:text-slate-200'
+                      : 'hover:text-slate-800'
                   }`}
                 >
                   Mô tả bài học
 
                   {activeTab ===
                     'overview' && (
-                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-500 rounded-full" />
+                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full" />
                   )}
                 </button>
 
@@ -2341,14 +2517,14 @@ export const CourseLearningPage: React.FC = () => {
                     activeTab ===
                     'notes'
                       ? 'text-blue-600 font-bold'
-                      : 'hover:text-slate-200'
+                      : 'hover:text-slate-800'
                   }`}
                 >
                   Tài liệu & Ghi chú
 
                   {activeTab ===
                     'notes' && (
-                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-500 rounded-full" />
+                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full" />
                   )}
                 </button>
 
@@ -2362,14 +2538,14 @@ export const CourseLearningPage: React.FC = () => {
                     activeTab ===
                     'discussion'
                       ? 'text-blue-600 font-bold'
-                      : 'hover:text-slate-200'
+                      : 'hover:text-slate-800'
                   }`}
                 >
                   Thảo luận & Hỏi đáp
 
                   {activeTab ===
                     'discussion' && (
-                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-500 rounded-full" />
+                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full" />
                   )}
                 </button>
               </div>
@@ -2379,7 +2555,7 @@ export const CourseLearningPage: React.FC = () => {
               <div className="pt-2 text-xs text-slate-600 leading-relaxed">
                 {activeTab ===
                   'overview' && (
-                  <p className="whitespace-pre-line text-slate-600">
+                  <p className="whitespace-pre-line text-slate-600 text-sm">
                     {activeLesson?.description ||
                       'Bài học này chưa có nội dung mô tả chi tiết.'}
                   </p>
@@ -2392,11 +2568,11 @@ export const CourseLearningPage: React.FC = () => {
                       Các tài liệu đính kèm hoặc ghi chú quan trọng cho bài học này:
                     </p>
 
-                    <div className="flex items-center gap-3 rounded-xl bg-white p-3 border border-slate-200">
+                    <div className="flex items-center gap-3 rounded-xl bg-slate-50 p-3 border border-slate-200">
                       <FileText className="h-5 w-5 text-blue-600" />
 
                       <div>
-                        <p className="font-semibold text-slate-200">
+                        <p className="font-bold text-slate-900">
                           Giao-trinh-
                           {activeLesson?.title}
                           .pdf
@@ -2423,7 +2599,7 @@ export const CourseLearningPage: React.FC = () => {
                       <input
                         type="text"
                         placeholder="Viết câu hỏi hoặc nhận xét của bạn..."
-                        className="w-full bg-transparent text-xs text-slate-900 outline-none placeholder:text-slate-500"
+                        className="w-full bg-transparent text-xs text-slate-900 outline-none placeholder:text-slate-400"
                       />
                     </div>
                   </div>
@@ -2436,15 +2612,15 @@ export const CourseLearningPage: React.FC = () => {
         {/* ── Right Sidebar Playlist ───────────────────────────────────── */}
 
         {isSidebarOpen && (
-          <aside className="w-80 shrink-0 border-l border-blue-200 bg-blue-50/80 flex flex-col h-full z-20 transition-all duration-300">
-            <div className="p-4 border-b border-blue-200 flex items-center justify-between">
+          <aside className="w-80 shrink-0 border-l border-slate-200 bg-slate-50 flex flex-col h-full z-20 transition-all duration-300">
+            <div className="p-4 border-b border-slate-200 bg-white flex items-center justify-between">
               <div>
-                <h3 className="text-sm font-bold text-blue-950 flex items-center gap-2">
+                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                   <BookOpen className="h-4 w-4 text-blue-600" />
                   Lộ trình học tập
                 </h3>
 
-                <p className="text-[11px] text-blue-600/70 mt-0.5">
+                <p className="text-[11px] text-slate-500 mt-0.5 font-medium">
                   {completedLessonIds.length}/
                   {totalLessonCount}{' '}
                   bài đã xem
@@ -2454,7 +2630,7 @@ export const CourseLearningPage: React.FC = () => {
 
             {/* Lesson List grouped by Modules */}
 
-            <div className="flex-1 overflow-y-auto p-2 space-y-2 scrollbar-thin scrollbar-thumb-slate-800">
+            <div className="flex-1 overflow-y-auto p-2 space-y-2 scrollbar-thin scrollbar-thumb-slate-300">
               {totalLessonCount ===
               0 ? (
                 <div className="p-6 text-center text-xs text-slate-500">
@@ -2480,7 +2656,7 @@ export const CourseLearningPage: React.FC = () => {
                           key={
                             mod.moduleId
                           }
-                          className="rounded-xl border border-blue-200 overflow-hidden bg-white/60"
+                          className="rounded-xl border border-slate-200 overflow-hidden bg-white shadow-2xs"
                         >
                           {/* Module Header */}
 
@@ -2490,12 +2666,12 @@ export const CourseLearningPage: React.FC = () => {
                                 mod.moduleId,
                               )
                             }
-                            className="w-full flex items-center justify-between p-3 bg-white/80 hover:bg-blue-100/50 text-left transition-colors cursor-pointer"
+                            className="w-full flex items-center justify-between p-3 bg-slate-50/80 hover:bg-blue-50/50 text-left transition-colors cursor-pointer border-b border-slate-100"
                           >
                             <div className="flex items-center gap-2 min-w-0 pr-2">
                               <Layers className="h-3.5 w-3.5 text-blue-600 shrink-0" />
 
-                              <span className="text-xs font-bold text-blue-950 truncate">
+                              <span className="text-xs font-bold text-slate-800 truncate">
                                 Chương{' '}
                                 {
                                   mod.orderIndex
@@ -2506,16 +2682,16 @@ export const CourseLearningPage: React.FC = () => {
                             </div>
 
                             <div className="flex items-center gap-1 shrink-0 text-slate-500">
-                              <span className="text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded font-medium">
+                              <span className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-bold border border-blue-200/60">
                                 {
                                   modLessons.length
                                 }
                               </span>
 
                               {isCollapsed ? (
-                                <ChevronRight className="h-3.5 w-3.5" />
+                                <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
                               ) : (
-                                <ChevronDown className="h-3.5 w-3.5" />
+                                <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
                               )}
                             </div>
                           </button>
@@ -2559,17 +2735,17 @@ export const CourseLearningPage: React.FC = () => {
                                           }
                                           className={`w-full flex items-start gap-2.5 p-2.5 rounded-lg text-left text-xs transition-all cursor-pointer ${
                                             isActive
-                                              ? 'bg-blue-600/15 border border-blue-500/40 text-blue-900 shadow-sm'
-                                              : 'hover:bg-white border border-transparent text-slate-700'
+                                              ? 'bg-blue-50 border border-blue-300 text-blue-900 shadow-2xs font-bold'
+                                              : 'hover:bg-slate-100/70 border border-transparent text-slate-700'
                                           }`}
                                         >
                                           <div className="shrink-0 mt-0.5">
                                             {isCompleted ? (
-                                              <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                                              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                                             ) : isActive ? (
                                               <PlayCircle className="h-4 w-4 text-blue-600 animate-pulse" />
                                             ) : (
-                                              <span className="flex h-4 w-4 items-center justify-center text-[10px] font-bold text-slate-500">
+                                              <span className="flex h-4 w-4 items-center justify-center text-[10px] font-bold text-slate-400">
                                                 #
                                                 {
                                                   lesson.orderIndex
@@ -2580,10 +2756,10 @@ export const CourseLearningPage: React.FC = () => {
 
                                           <div className="flex-1 min-w-0">
                                             <p
-                                              className={`font-semibold line-clamp-2 ${
+                                              className={`line-clamp-2 ${
                                                 isActive
-                                                  ? 'text-blue-700'
-                                                  : 'text-slate-700'
+                                                  ? 'text-blue-700 font-bold'
+                                                  : 'text-slate-800 font-medium'
                                               }`}
                                             >
                                               {
@@ -2593,16 +2769,13 @@ export const CourseLearningPage: React.FC = () => {
 
                                             <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-500">
                                               <span className="flex items-center gap-1">
-                                                <Clock className="h-3 w-3" />
+                                                <Clock className="h-3 w-3 text-slate-400" />
 
-                                                {
-                                                  lesson.durationMinutes
-                                                }{' '}
-                                                phút
+                                                {getLessonDuration(lesson)}
                                               </span>
 
                                               {lesson.isPreview && (
-                                                <span className="rounded bg-emerald-500/20 px-1.5 py-0.2 text-emerald-400 font-bold">
+                                                <span className="rounded bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.2 font-bold">
                                                   Xem thử
                                                 </span>
                                               )}
@@ -2631,8 +2804,8 @@ export const CourseLearningPage: React.FC = () => {
 
                   {unassignedLessons.length >
                     0 && (
-                    <div className="rounded-xl border border-slate-200/80 overflow-hidden bg-[#f4f7fa]/50">
-                      <div className="p-3 bg-white/80 text-xs font-bold text-amber-400 flex items-center justify-between">
+                    <div className="rounded-xl border border-slate-200 overflow-hidden bg-white shadow-2xs">
+                      <div className="p-3 bg-slate-50 text-xs font-bold text-slate-800 border-b border-slate-100 flex items-center justify-between">
                         <span>
                           Bài học tự do (
                           {
@@ -2670,17 +2843,17 @@ export const CourseLearningPage: React.FC = () => {
                                   }
                                   className={`w-full flex items-start gap-2.5 p-2.5 rounded-lg text-left text-xs transition-all cursor-pointer ${
                                     isActive
-                                      ? 'bg-amber-600/25 border border-amber-500/40 text-slate-900 shadow-md'
-                                      : 'hover:bg-slate-800/60 text-slate-600 border border-transparent'
+                                      ? 'bg-amber-50 border border-amber-300 text-amber-900 shadow-2xs'
+                                      : 'hover:bg-slate-50 text-slate-700 border border-transparent'
                                   }`}
                                 >
                                   <div className="shrink-0 mt-0.5">
                                     {isCompleted ? (
-                                      <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                                      <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                                     ) : isActive ? (
-                                      <PlayCircle className="h-4 w-4 text-amber-400 animate-pulse" />
+                                      <PlayCircle className="h-4 w-4 text-amber-600 animate-pulse" />
                                     ) : (
-                                      <span className="flex h-4 w-4 items-center justify-center text-[10px] font-bold text-slate-500">
+                                      <span className="flex h-4 w-4 items-center justify-center text-[10px] font-bold text-slate-400">
                                         #
                                         {
                                           lesson.orderIndex
@@ -2691,10 +2864,10 @@ export const CourseLearningPage: React.FC = () => {
 
                                   <div className="flex-1 min-w-0">
                                     <p
-                                      className={`font-semibold line-clamp-2 ${
+                                      className={`line-clamp-2 ${
                                         isActive
-                                          ? 'text-amber-300'
-                                          : 'text-slate-200'
+                                          ? 'text-amber-800 font-bold'
+                                          : 'text-slate-700 font-medium'
                                       }`}
                                     >
                                       {
@@ -2703,11 +2876,9 @@ export const CourseLearningPage: React.FC = () => {
                                     </p>
 
                                     <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-500">
-                                      <span>
-                                        {
-                                          lesson.durationMinutes
-                                        }{' '}
-                                        phút
+                                      <span className="flex items-center gap-1">
+                                        <Clock className="h-3 w-3 text-slate-400" />
+                                        {getLessonDuration(lesson)}
                                       </span>
                                     </div>
                                   </div>
@@ -2727,13 +2898,13 @@ export const CourseLearningPage: React.FC = () => {
                   {/* Speaking Assignments Section */}
 
                   {speakingAssignmentLessons.length > 0 && (
-                    <div className="rounded-xl border border-purple-500/30 bg-gradient-to-br from-purple-950/60 via-indigo-950/40 to-slate-950/60 p-3 shadow-lg">
+                    <div className="rounded-xl border border-purple-200 bg-purple-50/50 p-3 shadow-2xs">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-bold text-purple-300 flex items-center gap-1.5">
-                          <Mic className="h-4 w-4 text-purple-400 animate-pulse" />
+                        <span className="text-xs font-bold text-purple-900 flex items-center gap-1.5">
+                          <Mic className="h-4 w-4 text-purple-600 animate-pulse" />
                           <span>Bài thi nói cuối khóa ({speakingAssignmentLessons.length})</span>
                         </span>
-                        <span className="text-[10px] bg-purple-500/20 text-purple-300 font-extrabold px-2 py-0.5 rounded-full border border-purple-500/30">
+                        <span className="text-[10px] bg-purple-100 text-purple-700 font-extrabold px-2 py-0.5 rounded-full border border-purple-200">
                           SPEAKING
                         </span>
                       </div>
@@ -2752,22 +2923,24 @@ export const CourseLearningPage: React.FC = () => {
                               onClick={() => handleSelectLesson(lesson)}
                               className={`w-full flex items-center justify-between p-2.5 rounded-lg text-left text-xs transition-all cursor-pointer ${
                                 isActive
-                                  ? 'bg-purple-600/40 border border-purple-400 text-slate-900 shadow-md'
-                                  : 'bg-white/80 hover:bg-slate-800 text-slate-200 border border-purple-500/20'
+                                  ? 'bg-purple-600 text-white shadow-xs font-bold'
+                                  : 'bg-white hover:bg-purple-50 text-slate-700 border border-purple-200'
                               }`}
                             >
                               <div className="flex items-center gap-2 min-w-0">
                                 {isCompleted ? (
-                                  <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                                  <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
                                 ) : (
-                                  <Mic className="h-4 w-4 text-purple-400 shrink-0" />
+                                  <Mic className="h-4 w-4 text-purple-500 shrink-0" />
                                 )}
                                 <span className="font-bold truncate">
                                   {lesson.title}
                                 </span>
                               </div>
 
-                              <span className="text-[10px] px-2 py-0.5 rounded bg-purple-500/30 text-purple-200 font-bold shrink-0">
+                              <span className={`text-[10px] px-2 py-0.5 rounded font-bold shrink-0 ${
+                                isActive ? 'bg-white/20 text-white' : 'bg-purple-100 text-purple-700'
+                              }`}>
                                 Làm bài
                               </span>
                             </button>
@@ -2782,18 +2955,18 @@ export const CourseLearningPage: React.FC = () => {
                   ===================================================== */}
 
                   {overallQuiz && (
-                    <div className="mt-4 rounded-xl border border-violet-500/30 bg-gradient-to-br from-violet-950/60 via-indigo-950/40 to-slate-950/60 p-3">
+                    <div className="mt-4 rounded-xl border border-violet-200 bg-violet-50/60 p-3.5 shadow-2xs">
                       <div className="flex items-start gap-3">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet-500/20 border border-violet-500/30">
-                          <Award className="h-4 w-4 text-violet-300" />
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-violet-100 border border-violet-200">
+                          <Award className="h-4 w-4 text-violet-600" />
                         </div>
 
                         <div className="min-w-0 flex-1">
-                          <p className="text-xs font-bold text-violet-200">
+                          <p className="text-xs font-bold text-violet-950">
                             Quiz tổng hợp khóa học
                           </p>
 
-                          <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
+                          <p className="mt-1 text-[10px] leading-relaxed text-slate-600">
                             Kiểm tra tổng hợp kiến thức của toàn bộ khóa học.
                           </p>
 
@@ -2836,7 +3009,7 @@ export const CourseLearningPage: React.FC = () => {
                                 activeLesson?.lessonId,
                               )
                             }
-                            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-3 py-2 text-[11px] font-bold text-slate-900 shadow-lg shadow-violet-600/20 transition-all hover:bg-violet-500 active:scale-[0.98]"
+                            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-3 py-2 text-[11px] font-bold text-white shadow-xs shadow-violet-600/20 transition-all hover:bg-violet-700 active:scale-[0.98]"
                           >
                             <ClipboardList className="h-3.5 w-3.5" />
 
@@ -2877,17 +3050,17 @@ export const CourseLearningPage: React.FC = () => {
                           }
                           className={`w-full flex items-start gap-3 p-3 rounded-xl text-left text-xs transition-all cursor-pointer ${
                             isActive
-                              ? 'bg-indigo-600/20 border border-indigo-500/40 text-slate-900 shadow-md'
-                              : 'hover:bg-slate-800/60 text-slate-600 border border-transparent'
+                              ? 'bg-blue-50 border border-blue-300 text-blue-900 shadow-2xs'
+                              : 'hover:bg-slate-100/70 text-slate-700 border border-transparent'
                           }`}
                         >
                           <div className="shrink-0 mt-0.5">
                             {isCompleted ? (
-                              <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                             ) : isActive ? (
-                              <PlayCircle className="h-4 w-4 text-indigo-400 animate-pulse" />
+                              <PlayCircle className="h-4 w-4 text-blue-600 animate-pulse" />
                             ) : (
-                              <span className="flex h-4 w-4 items-center justify-center text-[10px] font-bold text-slate-500">
+                              <span className="flex h-4 w-4 items-center justify-center text-[10px] font-bold text-slate-400">
                                 #
                                 {
                                   lesson.orderIndex
@@ -2898,10 +3071,10 @@ export const CourseLearningPage: React.FC = () => {
 
                           <div className="flex-1 min-w-0">
                             <p
-                              className={`font-semibold line-clamp-2 ${
+                              className={`line-clamp-2 ${
                                 isActive
-                                  ? 'text-indigo-300'
-                                  : 'text-slate-200'
+                                  ? 'text-blue-700 font-bold'
+                                  : 'text-slate-800 font-medium'
                               }`}
                             >
                               {
@@ -2909,14 +3082,11 @@ export const CourseLearningPage: React.FC = () => {
                               }
                             </p>
 
-                            <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-400">
+                            <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-500">
                               <span className="flex items-center gap-1">
-                                <Clock className="h-3 w-3" />
+                                <Clock className="h-3 w-3 text-slate-400" />
 
-                                {
-                                  lesson.durationMinutes
-                                }{' '}
-                                phút
+                                {getLessonDuration(lesson)}
                               </span>
                             </div>
                           </div>
