@@ -24,7 +24,7 @@ export const useQuiz = (quizId: number | null) => {
         throw new Error('Quiz ID is required.');
       }
 
-      const response = await quizApi.getQuiz(quizId);
+      const response = await quizApi.getQuizById(quizId);
 
       if (!response.success) {
         throw new Error(

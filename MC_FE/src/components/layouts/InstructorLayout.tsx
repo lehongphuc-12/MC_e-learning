@@ -3,8 +3,8 @@
 // =============================================================================
 
 import React from 'react';
-import { InstructorHeader } from '../InstructorHeader';
-import { Footer } from '../Footer';
+import { InstructorSidebar } from '../InstructorSidebar';
+import { InstructorTopbar } from '../InstructorTopbar';
 import { ScreenType, User } from '../../types';
 
 interface InstructorLayoutProps {
@@ -19,14 +19,22 @@ export const InstructorLayout: React.FC<InstructorLayoutProps> = ({
   children,
   user,
   onLogout,
-  onNavigate,
-  showFooter = true,
 }) => {
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 selection:bg-blue-600 selection:text-white">
-      <InstructorHeader user={user} onLogout={onLogout} />
-      <main className="flex-1">{children}</main>
-      {showFooter && onNavigate && <Footer onNavigate={onNavigate} />}
+    <div className="flex h-screen overflow-hidden bg-slate-50 text-slate-900 selection:bg-blue-600 selection:text-white">
+      {/* Left Sidebar */}
+      <InstructorSidebar user={user} onLogout={onLogout} />
+
+      {/* Right main area */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Top bar */}
+        <InstructorTopbar user={user} onLogout={onLogout} />
+
+        {/* Page content */}
+        <main className="flex-1 overflow-y-auto">
+          {children}
+        </main>
+      </div>
     </div>
   );
 };

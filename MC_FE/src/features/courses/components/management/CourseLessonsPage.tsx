@@ -3,7 +3,7 @@
 // Curriculum Builder / Module & Lesson Management Page
 // =============================================================================
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 
@@ -207,13 +207,175 @@ export const CourseLessonsPage: React.FC = () => {
     useDeleteModule(courseId);
 
   // ===========================================================================
-  // COURSE INFORMATION
+  // ===========================================================================
+  // DURATION SYNCHRONIZATION & ESTIMATION
   // ===========================================================================
 
+  const [detectedDurations, setDetectedDurations] = useState<Record<number, number>>(() => {
+    const initial: Record<number, number> = {};
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('mseek_lesson_duration_')) {
+          const lId = Number(key.replace('mseek_lesson_duration_', ''));
+          const val = parseFloat(localStorage.getItem(key) || '');
+          if (!isNaN(lId) && !isNaN(val) && val > 0) {
+            initial[lId] = val;
+          }
+        }
+      }
+    } catch (_) {}
+    return initial;
+  });
+
+  const handleSaveLessonDuration = (lessonId: number, durationSec: number) => {
+    if (!lessonId || isNaN(durationSec) || durationSec <= 0) return;
+    const rounded = Math.round(durationSec);
+    try {
+      localStorage.setItem(`mseek_lesson_duration_${lessonId}`, rounded.toString());
+    } catch (_) {}
+    setDetectedDurations((prev) => {
+      if (prev[lessonId] === rounded) return prev;
+      return { ...prev, [lessonId]: rounded };
+    });
+  };
+
+  // Pre-load durations for direct video files in background
+  useEffect(() => {
+    lessons.forEach((l) => {
+      if (l.videoUrl && l.videoUrl.trim() !== '') {
+        if (detectedDurations[l.lessonId]) return;
+
+        const isEmbed =
+          l.videoUrl.includes('youtube.com') ||
+          l.videoUrl.includes('youtu.be') ||
+          l.videoUrl.includes('vimeo.com') ||
+          l.videoUrl.includes('drive.google.com');
+
+        if (!isEmbed) {
+          const v = document.createElement('video');
+          v.preload = 'metadata';
+          v.src = l.videoUrl;
+          v.onloadedmetadata = () => {
+            if (v.duration && !isNaN(v.duration) && v.duration > 0) {
+              handleSaveLessonDuration(l.lessonId, v.duration);
+            }
+          };
+        }
+      }
+    });
+  }, [lessons, detectedDurations]);
+
+  // Format lesson duration for display
+  const getLessonDuration = (lesson: Lesson): string => {
+    const hasVideo = !!(
+      lesson.videoUrl &&
+      lesson.videoUrl.trim() !== '' &&
+      lesson.lessonType !== 'ASSIGNMENT'
+    );
+
+    if (!hasVideo) {
+      const desc = (lesson.description || '').trim();
+      const wordCount = desc.split(/\s+/).filter(Boolean).length;
+      if (wordCount >= 20) {
+        const readingMins = Math.max(1, Math.ceil(wordCount / 150));
+        return `${readingMins} phút`;
+      }
+      return '10 phút';
+    }
+
+    const durationSec = detectedDurations[lesson.lessonId];
+    if (durationSec && durationSec > 0) {
+      const totalSecs = Math.round(durationSec);
+      const hrs = Math.floor(totalSecs / 3600);
+      const mins = Math.floor((totalSecs % 3600) / 60);
+      const secs = totalSecs % 60;
+
+      if (hrs > 0) {
+        return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+      }
+      return `${mins}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    // Default when video is not loaded yet
+    return '10 phút';
+  };
+
+  // Duration in minutes for mathematical totals
+  const getLessonDurationMinutes = (lesson: Lesson): number => {
+    const hasVideo = !!(
+      lesson.videoUrl &&
+      lesson.videoUrl.trim() !== '' &&
+      lesson.lessonType !== 'ASSIGNMENT'
+    );
+
+    if (hasVideo) {
+      const durationSec = detectedDurations[lesson.lessonId];
+      if (durationSec && durationSec > 0) {
+        return Math.max(1, Math.round(durationSec / 60));
+      }
+      return 10;
+    }
+
+    const desc = (lesson.description || '').trim();
+    const wordCount = desc.split(/\s+/).filter(Boolean).length;
+    if (wordCount >= 20) {
+      return Math.max(1, Math.ceil(wordCount / 150));
+    }
+    return 10;
+  };
+
   const totalDuration = lessons.reduce(
-    (sum, lesson) => sum + lesson.durationMinutes,
+    (sum, lesson) => sum + getLessonDurationMinutes(lesson),
     0
   );
+
+  const [isSyncingDurations, setIsSyncingDurations] = useState(false);
+
+  const handleSyncAllDurations = async () => {
+    setIsSyncingDurations(true);
+    let updatedCount = 0;
+    try {
+      for (const lesson of lessons) {
+        const targetMinutes = getLessonDurationMinutes(lesson);
+        if (targetMinutes !== lesson.durationMinutes) {
+          await updateLessonAsync({
+            lessonId: lesson.lessonId,
+            dto: {
+              title: lesson.title,
+              description: lesson.description,
+              durationMinutes: targetMinutes,
+              orderIndex: lesson.orderIndex,
+              moduleId: lesson.moduleId,
+              lessonType: lesson.lessonType,
+              isPreview: lesson.isPreview,
+              status: lesson.status,
+              videoUrl: lesson.videoUrl,
+            },
+          });
+          updatedCount++;
+        }
+      }
+      await queryClient.invalidateQueries({
+        queryKey: lessonQueryKeys.courseLessons(courseId),
+      });
+      setStatusModal({
+        isOpen: true,
+        type: 'success',
+        title: 'Đồng bộ thời lượng thành công',
+        message: `Đã tự động cập nhật thời lượng cho ${updatedCount} bài học theo video thực tế và nội dung bài học vào cơ sở dữ liệu.`,
+      });
+    } catch (err: any) {
+      setStatusModal({
+        isOpen: true,
+        type: 'error',
+        title: 'Đồng bộ thời lượng thất bại',
+        message: err?.message || 'Có lỗi xảy ra khi đồng bộ thời lượng.',
+      });
+    } finally {
+      setIsSyncingDurations(false);
+    }
+  };
 
   // ===========================================================================
   // MODULE COLLAPSE
@@ -367,7 +529,7 @@ export const CourseLessonsPage: React.FC = () => {
         lesson.orderIndex !== newOrderIndex ||
         lesson.moduleId !== targetModuleId
       ) {
-        updateLesson({
+        updateLessonAsync({
           lessonId: lesson.lessonId,
 
           dto: {
@@ -766,6 +928,16 @@ export const CourseLessonsPage: React.FC = () => {
 
               <div className="flex flex-wrap items-center justify-start gap-2 xl:justify-end">
                 <button
+                  onClick={handleSyncAllDurations}
+                  disabled={isSyncingDurations}
+                  title="Tự động cập nhật thời lượng cho tất cả bài học trong khóa theo video thực tế và nội dung"
+                  className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-amber-400/40 bg-amber-500/20 px-3.5 py-2 text-xs font-semibold text-amber-200 backdrop-blur-md transition-all hover:bg-amber-500/30 active:scale-95 disabled:opacity-50"
+                >
+                  <Sparkles className="h-4 w-4 text-amber-300" />
+                  <span>{isSyncingDurations ? 'Đang đồng bộ...' : 'Đồng bộ thời lượng'}</span>
+                </button>
+
+                <button
                   onClick={() => setIsStudentsModalOpen(true)}
                   className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-white/20 bg-white/10 px-3.5 py-2 text-xs font-semibold text-white backdrop-blur-md transition-all hover:bg-white/20 active:scale-95"
                 >
@@ -864,7 +1036,7 @@ export const CourseLessonsPage: React.FC = () => {
                 const isCollapsed = collapsedModules[mod.moduleId];
 
                 const modDuration = moduleLessons.reduce(
-                  (sum, lesson) => sum + lesson.durationMinutes,
+                  (sum, lesson) => sum + getLessonDurationMinutes(lesson),
                   0
                 );
 
@@ -1076,7 +1248,7 @@ export const CourseLessonsPage: React.FC = () => {
                                       {/* DURATION */}
 
                                       <td className="px-4 py-3.5 font-medium text-slate-700">
-                                        {lesson.durationMinutes} phút
+                                        {getLessonDuration(lesson)}
                                       </td>
 
                                       {/* PREVIEW */}
@@ -1309,8 +1481,8 @@ export const CourseLessonsPage: React.FC = () => {
                             {/* DURATION */}
 
                             <td className="px-4 py-3.5 font-medium text-slate-700">
-                              {lesson.durationMinutes} phút
-                            </td>
+                                        {getLessonDuration(lesson)}
+                                      </td>
 
                             {/* PREVIEW */}
 

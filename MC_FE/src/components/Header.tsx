@@ -285,6 +285,31 @@ export const Header: React.FC<HeaderProps> = ({
                   />
                 </button>
 
+                {/* AI VOICE COACH */}
+                <button
+                  id="nav-ai-coach-btn"
+                  type="button"
+                  onClick={() => onNavigate('ai-voice-coach')}
+                  className={`nav-premium group relative flex items-center gap-1.5 rounded-[13px] px-3.5 py-2.5 text-[12px] font-black transition-all duration-300 ${
+                    currentScreen === 'ai-voice-coach'
+                      ? 'bg-blue-50 text-[#075dc7]'
+                      : 'text-slate-600 hover:bg-blue-50/70 hover:text-[#075dc7]'
+                  }`}
+                >
+                  <span>AI Voice Coach</span>
+                  <span className="rounded-md bg-gradient-to-r from-amber-400 to-[#ffc928] px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-[#071d4c] shadow-sm">
+                    AI
+                  </span>
+
+                  <span
+                    className={`absolute -bottom-[1px] left-1/2 h-[2.5px] -translate-x-1/2 rounded-full bg-[#ffc928] transition-all duration-300 ${
+                      currentScreen === 'ai-voice-coach'
+                        ? 'w-6'
+                        : 'w-0 group-hover:w-5'
+                    }`}
+                  />
+                </button>
+
                 {/* FORUM */}
                 <button
                   id="nav-forum-btn"
@@ -710,6 +735,30 @@ export const Header: React.FC<HeaderProps> = ({
                 <span>Khóa học</span>
 
                 {currentScreen === 'courses' && (
+                  <span className="h-2 w-2 rounded-full bg-[#ffc928]" />
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  onNavigate('ai-voice-coach');
+                  closeMobileMenu();
+                }}
+                className={`mobile-nav-item ${
+                  currentScreen === 'ai-voice-coach'
+                    ? 'mobile-nav-active'
+                    : ''
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span>AI Voice Coach</span>
+                  <span className="rounded-md bg-gradient-to-r from-amber-400 to-[#ffc928] px-1.5 py-0.5 text-[9px] font-black uppercase text-[#071d4c]">
+                    AI
+                  </span>
+                </div>
+
+                {currentScreen === 'ai-voice-coach' && (
                   <span className="h-2 w-2 rounded-full bg-[#ffc928]" />
                 )}
               </button>

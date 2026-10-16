@@ -29,8 +29,8 @@ export const ForumTopicBadge: React.FC<ForumTopicBadgeProps> = ({ name, icon, on
       onClick={onClick}
       className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all duration-200 ${
         active
-          ? 'bg-cyan-500 text-white shadow-md shadow-cyan-500/20 scale-105'
-          : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/50'
+          ? 'bg-[#03163f] text-white shadow-md shadow-[#03163f]/20 scale-105'
+          : 'bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-slate-300/50'
       }`}
     >
       {getIcon()}
