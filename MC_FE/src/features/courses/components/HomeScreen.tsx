@@ -38,28 +38,28 @@ const ROADMAP_DATA = [
     step: 'Bước 1',
     title: 'Tìm khóa học dành cho bạn',
     desc: 'Khám phá những khóa học MC phù hợp với mục tiêu của mình và chọn nơi bắt đầu hành trình.',
-    img: IMAGES.problem1,
+    img: '/images/lo_trinh_1.jpg',
     bg: 'bg-[#1e40af]',
   },
   {
     step: 'Bước 2',
     title: 'Luyện tập cùng AI, tự tin theo cách của bạn',
     desc: 'Thử nói, luyện lại và hoàn thiện bài dẫn nhiều lần. Khi đã hài lòng với phần thể hiện của mình, bạn chọn bài tốt nhất để nộp cho giảng viên.',
-    img: IMAGES.studio,
+    img: '/images/lo_trinh_2.jpg',
     bg: 'bg-[#4338ca]',
   },
   {
     step: 'Bước 3',
     title: 'Học từ góp ý của giảng viên',
     desc: 'Học qua từng bài giảng, thực hành và nhận nhận xét cho bài làm. Mỗi góp ý là một cơ hội để bạn dẫn tốt hơn ở lần tiếp theo.',
-    img: IMAGES.hero,
+    img: '/images/lo_trinh_3.jpg',
     bg: 'bg-[#6d28d9]',
   },
   {
     step: 'Bước 4',
     title: 'Nhìn lại hành trình của mình',
     desc: 'Theo dõi tiến độ, hoàn thành khóa học và nhận chứng chỉ khi đủ điều kiện. Từ những bài học đầu tiên, bạn sẽ thấy mình đã tiến xa đến đâu.',
-    img: IMAGES.result,
+    img: '/images/lo_trinh_4.jpg',
     bg: 'bg-[#0369a1]',
   },
 ];
@@ -345,17 +345,31 @@ useEffect(() => {
           </div>
         </button>
 
-        <div className="flex items-center gap-3 rounded-2xl border border-white/15 bg-[#06265f]/65 px-4 py-3 shadow-lg backdrop-blur-md">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/25 text-blue-100">
+        <button
+          type="button"
+          onClick={() => onNavigate('ai-voice-coach')}
+          className="flex w-full items-center gap-3 rounded-2xl border border-white/15 bg-[#06265f]/65 px-4 py-3 text-left shadow-lg backdrop-blur-md transition-all hover:bg-white/10 active:scale-95 group"
+        >
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/25 text-blue-100 transition-transform group-hover:scale-110">
             <BarChart3 className="h-5 w-5" />
           </div>
           <div>
             <div className="text-xs font-black text-white">Thực hành & đánh giá</div>
             <div className="mt-0.5 text-[10px] text-blue-100/70">giọng nói với AI</div>
           </div>
-        </div>
+        </button>
 
-        <div className="flex items-center gap-3 rounded-2xl border border-white/15 bg-[#06265f]/65 px-4 py-3 shadow-lg backdrop-blur-md">
+        <button
+          type="button"
+          onClick={() => {
+            const el = document.getElementById('instructors-section');
+            if (el) {
+              const y = el.getBoundingClientRect().top + window.scrollY - 80;
+              window.scrollTo({ top: y, behavior: 'smooth' });
+            }
+          }}
+          className="flex w-full items-center gap-3 rounded-2xl border border-white/15 bg-[#06265f]/65 px-4 py-3 text-left shadow-lg backdrop-blur-md transition-all hover:bg-white/10 active:scale-95"
+        >
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/25 text-blue-100">
             <Users className="h-5 w-5" />
           </div>
@@ -363,7 +377,7 @@ useEffect(() => {
             <div className="text-xs font-black text-white">Giảng viên đồng hành</div>
             <div className="mt-0.5 text-[10px] text-blue-100/70">và góp ý chi tiết</div>
           </div>
-        </div>
+        </button>
       </div>
     </div>
   </div>
@@ -1483,7 +1497,7 @@ useEffect(() => {
   `}</style>
 </section>
       {/* INSTRUCTORS */}
-<section className="instructor-section relative overflow-hidden bg-gradient-to-br from-[#edf5ff] via-[#f8fbff] to-[#fff8e8] py-10 sm:py-12 lg:py-14">  {/* Decorative background */}
+<section id="instructors-section" className="instructor-section relative overflow-hidden bg-gradient-to-br from-[#edf5ff] via-[#f8fbff] to-[#fff8e8] py-10 sm:py-12 lg:py-14">  {/* Decorative background */}
   <div className="pointer-events-none absolute inset-0">
     <div className="instructor-glow-blue absolute -left-32 top-16 h-[420px] w-[420px] rounded-full bg-blue-400/[0.09] blur-[110px]" />
     <div className="instructor-glow-yellow absolute -right-32 bottom-[-80px] h-[420px] w-[420px] rounded-full bg-[#ffc928]/10 blur-[110px]" />
