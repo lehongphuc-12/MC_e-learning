@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Routes, Route, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
+import { Routes, Route, useNavigate, useSearchParams, useLocation, Navigate } from 'react-router-dom';
 import { ScreenType, Course, User } from '../types';
 import { CourseCatalogScreen } from '../features/courses/components/CourseCatalogScreen';
 import { CourseDetailScreen } from '../features/courses/components/CourseDetailScreen';
@@ -25,6 +25,7 @@ import { MaintenanceScreen } from './common/MaintenanceScreen';
 import { adminApi } from '../features/admin/services/adminApi';
 import { mockCourses } from '../data/mockData';
 import { HomeScreen } from '../features/courses/components/HomeScreen';
+import { AiVoiceCoachPage } from '../features/courses/components/AiVoiceCoachPage';
 
 // Feature route modules
 import { renderAuthRoutes } from '../features/auth/routes';
@@ -146,6 +147,7 @@ export const AppRouter: React.FC<AppRouterProps> = ({
     if (path === '/register') return 'register';
     if (path === '/forgot-password') return 'forgot-password';
     if (path === '/reset-password') return 'reset-password';
+    if (path.startsWith('/ai-voice-coach') || path.startsWith('/ai-coach')) return 'ai-voice-coach';
     return 'home';
   })();
 
@@ -363,6 +365,20 @@ export const AppRouter: React.FC<AppRouterProps> = ({
             onToast={onToast}
           />
         }
+      />
+      <Route
+        path="/ai-voice-coach"
+        element={withMainLayout(
+          <AiVoiceCoachPage
+            onNavigate={handleNavigate}
+            user={user}
+            onSelectCourse={handleSelectCourse}
+          />
+        )}
+      />
+      <Route
+        path="/ai-coach"
+        element={<Navigate to="/ai-voice-coach" replace />}
       />
       <Route
         path="*"
