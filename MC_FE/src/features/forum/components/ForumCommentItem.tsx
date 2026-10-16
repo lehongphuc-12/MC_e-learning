@@ -4,6 +4,7 @@ import { ForumComment } from '../types/forumTypes';
 import { ForumReactionButtons } from './ForumReactionButtons';
 import { ForumCommentForm } from './ForumCommentForm';
 import { ForumReportModal } from './ForumReportModal';
+import { ForumConfirmModal } from './ForumConfirmModal';
 import { User } from '../../../types';
 
 interface ForumCommentItemProps {
@@ -27,6 +28,7 @@ export const ForumCommentItem: React.FC<ForumCommentItemProps> = ({
 }) => {
   const [isReplying, setIsReplying] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   const isHidden = comment.status === 'HIDDEN_BY_REPORTS' || comment.status === 'HIDDEN_BY_ADMIN';
@@ -34,11 +36,11 @@ export const ForumCommentItem: React.FC<ForumCommentItemProps> = ({
   const isAdmin = currentUser?.role === 'admin';
   const isAuthor = comment.isAuthor;
 
-  const handleDelete = async () => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa bình luận này?')) return;
+  const handleDeleteConfirm = async () => {
     setDeleting(true);
     try {
       await onDelete(comment.commentId);
+      setIsDeleteModalOpen(false);
     } finally {
       setDeleting(false);
     }
@@ -124,9 +126,9 @@ export const ForumCommentItem: React.FC<ForumCommentItemProps> = ({
             {(isAuthor || isAdmin) && !isDeleted && (
               <button
                 type="button"
-                onClick={handleDelete}
+                onClick={() => setIsDeleteModalOpen(true)}
                 disabled={deleting}
-                className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-slate-200 transition-colors"
+                className="p-1.5 rounded-lg text-slate-500 hover:text-rose-500 hover:bg-rose-50 transition-colors"
                 title="Xóa bình luận"
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -259,6 +261,19 @@ export const ForumCommentItem: React.FC<ForumCommentItemProps> = ({
         onSubmit={async (reason, details) => {
           await onReport(comment.commentId, reason, details);
         }}
+      />
+
+      {/* Delete Comment Confirmation Modal */}
+      <ForumConfirmModal
+        isOpen={isDeleteModalOpen}
+        title="Xác nhận xóa bình luận"
+        message="Bạn có chắc chắn muốn xóa bình luận này không?"
+        confirmText="Xác nhận"
+        cancelText="Hủy"
+        variant="danger"
+        isLoading={deleting}
+        onConfirm={handleDeleteConfirm}
+        onClose={() => setIsDeleteModalOpen(false)}
       />
     </div>
   );

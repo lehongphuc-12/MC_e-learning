@@ -10,6 +10,7 @@ import { ForumCommentItem } from '../components/ForumCommentItem';
 import { ForumReportModal } from '../components/ForumReportModal';
 import { ForumPostFormModal } from '../components/ForumPostFormModal';
 import { ForumUserProfileModal } from '../components/ForumUserProfileModal';
+import { ForumConfirmModal } from '../components/ForumConfirmModal';
 import { User } from '../../../types';
 import { ToastType } from '../../../components/common/Toast';
 
@@ -29,6 +30,8 @@ export const ForumDetailPage: React.FC<ForumDetailPageProps> = ({ user, onToast 
 
   const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState<boolean>(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState<boolean>(false);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
   const [selectedUserProfileUserId, setSelectedUserProfileUserId] = useState<number | null>(null);
   const [isUserProfileModalOpen, setIsUserProfileModalOpen] = useState<boolean>(false);
 
@@ -111,11 +114,22 @@ export const ForumDetailPage: React.FC<ForumDetailPageProps> = ({ user, onToast 
   };
 
   const handleDeletePost = async () => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa bài viết này?')) return;
-    const res = await forumApi.deletePost(post.postId);
-    if (res.success) {
-      if (onToast) onToast('Thành công', 'Đã xóa bài viết.', 'success');
-      navigate('/forum');
+    setIsDeleting(true);
+    try {
+      const res = await forumApi.deletePost(post.postId);
+      if (res.success) {
+        if (onToast) onToast('Thành công', 'Đã xóa bài viết.', 'success');
+        setIsDeleteModalOpen(false);
+        navigate('/forum');
+      } else {
+        if (onToast) onToast('Lỗi', res.message || 'Không thể xóa bài viết.', 'error');
+        setIsDeleteModalOpen(false);
+      }
+    } catch (_) {
+      if (onToast) onToast('Lỗi', 'Đã xảy ra lỗi khi xóa bài viết.', 'error');
+      setIsDeleteModalOpen(false);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -315,8 +329,8 @@ export const ForumDetailPage: React.FC<ForumDetailPageProps> = ({ user, onToast 
 
                   <button
                     type="button"
-                    onClick={handleDeletePost}
-                    className="p-2 rounded-xl bg-slate-100 text-slate-600 hover:text-rose-400 hover:bg-slate-200 transition-colors"
+                    onClick={() => setIsDeleteModalOpen(true)}
+                    className="p-2 rounded-xl bg-slate-100 text-slate-600 hover:text-rose-600 hover:bg-rose-50 transition-colors"
                     title="Xóa bài viết"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -479,6 +493,19 @@ export const ForumDetailPage: React.FC<ForumDetailPageProps> = ({ user, onToast 
         isOpen={isUserProfileModalOpen}
         onClose={() => setIsUserProfileModalOpen(false)}
         onToast={(title, desc, type) => onToast && onToast(title, desc, type)}
+      />
+
+      {/* Delete Post Confirmation Modal */}
+      <ForumConfirmModal
+        isOpen={isDeleteModalOpen}
+        title="Xác nhận xóa bài viết"
+        message="Bạn có chắc chắn muốn xóa bài viết này không? Hành động này không thể hoàn tác."
+        confirmText="Xác nhận"
+        cancelText="Hủy"
+        variant="danger"
+        isLoading={isDeleting}
+        onConfirm={handleDeletePost}
+        onClose={() => setIsDeleteModalOpen(false)}
       />
     </div>
   );
