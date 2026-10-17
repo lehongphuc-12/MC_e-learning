@@ -25,23 +25,39 @@ public class R2StorageService : IR2StorageService
     private readonly R2Settings _settings;
 
     public R2StorageService(IOptions<R2Settings> options)
+{
+    _settings = options.Value;
+
+    var serviceUrl = _settings.ServiceUrl?.Trim();
+
+    if (string.IsNullOrWhiteSpace(serviceUrl))
     {
-        _settings = options.Value;
-
-        var credentials = new BasicAWSCredentials(_settings.AccessKey, _settings.SecretKey);
-
-        var config = new AmazonS3Config
-        {
-            ServiceURL        = _settings.ServiceUrl,
-            // Path-style addressing is required for custom S3-compatible endpoints
-            ForcePathStyle    = true,
-            // R2 uses "auto" as its signing region
-            AuthenticationRegion = "auto",
-        };
-
-        _s3 = new AmazonS3Client(credentials, config);
+        throw new InvalidOperationException(
+            "Cloudflare R2 chưa được cấu hình ServiceUrl. " +
+            "Kiểm tra CloudflareR2:ServiceUrl trong appsettings hoặc User Secrets.");
     }
 
+    if (!Uri.TryCreate(serviceUrl, UriKind.Absolute, out var uri) ||
+        uri.Scheme != Uri.UriSchemeHttps)
+    {
+        throw new InvalidOperationException(
+            "CloudflareR2:ServiceUrl phải là một HTTPS URL hợp lệ.");
+    }
+
+    var credentials = new BasicAWSCredentials(
+        _settings.AccessKey,
+        _settings.SecretKey
+    );
+
+    var config = new AmazonS3Config
+    {
+        ServiceURL = serviceUrl.TrimEnd('/'),
+        ForcePathStyle = true,
+        AuthenticationRegion = "auto"
+    };
+
+    _s3 = new AmazonS3Client(credentials, config);
+}
     /// <inheritdoc />
     public async Task<string> UploadAsync(
         Stream stream,

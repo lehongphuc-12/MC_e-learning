@@ -1,6 +1,7 @@
 using MC_BE.Core.DTOs;
 using MC_BE.Features.Quizzes.DTOs;
 using MC_BE.Features.Quizzes.Services.Interfaces;
+using MC_BE.Features.Quizzes.Sync;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -11,9 +12,18 @@ namespace MC_BE.Features.Quizzes.Controllers;
 public class QuizzesController : ControllerBase
 {
     private readonly IQuizService _quizService;
-    public QuizzesController(IQuizService quizService)
+    private readonly QuizSheetExporter _sheetExporter;
+    private readonly ILogger<QuizzesController> _logger;
+    public QuizzesController(IQuizService quizService, QuizSheetExporter sheetExporter, ILogger<QuizzesController> logger)
     {
         _quizService = quizService;
+        _sheetExporter = sheetExporter;
+        _logger = logger;
+    }
+    private async Task TrySyncSheetAsync(int quizId)
+    {
+        try { await _sheetExporter.ExportAsync(quizId, HttpContext.RequestAborted); Response.Headers["X-MSEEK-Sheets-Sync"] = "success"; }
+        catch (Exception ex) { _logger.LogError(ex, "Google Sheets sync failed for quiz {QuizId}", quizId); Response.Headers["X-MSEEK-Sheets-Sync"] = "failed-retry-export"; }
     }
     private int? GetCurrentUserId()
     {
@@ -72,6 +82,7 @@ public async Task<ActionResult<ApiResponse<QuizDto>>> GetQuiz(int id)
                     ApiResponse<QuizDto>.FailureResponse(
                         "Unable to create quiz."));
             }
+            await TrySyncSheetAsync(created.QuizId);
             return Created(
                 $"/api/quizzes/{created.QuizId}",
                 ApiResponse<QuizDto>.SuccessResponse(
@@ -135,6 +146,7 @@ public async Task<ActionResult<ApiResponse<QuizDto>>> UpdateQuiz(
                 ApiResponse<QuizDto>.FailureResponse(
                     "Quiz not found."));
         }
+        await TrySyncSheetAsync(updated.QuizId);
         return Ok(
             ApiResponse<QuizDto>.SuccessResponse(
                 updated,
@@ -276,6 +288,26 @@ public async Task<ActionResult<ApiResponse<QuizResultDto>>> GetQuizResult(
             ApiResponse<QuizResultDto>.FailureResponse(
                 "Unable to load quiz result. Please try again later."));
     }
+}
+[HttpGet("{quizId:int}/instructor/attempts")]
+[Authorize(Roles = "Instructor")]
+public async Task<ActionResult<ApiResponse<List<InstructorQuizAttemptDto>>>> GetInstructorAttempts(int quizId)
+{
+    var id = GetCurrentUserId();
+    if (id is null) return Unauthorized();
+    try { return Ok(ApiResponse<List<InstructorQuizAttemptDto>>.SuccessResponse(await _quizService.GetInstructorAttemptsAsync(id.Value, quizId), "Attempts loaded.")); }
+    catch (UnauthorizedAccessException ex) { return StatusCode(403, ApiResponse<List<InstructorQuizAttemptDto>>.FailureResponse(ex.Message)); }
+    catch (ArgumentException ex) { return BadRequest(ApiResponse<List<InstructorQuizAttemptDto>>.FailureResponse(ex.Message)); }
+}
+[HttpGet("{quizId:int}/instructor/attempts/{attemptId:int}")]
+[Authorize(Roles = "Instructor")]
+public async Task<ActionResult<ApiResponse<QuizResultDto>>> GetInstructorAttempt(int quizId, int attemptId)
+{
+    var id = GetCurrentUserId();
+    if (id is null) return Unauthorized();
+    try { return Ok(ApiResponse<QuizResultDto>.SuccessResponse((await _quizService.GetInstructorAttemptResultAsync(id.Value, quizId, attemptId))!, "Attempt loaded.")); }
+    catch (UnauthorizedAccessException ex) { return StatusCode(403, ApiResponse<QuizResultDto>.FailureResponse(ex.Message)); }
+    catch (ArgumentException ex) { return BadRequest(ApiResponse<QuizResultDto>.FailureResponse(ex.Message)); }
 }
 [HttpPut("answers/{quizAnswerId:int}/grade")]
 [Authorize(Roles = "Instructor")]

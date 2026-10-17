@@ -4,6 +4,8 @@ namespace MC_BE.Features.Quizzes.Services.Interfaces;
 
 public interface IQuizService
 {
+    Task<List<InstructorQuizAttemptDto>> GetInstructorAttemptsAsync(int instructorId, int quizId);
+    Task<QuizResultDto?> GetInstructorAttemptResultAsync(int instructorId, int quizId, int attemptId);
     Task<QuizDto?> CreateQuizAsync(int instructorId, CreateQuizRequest request);
     Task<QuizDto?> GetQuizByIdAsync(int quizId);
     Task<QuizDto?> UpdateQuizAsync(int instructorId, int quizId, UpdateQuizRequest request);

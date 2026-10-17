@@ -2,37 +2,27 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-
 using MC_BE.Core.Entities;
-
 using MC_BE.Features.Admin.Services;
 using MC_BE.Features.Admin.Services.Interfaces;
-
 using MC_BE.Features.Forum.Services;
 using MC_BE.Features.Forum.Services.Interfaces;
-
 using MC_BE.Features.Auth.Services;
 using MC_BE.Features.Auth.Services.Interfaces;
-
 using MC_BE.Features.Courses.Services;
 using MC_BE.Features.Courses.Services.Interfaces;
-
 using MC_BE.Features.Users.Services;
 using MC_BE.Features.Users.Services.Interfaces;
-
 using MC_BE.Features.Learning.Repositories;
 using MC_BE.Features.Learning.Repositories.Interfaces;
 using MC_BE.Features.Learning.Services;
 using MC_BE.Features.Learning.Services.Interfaces;
-
 using MC_BE.Features.Chat.Hubs;
 using MC_BE.Features.Chat.Services;
 using MC_BE.Features.Chat.Services.Interfaces;
-
 using MC_BE.Features.Quizzes.Services;
 using MC_BE.Features.Quizzes.Services.Interfaces;
-
-
+using MC_BE.Features.Quizzes.Sync;
 using MC_BE.Shared.Data;
 using MC_BE.Shared.Middleware;
 using MC_BE.Shared.Repositories;
@@ -40,55 +30,42 @@ using MC_BE.Shared.Repositories.Interfaces;
 using MC_BE.Shared.Services;
 using MC_BE.Shared.Services.Interfaces;
 using MC_BE.Shared.Settings;
-
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using MC_BE.Features.Forum.Services;
-using MC_BE.Features.Forum.Services.Interfaces;
-
 var builder = WebApplication.CreateBuilder(args);
-
 // ============================================================
 // KESTREL — allow large file uploads (max 500 MB for video)
 // ============================================================
-
 builder.WebHost.ConfigureKestrel(options =>
 {
     // Per-request limit; individual endpoints can be lower via [RequestSizeLimit]
     options.Limits.MaxRequestBodySize = 500L * 1024L * 1024L; // 500 MB
 });
-
 builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
 {
     options.ValueLengthLimit = int.MaxValue;
     options.MultipartBodyLengthLimit = 500L * 1024L * 1024L; // 500 MB
     options.MultipartHeadersLengthLimit = int.MaxValue;
 });
-
 // ============================================================
 // DATABASE
 // ============================================================
-
 builder.Services.AddDbContext<SmartMcDbContext>(options =>
 {
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"));
 });
-
 // ============================================================
 // SETTINGS
 // ============================================================
-
 builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection("Cloudinary"));
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
 builder.Services.Configure<PayOsSettings>(builder.Configuration.GetSection("PayOS"));
 builder.Services.Configure<R2Settings>(builder.Configuration.GetSection("CloudflareR2"));
-
 // ============================================================
 // CORS
 // ============================================================
-
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
@@ -99,19 +76,15 @@ builder.Services.AddCors(options =>
             .AllowCredentials();
     });
 });
-
 // ============================================================
 // REPOSITORY / UNIT OF WORK
 // ============================================================
-
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddHttpContextAccessor();
-
 // ============================================================
 // AUTH / USER / ADMIN
 // ============================================================
-
 builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
@@ -119,21 +92,24 @@ builder.Services.AddScoped<IUserProfileService, UserProfileService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<IAdminStatsService, AdminStatsService>();
-
 // ============================================================
 // COURSE MANAGEMENT
 // ============================================================
-
 builder.Services.AddScoped<ICourseService, CourseService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<IModuleService, ModuleService>();
 builder.Services.AddScoped<ILessonService, LessonService>();
-
 // ============================================================
 // QUIZ MANAGEMENT
 // ============================================================
-
 builder.Services.AddScoped<IQuizService, QuizService>();
+builder.Services.AddScoped<QuizSheetReader>();
+builder.Services.AddScoped<QuizImportService>();
+builder.Services.AddScoped<QuizSheetExporter>();
+builder.Services.AddScoped<QuizSyncReviewService>();
+builder.Services.AddScoped<QuizSyncSafetyService>();
+builder.Services.AddScoped<QuizFullSyncService>();
+builder.Services.AddHostedService<QuizAutoSyncWorker>();
 
 // ============================================================
 // FORUM
@@ -142,7 +118,6 @@ builder.Services.AddScoped<IForumPostService, ForumPostService>();
 builder.Services.AddScoped<IForumCommentService, ForumCommentService>();
 builder.Services.AddScoped<IForumInteractionService, ForumInteractionService>();
 builder.Services.AddScoped<IAdminForumService, AdminForumService>();
-
 // ============================================================
 // LEARNING / CERTIFICATION
 // ============================================================
@@ -150,28 +125,15 @@ builder.Services.AddScoped<ICertificateService, CertificateService>();
 builder.Services.AddScoped<ILearningProgressService, LearningProgressService>();
 builder.Services.AddScoped<ISpeakingSubmissionRepository, SpeakingSubmissionRepository>();
 builder.Services.AddScoped<ISpeakingSubmissionService, SpeakingSubmissionService>();
-
-// ============================================================
-// FORUM
-// ============================================================
-builder.Services.AddScoped<IForumPostService, ForumPostService>();
-builder.Services.AddScoped<IForumCommentService, ForumCommentService>();
-builder.Services.AddScoped<IForumInteractionService, ForumInteractionService>();
-builder.Services.AddScoped<IAdminForumService, AdminForumService>();
-
 // ============================================================
 // EMAIL / CLOUDINARY
 // ============================================================
-
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
 builder.Services.AddScoped<IR2StorageService, R2StorageService>();
-
-
 // ============================================================
 // ENROLLMENT / PAYMENT
 // ============================================================
-
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<ICourseCatalogService, CourseCatalogService>();
 builder.Services.AddScoped<IEnrollmentService, EnrollmentService>();
@@ -179,7 +141,6 @@ builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddScoped<IAdminPaymentService, AdminPaymentService>();
 builder.Services.AddScoped<IPayOsService, PayOsService>();
 builder.Services.AddHostedService<EnrollmentExpirationWorker>();
-
 // ============================================================
 // CHAT / CALL
 // ============================================================
@@ -188,19 +149,15 @@ builder.Services.AddScoped<ICallService, CallService>();
 // ============================================================
 // SIGNALR
 // ============================================================
-
 builder.Services.AddSignalR(options =>
 {
     options.EnableDetailedErrors = builder.Environment.IsDevelopment();
     options.MaximumReceiveMessageSize = 128 * 1024;
 });
-
 // ============================================================
 // JWT AUTHENTICATION
 // ============================================================
-
 var secretKey = builder.Configuration["Jwt:Secret"] ?? throw new InvalidOperationException("JWT Secret not found.");
-
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -218,7 +175,6 @@ builder.Services.AddAuthentication(options =>
         ValidAudience = builder.Configuration["Jwt:Audience"],
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey))
     };
-
     // SignalR sends JWT through ?access_token=... when using WebSocket.
     options.Events = new JwtBearerEvents
     {
@@ -226,35 +182,28 @@ builder.Services.AddAuthentication(options =>
         {
             var accessToken = context.Request.Query["access_token"];
             var path = context.HttpContext.Request.Path;
-
             if (!string.IsNullOrEmpty(accessToken) &&
                 (path.StartsWithSegments("/hubs/chat") || path.StartsWithSegments("/hubs/call")))
             {
                 context.Token = accessToken;
             }
-
             return Task.CompletedTask;
         }
     };
 });
-
 // ============================================================
 // CONTROLLERS / JSON
 // ============================================================
-
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
     });
-
 // ============================================================
 // OPEN API / SWAGGER
 // ============================================================
-
 builder.Services.AddOpenApi();
 builder.Services.AddEndpointsApiExplorer();
-
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo
@@ -262,9 +211,7 @@ builder.Services.AddSwaggerGen(c =>
         Title = "MC E-Learning API",
         Version = "v1"
     });
-
     c.CustomSchemaIds(x => x.FullName?.Replace("+", "."));
-
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Description = "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\"",
@@ -273,7 +220,6 @@ builder.Services.AddSwaggerGen(c =>
         Type = SecuritySchemeType.ApiKey,
         Scheme = "Bearer"
     });
-
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {
@@ -292,19 +238,14 @@ builder.Services.AddSwaggerGen(c =>
         }
     });
 });
-
 // ============================================================
 // BUILD APP
 // ============================================================
-
 var app = builder.Build();
-
 // ============================================================
 // GLOBAL EXCEPTION
 // ============================================================
-
 app.UseMiddleware<GlobalExceptionMiddleware>();
-
 // ============================================================
 // DATABASE MIGRATION + SEED ROLES
 // ============================================================
@@ -324,23 +265,18 @@ using (var scope = app.Services.CreateScope())
         Console.WriteLine($"Database column patch notice: {ex.Message}");
     }
 }
-
 //using (var scope = app.Services.CreateScope())
 //{
 //    var context = scope.ServiceProvider.GetRequiredService<SmartMcDbContext>();
-
 //    try
 //    {
 //        Console.WriteLine("====================================");
 //        Console.WriteLine("Running database migrations...");
-
 //        context.Database.Migrate();
-
 //        Console.WriteLine("Database migration completed.");
 //        if (!context.Roles.Any())
 //        {
 //            Console.WriteLine("Seeding default roles...");
-
 //            context.Roles.AddRange(
 //                new Role
 //                {
@@ -358,11 +294,9 @@ using (var scope = app.Services.CreateScope())
 //                    Description = "Administrator user with system-wide permissions."
 //                }
 //            );
-
 //            context.SaveChanges();
 //            Console.WriteLine("Default roles seeded.");
 //        }
-
 //        Console.WriteLine("Database initialization completed.");
 //        Console.WriteLine("====================================");
 //    }
@@ -376,44 +310,33 @@ using (var scope = app.Services.CreateScope())
 //        throw;
 //    }
 //}
-
 // ============================================================
 // HTTP PIPELINE
 // ============================================================
-
 app.UseRouting();
 app.UseCors("AllowAll");
 app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
-
 // ============================================================
 // SIGNALR HUBS
 // ============================================================
-
 app.MapHub<ChatHub>("/hubs/chat");
 app.MapHub<CallHub>("/hubs/call");
-
 // ============================================================
 // SWAGGER
 // ============================================================
-
 app.UseSwagger();
-
 app.UseSwaggerUI(c =>
 {
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "MC E-Learning API v1");
     c.RoutePrefix = "swagger";
 });
-
 // ============================================================
 // CONTROLLERS
 // ============================================================
-
 app.MapControllers();
-
 // ============================================================
 // RUN
 // ============================================================
-
 app.Run();
