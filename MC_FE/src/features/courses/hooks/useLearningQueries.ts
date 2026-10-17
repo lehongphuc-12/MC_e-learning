@@ -1,9 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { learningApi } from '../api/learningApi';
+import { useAuthStore } from '../../../store/useAuthStore';
 import type { UpdateLessonProgressDto } from '../types/learningTypes';
 
 export const learningQueryKeys = {
-  courseProgress: (courseId: number) => ['course-progress', courseId] as const,
+  courseProgress: (courseId: number, userId?: string | number | null) => ['course-progress', userId ?? 'guest', courseId] as const,
   activityLogs: () => ['activity-logs'] as const,
   streak: () => ['learning-streak'] as const,
 };
@@ -27,25 +28,27 @@ export function useActivityLogsQuery(limit = 50) {
 }
 
 export function useCourseProgress(courseId: number) {
+  const userId = useAuthStore(state => state.user?.id);
   return useQuery({
-    queryKey: learningQueryKeys.courseProgress(courseId),
+    queryKey: learningQueryKeys.courseProgress(courseId, userId),
     queryFn: () => learningApi.getCourseProgress(courseId),
-    enabled: courseId > 0,
+    enabled: courseId > 0 && userId != null,
   });
 }
 
 export function useUpdateLessonProgress(courseId: number) {
   const queryClient = useQueryClient();
+  const userId = useAuthStore(state => state.user?.id);
 
   return useMutation({
     mutationFn: ({ lessonId, dto }: { lessonId: number; dto: UpdateLessonProgressDto }) =>
       learningApi.updateLessonProgress(lessonId, dto),
     onSuccess: (data) => {
       if (data) {
-        queryClient.setQueryData(learningQueryKeys.courseProgress(courseId), data);
+        queryClient.setQueryData(learningQueryKeys.courseProgress(courseId, userId), data);
       } else {
         queryClient.invalidateQueries({
-          queryKey: learningQueryKeys.courseProgress(courseId),
+          queryKey: learningQueryKeys.courseProgress(courseId, userId),
         });
       }
       queryClient.invalidateQueries({
