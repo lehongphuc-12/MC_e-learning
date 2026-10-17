@@ -34,6 +34,7 @@ import {
   Sliders,
   UploadCloud,
   FileAudio,
+  Download,
 } from 'lucide-react';
 
 import { useCourseDetail } from '../hooks/useInstructorCourses';
@@ -55,6 +56,7 @@ import type { Certificate } from '../types/learningTypes';
 
 import { useQuizzesByCourse } from '../../quizzes/hooks/useQuiz';
 import { speakingApi, SpeakingSubmissionDto } from '../api/speakingApi';
+import { request } from '../../../services/api';
 
 // =============================================================================
 // LearnerSpeakingWorkspace — Voice Recording & Submission for Learners
@@ -885,7 +887,7 @@ export function getEmbedVideoUrl(url?: string): string | null {
   if (url.includes('vimeo.com')) {
     const vimeoMatch = url.match(/vimeo\.com\/(?:channels\/(?:\w+\/)?|groups\/([^\/]*)\/videos\/|album\/(\d+)\/video\/|)(\d+)/);
     if (vimeoMatch && vimeoMatch[3]) {
-      return `https://player.vimeo.com/video/${vimeoMatch[3]}?autoplay=1`;
+      return `https://player.vimeo.com/video/${vimeoMatch[3]}?autoplay=1&api=1&player_id=video-player-iframe`;
     }
   }
 
@@ -945,6 +947,20 @@ export const CourseLearningPage: React.FC = () => {
 
   const issueCertMutation =
     useIssueCertificate(courseId);
+
+  // Real materials attached to the course or current lesson.
+  const [courseMaterials, setCourseMaterials] = useState<Array<{ materialId: number; lessonId: number | null; title: string; fileUrl: string; materialType: string | null }>>([]);
+  const [materialsError, setMaterialsError] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    setCourseMaterials([]);
+    setMaterialsError(false);
+    if (!courseId || !user?.id) return;
+    request<{ success: boolean; data: Array<{ materialId: number; lessonId: number | null; title: string; fileUrl: string; materialType: string | null }> }>(`/courses/${courseId}/materials`)
+      .then(res => { if (alive) setCourseMaterials(res.data ?? []); })
+      .catch(() => { if (alive) setMaterialsError(true); });
+    return () => { alive = false; };
+  }, [courseId, user?.id]);
 
   // ===========================================================================
   // Sort modules by orderIndex
@@ -1047,6 +1063,8 @@ export const CourseLearningPage: React.FC = () => {
 
   const [activeLesson, setActiveLesson] =
     useState<Lesson | null>(null);
+
+  const lessonMaterials = courseMaterials.filter(m => m.lessonId == null || m.lessonId === activeLesson?.lessonId);
 
   const [isSidebarOpen, setIsSidebarOpen] =
     useState(true);
@@ -1201,63 +1219,30 @@ export const CourseLearningPage: React.FC = () => {
 
   const storageKey = user?.id
     ? `mc_completed_lessons_${user.id}_${courseId}`
-    : `mc_completed_lessons_${courseId}`;
+    : `mc_completed_lessons_guest_${courseId}`;
 
   // ===========================================================================
   // Sync completed lesson IDs from LocalStorage & backend progress
   // ===========================================================================
 
+  // Only the authenticated learner's backend progress is authoritative.
+  // Never import old browser completions into another account's database.
   useEffect(() => {
-    let savedLocal: number[] = [];
+    setCompletedLessonIds([]);
+    hasMarkedEndedRef.current = {};
+    watchedSecondsRef.current = {};
+    lastPlaybackRef.current = null;
+    videoCompletionTriggeredRef.current = {};
+    setVideoWatchProgress({});
+  }, [user?.id, courseId]);
 
-    try {
-      const stored =
-        localStorage.getItem(storageKey);
-
-      if (stored) {
-        savedLocal = JSON.parse(stored);
-      }
-    } catch (_) {}
-
-    const backendCompleted =
-      (progressData?.lessonProgresses ?? [])
-        .filter((lp) => lp.isCompleted)
-        .map((lp) => lp.lessonId);
-
-    const merged = Array.from(
-      new Set([
-        ...savedLocal,
-        ...backendCompleted,
-      ]),
-    );
-
-    setCompletedLessonIds(merged);
-
-    try {
-      localStorage.setItem(
-        storageKey,
-        JSON.stringify(merged),
-      );
-    } catch (_) {}
-
-    // Auto-sync local completions to backend if backend is missing them
-    if (savedLocal.length > 0 && progressData) {
-      savedLocal.forEach((id) => {
-        if (!backendCompleted.includes(id)) {
-          updateProgressMutation.mutate({
-            lessonId: id,
-            dto: {
-              isCompleted: true,
-            },
-          });
-        }
-      });
-    }
-  }, [
-    progressData,
-    courseId,
-    storageKey,
-  ]);
+  useEffect(() => {
+    if (!user?.id || !progressData) return;
+    const backendCompleted = (progressData.lessonProgresses ?? [])
+      .filter((lp) => lp.isCompleted).map((lp) => lp.lessonId);
+    setCompletedLessonIds(backendCompleted);
+    try { localStorage.setItem(storageKey, JSON.stringify(backendCompleted)); } catch (_) {}
+  }, [progressData, storageKey, user?.id]);
 
   const toggleModuleCollapse = (
     moduleId: number,
@@ -1288,6 +1273,7 @@ export const CourseLearningPage: React.FC = () => {
 
   useEffect(() => {
     setIsVideoEnded(false);
+    lastPlaybackRef.current = null;
   }, [activeLesson?.lessonId]);
 
   const hasMarkedEndedRef =
@@ -1452,6 +1438,8 @@ export const CourseLearningPage: React.FC = () => {
   const ytPlayerRef =
     useRef<any>(null);
 
+  const [replayKey, setReplayKey] = useState(0);
+
   useEffect(() => {
     if (
       !embedUrl ||
@@ -1494,6 +1482,10 @@ export const CourseLearningPage: React.FC = () => {
                 ) => {
                   // 0 means ENDED
                   if (event.data === 0) {
+                    const current = activeLessonRef.current;
+                    const duration = event.target?.getDuration?.() || 0;
+                    if (!current || !recordActualPlayback(current.lessonId, event.target?.getCurrentTime?.() || duration, duration)) return;
+                    videoCompletionTriggeredRef.current[current.lessonId] = true;
                     setIsVideoEnded(true);
 
                     if (
@@ -1543,15 +1535,11 @@ export const CourseLearningPage: React.FC = () => {
                 handleVideoTimeUpdate(
                   currentTime,
                 );
+                const watchedEnough = activeLessonRef.current ? recordActualPlayback(activeLessonRef.current.lessonId, currentTime, duration) : false;
 
-                if (
-                  duration -
-                    currentTime <=
-                    4 ||
-                  currentTime /
-                    duration >=
-                    0.95
-                ) {
+                if (watchedEnough && currentTime >= duration * 0.95 && !videoCompletionTriggeredRef.current[activeLessonRef.current?.lessonId || 0]) {
+                  videoCompletionTriggeredRef.current[activeLessonRef.current!.lessonId] = true;
+                  setIsVideoEnded(true);
                   if (
                     activeLessonRef.current
                   ) {
@@ -1566,20 +1554,40 @@ export const CourseLearningPage: React.FC = () => {
             } catch (_) {}
           }
         }, 1000);
-      } catch (_) {}
+      } catch (error) { ytPlayerRef.current = null; console.error('[CourseLearning] Cannot attach YouTube player', error); }
     };
 
     const win = window as any;
 
-    if (win.YT && win.YT.Player) {
-      initYTPlayer();
-    } else {
-      win.onYouTubeIframeAPIReady = () => {
+    // Wait for BOTH the YouTube API and the actual iframe to be mounted.
+    // The old code tried YT.Player before React had rendered the iframe,
+    // silently swallowed the error, and never retried.
+    let apiWaitTimer: ReturnType<typeof setInterval> | null = null;
+    let initialized = false;
+    let attempts = 0;
+    const tryInit = () => {
+      if (initialized) return;
+      const iframe = document.getElementById('video-player-iframe') as HTMLIFrameElement | null;
+      if (!iframe || !iframe.src.includes('youtube.com/embed/')) return;
+      if (!win.YT?.Player) return;
+      try {
         initYTPlayer();
-      };
-    }
+        initialized = !!ytPlayerRef.current;
+        if (initialized && apiWaitTimer) { clearInterval(apiWaitTimer); apiWaitTimer = null; }
+      } catch (error) { console.error('[CourseLearning] YouTube player initialization failed', error); }
+    };
+    tryInit();
+    if (!initialized) apiWaitTimer = setInterval(() => {
+      tryInit();
+      if (++attempts >= 100 && apiWaitTimer) {
+        clearInterval(apiWaitTimer);
+        apiWaitTimer = null;
+        console.warn('[CourseLearning] YouTube iframe/API unavailable after 30 seconds');
+      }
+    }, 300);
 
     return () => {
+      if (apiWaitTimer) clearInterval(apiWaitTimer);
       if (intervalId) {
         clearInterval(intervalId);
       }
@@ -1595,6 +1603,7 @@ export const CourseLearningPage: React.FC = () => {
   }, [
     activeLesson?.lessonId,
     embedUrl,
+    replayKey,
   ]);
 
   // ===========================================================================
@@ -1606,6 +1615,8 @@ export const CourseLearningPage: React.FC = () => {
       event: MessageEvent,
     ) => {
       try {
+        const iframe = document.getElementById('video-player-iframe') as HTMLIFrameElement | null;
+        if (!iframe?.contentWindow || event.source !== iframe.contentWindow) return;
         let data = event.data;
 
         if (typeof data === 'string') {
@@ -1623,6 +1634,33 @@ export const CourseLearningPage: React.FC = () => {
           return;
         }
 
+        // Vimeo player.js postMessage: { event: 'timeupdate', data: { seconds, duration, percent } }.
+        // Google Drive preview does not expose playback events to third-party pages.
+        if (iframe.src.includes('player.vimeo.com')) {
+          if (!/^https:\/\/(?:player\.)?vimeo\.com$/.test(event.origin)) return;
+          const payload = data.data || {};
+          const seconds = Number(payload.seconds ?? payload.currentTime);
+          const length = Number(payload.duration);
+          if (Number.isFinite(length) && length > 0 && activeLessonRef.current) handleSaveLessonDuration(activeLessonRef.current.lessonId, length);
+          if (Number.isFinite(seconds) && Number.isFinite(length) && length > 0 && activeLessonRef.current) {
+            handleVideoTimeUpdate(seconds);
+            const current = activeLessonRef.current;
+            if (recordActualPlayback(current.lessonId, seconds, length) && !videoCompletionTriggeredRef.current[current.lessonId]) {
+              videoCompletionTriggeredRef.current[current.lessonId] = true;
+              handleMarkLessonComplete(current.lessonId, true);
+              setIsVideoEnded(true);
+            }
+          }
+          if (data.event === 'ended' && activeLessonRef.current && !videoCompletionTriggeredRef.current[activeLessonRef.current.lessonId]) {
+            const current = activeLessonRef.current;
+            videoCompletionTriggeredRef.current[current.lessonId] = true;
+            setVideoWatchProgress(prev => ({ ...prev, [current.lessonId]: 100 }));
+            handleMarkLessonComplete(current.lessonId, true);
+            setIsVideoEnded(true);
+          }
+          return;
+        }
+        if (!/^https:\/\/(?:www\.|www-nocookie\.)?youtube\.com$/.test(event.origin)) return;
         const info =
           data.info || data;
 
@@ -1662,19 +1700,10 @@ export const CourseLearningPage: React.FC = () => {
               data.info === 0)) ||
           playerState === 0;
 
-        const isEndedByScrub =
-          typeof currentTime ===
-            'number' &&
-          typeof duration ===
-            'number' &&
-          duration > 0 &&
-          (duration - currentTime <=
-            5 ||
-            currentTime /
-              duration >=
-              0.95);
-
-        if (isEndedByState) {
+        const watchedEnough = activeLessonRef.current && typeof currentTime === 'number' && typeof duration === 'number'
+          ? recordActualPlayback(activeLessonRef.current.lessonId, currentTime, duration) : false;
+        if (isEndedByState && watchedEnough && activeLessonRef.current && !videoCompletionTriggeredRef.current[activeLessonRef.current.lessonId]) {
+          videoCompletionTriggeredRef.current[activeLessonRef.current.lessonId] = true;
           setIsVideoEnded(true);
 
           const currentTargetLesson =
@@ -1687,8 +1716,10 @@ export const CourseLearningPage: React.FC = () => {
             );
           }
         } else if (
-          isEndedByScrub
+          watchedEnough && typeof currentTime === 'number' && typeof duration === 'number' && currentTime >= duration * 0.95 && activeLessonRef.current && !videoCompletionTriggeredRef.current[activeLessonRef.current.lessonId]
         ) {
+          videoCompletionTriggeredRef.current[activeLessonRef.current.lessonId] = true;
+          setIsVideoEnded(true);
           const currentTargetLesson =
             activeLessonRef.current;
 
@@ -1712,7 +1743,13 @@ export const CourseLearningPage: React.FC = () => {
       const iframe = document.getElementById('video-player-iframe') as HTMLIFrameElement;
       if (iframe && iframe.contentWindow) {
         try {
+          if (iframe.src.includes('player.vimeo.com')) {
+            for (const eventName of ['timeupdate', 'ended', 'loaded']) iframe.contentWindow.postMessage({ method: 'addEventListener', value: eventName }, 'https://player.vimeo.com');
+            return;
+          }
+          if (!iframe.src.includes('youtube.com')) return;
           iframe.contentWindow.postMessage(JSON.stringify({ event: 'listening' }), '*');
+          iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'addEventListener', args: ['onStateChange'] }), 'https://www.youtube.com');
           iframe.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'getDuration', args: [] }), '*');
         } catch (_) {}
       }
@@ -1786,6 +1823,7 @@ export const CourseLearningPage: React.FC = () => {
     lesson: Lesson,
   ) => {
     setIsVideoEnded(false);
+    setReplayKey(0);
     setActiveLesson(lesson);
 
     setSearchParams(
@@ -1803,6 +1841,17 @@ export const CourseLearningPage: React.FC = () => {
   // Handle video playback time updates
   // ===========================================================================
 
+  const watchedSecondsRef = useRef<Record<number, number>>({});
+  const [videoWatchProgress, setVideoWatchProgress] = useState<Record<number, number>>({});
+  const videoCompletionTriggeredRef = useRef<Record<number, boolean>>({});
+  const lastPlaybackRef = useRef<{ lessonId: number; position: number; at: number } | null>(null);
+  const recordActualPlayback = (lessonId: number, position: number, duration: number) => {
+    if (!Number.isFinite(duration) || duration <= 0 || !Number.isFinite(position)) return false;
+    const percent = Math.max(0, Math.min(100, Math.floor(position / duration * 100)));
+    setVideoWatchProgress(prev => prev[lessonId] === percent ? prev : { ...prev, [lessonId]: percent });
+    // Video lessons complete at the 95% playback position (including YouTube and direct video).
+    return position >= duration * 0.95;
+  };
   const lastUpdatedSecRef =
     useRef<number>(0);
 
@@ -1813,7 +1862,7 @@ export const CourseLearningPage: React.FC = () => {
       Math.floor(currentTime);
 
     if (
-      activeLesson &&
+      activeLessonRef.current &&
       currentSec > 0 &&
       currentSec !==
         lastUpdatedSecRef.current &&
@@ -1824,7 +1873,7 @@ export const CourseLearningPage: React.FC = () => {
 
       updateProgressMutation.mutate({
         lessonId:
-          activeLesson.lessonId,
+          activeLessonRef.current!.lessonId,
         dto: {
           lastPositionSeconds:
             currentSec,
@@ -1879,6 +1928,42 @@ export const CourseLearningPage: React.FC = () => {
           currentIndex + 1
         ]
       : null;
+
+  // Automatically advance after a video finishes; do not skip assignments or quizzes.
+  const [autoNextSeconds, setAutoNextSeconds] = useState(5);
+  const [autoNextCancelled, setAutoNextCancelled] = useState(false);
+  const videoElementRef = useRef<HTMLVideoElement | null>(null);
+  useEffect(() => {
+    if (isVideoEnded) { setAutoNextSeconds(5); setAutoNextCancelled(false); }
+  }, [isVideoEnded]);
+  const handleReplayVideo = () => {
+    setAutoNextCancelled(true);
+    setIsVideoEnded(false);
+    const iframe = document.getElementById('video-player-iframe') as HTMLIFrameElement | null;
+    const url = activeLesson?.videoUrl || '';
+    if (url.includes('youtube.com') || url.includes('youtu.be')) {
+      try { ytPlayerRef.current?.seekTo?.(0, true); ytPlayerRef.current?.playVideo?.(); } catch (_) { setReplayKey(k => k + 1); }
+    } else if (url.includes('vimeo.com') && iframe?.contentWindow) {
+      iframe.contentWindow.postMessage({ method: 'setCurrentTime', value: 0 }, 'https://player.vimeo.com');
+      iframe.contentWindow.postMessage({ method: 'play' }, 'https://player.vimeo.com');
+    } else if (videoElementRef.current) {
+      videoElementRef.current.currentTime = 0;
+      void videoElementRef.current.play().catch(() => {});
+    } else { setReplayKey(k => k + 1); }
+  };
+  useEffect(() => {
+    setAutoNextSeconds(5);
+    setAutoNextCancelled(false);
+  }, [activeLesson?.lessonId]);
+  useEffect(() => {
+    if (!isVideoEnded || !nextLesson || autoNextCancelled ||
+        !activeLesson?.videoUrl?.trim() ||
+        activeLesson?.lessonType?.toUpperCase() === 'ASSIGNMENT' ||
+        quizzes.some(q => q.lessonId === activeLesson?.lessonId && q.status === 'ACTIVE')) return;
+    if (autoNextSeconds <= 0) { handleSelectLesson(nextLesson); return; }
+    const timer = window.setTimeout(() => setAutoNextSeconds(n => n - 1), 1000);
+    return () => window.clearTimeout(timer);
+  }, [isVideoEnded, nextLesson?.lessonId, autoNextCancelled, autoNextSeconds, activeLesson?.lessonId, quizzes]);
 
   // ===========================================================================
   // Total duration
@@ -2265,13 +2350,19 @@ export const CourseLearningPage: React.FC = () => {
                         {activeLesson?.title}
                       </p>
 
+                      {nextLesson && !quizzes.some(q => q.lessonId === activeLesson?.lessonId && q.status === 'ACTIVE') && (
+                        <div className="mt-3 text-xs text-slate-600">
+                          {autoNextCancelled ? 'Đã hủy tự chuyển bài.' : `Tự chuyển sang bài tiếp theo sau ${autoNextSeconds} giây.`}
+
+                        </div>
+                      )}
                       <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
                         <button
-                          onClick={() => setIsVideoEnded(false)}
+                          onClick={handleReplayVideo}
                           className="inline-flex items-center gap-2 rounded-xl bg-slate-800 px-4 py-2.5 text-xs font-semibold text-slate-200 hover:bg-slate-700 hover:text-slate-900 transition-all cursor-pointer border border-slate-700"
                         >
                           <RotateCcw className="h-4 w-4" />
-                          Phát lại bài này
+                          Xem lại video
                         </button>
 
                         {nextLesson && (
@@ -2299,7 +2390,7 @@ export const CourseLearningPage: React.FC = () => {
                     embedUrl.includes('vimeo.com') ||
                     embedUrl.includes('drive.google.com') ? (
                       <iframe
-                        key={activeLesson?.lessonId}
+                        key={`${activeLesson?.lessonId}-${replayKey}`}
                         id="video-player-iframe"
                         src={embedUrl}
                         title={activeLesson?.title}
@@ -2309,6 +2400,8 @@ export const CourseLearningPage: React.FC = () => {
                       />
                     ) : (
                       <video
+                        ref={videoElementRef}
+                        key={`${activeLesson?.lessonId}-${replayKey}`}
                         src={embedUrl}
                         controls
                         autoPlay
@@ -2324,24 +2417,21 @@ export const CourseLearningPage: React.FC = () => {
                           const v = e.currentTarget;
 
                           handleVideoTimeUpdate(v.currentTime);
+                          const watchedEnough = activeLesson ? recordActualPlayback(activeLesson.lessonId, v.currentTime, v.duration) : false;
 
-                          if (
-                            v.duration > 0 &&
-                            (v.duration - v.currentTime <= 4 ||
-                              v.currentTime / v.duration >= 0.95)
-                          ) {
-                            if (activeLesson) {
-                              handleMarkLessonComplete(
-                                activeLesson.lessonId,
-                                true,
-                              );
-                            }
+                          if (watchedEnough && v.currentTime >= v.duration * 0.95 && activeLesson && !videoCompletionTriggeredRef.current[activeLesson.lessonId]) {
+                            videoCompletionTriggeredRef.current[activeLesson.lessonId] = true;
+                            setIsVideoEnded(true);
+                            handleMarkLessonComplete(activeLesson.lessonId, true);
                           }
                         }}
                         onPause={(e) =>
                           handleVideoTimeUpdate(e.currentTarget.currentTime)
                         }
-                        onEnded={() => {
+                        onEnded={(e) => {
+                          if (!activeLesson || !recordActualPlayback(activeLesson.lessonId, e.currentTarget.currentTime, e.currentTarget.duration)) return;
+                          if (videoCompletionTriggeredRef.current[activeLesson.lessonId]) return;
+                          videoCompletionTriggeredRef.current[activeLesson.lessonId] = true;
                           setIsVideoEnded(true);
 
                           if (activeLesson) {
@@ -2427,11 +2517,11 @@ export const CourseLearningPage: React.FC = () => {
               ) : (
                 <button
                   onClick={() =>
-                    activeLesson &&
-                    toggleComplete(
-                      activeLesson.lessonId,
-                    )
+                    activeLesson && !activeLesson.videoUrl?.trim() &&
+                    toggleComplete(activeLesson.lessonId)
                   }
+                  disabled={!!activeLesson?.videoUrl?.trim()}
+                  title={activeLesson?.videoUrl?.trim() ? 'Bài video được tự động hoàn thành khi xem đủ 95%' : 'Đánh dấu đã đọc xong bài lý thuyết'}
                   className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all cursor-pointer shadow-2xs border ${
                     activeLesson &&
                     completedLessonIds.includes(
@@ -2449,7 +2539,7 @@ export const CourseLearningPage: React.FC = () => {
                       activeLesson.lessonId,
                     )
                       ? 'Đã hoàn thành'
-                      : 'Đánh dấu hoàn thành'}
+                      : activeLesson?.videoUrl?.trim() ? 'Tự hoàn thành khi xem 95%' : 'Đã đọc xong – Đánh dấu hoàn thành'}
                   </span>
                 </button>
               )}
@@ -2607,28 +2697,21 @@ export const CourseLearningPage: React.FC = () => {
                   </p>
                 )}
 
-                {activeTab ===
-                  'notes' && (
+                {activeTab === 'notes' && (
                   <div className="space-y-3">
-                    <p className="text-slate-500">
-                      Các tài liệu đính kèm hoặc ghi chú quan trọng cho bài học này:
-                    </p>
-
-                    <div className="flex items-center gap-3 rounded-xl bg-slate-50 p-3 border border-slate-200">
-                      <FileText className="h-5 w-5 text-violet-600" />
-
-                      <div>
-                        <p className="font-bold text-slate-900">
-                          Giao-trinh-
-                          {activeLesson?.title}
-                          .pdf
-                        </p>
-
-                        <p className="text-[11px] text-slate-500">
-                          Tài liệu tham khảo chính thức
-                        </p>
+                    <p className="text-slate-500">Tài liệu học tập được giảng viên đính kèm cho bài học và khóa học:</p>
+                    {materialsError ? <p className="rounded-xl bg-rose-50 p-3 text-rose-700">Không thể tải danh sách tài liệu. Vui lòng thử tải lại trang.</p> : lessonMaterials.length === 0 ? <p className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-slate-500">Bài học hiện chưa có tài liệu đính kèm.</p> : lessonMaterials.map(material => (
+                      <div key={material.materialId} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3">
+                        <FileText className="h-5 w-5 shrink-0 text-violet-600" />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-bold text-slate-900">{material.title}</p>
+                          <p className="text-[11px] text-slate-500">{material.lessonId == null ? 'Tài liệu chung của khóa học' : 'Tài liệu bài học'}</p>
+                        </div>
+                        <a href={material.fileUrl} target="_blank" rel="noopener noreferrer" download className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-700" title="Tải hoặc mở tài liệu">
+                          <Download className="h-4 w-4" /> Tải xuống
+                        </a>
                       </div>
-                    </div>
+                    ))}
                   </div>
                 )}
 
