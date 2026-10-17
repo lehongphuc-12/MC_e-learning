@@ -1,3 +1,4 @@
+
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { quizApi } from '../api/quizApi';
@@ -10,7 +11,6 @@ import {
   QuizDto,
   QuizListItemDto,
   ApiResponse,
-  
 } from '../types/quizTypes';
 
 // =========================
@@ -27,9 +27,7 @@ export const useQuiz = (quizId: number | null) => {
       const response = await quizApi.getQuizById(quizId);
 
       if (!response.success) {
-        throw new Error(
-          response.message || 'Failed to load quiz.'
-        );
+        throw new Error(response.message || 'Failed to load quiz.');
       }
 
       return response.data;
@@ -49,9 +47,7 @@ export const useCreateQuiz = () => {
       const response = await quizApi.createQuiz(data);
 
       if (!response.success) {
-        throw new Error(
-          response.message || 'Failed to create quiz.'
-        );
+        throw new Error(response.message || 'Failed to create quiz.');
       }
 
       return response.data;
@@ -79,15 +75,10 @@ export const useUpdateQuiz = () => {
       quizId: number;
       data: UpdateQuizRequest;
     }) => {
-      const response = await quizApi.updateQuiz(
-        quizId,
-        data
-      );
+      const response = await quizApi.updateQuiz(quizId, data);
 
       if (!response.success) {
-        throw new Error(
-          response.message || 'Failed to update quiz.'
-        );
+        throw new Error(response.message || 'Failed to update quiz.');
       }
 
       return response.data;
@@ -120,9 +111,7 @@ export const useTakeQuiz = (quizId: number | null) => {
       const response = await quizApi.takeQuiz(quizId);
 
       if (!response.success) {
-        throw new Error(
-          response.message || 'Failed to load quiz.'
-        );
+        throw new Error(response.message || 'Failed to load quiz.');
       }
 
       return response.data;
@@ -146,35 +135,36 @@ export const useSubmitQuiz = () => {
       quizId: number;
       data: SubmitQuizRequest;
     }) => {
-      const response = await quizApi.submitQuiz(
-        quizId,
-        data
-      );
+      const response = await quizApi.submitQuiz(quizId, data);
 
       if (!response.success) {
-        throw new Error(
-          response.message || 'Failed to submit quiz.'
-        );
+        throw new Error(response.message || 'Failed to submit quiz.');
       }
 
       return response.data;
     },
 
-onSuccess: (_, variables) => {
-  queryClient.invalidateQueries({
-    queryKey: [
-      'take-quiz',
-      variables.quizId,
-    ],
-  });
+    onSuccess: (_, variables) => {
+      // Giữ nguyên: cập nhật dữ liệu làm Quiz
+      queryClient.invalidateQueries({
+        queryKey: ['take-quiz', variables.quizId],
+      });
 
-  queryClient.invalidateQueries({
-    queryKey: [
-      'quiz-latest-result',
-      variables.quizId,
-    ],
-  });
-},
+      // Giữ nguyên: cập nhật kết quả mới nhất
+      queryClient.invalidateQueries({
+        queryKey: ['quiz-latest-result', variables.quizId],
+      });
+
+      // BỔ SUNG: cập nhật lịch sử các lượt làm Quiz
+      queryClient.invalidateQueries({
+        queryKey: ['quiz-my-attempts', variables.quizId],
+      });
+
+      // BỔ SUNG: cập nhật dữ liệu kết quả Quiz
+      queryClient.invalidateQueries({
+        queryKey: ['quiz-result', variables.quizId],
+      });
+    },
   });
 };
 
@@ -190,20 +180,13 @@ export const useQuizResult = (
 
     queryFn: async () => {
       if (!quizId || !attemptId) {
-        throw new Error(
-          'Quiz ID and Attempt ID are required.'
-        );
+        throw new Error('Quiz ID and Attempt ID are required.');
       }
 
-      const response = await quizApi.getQuizResult(
-        quizId,
-        attemptId
-      );
+      const response = await quizApi.getQuizResult(quizId, attemptId);
 
       if (!response.success) {
-        throw new Error(
-          response.message || 'Failed to load quiz result.'
-        );
+        throw new Error(response.message || 'Failed to load quiz result.');
       }
 
       return response.data;
@@ -211,8 +194,11 @@ export const useQuizResult = (
 
     enabled: !!quizId && !!attemptId,
   });
-  
 };
+
+// =========================
+// GET QUIZZES BY COURSE
+// =========================
 export const useQuizzesByCourse = (
   courseId: number | null
 ) => {
@@ -224,13 +210,11 @@ export const useQuizzesByCourse = (
         throw new Error('Course ID is required.');
       }
 
-      const response =
-        await quizApi.getQuizzesByCourse(courseId);
+      const response = await quizApi.getQuizzesByCourse(courseId);
 
       if (!response.success) {
         throw new Error(
-          response.message ||
-            'Failed to load quizzes.'
+          response.message || 'Failed to load quizzes.'
         );
       }
 
@@ -240,6 +224,7 @@ export const useQuizzesByCourse = (
     enabled: !!courseId,
   });
 };
+
 // =========================
 // GET LATEST QUIZ RESULT
 // Learner only
@@ -248,22 +233,14 @@ export const useLatestQuizResult = (
   quizId: number | null
 ) => {
   return useQuery({
-    queryKey: [
-      'quiz-latest-result',
-      quizId,
-    ],
+    queryKey: ['quiz-latest-result', quizId],
 
     queryFn: async () => {
       if (!quizId) {
-        throw new Error(
-          'Quiz ID is required.'
-        );
+        throw new Error('Quiz ID is required.');
       }
 
-      const response =
-        await quizApi.getLatestQuizResult(
-          quizId
-        );
+      const response = await quizApi.getLatestQuizResult(quizId);
 
       /**
        * Learner chưa từng làm Quiz.
@@ -280,7 +257,28 @@ export const useLatestQuizResult = (
     },
 
     enabled: !!quizId,
-
     retry: false,
   });
 };
+
+// =========================
+// GET MY QUIZ ATTEMPTS
+// Learner only
+// =========================
+export const useMyQuizAttempts = (quizId: number | null) => useQuery({
+  queryKey: ['quiz-my-attempts', quizId],
+  queryFn: async () => {
+    if (!quizId) throw new Error('Quiz ID is required.');
+
+    const result = await quizApi.getMyQuizAttempts(quizId);
+
+    if (!result.success) {
+      throw new Error(result.message || 'Không tải được lịch sử Quiz.');
+    }
+
+    return result.data ?? [];
+  },
+  enabled: !!quizId,
+  staleTime: 0,
+  refetchOnMount: 'always',
+});

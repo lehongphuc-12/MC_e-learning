@@ -413,6 +413,30 @@ public class EnrollmentService : IEnrollmentService
         return true;
     }
 
+    // Instructor: danh sách học viên đã kích hoạt của khóa học.
+    public async Task<ApiResponse<List<CourseEnrolledStudentDto>>> GetCourseStudentsAsync(int instructorId, int courseId)
+    {
+        if (courseId <= 0) return ApiResponse<List<CourseEnrolledStudentDto>>.FailureResponse("CourseID không hợp lệ.");
+        var course = await _context.Courses.AsNoTracking().FirstOrDefaultAsync(c => c.CourseId == courseId);
+        if (course == null) return ApiResponse<List<CourseEnrolledStudentDto>>.FailureResponse("Không tìm thấy khóa học.");
+        if (course.InstructorId != instructorId) return ApiResponse<List<CourseEnrolledStudentDto>>.FailureResponse("Bạn không có quyền xem học viên khóa học này.");
+
+        var now = DateTime.UtcNow;
+        var data = await (from e in _context.Enrollments.AsNoTracking()
+                          join u in _context.Users.AsNoTracking() on e.LearnerId equals u.UserId
+                          where e.CourseId == courseId && e.Status == "ACTIVE" && (!e.ExpiresAt.HasValue || e.ExpiresAt.Value >= now)
+                          select new { e, u }).ToListAsync();
+        var rows = data.Select(x => new CourseEnrolledStudentDto
+        {
+            EnrollmentId = x.e.EnrollmentId, CourseId = x.e.CourseId, UserId = x.e.LearnerId,
+            FullName = x.u.FullName, Email = x.u.Email, AvatarUrl = x.u.AvatarUrl,
+            EnrolledAt = x.e.EnrolledAt, EnrollmentStatus = x.e.Status,
+            CompletionPercentage = Convert.ToDecimal(x.e.CompletionPercentage)
+        }).ToList();
+        var students = rows.GroupBy(x => x.UserId).Select(g => g.OrderByDescending(x => x.EnrollmentId).First()).OrderBy(x => x.FullName).ToList();
+        return ApiResponse<List<CourseEnrolledStudentDto>>.SuccessResponse(students);
+    }
+
     private static EnrollmentDto MapToDto(
         Enrollment enrollment)
     {

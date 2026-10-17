@@ -1,337 +1,108 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, ArrowLeft, Check, ChevronLeft, ChevronRight, Clock3, Flag, GripVertical, ListChecks, MapPin, Play, Send } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { AlertCircle, ArrowLeft, Check, ChevronLeft, ChevronRight, Clock3, Flag, Mic2, BookOpen, FileText, CheckCircle2, GripVertical, Headphones, ListChecks, RotateCcw, Send, Sparkles, Trash2 } from 'lucide-react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useSubmitQuiz, useTakeQuiz } from '../hooks/useQuiz';
-import { SubmitAnnotationRequest, SubmitArrangeItemRequest, SubmitErrorRegionRequest, SubmitQuizAnswerRequest, SubmitScenarioPathRequest, TakeQuestionDto } from '../types/quizTypes';
+import { AnnotationType, SubmitAnnotationRequest, SubmitArrangeItemRequest, SubmitErrorRegionRequest, SubmitQuizAnswerRequest, SubmitScenarioPathRequest, TakeQuestionDto } from '../types/quizTypes';
 
-type DraftAnswer = {
-  selectedChoiceIds: number[];
-  textAnswer: string;
-  errorRegions: SubmitErrorRegionRequest[];
-  annotations: SubmitAnnotationRequest[];
-  arrangeItems: SubmitArrangeItemRequest[];
-  scenarioPath: SubmitScenarioPathRequest[];
-};
-
-interface QuizNavigationState { returnTo?: string; }
-
+type DraftAnswer = { selectedChoiceIds: number[]; textAnswer: string; errorRegions: SubmitErrorRegionRequest[]; annotations: SubmitAnnotationRequest[]; arrangeItems: SubmitArrangeItemRequest[]; scenarioPath: SubmitScenarioPathRequest[] };
+type UpdateDraft = (patch: Partial<DraftAnswer>) => void;
+interface QuizNavigationState { returnTo?: string }
 const emptyDraft = (): DraftAnswer => ({ selectedChoiceIds: [], textAnswer: '', errorRegions: [], annotations: [], arrangeItems: [], scenarioPath: [] });
+const labels: Record<string, string> = { SINGLE_CHOICE: 'Trắc nghiệm', MULTIPLE_CHOICE: 'Chọn nhiều đáp án', TRUE_FALSE: 'Đúng / Sai', FILL_BLANK: 'Điền từ', LISTEN_IDENTIFY_ERROR: 'Nghe & nhận diện lỗi', LISTEN_LOCATE_ERROR: 'Nghe & xác định vùng lỗi', AUDIO_COMPARISON: 'So sánh giọng đọc', LISTEN_CLASSIFY: 'Nghe & phân loại', SCRIPT_ANNOTATION: 'Đánh dấu lời dẫn', SCRIPT_WRITING: 'Viết lời dẫn MC', ARRANGE_SCRIPT: 'Sắp xếp lời dẫn', ERROR_CORRECTION_LAB: 'Phòng thí nghiệm sửa lỗi', SCENARIO_DECISION_TREE: 'Xử lý tình huống MC', ESSAY: 'Tự luận' };
+const tips: Record<string, string> = { LISTEN_IDENTIFY_ERROR: 'Nghe kỹ đoạn ghi âm rồi chọn lỗi bạn nhận ra.', LISTEN_LOCATE_ERROR: 'Nghe audio, kéo trên thanh thời gian để đánh dấu đoạn có lỗi. Có thể thêm nhiều vùng.', AUDIO_COMPARISON: 'Nghe lần lượt hai bản thu, so sánh cách thể hiện rồi chọn câu trả lời.', LISTEN_CLASSIFY: 'Lắng nghe và chọn nhóm đặc điểm giọng nói phù hợp.', SCRIPT_ANNOTATION: 'Bôi đen từ hoặc cụm từ trong lời dẫn, chọn loại ký hiệu rồi nhấn “Thêm đánh dấu”.', SCRIPT_WRITING: 'Viết lời dẫn phù hợp với bối cảnh và các yêu cầu được giao.', ARRANGE_SCRIPT: 'Kéo thả hoặc dùng nút mũi tên để sắp xếp các đoạn lời dẫn.', ERROR_CORRECTION_LAB: 'Khoanh vùng lỗi nghe được, sau đó phân loại hoặc trả lời yêu cầu của câu hỏi.', SCENARIO_DECISION_TREE: 'Đọc tình huống và lựa chọn cách xử lý. Mỗi quyết định sẽ dẫn đến bước tiếp theo.' };
+const ms = (value: number) => { const s = Math.max(0, Math.floor(value / 1000)); return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; };
+const ytEmbed = (value: string) => { try { const url = new URL(value); const host = url.hostname.toLowerCase(); const parts = url.pathname.split('/').filter(Boolean); let id: string | null = null; if (['youtu.be', 'www.youtu.be'].includes(host)) id = parts[0] || null; if (['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtube-nocookie.com', 'www.youtube-nocookie.com'].includes(host)) id = parts[0] === 'watch' ? url.searchParams.get('v') : ['embed', 'shorts', 'live'].includes(parts[0]) ? parts[1] : null; return id && /^[\w-]{11}$/.test(id) ? `https://www.youtube.com/embed/${id}` : null; } catch { return null; } };
+const surface = 'rounded-[22px] border border-blue-100 bg-white shadow-[0_8px_30px_rgba(12,48,110,.06)]';
 
-const typeLabels: Record<string, string> = {
-  SINGLE_CHOICE: 'TRẮC NGHIỆM', MULTIPLE_CHOICE: 'CHỌN NHIỀU ĐÁP ÁN', TRUE_FALSE: 'ĐÚNG / SAI', FILL_BLANK: 'ĐIỀN TỪ',
-  LISTEN_IDENTIFY_ERROR: 'NGHE & NHẬN DIỆN', LISTEN_LOCATE_ERROR: 'ĐÁNH DẤU LỖI', AUDIO_COMPARISON: 'SO SÁNH AUDIO',
-  LISTEN_CLASSIFY: 'NGHE & PHÂN LOẠI', SCRIPT_ANNOTATION: 'ĐÁNH DẤU KỊCH BẢN', SCRIPT_WRITING: 'VIẾT ĐOẠN',
-  ARRANGE_SCRIPT: 'SẮP XẾP', ERROR_CORRECTION_LAB: 'SỬA LỖI', SCENARIO_DECISION_TREE: 'TÌNH HUỐNG', ESSAY: 'TỰ LUẬN'
+const MediaBlock: React.FC<{ question: TakeQuestionDto; hideAudio?: boolean }> = ({ question, hideAudio }) => {
+  const media = [...(question.media || [])].sort((a, b) => a.orderIndex - b.orderIndex).filter(m => !hideAudio || m.mediaType !== 'AUDIO');
+  if (!media.length) return null;
+  return <div className="mt-5 grid gap-3">{media.map(m => { const embed = m.mediaType === 'VIDEO' ? ytEmbed(m.mediaUrl) : null; return <div key={m.mediaId} className="rounded-2xl border border-blue-100 bg-blue-50/40 p-4">{m.label && <p className="mb-3 text-sm font-bold text-blue-700">{m.label}</p>}{m.mediaType === 'AUDIO' ? <audio controls preload="metadata" src={m.mediaUrl} className="w-full"/> : embed ? <div className="aspect-video overflow-hidden rounded-xl bg-black"><iframe className="h-full w-full" src={embed} title={m.label || 'Video câu hỏi'} allow="accelerometer; autoplay; encrypted-media; picture-in-picture" allowFullScreen/></div> : m.mediaType === 'VIDEO' ? <video controls src={m.mediaUrl} className="max-h-[430px] w-full rounded-xl bg-black"/> : <img src={m.mediaUrl} alt={m.label || 'Hình ảnh câu hỏi'} className="max-h-[430px] w-full rounded-xl object-contain"/>}</div>; })}</div>;
 };
 
-const MediaBlock: React.FC<{ question: TakeQuestionDto }> = ({ question }) => {
-  if (!question.media?.length) return null;
-  return <div className="mt-5 space-y-3">{question.media.map(media => <div key={media.mediaId} className="overflow-hidden rounded-2xl border border-blue-100 bg-blue-50/50 p-3">
-    {media.label && <p className="mb-2 text-xs font-bold uppercase tracking-wide text-blue-700">{media.label}</p>}
-    {media.mediaType === 'AUDIO' && <div className="flex items-center gap-3 rounded-xl bg-white p-3 shadow-sm"><div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white"><Play className="h-4 w-4 fill-current"/></div><audio controls src={media.mediaUrl} className="h-10 min-w-0 flex-1"/></div>}
-    {media.mediaType === 'VIDEO' && <video controls src={media.mediaUrl} className="max-h-[360px] w-full rounded-xl bg-black"/>}
-    {media.mediaType === 'IMAGE' && <img src={media.mediaUrl} alt={media.label || 'Quiz media'} className="max-h-[360px] w-full rounded-xl object-contain"/>}
-  </div>)}</div>;
-};
-
-const ChoiceBlock: React.FC<{ question: TakeQuestionDto; draft: DraftAnswer; update: (patch: Partial<DraftAnswer>) => void }> = ({ question, draft, update }) => {
+const ChoiceBlock: React.FC<{ question: TakeQuestionDto; draft: DraftAnswer; update: UpdateDraft }> = ({ question, draft, update }) => {
   const multiple = question.questionType === 'MULTIPLE_CHOICE';
-  const toggle = (id: number) => {
-    if (multiple) update({ selectedChoiceIds: draft.selectedChoiceIds.includes(id) ? draft.selectedChoiceIds.filter(x => x !== id) : [...draft.selectedChoiceIds, id] });
-    else update({ selectedChoiceIds: [id] });
-  };
-
-  return <div className="mt-5 grid gap-3">{[...question.choices].sort((a,b)=>a.orderIndex-b.orderIndex).map((choice,index)=>{
-    const selected = draft.selectedChoiceIds.includes(choice.choiceId);
-    return <button key={choice.choiceId} type="button" onClick={()=>toggle(choice.choiceId)} className={`group flex w-full items-center gap-3 rounded-xl border p-4 text-left transition ${selected?'border-blue-500 bg-blue-50 shadow-[0_0_0_2px_rgba(59,130,246,.08)]':'border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/30'}`}>
-      <span className={`flex h-8 w-8 shrink-0 items-center justify-center ${multiple?'rounded-md':'rounded-full'} border text-sm font-bold ${selected?'border-blue-600 bg-blue-600 text-white':'border-slate-300 bg-white text-slate-600'}`}>{selected?<Check className="h-4 w-4"/>:String.fromCharCode(65+index)}</span>
-      <span className={`text-sm font-semibold ${selected?'text-blue-900':'text-slate-700'}`}>{choice.choiceText}</span>
-    </button>;
-  })}</div>;
+  return <div className="mt-5 grid gap-3">{[...question.choices].sort((a, b) => a.orderIndex - b.orderIndex).map((c, i) => { const chosen = draft.selectedChoiceIds.includes(c.choiceId); return <button key={c.choiceId} type="button" aria-pressed={chosen} onClick={() => update({ selectedChoiceIds: multiple ? chosen ? draft.selectedChoiceIds.filter(x => x !== c.choiceId) : [...draft.selectedChoiceIds, c.choiceId] : [c.choiceId] })} className={`flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition-all duration-200 hover:-translate-y-0.5 ${chosen ? 'border-blue-500 bg-blue-50 shadow-[0_5px_20px_rgba(16,92,230,.12)]' : 'border-slate-200 bg-white hover:border-blue-300'}`}><span className={`flex h-10 w-10 shrink-0 items-center justify-center border font-bold ${multiple ? 'rounded-xl' : 'rounded-full'} ${chosen ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-slate-50 text-slate-600'}`}>{chosen ? <Check size={18}/> : String.fromCharCode(65 + i)}</span><span className="text-sm font-semibold text-slate-800">{c.choiceText}</span></button>; })}</div>;
 };
 
-const TextBlock: React.FC<{ question: TakeQuestionDto; draft: DraftAnswer; update: (patch: Partial<DraftAnswer>) => void }> = ({ question, draft, update }) => {
-  const writing = question.questionType === 'SCRIPT_WRITING' || question.questionType === 'ESSAY';
+const TextBlock: React.FC<{ question: TakeQuestionDto; draft: DraftAnswer; update: UpdateDraft }> = ({ question, draft, update }) => {
+  const config = question.writingConfig; const writing = ['SCRIPT_WRITING', 'ESSAY'].includes(question.questionType); const count = draft.textAnswer.trim() ? draft.textAnswer.trim().split(/\s+/).length : 0;
+  return <div className="mt-5 space-y-3">{config && <div className="flex flex-wrap gap-2">{[['Sự kiện', config.eventType], ['Khán giả', config.audience], ['Phong cách', config.style]].filter(x => x[1]).map(x => <span key={x[0]} className="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700">{x[0]}: {x[1]}</span>)}</div>}{writing ? <><textarea rows={9} value={draft.textAnswer} onChange={e => update({ textAnswer: e.target.value })} placeholder="Viết lời dẫn của bạn tại đây..." className="w-full resize-y rounded-2xl border border-blue-100 bg-white p-5 text-sm leading-7 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"/><div className="flex justify-between text-xs text-slate-500"><span>{config?.minWords != null ? `Tối thiểu ${config.minWords} từ` : 'Hãy trình bày rõ ràng, mạch lạc'}</span><span className={config?.maxWords && count > config.maxWords ? 'font-bold text-red-600' : ''}>{count}{config?.maxWords ? ` / ${config.maxWords}` : ''} từ</span></div></> : <input value={draft.textAnswer} onChange={e => update({ textAnswer: e.target.value })} placeholder="Nhập câu trả lời của bạn..." className="w-full rounded-2xl border border-blue-100 px-4 py-3 text-sm outline-none focus:border-blue-500"/>}</div>;
+};
 
-  return <div className="mt-5">
-    {question.writingConfig && <div className="mb-3 flex flex-wrap gap-2">{question.writingConfig.eventType&&<span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">Sự kiện: {question.writingConfig.eventType}</span>}{question.writingConfig.audience&&<span className="rounded-full bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700">Khán giả: {question.writingConfig.audience}</span>}{question.writingConfig.style&&<span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">Phong cách: {question.writingConfig.style}</span>}</div>}
-    {writing ? <div className="relative"><textarea value={draft.textAnswer} onChange={e=>update({textAnswer:e.target.value})} rows={9} placeholder="Nhập nội dung bài làm của bạn..." className="w-full resize-none rounded-2xl border border-slate-200 bg-white p-4 text-sm leading-7 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"/><span className="absolute bottom-3 right-4 text-xs text-slate-400">{draft.textAnswer.trim()?draft.textAnswer.trim().split(/\s+/).length:0}{question.writingConfig?.maxWords?`/${question.writingConfig.maxWords} từ`:' từ'}</span></div>
-      : <input value={draft.textAnswer} onChange={e=>update({textAnswer:e.target.value})} placeholder="Nhập câu trả lời..." className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"/>}
+const ArrangeBlock: React.FC<{ question: TakeQuestionDto; draft: DraftAnswer; update: UpdateDraft }> = ({ question, draft, update }) => {
+  const source = question.arrangeItems || []; const selected = draft.arrangeItems.filter(x => x.isIncluded).sort((a, b) => (a.selectedOrder || 0) - (b.selectedOrder || 0)); const selectedIds = selected.map(x => x.arrangeItemId); const ordered = [...selectedIds.map(id => source.find(x => x.arrangeItemId === id)).filter((x): x is typeof source[number] => !!x), ...source.filter(x => !selectedIds.includes(x.arrangeItemId))];
+  const save = (ids: number[]) => update({ arrangeItems: source.map(item => { const index = ids.indexOf(item.arrangeItemId); return { arrangeItemId: item.arrangeItemId, isIncluded: index >= 0, selectedOrder: index >= 0 ? index + 1 : null }; }) });
+  const move = (from: number, to: number) => { if (to < 0 || to >= ordered.length) return; const ids = ordered.map(x => x.arrangeItemId); [ids[from], ids[to]] = [ids[to], ids[from]]; save(ids); };
+  const dragIndex = useRef<number | null>(null);
+  return <div className="mt-5 space-y-3">{ordered.map((item, i) => <div key={item.arrangeItemId} draggable onDragStart={e => { dragIndex.current = i; e.dataTransfer.effectAllowed = 'move'; }} onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); if (dragIndex.current !== null) move(dragIndex.current, i); dragIndex.current = null; }} className="flex items-center gap-3 rounded-2xl border border-blue-100 bg-white p-3 transition hover:border-blue-300 hover:shadow-sm"><GripVertical size={18} className="shrink-0 cursor-grab text-blue-300"/><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-sm font-bold text-blue-700">{i + 1}</span><p className="flex-1 text-sm leading-6 text-slate-800">{item.content}</p><div className="flex gap-1"><button type="button" disabled={i === 0} onClick={() => move(i, i - 1)} aria-label="Đưa lên" className="rounded-lg border px-2 py-1 disabled:opacity-30">↑</button><button type="button" disabled={i === ordered.length - 1} onClick={() => move(i, i + 1)} aria-label="Đưa xuống" className="rounded-lg border px-2 py-1 disabled:opacity-30">↓</button></div></div>)}<p className="text-xs text-slate-500">Thứ tự hiện tại là câu trả lời của bạn. Kéo thả hoặc dùng ↑ ↓ để thay đổi.</p></div>;
+};
+
+const TimelineBlock: React.FC<{ question: TakeQuestionDto; draft: DraftAnswer; update: UpdateDraft }> = ({ question, draft, update }) => {
+  const audio = question.media?.find(m => m.mediaType === 'AUDIO'); const audioRef = useRef<HTMLAudioElement>(null); const trackRef = useRef<HTMLDivElement>(null); const dragging = useRef<number | null>(null);
+  const [duration, setDuration] = useState(Math.max(1, audio?.durationSeconds || 30)); const [currentTime, setCurrentTime] = useState(0); const [selection, setSelection] = useState<[number, number] | null>(null);
+  useEffect(() => { setDuration(Math.max(1, audio?.durationSeconds || 30)); setCurrentTime(0); setSelection(null); }, [question.questionId, audio?.mediaUrl]);
+  const point = (clientX: number) => { const rect = trackRef.current?.getBoundingClientRect(); return rect ? Math.round(Math.max(0, Math.min(1, (clientX - rect.left) / rect.width)) * duration * 1000) : 0; };
+  const add = () => { if (!selection || selection[1] - selection[0] < 100) return; update({ errorRegions: [...draft.errorRegions, { selectedStartTimeMs: selection[0], selectedEndTimeMs: selection[1], selectedErrorCategory: null, selectedErrorCode: null }] }); setSelection(null); };
+  const preview = () => { if (!audioRef.current || !selection) return; audioRef.current.currentTime = selection[0] / 1000; void audioRef.current.play(); };
+  return <div className="mt-5 rounded-[22px] border border-blue-200 bg-gradient-to-br from-blue-50 to-white p-4 sm:p-6"><div className="mb-4 flex items-center gap-2 text-sm font-bold text-blue-800"><Headphones size={18}/> Phòng nghe • Chọn vùng lỗi</div>{audio ? <audio ref={audioRef} controls preload="metadata" src={audio.mediaUrl} className="w-full" onLoadedMetadata={e => { const d = e.currentTarget.duration; if (Number.isFinite(d) && d > 0) setDuration(d); }} onTimeUpdate={e => setCurrentTime(e.currentTarget.currentTime)}/> : <p className="text-sm text-red-600">Câu hỏi chưa có audio hợp lệ.</p>}
+    <div className="mt-5"><div ref={trackRef} role="slider" aria-label="Chọn vùng lỗi trên timeline" aria-valuemin={0} aria-valuemax={Math.round(duration)} aria-valuenow={Math.round(currentTime)} tabIndex={0} onPointerDown={e => { if (!audio) return; e.currentTarget.setPointerCapture(e.pointerId); const p = point(e.clientX); dragging.current = p; setSelection([p, p]); }} onPointerMove={e => { if (dragging.current === null) return; const p = point(e.clientX); setSelection([Math.min(dragging.current, p), Math.max(dragging.current, p)]); }} onPointerUp={e => { if (dragging.current === null) return; const p = point(e.clientX); const from = Math.min(dragging.current, p), to = Math.max(dragging.current, p); setSelection([from, to > from ? to : Math.min(duration * 1000, from + 1000)]); dragging.current = null; }} onPointerCancel={() => { dragging.current = null; }} onKeyDown={e => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); const next = Math.max(0, Math.min(duration * 1000, Math.round(currentTime * 1000) + (e.key === 'ArrowRight' ? 1000 : -1000))); setCurrentTime(next / 1000); setSelection([next, Math.min(duration * 1000, next + 1000)]); } }} className="relative h-24 cursor-crosshair touch-none select-none overflow-hidden rounded-2xl border border-blue-200 bg-white px-2"><div className="absolute inset-x-3 top-1/2 flex h-12 -translate-y-1/2 items-center justify-between gap-[2px]">{Array.from({ length: 64 }, (_, i) => <div key={i} className="w-full rounded-full bg-blue-200" style={{ height: `${18 + Math.abs(Math.sin(i * 1.83) * Math.cos(i * .37)) * 75}%` }}/>)}</div>{draft.errorRegions.map((r, i) => <div key={i} className="pointer-events-none absolute inset-y-0 bg-amber-400/25" style={{ left: `${r.selectedStartTimeMs / (duration * 10)}%`, width: `${Math.max(0, ((r.selectedEndTimeMs || r.selectedStartTimeMs) - r.selectedStartTimeMs) / (duration * 10))}%` }}/>)}{selection && <div className="pointer-events-none absolute inset-y-0 border-x-2 border-blue-600 bg-blue-500/30" style={{ left: `${selection[0] / (duration * 10)}%`, width: `${Math.max(0, (selection[1] - selection[0]) / (duration * 10))}%` }}/>}<div className="pointer-events-none absolute inset-y-0 w-0.5 bg-blue-800/70" style={{ left: `${currentTime / duration * 100}%` }}/></div><div className="mt-2 flex justify-between text-xs font-medium text-slate-500"><span>00:00</span><span>Kéo chuột / chạm để chọn đoạn</span><span>{ms(duration * 1000)}</span></div></div>
+    <div className="mt-4 flex flex-wrap items-center gap-2"><span className="rounded-xl bg-white px-3 py-2 text-sm font-bold text-blue-700">{selection ? `${ms(selection[0])} → ${ms(selection[1])}` : 'Chưa chọn vùng mới'}</span><button type="button" disabled={!selection} onClick={preview} className="rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-bold text-blue-700 disabled:opacity-40">Nghe vùng chọn</button><button type="button" disabled={!selection || selection[1] - selection[0] < 100} onClick={add} className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white disabled:opacity-40">+ Thêm vùng lỗi</button></div>
+    {draft.errorRegions.length > 0 && <div className="mt-4 space-y-2">{draft.errorRegions.map((r, i) => <div key={i} className="flex flex-wrap items-center gap-2 rounded-xl border border-blue-100 bg-white p-3"><span className="text-xs font-bold text-blue-700">Vùng {i + 1}: {ms(r.selectedStartTimeMs)} – {ms(r.selectedEndTimeMs || r.selectedStartTimeMs)}</span>{question.questionType === 'ERROR_CORRECTION_LAB' && <><input value={r.selectedErrorCategory || ''} onChange={e => update({ errorRegions: draft.errorRegions.map((x, j) => j === i ? { ...x, selectedErrorCategory: e.target.value } : x) })} placeholder="Nhóm lỗi (nếu biết)" className="min-w-0 flex-1 rounded-lg border px-2 py-1.5 text-xs"/><input value={r.selectedErrorCode || ''} onChange={e => update({ errorRegions: draft.errorRegions.map((x, j) => j === i ? { ...x, selectedErrorCode: e.target.value } : x) })} placeholder="Mã lỗi (nếu biết)" className="min-w-0 flex-1 rounded-lg border px-2 py-1.5 text-xs"/></>}<button type="button" aria-label="Xóa vùng lỗi" onClick={() => update({ errorRegions: draft.errorRegions.filter((_, j) => i !== j) })} className="ml-auto rounded-lg p-1.5 text-red-500 hover:bg-red-50"><Trash2 size={15}/></button></div>)}</div>}
   </div>;
 };
 
-const ArrangeBlock: React.FC<{ question: TakeQuestionDto; draft: DraftAnswer; update: (patch: Partial<DraftAnswer>) => void }> = ({ question, draft, update }) => {
-  const source = question.arrangeItems || [];
-  const currentIds = draft.arrangeItems.filter(x=>x.isIncluded).sort((a,b)=>(a.selectedOrder??0)-(b.selectedOrder??0)).map(x=>x.arrangeItemId);
-  const ordered = currentIds.length ? currentIds.map(id=>source.find(x=>x.arrangeItemId===id)).filter(Boolean) as typeof source : source;
-  const save = (items: typeof source) => update({ arrangeItems: items.map((x,i)=>({ arrangeItemId:x.arrangeItemId, selectedOrder:i+1, isIncluded:true })) });
-  const move = (index:number,delta:number) => {
-    const next=[...ordered];
-    const target=index+delta;
-    if(target<0||target>=next.length)return;
-    [next[index],next[target]]=[next[target],next[index]];
-    save(next);
-  };
-
-  useEffect(()=>{ if(source.length && !draft.arrangeItems.length) save(source); },[question.questionId]);
-
-  return <div className="mt-5 space-y-2">{ordered.map((item,index)=><div key={item.arrangeItemId} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3">
-    <GripVertical className="h-5 w-5 text-slate-300"/>
-    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-xs font-bold text-blue-700">{index+1}</span>
-    <p className="flex-1 text-sm font-semibold text-slate-700">{item.content}</p>
-    <div className="flex gap-1"><button type="button" onClick={()=>move(index,-1)} className="rounded-lg border px-2 py-1 text-xs">↑</button><button type="button" onClick={()=>move(index,1)} className="rounded-lg border px-2 py-1 text-xs">↓</button></div>
-  </div>)}</div>;
+const AnnotationBlock: React.FC<{ question: TakeQuestionDto; draft: DraftAnswer; update: UpdateDraft }> = ({ question, draft, update }) => {
+  const textRef = useRef<HTMLDivElement>(null); const [range, setRange] = useState<[number, number] | null>(null); const [kind, setKind] = useState<AnnotationType>('PAUSE');
+  const capture = () => { const selection = window.getSelection(); if (!selection || selection.isCollapsed || !textRef.current || !textRef.current.contains(selection.anchorNode) || !textRef.current.contains(selection.focusNode)) return; const r = selection.getRangeAt(0); const before = r.cloneRange(); before.selectNodeContents(textRef.current); before.setEnd(r.startContainer, r.startOffset); const start = before.toString().length; const end = start + r.toString().length; if (end > start) setRange([start, end]); };
+  const add = () => { if (!range) return; update({ annotations: [...draft.annotations, { annotationType: kind, startIndex: range[0], endIndex: range[1], annotationValue: null }] }); setRange(null); window.getSelection()?.removeAllRanges(); };
+  const names: Record<AnnotationType, string> = { PAUSE: 'Ngắt nghỉ', BREATH: 'Lấy hơi', EMPHASIS: 'Nhấn giọng', PITCH_RISE: 'Lên giọng', PITCH_FALL: 'Xuống giọng' };
+  return <div className="mt-5 space-y-4"><div ref={textRef} onMouseUp={capture} onKeyUp={capture} className="select-text rounded-2xl border border-blue-100 bg-blue-50/50 p-5 text-base leading-9 text-slate-800">{question.questionText}</div><div className="flex flex-wrap items-center gap-2"><select value={kind} onChange={e => setKind(e.target.value as AnnotationType)} className="rounded-xl border border-blue-200 bg-white px-3 py-2.5 text-sm">{Object.entries(names).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><button type="button" disabled={!range} onClick={add} className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40">Thêm đánh dấu</button><span className="text-xs text-slate-500">{range ? `Đã chọn: “${question.questionText.slice(range[0], range[1])}”` : 'Bôi đen một đoạn lời dẫn phía trên'}</span></div>{draft.annotations.map((a, i) => <div key={i} className="flex items-center justify-between gap-2 rounded-xl border border-blue-100 bg-white px-4 py-3 text-sm"><span><b className="text-blue-700">{names[a.annotationType]}</b> — “{question.questionText.slice(a.startIndex, a.endIndex)}”</span><button type="button" onClick={() => update({ annotations: draft.annotations.filter((_, j) => j !== i) })} className="text-red-500"><Trash2 size={16}/></button></div>)}</div>;
 };
 
-const ErrorRegionBlock: React.FC<{ draft: DraftAnswer; update: (patch: Partial<DraftAnswer>) => void }> = ({ draft, update }) => {
-  const region=draft.errorRegions[0]||{selectedStartTimeMs:0,selectedEndTimeMs:null,selectedErrorCategory:'',selectedErrorCode:''};
-  const set=(patch:Partial<SubmitErrorRegionRequest>)=>update({errorRegions:[{...region,...patch}]});
-
-  return <div className="mt-5 rounded-2xl border border-red-100 bg-red-50/50 p-4">
-    <div className="mb-4 flex items-center gap-2 text-sm font-bold text-red-700"><MapPin className="h-4 w-4"/>Đánh dấu vị trí lỗi trong audio</div>
-    <div className="grid gap-3 sm:grid-cols-2">
-      <label className="text-xs font-semibold text-slate-600">Thời điểm bắt đầu (ms)<input type="number" min={0} value={region.selectedStartTimeMs} onChange={e=>set({selectedStartTimeMs:Number(e.target.value)})} className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 outline-none focus:border-blue-500"/></label>
-      <label className="text-xs font-semibold text-slate-600">Thời điểm kết thúc (ms)<input type="number" min={0} value={region.selectedEndTimeMs??''} onChange={e=>set({selectedEndTimeMs:e.target.value?Number(e.target.value):null})} className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 outline-none focus:border-blue-500"/></label>
-      <label className="text-xs font-semibold text-slate-600">Nhóm lỗi<input value={region.selectedErrorCategory??''} onChange={e=>set({selectedErrorCategory:e.target.value})} className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 outline-none focus:border-blue-500"/></label>
-      <label className="text-xs font-semibold text-slate-600">Mã lỗi<input value={region.selectedErrorCode??''} onChange={e=>set({selectedErrorCode:e.target.value})} className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 outline-none focus:border-blue-500"/></label>
-    </div>
-  </div>;
+const ScenarioBlock: React.FC<{ question: TakeQuestionDto; draft: DraftAnswer; update: UpdateDraft }> = ({ question, draft, update }) => {
+  const nodes = question.scenarioNodes || []; const start = nodes.find(n => n.isStartNode); const last = draft.scenarioPath[draft.scenarioPath.length - 1]; const lastNode = last && nodes.find(n => n.nodeId === last.nodeId); const nextId = lastNode?.choices.find(c => c.scenarioChoiceId === last.scenarioChoiceId)?.nextNodeId; const current = last ? nodes.find(n => n.nodeId === nextId) : start;
+  if (!current) return <div className="mt-5 rounded-xl bg-amber-50 p-4 text-sm text-amber-800">{last ? 'Nhánh tình huống đã kết thúc hoặc thiếu nút tiếp theo.' : 'Chưa tìm thấy tình huống bắt đầu.'}</div>;
+  return <div className="mt-5 rounded-[22px] border border-blue-200 bg-gradient-to-br from-blue-50 to-white p-5"><div className="flex items-center justify-between"><span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700">Bước {draft.scenarioPath.length + 1} • {current.nodeType}</span>{draft.scenarioPath.length > 0 && <button type="button" onClick={() => update({ scenarioPath: draft.scenarioPath.slice(0, -1) })} className="flex items-center gap-1 text-xs font-bold text-blue-600"><RotateCcw size={13}/> Quay lại</button>}</div>{current.title && <h3 className="mt-4 text-lg font-extrabold text-slate-900">{current.title}</h3>}<p className="mt-3 whitespace-pre-line text-sm leading-7 text-slate-700">{current.content}</p>{current.mediaUrl && <img src={current.mediaUrl} alt={current.title || 'Tình huống'} className="mt-4 max-h-64 rounded-xl object-contain"/>}{current.isEndNode ? <p className="mt-4 rounded-xl bg-emerald-50 p-4 text-sm font-bold text-emerald-700">Đã đi đến kết thúc tình huống.</p> : <div className="mt-5 grid gap-3">{[...current.choices].sort((a, b) => a.orderIndex - b.orderIndex).map(c => <button key={c.scenarioChoiceId} type="button" onClick={() => update({ scenarioPath: [...draft.scenarioPath, { nodeId: current.nodeId, scenarioChoiceId: c.scenarioChoiceId, stepOrder: draft.scenarioPath.length + 1 }] })} className="flex items-center justify-between rounded-xl border border-blue-100 bg-white p-4 text-left text-sm font-semibold text-slate-800 transition hover:border-blue-400 hover:bg-blue-50">{c.choiceText}<ChevronRight size={17} className="shrink-0 text-blue-500"/></button>)}</div>}</div>;
 };
 
-const AnnotationBlock: React.FC<{ question: TakeQuestionDto; draft: DraftAnswer; update: (patch: Partial<DraftAnswer>) => void }> = ({ question,draft,update }) => {
-  const [start,setStart]=useState(0);
-  const [end,setEnd]=useState(0);
-  const [type,setType]=useState<SubmitAnnotationRequest['annotationType']>('PAUSE');
-  const add=()=>{
-    if(end<start)return;
-    update({annotations:[...draft.annotations,{annotationType:type,startIndex:start,endIndex:end,annotationValue:null}]});
-  };
+const answered = (q: TakeQuestionDto, d?: DraftAnswer) => { if (!d) return false; if (['SINGLE_CHOICE', 'MULTIPLE_CHOICE', 'TRUE_FALSE', 'LISTEN_IDENTIFY_ERROR', 'AUDIO_COMPARISON', 'LISTEN_CLASSIFY'].includes(q.questionType)) return d.selectedChoiceIds.length > 0; if (['FILL_BLANK', 'SCRIPT_WRITING', 'ESSAY'].includes(q.questionType)) return !!d.textAnswer.trim(); if (q.questionType === 'ARRANGE_SCRIPT') return d.arrangeItems.filter(x => x.isIncluded).length === (q.arrangeItems || []).length && !!q.arrangeItems?.length; if (q.questionType === 'SCRIPT_ANNOTATION') return d.annotations.length > 0; if (['LISTEN_LOCATE_ERROR', 'ERROR_CORRECTION_LAB'].includes(q.questionType)) return d.errorRegions.length > 0 || d.selectedChoiceIds.length > 0; if (q.questionType === 'SCENARIO_DECISION_TREE') { const last = d.scenarioPath[d.scenarioPath.length - 1]; if (!last) return false; const node = q.scenarioNodes?.find(n => n.nodeId === last.nodeId); const next = node?.choices.find(c => c.scenarioChoiceId === last.scenarioChoiceId)?.nextNodeId; return !!q.scenarioNodes?.find(n => n.nodeId === next)?.isEndNode || next == null; } return false; };
 
-  return <div className="mt-5">
-    <div className="rounded-2xl bg-slate-50 p-4 text-sm leading-8 text-slate-700">{question.questionText}</div>
-    <div className="mt-3 grid gap-2 sm:grid-cols-4">
-      <select value={type} onChange={e=>setType(e.target.value as SubmitAnnotationRequest['annotationType'])} className="rounded-xl border px-3 py-2.5 text-sm">
-        <option value="PAUSE">Ngắt nghỉ</option>
-        <option value="BREATH">Lấy hơi</option>
-        <option value="EMPHASIS">Nhấn mạnh</option>
-        <option value="PITCH_RISE">Lên giọng</option>
-        <option value="PITCH_FALL">Xuống giọng</option>
-      </select>
-      <input type="number" value={start} onChange={e=>setStart(Number(e.target.value))} className="rounded-xl border px-3 py-2.5 text-sm" placeholder="Vị trí đầu"/>
-      <input type="number" value={end} onChange={e=>setEnd(Number(e.target.value))} className="rounded-xl border px-3 py-2.5 text-sm" placeholder="Vị trí cuối"/>
-      <button type="button" onClick={add} className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white">Thêm đánh dấu</button>
-    </div>
-    {draft.annotations.length>0&&<div className="mt-3 flex flex-wrap gap-2">{draft.annotations.map((a,i)=><button type="button" key={i} onClick={()=>update({annotations:draft.annotations.filter((_,x)=>x!==i)})} className="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700">{a.annotationType}: {a.startIndex}-{a.endIndex} ×</button>)}</div>}
-  </div>;
-};
-
-const ScenarioBlock: React.FC<{ question: TakeQuestionDto; draft: DraftAnswer; update: (patch: Partial<DraftAnswer>) => void }> = ({ question,draft,update }) => {
-  const nodes=question.scenarioNodes||[];
-  const start=nodes.find(x=>x.isStartNode);
-  const currentNodeId=draft.scenarioPath.length ? (nodes.find(n=>n.nodeId===draft.scenarioPath[draft.scenarioPath.length-1].nodeId)?.choices.find(c=>c.scenarioChoiceId===draft.scenarioPath[draft.scenarioPath.length-1].scenarioChoiceId)?.nextNodeId ?? null) : start?.nodeId;
-  const current=nodes.find(x=>x.nodeId===currentNodeId) || (draft.scenarioPath.length?nodes.find(x=>x.isEndNode):start);
-
-  if(!current)return <p className="mt-5 text-sm text-slate-500">Không tìm thấy nút bắt đầu của tình huống.</p>;
-
-  const choose=(choiceId:number)=>{
-    const choice=current.choices.find(x=>x.scenarioChoiceId===choiceId);
-    if(!choice)return;
-    update({scenarioPath:[...draft.scenarioPath,{nodeId:current.nodeId,scenarioChoiceId:choiceId,stepOrder:draft.scenarioPath.length+1}]});
-  };
-
-  return <div className="mt-5 rounded-2xl border border-indigo-100 bg-indigo-50/40 p-5">
-    <span className="rounded-full bg-indigo-100 px-3 py-1 text-xs font-bold text-indigo-700">{current.nodeType}</span>
-    {current.title&&<h3 className="mt-3 text-lg font-bold text-slate-900">{current.title}</h3>}
-    <p className="mt-2 text-sm leading-7 text-slate-700">{current.content}</p>
-    {current.mediaUrl&&<img src={current.mediaUrl} alt={current.title || 'Scenario'} className="mt-3 max-h-64 rounded-xl object-cover"/>}
-    {current.isEndNode?<div className="mt-4 rounded-xl bg-emerald-100 p-3 text-sm font-bold text-emerald-700">Đã hoàn thành tình huống.</div>:<div className="mt-4 grid gap-2">{[...current.choices].sort((a,b)=>a.orderIndex-b.orderIndex).map(c=><button key={c.scenarioChoiceId} type="button" onClick={()=>choose(c.scenarioChoiceId)} className="rounded-xl border border-indigo-200 bg-white p-3 text-left text-sm font-semibold text-slate-700 transition hover:border-indigo-500 hover:bg-indigo-50">{c.choiceText}<ChevronRight className="float-right h-4 w-4"/></button>)}</div>}
-    {draft.scenarioPath.length>0&&<button type="button" onClick={()=>update({scenarioPath:[]})} className="mt-4 text-xs font-bold text-indigo-600">Làm lại tình huống</button>}
-  </div>;
-};
-
-const isAnswered=(q:TakeQuestionDto,d?:DraftAnswer)=>{
-  if(!d)return false;
-  if(['SINGLE_CHOICE','MULTIPLE_CHOICE','TRUE_FALSE','LISTEN_IDENTIFY_ERROR','AUDIO_COMPARISON','LISTEN_CLASSIFY'].includes(q.questionType))return d.selectedChoiceIds.length>0;
-  if(['FILL_BLANK','SCRIPT_WRITING','ESSAY'].includes(q.questionType))return !!d.textAnswer.trim();
-  if(q.questionType==='ARRANGE_SCRIPT')return d.arrangeItems.length>0;
-  if(['LISTEN_LOCATE_ERROR','ERROR_CORRECTION_LAB'].includes(q.questionType))return d.errorRegions.length>0||d.selectedChoiceIds.length>0;
-  if(q.questionType==='SCRIPT_ANNOTATION')return d.annotations.length>0;
-  if(q.questionType==='SCENARIO_DECISION_TREE')return d.scenarioPath.length>0;
-  return false;
-};
-
-export const TakeQuizPage: React.FC=()=>{
-  const navigate=useNavigate();
-  const location=useLocation();
-  const {quizId}=useParams<{quizId:string}>();
-  const id=quizId&&Number(quizId)>0?Number(quizId):null;
-
-  const {data:quiz,isLoading,isError,error}=useTakeQuiz(id);
-  const submitQuiz=useSubmitQuiz();
-
-  const [current,setCurrent]=useState(0);
-  const [drafts,setDrafts]=useState<Record<number,DraftAnswer>>({});
-  const [flagged,setFlagged]=useState<Set<number>>(new Set());
-  const [secondsLeft,setSecondsLeft]=useState<number|null>(null);
-  const [confirm,setConfirm]=useState(false);
-  const returnTo=(location.state as QuizNavigationState|null)?.returnTo;
-
-  useEffect(()=>{
-    if(quiz&&secondsLeft===null){
-      const end=new Date(quiz.startedAt).getTime()+quiz.timeLimitMinutes*60000;
-      setSecondsLeft(Math.max(0,Math.floor((end-Date.now())/1000)));
-    }
-  },[quiz]);
-
-  useEffect(()=>{
-    if(secondsLeft===null||secondsLeft<=0)return;
-    const timer=window.setInterval(()=>setSecondsLeft(v=>v===null?null:Math.max(0,v-1)),1000);
-    return()=>window.clearInterval(timer);
-  },[secondsLeft===null]);
-
-  const questions=useMemo(()=>quiz?[...quiz.questions].sort((a,b)=>a.orderIndex-b.orderIndex):[],[quiz]);
-  const question=questions[current];
-  const draft=question?(drafts[question.questionId]||emptyDraft()):emptyDraft();
-  const update=(patch:Partial<DraftAnswer>)=>question&&setDrafts(prev=>({...prev,[question.questionId]:{...(prev[question.questionId]||emptyDraft()),...patch}}));
-  const answered=questions.filter(q=>isAnswered(q,drafts[q.questionId])).length;
-  const progress=questions.length?Math.round((answered/questions.length)*100):0;
-
-  const doSubmit=async()=>{
-    if(!quiz)return;
-
-    const answers:SubmitQuizAnswerRequest[]=questions.map(q=>{
-      const d=drafts[q.questionId]||emptyDraft();
-      return{
-        questionId:q.questionId,
-        selectedChoiceId:d.selectedChoiceIds.length===1?d.selectedChoiceIds[0]:null,
-        selectedChoiceIds:d.selectedChoiceIds,
-        textAnswer:d.textAnswer||null,
-        errorRegions:d.errorRegions,
-        annotations:d.annotations,
-        arrangeItems:d.arrangeItems,
-        scenarioPath:d.scenarioPath
-      };
-    });
-
-    try{
-      const result=await submitQuiz.mutateAsync({
-        quizId:quiz.quizId,
-        data:{
-          attemptId:quiz.attemptId,
-          answers
-        }
-      });
-
-      navigate(`/quizzes/${quiz.quizId}/result/${result.attemptId}`,{
-        replace:true,
-        state:{returnTo}
-      });
-    }catch(e){
-      window.alert(e instanceof Error?e.message:'Không thể nộp bài Quiz.');
-    }
-  };
-
-  useEffect(()=>{
-    if(secondsLeft===0&&quiz&&!submitQuiz.isPending)void doSubmit();
-  },[secondsLeft]);
-
-  if(isLoading)return <div className="flex min-h-[70vh] items-center justify-center bg-slate-50"><div className="h-10 w-10 animate-spin rounded-full border-4 border-blue-100 border-t-blue-600"/></div>;
-
-  if(isError||!quiz||!question)return <div className="mx-auto max-w-xl p-10 text-center">
-    <AlertCircle className="mx-auto h-10 w-10 text-red-500"/>
-    <p className="mt-3 font-semibold text-slate-700">{error instanceof Error?error.message:'Không thể tải bài Quiz.'}</p>
-  </div>;
-
-  const min=Math.floor((secondsLeft??0)/60);
-  const sec=(secondsLeft??0)%60;
-
-  return <div className="min-h-screen bg-[#f5f7fb] pb-10">
-    <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur">
-      <div className="mx-auto flex max-w-7xl items-center gap-4 px-5 py-4">
-        <button onClick={()=>returnTo?navigate(returnTo):navigate(-1)} className="rounded-xl border border-slate-200 p-2 text-slate-500 hover:bg-slate-50"><ArrowLeft className="h-5 w-5"/></button>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-base font-extrabold text-slate-900">{quiz.title}</p>
-          <p className="mt-0.5 text-xs text-slate-500">Lần làm {quiz.attemptNumber} • {questions.length} câu hỏi</p>
-        </div>
-        <div className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold ${secondsLeft!==null&&secondsLeft<60?'bg-red-50 text-red-600':'bg-amber-50 text-amber-700'}`}><Clock3 className="h-4 w-4"/>{String(min).padStart(2,'0')}:{String(sec).padStart(2,'0')}</div>
-        <button onClick={()=>setConfirm(true)} className="hidden rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-blue-100 sm:block">Nộp bài</button>
-      </div>
-      <div className="h-1 bg-slate-100"><div className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all" style={{width:`${progress}%`}}/></div>
-    </header>
-
-    <main className="mx-auto grid max-w-7xl gap-5 px-5 py-6 lg:grid-cols-[230px_minmax(0,1fr)]">
-      <aside className="h-fit rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:sticky lg:top-28">
-        <div className="flex items-center justify-between"><h2 className="text-sm font-extrabold text-slate-900">Danh sách câu hỏi</h2><span className="text-xs font-bold text-blue-600">{answered}/{questions.length}</span></div>
-        <div className="mt-4 grid grid-cols-5 gap-2 lg:grid-cols-3">{questions.map((q,index)=>{
-          const active=index===current;
-          const done=isAnswered(q,drafts[q.questionId]);
-          const mark=flagged.has(q.questionId);
-          return <button key={q.questionId} onClick={()=>setCurrent(index)} className={`relative flex aspect-square items-center justify-center rounded-full border text-xs font-bold transition ${active?'border-blue-600 bg-blue-600 text-white shadow-lg shadow-blue-100':done?'border-emerald-200 bg-emerald-50 text-emerald-700':'border-slate-200 bg-slate-50 text-slate-500 hover:border-blue-300'}`}>{index+1}{mark&&<span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-amber-400"/>}</button>;
-        })}</div>
-        <div className="mt-5 space-y-2 border-t border-slate-100 pt-4 text-xs text-slate-500">
-          <p><span className="mr-2 inline-block h-2.5 w-2.5 rounded-full bg-emerald-500"/>Đã trả lời</p>
-          <p><span className="mr-2 inline-block h-2.5 w-2.5 rounded-full border border-slate-300 bg-white"/>Chưa trả lời</p>
-          <p><span className="mr-2 inline-block h-2.5 w-2.5 rounded-full bg-amber-400"/>Đánh dấu xem lại</p>
-        </div>
-      </aside>
-
-      <section className="min-w-0">
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <p className="text-sm font-bold text-slate-900">Câu {current+1}/{questions.length}</p>
-            <div className="mt-2 h-2 w-56 max-w-[50vw] overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-blue-600 transition-all" style={{width:`${((current+1)/questions.length)*100}%`}}/></div>
-          </div>
-          <span className="text-sm font-bold text-slate-500">{Math.round(((current+1)/questions.length)*100)}%</span>
-        </div>
-
-        <article className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-100 bg-gradient-to-r from-white via-white to-blue-50/70 p-6 sm:p-8">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-extrabold text-emerald-700">{typeLabels[question.questionType]||question.questionType}</span>
-              <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">{question.points??1} điểm</span>
-              {question.isRequired&&<span className="rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-500">Bắt buộc</span>}
-            </div>
-
-            {question.instruction&&<p className="mt-4 text-sm font-semibold text-slate-500">{question.instruction}</p>}
-            <h1 className="mt-3 text-xl font-extrabold leading-8 text-slate-900">{question.questionText}</h1>
-            <MediaBlock question={question}/>
-
-            {['SINGLE_CHOICE','MULTIPLE_CHOICE','TRUE_FALSE','LISTEN_IDENTIFY_ERROR','AUDIO_COMPARISON','LISTEN_CLASSIFY'].includes(question.questionType)&&<ChoiceBlock question={question} draft={draft} update={update}/>}
-            {['FILL_BLANK','SCRIPT_WRITING','ESSAY'].includes(question.questionType)&&<TextBlock question={question} draft={draft} update={update}/>}
-            {question.questionType==='ARRANGE_SCRIPT'&&<ArrangeBlock question={question} draft={draft} update={update}/>}
-            {['LISTEN_LOCATE_ERROR','ERROR_CORRECTION_LAB'].includes(question.questionType)&&<><ErrorRegionBlock draft={draft} update={update}/>{question.choices.length>0&&<ChoiceBlock question={question} draft={draft} update={update}/>}</>}
-            {question.questionType==='SCRIPT_ANNOTATION'&&<AnnotationBlock question={question} draft={draft} update={update}/>}
-            {question.questionType==='SCENARIO_DECISION_TREE'&&<ScenarioBlock question={question} draft={draft} update={update}/>}
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50/70 px-6 py-4 sm:px-8">
-            <button type="button" onClick={()=>setFlagged(prev=>{
-              const n=new Set(prev);
-              n.has(question.questionId)?n.delete(question.questionId):n.add(question.questionId);
-              return n;
-            })} className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold ${flagged.has(question.questionId)?'bg-amber-100 text-amber-700':'text-slate-500 hover:bg-white'}`}><Flag className="h-4 w-4"/>Đánh dấu xem lại</button>
-
-            <div className="flex gap-2">
-              <button disabled={current===0} onClick={()=>setCurrent(x=>Math.max(0,x-1))} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 disabled:opacity-40"><ChevronLeft className="h-4 w-4"/>Câu trước</button>
-              {current<questions.length-1?<button onClick={()=>setCurrent(x=>Math.min(questions.length-1,x+1))} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white">Câu tiếp theo<ChevronRight className="h-4 w-4"/></button>:<button onClick={()=>setConfirm(true)} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white"><Send className="h-4 w-4"/>Nộp bài</button>}
-            </div>
-          </div>
-        </article>
-      </section>
-    </main>
-
-    {confirm&&<div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-600"><ListChecks className="h-6 w-6"/></div>
-        <h3 className="mt-4 text-xl font-extrabold text-slate-900">Nộp bài kiểm tra?</h3>
-        <p className="mt-2 text-sm leading-6 text-slate-500">Bạn đã trả lời <b className="text-slate-800">{answered}/{questions.length}</b> câu. {answered<questions.length&&'Vẫn còn câu chưa trả lời.'}</p>
-        <div className="mt-5 flex gap-3">
-          <button onClick={()=>setConfirm(false)} className="flex-1 rounded-xl border border-slate-200 py-3 text-sm font-bold text-slate-700">Tiếp tục làm</button>
-          <button disabled={submitQuiz.isPending} onClick={()=>void doSubmit()} className="flex-1 rounded-xl bg-blue-600 py-3 text-sm font-bold text-white disabled:opacity-50">{submitQuiz.isPending?'Đang nộp...':'Nộp bài'}</button>
+export const TakeQuizPage: React.FC = () => {
+  const navigate = useNavigate(); const location = useLocation(); const { quizId } = useParams<{ quizId: string }>(); const id = quizId && Number(quizId) > 0 ? Number(quizId) : null;
+  const { data: quiz, isLoading, isError, error } = useTakeQuiz(id); const submitQuiz = useSubmitQuiz(); const [current, setCurrent] = useState(0); const [drafts, setDrafts] = useState<Record<number, DraftAnswer>>({}); const [flagged, setFlagged] = useState<Set<number>>(new Set()); const [now, setNow] = useState(Date.now()); const [confirm, setConfirm] = useState(false); const submitted = useRef(false); const returnTo = (location.state as QuizNavigationState | null)?.returnTo;
+  useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(timer); }, []);
+  useEffect(() => { submitted.current = false; setCurrent(0); setDrafts({}); setFlagged(new Set()); }, [quiz?.attemptId]);
+  const questions = useMemo(() => quiz ? [...quiz.questions].sort((a, b) => a.orderIndex - b.orderIndex) : [], [quiz]); const question = questions[current]; const draft = question ? drafts[question.questionId] || emptyDraft() : emptyDraft(); const update: UpdateDraft = patch => { if (question) setDrafts(prev => ({ ...prev, [question.questionId]: { ...(prev[question.questionId] || emptyDraft()), ...patch } })); };
+  const count = questions.filter(q => answered(q, drafts[q.questionId])).length; const progress = questions.length ? count / questions.length * 100 : 0; const timed = !!quiz?.timeLimitMinutes && quiz.timeLimitMinutes > 0; const startedAtMs = quiz ? Date.parse(/(?:Z|[+-]\d{2}:?\d{2})$/i.test(quiz.startedAt) ? quiz.startedAt : `${quiz.startedAt}Z`) : NaN; const endAt = timed && Number.isFinite(startedAtMs) ? startedAtMs + Number(quiz!.timeLimitMinutes) * 60000 : NaN; const left = timed && Number.isFinite(endAt) ? Math.max(0, Math.ceil((endAt - now) / 1000)) : null;
+  const doSubmit = async () => { if (!quiz || submitted.current || submitQuiz.isPending) return; submitted.current = true; const answers: SubmitQuizAnswerRequest[] = questions.map(q => { const d = drafts[q.questionId] || emptyDraft(); return { questionId: q.questionId, selectedChoiceId: d.selectedChoiceIds.length === 1 ? d.selectedChoiceIds[0] : null, selectedChoiceIds: d.selectedChoiceIds, textAnswer: d.textAnswer || null, errorRegions: d.errorRegions, annotations: d.annotations, arrangeItems: d.arrangeItems, scenarioPath: d.scenarioPath }; }); try { const result = await submitQuiz.mutateAsync({ quizId: quiz.quizId, data: { attemptId: quiz.attemptId, answers } }); navigate(`/quizzes/${quiz.quizId}/result/${result.attemptId}`, { replace: true, state: { returnTo } }); } catch (e) { submitted.current = false; window.alert(e instanceof Error ? e.message : 'Không thể nộp bài Quiz.'); } };
+  useEffect(() => { if (quiz && timed && left === 0 && !submitted.current) void doSubmit(); }, [quiz?.attemptId, left]);
+  if (isLoading) return <div className="flex min-h-[70vh] items-center justify-center"><div className="h-10 w-10 animate-spin rounded-full border-4 border-blue-100 border-t-blue-600"/></div>;
+  if (isError || !quiz || !question) return <div className="mx-auto max-w-xl p-10 text-center"><AlertCircle className="mx-auto h-10 w-10 text-red-500"/><p className="mt-3 font-semibold">{error instanceof Error ? error.message : 'Không thể tải bài Quiz.'}</p></div>;
+  const locate = ['LISTEN_LOCATE_ERROR', 'ERROR_CORRECTION_LAB'].includes(question.questionType);
+  return <div className="min-h-screen bg-[#f3f8ff] pb-12 text-[#0b2354]">
+    <div className="mx-auto max-w-[1510px] px-3 pt-4 sm:px-6">
+      <div className="relative overflow-hidden rounded-[26px] bg-gradient-to-[115deg] from-[#071d48] via-[#0757cf] to-[#061c55] px-5 py-6 text-white shadow-[0_14px_38px_rgba(7,45,112,.15)] sm:px-8 lg:px-10">
+        <div className="pointer-events-none absolute -right-12 -top-28 h-80 w-80 rounded-full border-[55px] border-blue-400/15"/><div className="pointer-events-none absolute left-[42%] top-0 h-full w-1/3 -skew-x-[30deg] bg-cyan-400/10"/>
+        <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0 flex-1"><button type="button" onClick={() => returnTo ? navigate(returnTo) : navigate(-1)} className="mb-5 inline-flex items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-xs font-semibold transition hover:bg-white/20"><ArrowLeft size={15}/> Quay lại khóa học</button><p className="mb-2 text-[11px] font-semibold uppercase tracking-[.2em] text-blue-200">MSEEK ACADEMY · LÀM BÀI KIỂM TRA</p><div className="flex flex-wrap items-center gap-3"><h1 className="max-w-2xl break-words text-2xl font-black tracking-tight sm:text-3xl">{quiz.title}</h1><span className="rounded-full bg-[#ffd66a] px-3 py-1 text-[11px] font-extrabold text-[#102c5c]">Đang thực hiện</span></div><p className="mt-3 text-sm text-blue-100">Lần làm thứ {quiz.attemptNumber} · {questions.length} câu hỏi · Luyện tập và phát triển kỹ năng MC</p></div>
+          <div className="hidden shrink-0 items-center justify-center text-blue-100/70 xl:flex"><div className="flex h-24 items-center gap-[4px]">{Array.from({length:35},(_,i)=><span key={i} className="w-[3px] rounded-full bg-cyan-300/70" style={{height:`${10+Math.abs(Math.sin(i*1.74)*Math.cos(i*.39))*78}%`}}/>)}</div><Mic2 className="-ml-2 text-white" size={74} strokeWidth={1.3}/></div>
+          <div className="grid shrink-0 grid-cols-2 gap-3 sm:min-w-[310px]"><div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur"><div className="mb-2 flex items-center gap-2 text-xs text-blue-100"><Clock3 size={17}/> Thời gian còn lại</div><div className={`text-xl font-black ${left !== null && left < 60 ? 'text-amber-300' : 'text-white'}`}>{left === null ? 'Không giới hạn' : `${String(Math.floor(left / 60)).padStart(2,'0')}:${String(left % 60).padStart(2,'0')}`}</div></div><div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur"><div className="mb-2 flex items-center gap-2 text-xs text-blue-100"><FileText size={17}/> Đã trả lời</div><div className="text-xl font-black">{count} / {questions.length} câu</div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/20"><div className="h-full rounded-full bg-emerald-300 transition-all" style={{width:`${progress}%`}}/></div></div></div>
         </div>
       </div>
-    </div>}
+      <main className="mt-4 grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <section className="min-w-0"><article className={`${surface} overflow-hidden`}><div className="p-5 sm:p-7"><div className="flex flex-wrap items-center justify-between gap-3"><div className="flex flex-wrap items-center gap-2"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 font-black text-blue-700">{current+1}</span><span className="font-extrabold text-blue-700">Câu {current+1} / {questions.length}</span><span className="rounded-lg bg-[#eef5ff] px-3 py-2 text-xs font-bold text-blue-700">{labels[question.questionType] || question.questionType}</span><span className="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-600">{question.points ?? 1} điểm</span>{question.isRequired && <span className="rounded-full bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-600">Bắt buộc</span>}</div><button type="button" onClick={() => setFlagged(prev => {const next = new Set(prev);next.has(question.questionId)?next.delete(question.questionId):next.add(question.questionId);return next;})} className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold transition ${flagged.has(question.questionId)?'border-amber-300 bg-amber-50 text-amber-700':'border-blue-100 bg-white text-blue-700 hover:bg-blue-50'}`}><Flag size={15}/>{flagged.has(question.questionId)?'Đã đánh dấu':'Đánh dấu'}</button></div>
+          <h2 className="mt-7 text-xl font-extrabold leading-relaxed text-[#0b2354] sm:text-[23px]">{question.questionText}</h2>{(question.instruction || tips[question.questionType]) && <div className="mt-4 rounded-xl border border-blue-100 bg-[#f0f6ff] px-4 py-3 text-sm leading-6 text-[#315a92]">{question.instruction || tips[question.questionType]}</div>}
+          <MediaBlock question={question} hideAudio={locate}/>{['SINGLE_CHOICE','MULTIPLE_CHOICE','TRUE_FALSE','LISTEN_IDENTIFY_ERROR','AUDIO_COMPARISON','LISTEN_CLASSIFY'].includes(question.questionType) && <ChoiceBlock question={question} draft={draft} update={update}/>}{['FILL_BLANK','SCRIPT_WRITING','ESSAY'].includes(question.questionType) && <TextBlock question={question} draft={draft} update={update}/>}{question.questionType === 'ARRANGE_SCRIPT' && <ArrangeBlock question={question} draft={draft} update={update}/>}{locate && <><TimelineBlock question={question} draft={draft} update={update}/>{question.choices.length > 0 && <ChoiceBlock question={question} draft={draft} update={update}/>}</>}{question.questionType === 'SCRIPT_ANNOTATION' && <AnnotationBlock question={question} draft={draft} update={update}/>}{question.questionType === 'SCENARIO_DECISION_TREE' && <ScenarioBlock question={question} draft={draft} update={update}/>}
+        </div><div className="flex flex-wrap items-center justify-between gap-3 border-t border-blue-100 bg-[#f9fbff] px-5 py-4 sm:px-7"><button type="button" disabled={current===0} onClick={()=>setCurrent(i=>Math.max(0,i-1))} className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-sm font-bold text-blue-700 transition hover:bg-blue-50 disabled:opacity-40"><ChevronLeft size={17}/> Câu trước</button>{current < questions.length-1 ? <button type="button" onClick={()=>setCurrent(i=>Math.min(questions.length-1,i+1))} className="inline-flex items-center gap-2 rounded-xl bg-[#075cf2] px-5 py-2.5 text-sm font-bold text-white shadow-md shadow-blue-100 transition hover:bg-[#064bd0]">Câu tiếp theo <ChevronRight size={17}/></button> : <button type="button" onClick={()=>setConfirm(true)} className="inline-flex items-center gap-2 rounded-xl bg-[#075cf2] px-5 py-2.5 text-sm font-bold text-white"><Send size={16}/> Nộp bài</button>}</div></article></section>
+        <aside className="grid gap-4 xl:sticky xl:top-4"><div className={`${surface} p-5`}><div className="flex items-center gap-3"><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600"><Clock3 size={23}/></span><div><p className="text-xs font-semibold text-slate-500">Thời gian còn lại</p><p className={`text-2xl font-black ${left!==null && left<60?'text-red-600':'text-[#0b2354]'}`}>{left===null?'Không giới hạn':`${String(Math.floor(left/60)).padStart(2,'0')}:${String(left%60).padStart(2,'0')}`}</p></div></div><div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-cyan-400 transition-all" style={{width:`${progress}%`}}/></div><p className="mt-2 text-right text-xs text-slate-500">Đã làm {count}/{questions.length} câu ({Math.round(progress)}%)</p></div>
+          <div className={`${surface} p-5`}><div className="mb-4 flex items-center gap-2 font-extrabold"><ListChecks size={18} className="text-blue-600"/> Danh sách câu hỏi</div><div className="grid grid-cols-5 gap-2">{questions.map((q,i)=>{const active=i===current,done=answered(q,drafts[q.questionId]);return <button key={q.questionId} type="button" onClick={()=>setCurrent(i)} aria-label={`Câu ${i+1}`} className={`relative aspect-square rounded-xl border text-sm font-extrabold transition ${active?'border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-200':done?'border-emerald-100 bg-emerald-50 text-emerald-700':'border-slate-100 bg-[#f1f5fb] text-[#0b2354] hover:border-blue-300'}`}>{i+1}{flagged.has(q.questionId)&&<span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-rose-500"/>}{done&&!active&&<Check size={11} className="absolute bottom-0.5 right-0.5"/>}</button>})}</div><div className="mt-4 flex flex-wrap gap-x-3 gap-y-2 border-t border-slate-100 pt-4 text-[11px] text-slate-500"><span>🟢 Đã làm</span><span>🔵 Đang làm</span><span>⚪ Chưa làm</span><span>🔴 Đánh dấu</span></div></div>
+          <div className={`${surface} p-5`}><div className="mb-4 flex items-center gap-2 font-extrabold"><BookOpen size={18} className="text-blue-600"/> Thông tin bài kiểm tra</div><div className="space-y-3 text-xs">{[['Tên Quiz',quiz.title],['Số câu hỏi',`${questions.length} câu`],['Lần làm',`Lần thứ ${quiz.attemptNumber}`],['Thời gian làm bài',timed?`${quiz.timeLimitMinutes} phút`:'Không giới hạn'],['Đã hoàn thành',`${count}/${questions.length} câu`]].map(([label,value])=><div key={label} className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3 last:border-0 last:pb-0"><span className="shrink-0 text-slate-500">{label}</span><span className="min-w-0 break-words text-right font-bold text-[#0b2354]">{value}</span></div>)}</div></div>
+          <button type="button" onClick={()=>setConfirm(true)} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#075cf2] px-5 py-3.5 text-sm font-extrabold text-white shadow-lg shadow-blue-100 transition hover:bg-[#064bd0]"><Send size={17}/> Nộp bài kiểm tra</button>
+        </aside>
+      </main>
+    </div>
+    {confirm && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm"><div role="dialog" aria-modal="true" aria-label="Xác nhận nộp bài" className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl"><div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-100 text-blue-700"><ListChecks size={24}/></div><h3 className="mt-4 text-xl font-extrabold">Xác nhận nộp bài?</h3><p className="mt-2 text-sm leading-6 text-slate-600">Bạn đã hoàn thành <b>{count}/{questions.length}</b> câu. {count < questions.length && 'Một số câu vẫn chưa có câu trả lời.'}</p><div className="mt-6 flex gap-3"><button type="button" onClick={() => setConfirm(false)} className="flex-1 rounded-xl border border-slate-200 py-3 text-sm font-bold">Tiếp tục làm</button><button type="button" disabled={submitQuiz.isPending} onClick={() => void doSubmit()} className="flex-1 rounded-xl bg-blue-600 py-3 text-sm font-bold text-white disabled:opacity-50">{submitQuiz.isPending ? 'Đang nộp...' : 'Nộp bài'}</button></div></div></div>}
   </div>;
 };
-
 export default TakeQuizPage;

@@ -1,11 +1,3 @@
-// =============================================================================
-// CourseListView.tsx  —  Data table + pagination for Course Management
-//
-// Responsibility: displays a paginated, filterable list of courses.
-// This component is the "dumb" presentational layer — it receives data and
-// callbacks from CourseManagementPage and renders the table + controls.
-// All data fetching happens in the parent via React Query hooks.
-// =============================================================================
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -18,6 +10,7 @@ import { CourseStatusBadge } from './CourseStatusBadge';
 import { DeleteCourseModal } from './DeleteCourseModal';
 import { CourseMaterialModal } from './CourseMaterialModal';
 import { CourseStudentsModal } from './CourseStudentsModal';
+import { useCourseStudents } from '../../../payment/hooks/useCourseStudents';
 import { moduleApi } from '../../api/moduleApi';
 import { lessonApi } from '../../api/lessonApi';
 import { IncompleteCourseModal } from './IncompleteCourseModal';
@@ -46,6 +39,14 @@ const formatDate = (iso: string) => {
   } catch {
     return iso;
   }
+};
+
+// The badge and modal share the same Enrollment query key and source of truth.
+const CourseStudentCount: React.FC<{ courseId: number }> = ({ courseId }) => {
+  const { data: students, isLoading, isError } = useCourseStudents(courseId);
+  if (isLoading) return <span>Đang tải...</span>;
+  if (isError) return <span>Không tải được</span>;
+  return <span>{students?.length ?? 0} học viên</span>;
 };
 
 // ---------------------------------------------------------------------------
@@ -263,7 +264,7 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
                         className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-50 px-2.5 py-1 text-xs font-semibold text-cyan-700 border border-cyan-200/80 hover:bg-cyan-100 active:scale-95 transition-all cursor-pointer whitespace-nowrap shadow-xs"
                       >
                         <Users className="h-3.5 w-3.5 text-cyan-600" />
-                        <span>{course.studentCount ?? 0} học viên</span>
+                        <CourseStudentCount courseId={course.courseId} />
                       </button>
                     )}
                   </td>
@@ -418,6 +419,7 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
         isOpen={Boolean(courseForStudents)}
         onClose={() => setCourseForStudents(null)}
         courseTitle={courseForStudents?.title}
+        courseId={courseForStudents?.courseId ?? 0}
       />
     </>
   );

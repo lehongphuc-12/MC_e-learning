@@ -27,6 +27,7 @@ public class QuizService : IQuizService
     private readonly IGenericRepository<QuizAnswerScenarioPath> _answerScenarioPathRepository;
     private readonly IGenericRepository<Course> _courseRepository;
     private readonly IGenericRepository<Lesson> _lessonRepository;
+    private readonly IGenericRepository<User> _userRepository;
     private readonly IUnitOfWork _unitOfWork;
 
     public QuizService(
@@ -49,6 +50,7 @@ public class QuizService : IQuizService
         IGenericRepository<QuizAnswerScenarioPath> answerScenarioPathRepository,
         IGenericRepository<Course> courseRepository,
         IGenericRepository<Lesson> lessonRepository,
+        IGenericRepository<User> userRepository,
         IUnitOfWork unitOfWork)
     {
         _quizRepository = quizRepository;
@@ -70,6 +72,7 @@ public class QuizService : IQuizService
         _answerScenarioPathRepository = answerScenarioPathRepository;
         _courseRepository = courseRepository;
         _lessonRepository = lessonRepository;
+        _userRepository = userRepository;
         _unitOfWork = unitOfWork;
     }
 
@@ -86,8 +89,6 @@ public class QuizService : IQuizService
             if (lesson.CourseId != request.CourseId) throw new ArgumentException("The selected lesson does not belong to the selected course.");
         }
 
-        var existingQuizzes = await _quizRepository.FindAsync(q => q.CourseId == request.CourseId && q.LessonId == request.LessonId);
-        if (existingQuizzes.Any()) throw new ArgumentException(request.LessonId.HasValue ? "This lesson already has a quiz." : "This course already has an overall quiz.");
         if (request.Questions == null || request.Questions.Count == 0) throw new ArgumentException("At least one question is required.");
         foreach (var question in request.Questions) ValidateQuestion(question);
 
@@ -412,7 +413,7 @@ public class QuizService : IQuizService
             case QuestionType.MULTIPLE_CHOICE: ValidateChoiceSet(q.Choices, 2, false, false, "Multiple choice"); break;
             case QuestionType.TRUE_FALSE: ValidateChoiceSet(q.Choices, 2, true, true, "True/false"); break;
             case QuestionType.FILL_BLANK: break;
-            case QuestionType.LISTEN_IDENTIFY_ERROR: RequireAudio(q.Media, 1); ValidateChoiceSet(q.Choices, 2, false, false, "Listen & Identify Error"); break;
+            case QuestionType.LISTEN_IDENTIFY_ERROR: RequireAudioOrYouTube(q.Media); ValidateChoiceSet(q.Choices, 2, false, false, "Listen & Identify Error"); break;
             case QuestionType.LISTEN_LOCATE_ERROR: RequireAudio(q.Media, 1); ValidateRegions(q.ErrorRegions); break;
             case QuestionType.AUDIO_COMPARISON: RequireAudio(q.Media, 2); ValidateChoiceSet(q.Choices, 2, false, false, "Audio Comparison"); break;
             case QuestionType.LISTEN_CLASSIFY: RequireAudio(q.Media, 1); ValidateChoiceSet(q.Choices, 2, false, false, "Listen & Classify"); break;
@@ -435,7 +436,7 @@ public class QuizService : IQuizService
             case QuestionType.MULTIPLE_CHOICE: ValidateUpdateChoiceSet(q.Choices, 2, false, false, "Multiple choice"); break;
             case QuestionType.TRUE_FALSE: ValidateUpdateChoiceSet(q.Choices, 2, true, true, "True/false"); break;
             case QuestionType.FILL_BLANK: break;
-            case QuestionType.LISTEN_IDENTIFY_ERROR: RequireUpdateAudio(q.Media, 1); ValidateUpdateChoiceSet(q.Choices, 2, false, false, "Listen & Identify Error"); break;
+            case QuestionType.LISTEN_IDENTIFY_ERROR: RequireUpdateAudioOrYouTube(q.Media); ValidateUpdateChoiceSet(q.Choices, 2, false, false, "Listen & Identify Error"); break;
             case QuestionType.LISTEN_LOCATE_ERROR: RequireUpdateAudio(q.Media, 1); ValidateUpdateRegions(q.ErrorRegions); break;
             case QuestionType.AUDIO_COMPARISON: RequireUpdateAudio(q.Media, 2); ValidateUpdateChoiceSet(q.Choices, 2, false, false, "Audio Comparison"); break;
             case QuestionType.LISTEN_CLASSIFY: RequireUpdateAudio(q.Media, 1); ValidateUpdateChoiceSet(q.Choices, 2, false, false, "Listen & Classify"); break;
@@ -454,6 +455,33 @@ public class QuizService : IQuizService
     private static void ValidateUpdateChoiceSet(List<UpdateChoiceRequest> xs, int min, bool exactlyOne, bool exactlyTwo, string label) { if (xs.Count < min || (exactlyTwo && xs.Count != 2)) throw new ArgumentException($"{label} question has an invalid number of choices."); if (xs.Any(x => string.IsNullOrWhiteSpace(x.ChoiceText))) throw new ArgumentException("Choice text cannot be empty."); var correct = xs.Count(x => x.IsCorrect); if ((exactlyOne && correct != 1) || (!exactlyOne && correct < 1)) throw new ArgumentException($"{label} question has an invalid number of correct choices."); }
     private static void RequireAudio(List<CreateQuestionMediaRequest> xs, int min) { if (xs.Count(x => x.MediaType == QuestionMediaType.AUDIO) < min) throw new ArgumentException($"This question requires at least {min} audio file(s)."); if (xs.Any(x => string.IsNullOrWhiteSpace(x.MediaUrl))) throw new ArgumentException("Media URL cannot be empty."); }
     private static void RequireUpdateAudio(List<UpdateQuestionMediaRequest> xs, int min) { if (xs.Count(x => x.MediaType == QuestionMediaType.AUDIO) < min) throw new ArgumentException($"This question requires at least {min} audio file(s)."); if (xs.Any(x => string.IsNullOrWhiteSpace(x.MediaUrl))) throw new ArgumentException("Media URL cannot be empty."); }
+    private static bool IsYouTubeVideo(string? url)
+    {
+        if (!Uri.TryCreate(url?.Trim(), UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps) return false;
+        var host = uri.Host.ToLowerInvariant();
+        if (host == "youtu.be") return uri.AbsolutePath.Trim('/').Length == 11;
+        if (host != "youtube.com" && host != "www.youtube.com" && host != "m.youtube.com" && host != "youtube-nocookie.com" && host != "www.youtube-nocookie.com") return false;
+        var path = uri.AbsolutePath.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (path.Length == 2 && (path[0] == "embed" || path[0] == "shorts" || path[0] == "live")) return path[1].Length == 11;
+        if (path.Length == 1 && path[0] == "watch")
+        {
+            var query = uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries);
+            return query.Any(p => p.StartsWith("v=", StringComparison.OrdinalIgnoreCase) && Uri.UnescapeDataString(p[2..]).Length == 11);
+        }
+        return false;
+    }
+    private static void RequireAudioOrYouTube(List<CreateQuestionMediaRequest> xs)
+    {
+        if (xs.Any(x => string.IsNullOrWhiteSpace(x.MediaUrl))) throw new ArgumentException("Media URL cannot be empty.");
+        if (!xs.Any(x => x.MediaType == QuestionMediaType.AUDIO || (x.MediaType == QuestionMediaType.VIDEO && IsYouTubeVideo(x.MediaUrl))))
+            throw new ArgumentException("Listen & Identify Error requires an audio file or a valid YouTube video URL.");
+    }
+    private static void RequireUpdateAudioOrYouTube(List<UpdateQuestionMediaRequest> xs)
+    {
+        if (xs.Any(x => string.IsNullOrWhiteSpace(x.MediaUrl))) throw new ArgumentException("Media URL cannot be empty.");
+        if (!xs.Any(x => x.MediaType == QuestionMediaType.AUDIO || (x.MediaType == QuestionMediaType.VIDEO && IsYouTubeVideo(x.MediaUrl))))
+            throw new ArgumentException("Listen & Identify Error requires an audio file or a valid YouTube video URL.");
+    }
     private static void ValidateRegions(List<CreateErrorRegionRequest> xs) { if (xs.Count == 0) throw new ArgumentException("At least one error region is required."); if (xs.Any(x => x.StartTimeMs < 0 || x.EndTimeMs <= x.StartTimeMs || string.IsNullOrWhiteSpace(x.ErrorCategory) || string.IsNullOrWhiteSpace(x.ErrorCode))) throw new ArgumentException("Error region data is invalid."); }
     private static void ValidateUpdateRegions(List<UpdateErrorRegionRequest> xs) { if (xs.Count == 0) throw new ArgumentException("At least one error region is required."); if (xs.Any(x => x.StartTimeMs < 0 || x.EndTimeMs <= x.StartTimeMs || string.IsNullOrWhiteSpace(x.ErrorCategory) || string.IsNullOrWhiteSpace(x.ErrorCode))) throw new ArgumentException("Error region data is invalid."); }
     private static void ValidateAnnotations(List<CreateAnnotationRequest> xs) { if (xs.Count == 0) throw new ArgumentException("At least one annotation is required."); if (xs.Any(x => x.StartIndex < 0 || x.EndIndex < x.StartIndex)) throw new ArgumentException("Annotation range is invalid."); }
@@ -473,6 +501,8 @@ public class QuizService : IQuizService
 
         var attempts = (await _attemptRepository.FindAsync(a => a.QuizId == quizId && a.UserId == learnerId)).ToList();
         var attempt = attempts.FirstOrDefault(a => !a.SubmittedAt.HasValue);
+        if (attempts.Any(a => a.ResultStatus == QuizAttemptStatus.PASSED)) throw new ArgumentException("You have already passed this quiz.");
+        if (attempts.Any(a => a.ResultStatus == QuizAttemptStatus.PENDING_GRADING)) throw new ArgumentException("Your previous attempt is awaiting instructor grading.");
         if (attempt is null)
         {
             if (attempts.Count >= quiz.MaxAttempts) throw new ArgumentException("You have reached the maximum number of attempts.");
@@ -718,6 +748,39 @@ public class QuizService : IQuizService
     private static bool RangesOverlap(int aStart, int aEnd, int bStart, int bEnd) => aStart <= bEnd && bStart <= aEnd;
     private static decimal ScaleScore(decimal raw, decimal rawMax, decimal maxScore) => rawMax <= 0 ? 0 : Math.Round(Math.Clamp(raw / rawMax, 0, 1) * maxScore, 2);
 
+    public async Task<List<InstructorQuizAttemptDto>> GetInstructorAttemptsAsync(int instructorId, int quizId)
+    {
+        var quiz = (await _quizRepository.FindAsync(q => q.QuizId == quizId)).FirstOrDefault();
+        if (quiz is null) throw new ArgumentException("Quiz not found.");
+        if (quiz.CreatedById != instructorId) throw new UnauthorizedAccessException("You do not have permission to view these attempts.");
+        var attempts = (await _attemptRepository.FindAsync(a => a.QuizId == quizId && a.SubmittedAt.HasValue)).OrderByDescending(a => a.SubmittedAt).ToList();
+        if (attempts.Count == 0) return new List<InstructorQuizAttemptDto>();
+        var attemptIds = attempts.Select(a => a.AttemptId).ToList();
+        var userIds = attempts.Select(a => a.UserId).Distinct().ToList();
+        var answers = (await _answerRepository.FindAsync(a => attemptIds.Contains(a.AttemptId))).ToList();
+        var users = (await _userRepository.FindAsync(u => userIds.Contains(u.UserId))).ToList();
+        var names = users.ToDictionary(u => u.UserId, u => u.FullName);
+        var pendingCounts = answers.Where(a => !a.Score.HasValue).GroupBy(a => a.AttemptId).ToDictionary(g => g.Key, g => g.Count());
+        return attempts.Select(a => new InstructorQuizAttemptDto
+        {
+            AttemptId = a.AttemptId, QuizId = a.QuizId, UserId = a.UserId,
+            FullName = names.TryGetValue(a.UserId, out var name) ? name : null,
+            AttemptNumber = a.AttemptNumber, SubmittedAt = a.SubmittedAt,
+            ResultStatus = a.ResultStatus, Score = a.Score,
+            PendingAnswers = pendingCounts.TryGetValue(a.AttemptId, out var count) ? count : 0
+        }).ToList();
+    }
+
+    public async Task<QuizResultDto?> GetInstructorAttemptResultAsync(int instructorId, int quizId, int attemptId)
+    {
+        var quiz = (await _quizRepository.FindAsync(q => q.QuizId == quizId)).FirstOrDefault();
+        if (quiz is null) throw new ArgumentException("Quiz not found.");
+        if (quiz.CreatedById != instructorId) throw new UnauthorizedAccessException("You do not have permission to view this attempt.");
+        var attempt = (await _attemptRepository.FindAsync(a => a.QuizId == quizId && a.AttemptId == attemptId)).FirstOrDefault();
+        if (attempt is null) throw new ArgumentException("Attempt not found.");
+        return await GetQuizResultAsync(attempt.UserId, quizId, attemptId);
+    }
+
     public async Task<QuizResultDto?> GradeQuizAnswerAsync(int instructorId, int quizAnswerId, ManualGradeQuizAnswerRequest request)
     {
         var answer = (await _answerRepository.FindAsync(x => x.QuizAnswerId == quizAnswerId)).FirstOrDefault();
@@ -850,5 +913,22 @@ public async Task<int?> GetLatestQuizResultAsync(
     return latestAttempt?.AttemptId;
 
 }
+
+    public async Task<List<LearnerQuizAttemptHistoryDto>> GetMyQuizAttemptsAsync(int quizId, int learnerId)
+    {
+        var attempts = await _attemptRepository.FindAsync(a => a.QuizId == quizId && a.UserId == learnerId && a.SubmittedAt.HasValue);
+        return attempts.OrderByDescending(a => a.AttemptNumber).ThenByDescending(a => a.SubmittedAt)
+            .Select(a => new LearnerQuizAttemptHistoryDto
+            {
+                AttemptId = a.AttemptId,
+                QuizId = a.QuizId,
+                AttemptNumber = a.AttemptNumber,
+                Score = a.Score,
+                ResultStatus = a.ResultStatus,
+                StartedAt = a.StartedAt,
+                SubmittedAt = a.SubmittedAt
+            }).ToList();
+    }
+
 
 }

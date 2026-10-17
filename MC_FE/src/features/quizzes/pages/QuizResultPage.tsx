@@ -1,15 +1,14 @@
-import React from 'react';
-import { ArrowLeft, Check, Clock3, FileText, RotateCcw, Sparkles, Trophy } from 'lucide-react';
+import React, { useState } from 'react';
+import { ArrowLeft, ArrowRight, BookOpen, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronUp, Clock3, ClipboardList, Eye, FileText, ListChecks, MessageSquareText, RotateCcw, Sparkles, Trophy, XCircle } from 'lucide-react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { useQuizResult } from '../hooks/useQuiz';
+import { useMyQuizAttempts, useQuizResult } from '../hooks/useQuiz';
 
 interface QuizNavigationState { returnTo?: string; }
-
-const formatDuration = (start: string, end?: string | null) => {
-  if (!end) return 'Đang chờ';
-  const sec = Math.max(0, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 1000));
-  return `${Math.floor(sec / 60)} phút ${sec % 60} giây`;
-};
+type ResultTab = 'questions' | 'statistics' | 'feedback';
+const statusIs = (status: unknown, name: string, code: number) => status === name || status === code;
+const formatDate = (value?: string | null) => { if (!value) return 'Chưa có dữ liệu'; const d = new Date(value); return Number.isNaN(d.getTime()) ? 'Chưa có dữ liệu' : d.toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }); };
+const formatDuration = (start?: string | null, end?: string | null) => { if (!start || !end) return 'Đang chờ'; const seconds = Math.max(0, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 1000)); return Number.isFinite(seconds) ? `${Math.floor(seconds / 60)} phút ${seconds % 60} giây` : 'Chưa có dữ liệu'; };
+const statusText = (status: unknown) => statusIs(status, 'PASSED', 3) ? 'Đạt yêu cầu' : statusIs(status, 'FAILED', 4) ? 'Chưa đạt' : statusIs(status, 'PENDING_GRADING', 2) ? 'Chờ chấm' : statusIs(status, 'IN_PROGRESS', 1) ? 'Đang làm' : 'Đã nộp';
 
 export const QuizResultPage: React.FC = () => {
   const navigate = useNavigate();
@@ -18,117 +17,107 @@ export const QuizResultPage: React.FC = () => {
   const qid = quizId && Number(quizId) > 0 ? Number(quizId) : null;
   const aid = attemptId && Number(attemptId) > 0 ? Number(attemptId) : null;
   const { data: result, isLoading, isError, error } = useQuizResult(qid, aid);
+  const { data: attempts = [] } = useMyQuizAttempts(qid);
   const returnTo = (location.state as QuizNavigationState | null)?.returnTo;
+  const [tab, setTab] = useState<ResultTab>('questions');
+  const [expanded, setExpanded] = useState<number[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const back = () => navigate(returnTo || '/my-courses');
+  const toggle = (index: number) => setExpanded(previous => previous.includes(index) ? previous.filter(x => x !== index) : [...previous, index]);
 
-  if (isLoading) return <div className="flex min-h-[70vh] items-center justify-center bg-slate-50"><div className="h-10 w-10 animate-spin rounded-full border-4 border-blue-100 border-t-blue-600"/></div>;
-  if (isError || !result) return <div className="mx-auto max-w-xl p-10 text-center text-red-600">{error instanceof Error ? error.message : 'Không thể tải kết quả Quiz.'}</div>;
+  if (isLoading) return <div className="flex min-h-[70vh] items-center justify-center bg-[#f4f8ff]"><div className="h-11 w-11 animate-spin rounded-full border-4 border-blue-100 border-t-blue-600" /></div>;
+  if (isError || !result) return <div className="mx-auto max-w-xl p-10 text-center text-rose-600">{error instanceof Error ? error.message : 'Không thể tải kết quả Quiz.'}</div>;
 
-  const score = result.score ?? 0;
-  const graded = result.answers.filter(x => x.score !== null && x.score !== undefined);
-  const correct = graded.filter(x => x.isCorrect === true).length;
-  const wrong = graded.filter(x => x.isCorrect === false).length;
-  const pending = result.answers.length - graded.length;
-  const passed = result.resultStatus === 'PASSED';
+  const answers = result.answers ?? [];
+  const graded = answers.filter(a => a.score !== null && a.score !== undefined);
+  const correct = graded.filter(a => a.isCorrect === true).length;
+  const wrong = graded.filter(a => a.isCorrect === false).length;
+  const pending = answers.length - graded.length;
+  const passed = statusIs(result.resultStatus, 'PASSED', 3);
+  const failed = statusIs(result.resultStatus, 'FAILED', 4);
+  const awaiting = result.requiresManualGrading || statusIs(result.resultStatus, 'PENDING_GRADING', 2);
+  const hasPassed = attempts.some(a => statusIs(a.resultStatus, 'PASSED', 3));
+  const hasPending = attempts.some(a => statusIs(a.resultStatus, 'PENDING_GRADING', 2));
+  const score = result.score;
+  const scoreNumber = score == null ? null : Number(score);
+  const scoreDisplay = scoreNumber == null || !Number.isFinite(scoreNumber) ? '—' : scoreNumber.toFixed(1);
+  const scoreProgress = scoreNumber == null ? 0 : Math.max(0, Math.min(100, scoreNumber));
+  const feedbackAnswers = answers.filter(a => !!a.teacherFeedback?.trim());
+  const attemptNumber = attempts.find(a => a.attemptId === aid)?.attemptNumber ?? result.attemptNumber;
+  const scrollToDetails = () => { setTab('questions'); document.getElementById('quiz-result-details')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
 
-  return <div className="min-h-screen bg-[#f5f7fb] pb-14">
-    <section className="relative overflow-hidden bg-gradient-to-br from-[#102c7a] via-[#1645b8] to-[#1f63ed] text-white">
-      <div className="absolute inset-0 opacity-20" style={{backgroundImage:'radial-gradient(circle at 20% 20%,white 0,transparent 24%),radial-gradient(circle at 80% 10%,#facc15 0,transparent 18%)'}}/>
-      <div className="relative mx-auto max-w-6xl px-5 py-10 text-center">
-        <div className={`mx-auto flex h-16 w-16 items-center justify-center rounded-full ${result.requiresManualGrading ? 'bg-amber-400 text-slate-900' : passed ? 'bg-emerald-400 text-white' : 'bg-white/20 text-white'}`}>
-          {result.requiresManualGrading ? <Clock3 className="h-8 w-8"/> : passed ? <Check className="h-8 w-8"/> : <FileText className="h-8 w-8"/>}
+  return <div className="min-h-screen bg-[#f4f8ff] pb-12 text-[#102654]">
+    <div className="mx-auto max-w-[1500px] px-4 pt-5 sm:px-6 lg:px-8">
+      <section className="relative isolate overflow-hidden rounded-[26px] bg-gradient-to-r from-[#071e52] via-[#0750cf] to-[#071d4f] px-6 py-7 text-white shadow-[0_18px_45px_rgba(9,49,119,.16)] sm:px-9 lg:py-9">
+        <div className="pointer-events-none absolute inset-0 opacity-40" style={{ backgroundImage: 'radial-gradient(circle at 55% 75%,#27a9ff 0,transparent 28%),linear-gradient(145deg,transparent 33%,#116bfc55 34%,transparent 57%)' }} />
+        <div className="pointer-events-none absolute right-[20%] top-[-60px] hidden h-72 w-72 rounded-full border-[35px] border-blue-400/15 lg:block" />
+        <div className="relative z-10 max-w-[72%] sm:max-w-[65%]">
+          <button type="button" onClick={back} className="mb-5 inline-flex items-center gap-2 rounded-lg bg-white/15 px-3 py-2 text-xs font-bold transition hover:bg-white/25"><ArrowLeft size={15} /> Quay lại khóa học</button>
+          <p className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-blue-100"><CheckCircle2 size={13} /> Kết quả bài làm</p>
+          <h1 className="mt-3 text-2xl font-black tracking-tight sm:text-3xl lg:text-[34px]">{awaiting ? 'Đã nộp bài thành công!' : 'Hoàn thành bài kiểm tra!'}</h1>
+          <p className="mt-2 max-w-2xl text-xs leading-6 text-blue-100 sm:text-sm">{awaiting ? 'Một số câu cần giảng viên đánh giá. Điểm cuối cùng sẽ được cập nhật sau khi chấm.' : passed ? 'Bạn đã đạt yêu cầu của bài kiểm tra. Hãy xem lại kết quả để tiếp tục phát triển kỹ năng.' : 'Hãy xem lại câu trả lời và nhận xét để cải thiện trong lần tiếp theo.'}</p>
         </div>
-        <h1 className="mt-4 text-3xl font-extrabold">{result.requiresManualGrading ? 'Đã nộp bài thành công!' : 'Hoàn thành bài kiểm tra!'}</h1>
-        <p className="mt-2 text-sm text-blue-100">{result.requiresManualGrading ? 'Một số câu cần giảng viên chấm. Điểm cuối cùng sẽ được cập nhật sau.' : passed ? 'Bạn đã đạt yêu cầu của bài kiểm tra này.' : 'Xem lại chi tiết bên dưới để cải thiện ở lần tiếp theo.'}</p>
-      </div>
-    </section>
-
-    <div className="mx-auto -mt-5 max-w-6xl px-5">
-      <div className="grid gap-4 md:grid-cols-[0.9fr_1.3fr]">
-        <div className="rounded-3xl border border-slate-200 bg-white p-7 text-center shadow-sm">
-          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full border-[7px] border-blue-100 bg-blue-50"><Trophy className="h-8 w-8 text-blue-600"/></div>
-          <p className="mt-5 text-sm font-semibold text-slate-500">Điểm của bạn</p>
-          <div className="mt-1 text-5xl font-black text-blue-700">{result.score === null || result.score === undefined ? '—' : score.toFixed(1)}<span className="text-2xl text-slate-300"> / 100</span></div>
-          {result.score !== null && result.score !== undefined && <p className="mt-2 text-xl font-bold text-emerald-600">{score}%</p>}
-          <span className={`mt-4 inline-flex rounded-full px-4 py-2 text-sm font-bold ${result.requiresManualGrading ? 'bg-amber-100 text-amber-700' : passed ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>{result.requiresManualGrading ? 'Đang chờ chấm' : passed ? 'Đạt yêu cầu ✓' : 'Chưa đạt'}</span>
-        </div>
-
-        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="font-bold text-slate-900">Thông tin bài làm</h2>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            {[
-              ['Thời gian làm bài', formatDuration(result.startedAt, result.submittedAt)],
-              ['Tổng số câu hỏi', String(result.answers.length)],
-              ['Đã chấm', String(graded.length)],
-              ['Chờ chấm', String(pending)],
-              ['Điểm đạt', `${result.passingScore}%`],
-              ['Trạng thái', result.resultStatus]
-            ].map(([label,value]) => <div key={label} className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3"><span className="text-sm text-slate-500">{label}</span><b className="text-sm text-slate-800">{value}</b></div>)}
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-6 flex flex-wrap justify-center gap-3">
-        <button onClick={()=>document.getElementById('quiz-detail-result')?.scrollIntoView({behavior:'smooth'})} className="rounded-xl bg-blue-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-blue-100">Xem chi tiết kết quả</button>
-        <button onClick={()=>returnTo ? navigate(returnTo) : navigate('/my-courses')} className="rounded-xl border border-slate-200 bg-white px-6 py-3 text-sm font-bold text-slate-700">Quay lại khóa học</button>
-      </div>
-
-      <section id="quiz-detail-result" className="mt-8">
-        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-          <div><p className="text-sm font-semibold text-blue-600">CHI TIẾT KẾT QUẢ</p><h2 className="mt-1 text-2xl font-extrabold text-slate-900">{result.quizTitle}</h2></div>
-          <div className="flex gap-2 text-xs font-bold">
-            <span className="rounded-full bg-emerald-100 px-3 py-1.5 text-emerald-700">Đúng {correct}</span>
-            <span className="rounded-full bg-red-100 px-3 py-1.5 text-red-600">Sai {wrong}</span>
-            {pending > 0 && <span className="rounded-full bg-amber-100 px-3 py-1.5 text-amber-700">Chờ chấm {pending}</span>}
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          {result.answers.map((a,index) => <article key={a.quizAnswerId || a.questionId} className={`rounded-2xl border bg-white p-5 shadow-sm ${a.score === null || a.score === undefined ? 'border-amber-200' : a.isCorrect ? 'border-emerald-200' : 'border-red-200'}`}>
-            <div className="flex gap-3">
-              <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-black ${a.score === null || a.score === undefined ? 'bg-amber-100 text-amber-700' : a.isCorrect ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600'}`}>{index+1}</div>
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="font-bold leading-6 text-slate-900">{a.questionText}</h3>
-                  <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{a.score === null || a.score === undefined ? 'Chờ chấm' : `${a.score}/${a.maxScore ?? 1} điểm`}</span>
-                </div>
-                <p className="mt-1 text-xs font-semibold text-slate-400">{a.questionType}</p>
-              </div>
-            </div>
-
-            {(a.selectedChoices?.length || a.selectedChoiceText) ? <div className="mt-4 rounded-xl bg-slate-50 p-4">
-              <p className="text-xs font-bold text-slate-400">CÂU TRẢ LỜI CỦA BẠN</p>
-              <div className="mt-2 space-y-2">{(a.selectedChoices?.length ? a.selectedChoices : [{choiceId:a.selectedChoiceId??0,choiceText:a.selectedChoiceText??''}]).map(c=><p key={c.choiceId} className="text-sm font-semibold text-slate-700">• {c.choiceText}</p>)}</div>
-            </div> : null}
-
-            {a.textAnswer && <div className="mt-4 rounded-xl bg-slate-50 p-4">
-              <p className="text-xs font-bold text-slate-400">BÀI LÀM</p>
-              <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">{a.textAnswer}</p>
-            </div>}
-
-            {a.correctChoices && a.correctChoices.length > 0 && a.isCorrect === false && <div className="mt-3 rounded-xl bg-emerald-50 p-4">
-              <p className="text-xs font-bold text-emerald-600">ĐÁP ÁN ĐÚNG</p>
-              <p className="mt-2 text-sm font-semibold text-emerald-800">{a.correctChoices.map(c=>c.choiceText).join(', ')}</p>
-            </div>}
-
-            {a.arrangeItems && a.arrangeItems.length > 0 && <div className="mt-4 grid gap-2 sm:grid-cols-2">
-              {[...a.arrangeItems].sort((x,y)=>(x.selectedOrder??999)-(y.selectedOrder??999)).map(item=><div key={item.arrangeItemId} className="rounded-xl bg-slate-50 p-3 text-sm"><b className="mr-2 text-blue-600">{item.selectedOrder ?? '—'}.</b>{item.content}<span className="float-right text-xs text-slate-400">Đúng: {item.correctOrder ?? '—'}</span></div>)}
-            </div>}
-
-            {a.scenarioPath && a.scenarioPath.length > 0 && <div className="mt-4 space-y-2">
-              {a.scenarioPath.map(p=><div key={`${p.nodeId}-${p.stepOrder}`} className="rounded-xl bg-indigo-50 p-3 text-sm"><b className="text-indigo-700">Bước {p.stepOrder}:</b> {p.choiceText}{p.feedback&&<p className="mt-1 text-xs text-slate-500">{p.feedback}</p>}</div>)}
-            </div>}
-
-            {a.teacherFeedback && <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-4">
-              <p className="flex items-center gap-2 text-xs font-bold text-blue-700"><Sparkles className="h-4 w-4"/>NHẬN XÉT CỦA GIẢNG VIÊN</p>
-              <p className="mt-2 text-sm leading-6 text-blue-950">{a.teacherFeedback}</p>
-            </div>}
-          </article>)}
+        <div className="pointer-events-none absolute bottom-[-36px] right-[17%] hidden text-[155px] leading-none drop-shadow-[0_10px_24px_rgba(255,190,0,.35)] md:block">🏆</div>
+        <div className={`absolute right-4 top-1/2 hidden -translate-y-1/2 items-center gap-3 rounded-2xl border border-white/10 bg-white/15 p-4 backdrop-blur-sm xl:flex ${awaiting ? 'text-amber-200' : passed ? 'text-emerald-200' : 'text-white'}`}>
+          {awaiting ? <Clock3 size={36} /> : passed ? <CheckCircle2 size={36} /> : <FileText size={36} />}
+          <div><p className="text-sm font-extrabold">{awaiting ? 'Đang chờ chấm' : passed ? 'Đạt yêu cầu' : 'Chưa đạt'}</p><p className="mt-1 text-[11px] text-blue-100">Điểm đạt: {result.passingScore}%</p></div>
         </div>
       </section>
 
-      <div className="mt-8 flex justify-center gap-3">
-        <button onClick={()=>qid&&navigate(`/quizzes/${qid}/take`,{state:{returnTo}})} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-700"><RotateCcw className="h-4 w-4"/>Làm lại Quiz</button>
-        <button onClick={()=>returnTo?navigate(returnTo):navigate('/my-courses')} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white"><ArrowLeft className="h-4 w-4"/>Quay lại</button>
+      <div className="mt-4 grid items-start gap-4 xl:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
+        <div className="space-y-4">
+          <section className="rounded-[22px] border border-[#e2eaf6] bg-white p-5 shadow-[0_8px_25px_rgba(23,61,120,.04)] sm:p-6">
+            <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-center">
+              <div className="relative flex h-[176px] w-[176px] shrink-0 items-center justify-center rounded-full" style={{ background: `conic-gradient(#075bf2 ${scoreProgress * 3.6}deg,#eaf0f8 0deg)` }}>
+                <div className="flex h-[151px] w-[151px] flex-col items-center justify-center rounded-full bg-white"><span className="text-[42px] font-black leading-none text-[#09285e]">{scoreDisplay}</span><span className="mt-1 text-sm font-semibold text-[#7790b6]">/ 100</span></div>
+              </div>
+              <div className="w-full min-w-0"><p className="text-sm font-bold">Điểm của bạn</p><p className="mt-2 text-4xl font-black text-[#0a2a65]">{scoreDisplay}<span className="ml-2 text-xl font-semibold text-[#8da0bf]">/ 100</span></p>
+                <span className={`mt-3 inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold ${awaiting ? 'bg-amber-50 text-amber-700' : passed ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>{awaiting ? <Clock3 size={15} /> : passed ? <CheckCircle2 size={15} /> : <XCircle size={15} />}{awaiting ? 'Đang chờ chấm' : passed ? 'Đạt yêu cầu' : 'Chưa đạt'}</span>
+                <div className="mt-4 flex items-center gap-3 rounded-xl bg-[#eefaf5] px-4 py-3"><Trophy className="shrink-0 text-amber-500" size={23} /><div><p className="text-xs font-bold">Điểm tối thiểu: {result.passingScore}%</p><p className="mt-0.5 text-[11px] text-emerald-700">{awaiting ? 'Chờ hoàn tất chấm điểm để xác định kết quả.' : passed ? 'Chúc mừng! Bạn đã vượt qua bài kiểm tra.' : 'Tiếp tục luyện tập để đạt mục tiêu.'}</p></div></div>
+              </div>
+            </div>
+            <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {([{ label: 'Câu đúng', value: correct, icon: Check, bg: 'bg-[#eafaf2]', color: 'text-emerald-600' }, { label: 'Câu sai', value: wrong, icon: XCircle, bg: 'bg-[#fff0f1]', color: 'text-rose-500' }, { label: 'Chờ chấm', value: pending, icon: Clock3, bg: 'bg-[#fff8e7]', color: 'text-amber-500' }, { label: 'Tổng số câu', value: answers.length, icon: FileText, bg: 'bg-[#edf5ff]', color: 'text-blue-600' }]).map(s => <div key={s.label} className={`rounded-xl p-3 ${s.bg}`}><s.icon size={23} className={s.color} /><p className="mt-2 text-xl font-black">{s.value}</p><p className="text-[11px] text-[#647b9f]">{s.label}</p></div>)}
+            </div>
+          </section>
+          <section className="rounded-[22px] border border-[#e2eaf6] bg-white p-5 shadow-sm sm:p-6">
+            <h2 className="flex items-center gap-2 border-b border-slate-100 pb-3 text-sm font-extrabold"><ClipboardList size={18} className="text-blue-600" /> Thông tin bài làm</h2>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              {([{ icon: FileText, label: 'Quiz', value: result.quizTitle }, { icon: CalendarDays, label: 'Ngày nộp', value: formatDate(result.submittedAt) }, { icon: RotateCcw, label: 'Lần làm', value: attemptNumber == null ? 'Chưa có dữ liệu' : `Lần thứ ${attemptNumber}` }, { icon: Clock3, label: 'Thời gian làm bài', value: formatDuration(result.startedAt, result.submittedAt) }, { icon: BookOpen, label: 'Tổng số câu hỏi', value: String(answers.length) }, { icon: ListChecks, label: 'Hình thức chấm', value: awaiting ? 'Có câu cần giáo viên chấm' : 'Đã hoàn tất chấm điểm' }]).map(s => <div key={s.label} className="flex min-w-0 items-center gap-3 rounded-xl bg-[#f7faff] p-3"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#e8f1ff] text-blue-600"><s.icon size={21} /></span><div className="min-w-0"><p className="text-[11px] text-[#7388aa]">{s.label}</p><p className="mt-0.5 break-words text-xs font-bold">{s.value}</p></div></div>)}
+            </div>
+            {attempts.length > 0 && <div className="mt-4 border-t border-slate-100 pt-3"><button type="button" onClick={() => setShowHistory(v => !v)} className="flex w-full items-center justify-between text-left text-xs font-bold text-blue-700">Lịch sử điểm ({attempts.length} lượt) {showHistory ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</button>{showHistory && <div className="mt-3 space-y-2">{attempts.map(a => <button key={a.attemptId} type="button" onClick={() => navigate(`/quizzes/${a.quizId}/result/${a.attemptId}`, { state: { returnTo } })} className={`flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left text-xs transition hover:bg-blue-50 ${a.attemptId === aid ? 'border-blue-400 bg-blue-50' : 'border-slate-200'}`}><span>Lần {a.attemptNumber} · {formatDate(a.submittedAt)}</span><b>{a.score == null ? statusText(a.resultStatus) : `${a.score}/100 · ${statusText(a.resultStatus)}`}</b></button>)}</div>}</div>}
+          </section>
+        </div>
+
+        <section id="quiz-result-details" className="scroll-mt-5 rounded-[22px] border border-[#e2eaf6] bg-white p-4 shadow-[0_8px_25px_rgba(23,61,120,.04)] sm:p-5">
+          <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-4">
+            <button type="button" onClick={() => setTab('questions')} className={`inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-xs font-bold transition ${tab === 'questions' ? 'bg-blue-600 text-white shadow-md shadow-blue-100' : 'bg-[#f5f8fd] text-[#4c638a] hover:bg-blue-50'}`}><ListChecks size={15} /> Chi tiết câu hỏi ({answers.length})</button>
+            <button type="button" onClick={() => setTab('statistics')} className={`inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-xs font-bold transition ${tab === 'statistics' ? 'bg-blue-600 text-white' : 'bg-[#f5f8fd] text-[#4c638a] hover:bg-blue-50'}`}><Trophy size={15} /> Thống kê</button>
+            <button type="button" onClick={() => setTab('feedback')} className={`inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-xs font-bold transition ${tab === 'feedback' ? 'bg-blue-600 text-white' : 'bg-[#f5f8fd] text-[#4c638a] hover:bg-blue-50'}`}><MessageSquareText size={15} /> Nhận xét ({feedbackAnswers.length})</button>
+          </div>
+          {tab === 'questions' && <><div className="my-4 flex flex-wrap items-center justify-between gap-2"><h2 className="text-sm font-extrabold">{result.quizTitle}</h2><div className="flex gap-3 text-[11px] font-semibold"><span className="text-emerald-600">● Đúng ({correct})</span><span className="text-rose-500">● Sai ({wrong})</span><span className="text-amber-500">● Chờ ({pending})</span></div></div>
+            <div className="space-y-2">{answers.map((a, index) => { const isPending = a.score == null; const isRight = a.isCorrect === true; const isWrong = a.isCorrect === false; const open = expanded.includes(index); return <article key={a.quizAnswerId || `${a.questionId}-${index}`} className="overflow-hidden rounded-xl border border-[#e7edf6] bg-white transition hover:border-blue-200">
+              <button type="button" onClick={() => toggle(index)} aria-expanded={open} className="flex w-full items-center gap-3 p-3 text-left"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#edf3fb] text-xs font-extrabold">{index + 1}</span><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600"><FileText size={18} /></span><span className="min-w-0 flex-1"><span className="block truncate text-xs font-bold">{a.questionText}</span><span className="mt-1 block truncate text-[11px] text-[#8495b1]">{a.questionType}</span></span><span className="hidden whitespace-nowrap text-[11px] font-semibold sm:block">{isPending ? 'Chờ chấm' : `${a.score}/${a.maxScore ?? 1} điểm`}</span><span className={`min-w-[68px] rounded-lg px-2 py-1 text-center text-[11px] font-bold ${isPending ? 'bg-amber-50 text-amber-700' : isRight ? 'bg-emerald-50 text-emerald-700' : isWrong ? 'bg-rose-50 text-rose-600' : 'bg-blue-50 text-blue-700'}`}>{isPending ? 'Chờ chấm' : isRight ? 'Đúng' : isWrong ? 'Sai' : 'Đã chấm'}</span>{open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</button>
+              {open && <div className="space-y-3 border-t border-[#edf1f8] bg-[#fbfdff] p-4 text-xs"><p className="font-bold text-[#7186a7]">Câu trả lời của bạn</p>
+                {(a.selectedChoices?.length || a.selectedChoiceText) ? <div className="space-y-1 rounded-lg bg-white p-3">{(a.selectedChoices?.length ? a.selectedChoices : [{ choiceId: a.selectedChoiceId ?? 0, choiceText: a.selectedChoiceText ?? '' }]).map((c, i) => <p key={`${c.choiceId}-${i}`} className="font-semibold">• {c.choiceText || `Phương án #${i + 1}`}</p>)}</div> : null}
+                {a.textAnswer && <p className="whitespace-pre-wrap rounded-lg bg-white p-3 leading-6">{a.textAnswer}</p>}
+                {!!a.arrangeItems?.length && <div className="space-y-1">{[...a.arrangeItems].sort((x, y) => (x.selectedOrder ?? 999) - (y.selectedOrder ?? 999)).map(item => <p key={item.arrangeItemId} className="rounded-lg bg-white p-3"><b className="mr-2 text-blue-600">{item.selectedOrder ?? '—'}.</b>{item.content}<span className="ml-2 text-[#7186a7]">(Đúng: {item.correctOrder ?? '—'})</span></p>)}</div>}
+                {!!a.scenarioPath?.length && <div className="space-y-1">{a.scenarioPath.map(p => <div key={`${p.nodeId}-${p.stepOrder}`} className="rounded-lg bg-white p-3"><b className="text-blue-700">Bước {p.stepOrder}:</b> {p.choiceText}{p.feedback && <p className="mt-1 text-[#7084a3]">{p.feedback}</p>}</div>)}</div>}
+                {!!a.correctChoices?.length && a.isCorrect === false && <div className="rounded-lg bg-emerald-50 p-3"><b className="text-emerald-700">Đáp án đúng:</b> {a.correctChoices.map(c => c.choiceText).join(', ')}</div>}
+                {a.teacherFeedback && <div className="rounded-lg border border-blue-100 bg-blue-50 p-3"><p className="flex items-center gap-1.5 font-bold text-blue-700"><Sparkles size={14} /> Nhận xét của giáo viên</p><p className="mt-1 whitespace-pre-wrap leading-6">{a.teacherFeedback}</p></div>}
+                {!a.selectedChoices?.length && !a.selectedChoiceText && !a.textAnswer && !a.arrangeItems?.length && !a.scenarioPath?.length && <p className="text-[#7b8eaa]">API chưa cung cấp nội dung câu trả lời cho câu hỏi này.</p>}
+              </div>}
+            </article>; })}</div>
+          </>}
+          {tab === 'statistics' && <div className="space-y-4 py-5"><h2 className="text-base font-extrabold">Thống kê kết quả bài làm</h2><div className="grid grid-cols-2 gap-3">{[['Câu đúng', correct], ['Câu sai', wrong], ['Đã chấm', graded.length], ['Chờ chấm', pending]].map(([label, value]) => <div key={label} className="rounded-xl bg-[#f3f7ff] p-4"><p className="text-xs text-[#7186a7]">{label}</p><p className="mt-1 text-2xl font-black">{value}</p></div>)}</div><div className="h-3 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-blue-600 transition-all" style={{ width: `${answers.length ? graded.length / answers.length * 100 : 0}%` }} /></div><p className="text-xs text-[#7186a7]">Đã chấm {graded.length}/{answers.length} câu hỏi. Đây là thống kê theo kết quả API, không phải đánh giá kỹ năng giọng nói.</p></div>}
+          {tab === 'feedback' && <div className="space-y-3 py-5"><h2 className="text-base font-extrabold">Nhận xét từ giáo viên</h2>{feedbackAnswers.length ? feedbackAnswers.map(a => <div key={a.quizAnswerId || a.questionId} className="rounded-xl border border-blue-100 bg-[#f5f9ff] p-4"><p className="text-xs font-bold">{a.questionText}</p><p className="mt-2 whitespace-pre-wrap text-xs leading-6 text-[#48618b]">{a.teacherFeedback}</p></div>) : <p className="rounded-xl bg-[#f6f9ff] p-5 text-xs text-[#7186a7]">Chưa có nhận xét của giáo viên cho bài làm này.</p>}</div>}
+        </section>
+      </div>
+      <div className="mt-5 flex flex-wrap justify-center gap-3">
+        <button type="button" onClick={scrollToDetails} className="inline-flex items-center gap-2 rounded-xl border border-[#d7e4f6] bg-white px-5 py-3 text-xs font-bold text-blue-700 transition hover:bg-blue-50"><Eye size={17} /> Xem lại bài làm</button>
+        {failed && !hasPassed && !hasPending && <button type="button" onClick={() => qid && navigate(`/quizzes/${qid}/take`, { state: { returnTo } })} className="inline-flex items-center gap-2 rounded-xl border border-[#d7e4f6] bg-white px-5 py-3 text-xs font-bold text-blue-700 transition hover:bg-blue-50"><RotateCcw size={17} /> Làm lại bài này</button>}
+        <button type="button" onClick={back} className="inline-flex items-center gap-2 rounded-xl border border-[#d7e4f6] bg-white px-5 py-3 text-xs font-bold text-blue-700 transition hover:bg-blue-50"><BookOpen size={17} /> Quay về khóa học</button>
+        <button type="button" onClick={scrollToDetails} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-xs font-bold text-white shadow-lg shadow-blue-100 transition hover:bg-blue-700">Xem chi tiết đầy đủ <ArrowRight size={17} /></button>
       </div>
     </div>
   </div>;

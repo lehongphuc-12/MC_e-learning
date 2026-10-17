@@ -3,7 +3,12 @@
 // Curriculum Builder / Module & Lesson Management Page
 // =============================================================================
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import QuizImportStudio from '../../../quizzes/components/QuizImportStudio';
+import QuizSyncStudio from '../../../quizzes/components/QuizSyncStudio';
+import { quizImportApi } from '../../../quizzes/api/quizImportApi';
+
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 
@@ -31,8 +36,13 @@ import {
   GripVertical,
   Send,
   Mic2,
+  FileUp,
+  Search,
+  GitCompareArrows,
+  CloudUpload,
+  ShieldCheck,
+  Video, FileText, MoreVertical, LayoutGrid, List, CheckCircle2, Menu, BarChart3, Upload, SlidersHorizontal,
 } from 'lucide-react';
-
 import { CourseStudentsModal } from './CourseStudentsModal';
 import { IncompleteCourseModal } from './IncompleteCourseModal';
 
@@ -71,10 +81,21 @@ import type { CourseModule, CreateModuleDto } from '../../types/moduleTypes';
 
 export const CourseLessonsPage: React.FC = () => {
   const navigate = useNavigate();
+  const reducedMotion = useReducedMotion();
+  const [quizImportOpen, setQuizImportOpen] = useState(false);
+  const [quizSyncTarget, setQuizSyncTarget] = useState<{ id: number; title: string } | null>(null);
+  const [quizSearch, setQuizSearch] = useState('');
+  const [lessonSearch, setLessonSearch] = useState('');
+  const [contentTab, setContentTab] = useState<'lessons' | 'quizzes' | 'materials' | 'assignments'>('lessons');
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const [quizExporting, setQuizExporting] = useState<number | null>(null);
+  const [quizNotice, setQuizNotice] = useState('');
   const queryClient = useQueryClient();
 
-  const { id } = useParams<{ id?: string }>();
-  const courseId = id ? Number(id) : 0;
+  const { id, courseId: courseIdParam } = useParams<{ id?: string; courseId?: string }>();
+  const rawCourseId = courseIdParam ?? id;
+  const parsedCourseId = Number(rawCourseId);
+  const courseId = rawCourseId && Number.isInteger(parsedCourseId) && parsedCourseId > 0 ? parsedCourseId : 0;
 
   // ===========================================================================
   // DATA FETCHING
@@ -529,7 +550,8 @@ export const CourseLessonsPage: React.FC = () => {
         lesson.orderIndex !== newOrderIndex ||
         lesson.moduleId !== targetModuleId
       ) {
-        updateLessonAsync({
+        void updateLessonAsync({
+
           lessonId: lesson.lessonId,
 
           dto: {
@@ -735,7 +757,7 @@ export const CourseLessonsPage: React.FC = () => {
   if (isCourseLoading) {
     return (
       <div className="flex items-center justify-center py-24">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
       </div>
     );
   }
@@ -789,822 +811,61 @@ export const CourseLessonsPage: React.FC = () => {
   // ===========================================================================
 
   return (
-    <div className="min-h-screen bg-slate-50/60 pb-16">
-      {/* =====================================================================
-          HERO HEADER
-      ====================================================================== */}
-
-      <div className="relative overflow-hidden bg-gradient-to-r from-slate-900 via-indigo-950 to-blue-900 text-white shadow-md">
-        <div className="absolute -right-10 -top-10 h-64 w-64 rounded-full bg-indigo-500/10 blur-3xl" />
-
-        <div className="relative z-10 mx-auto max-w-7xl px-6 py-8">
-          <div className="mb-6 flex items-center gap-4">
-            <button
-              onClick={() => navigate('/instructor/courses')}
-              title="Quay lại danh sách khóa học"
-              className="cursor-pointer rounded-2xl bg-white/10 p-2.5 text-indigo-200 transition-all hover:bg-white/20 hover:text-white active:scale-95"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </button>
-
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1 rounded-full border border-indigo-400/30 bg-indigo-500/20 px-3 py-1 text-xs font-semibold text-indigo-200">
-                <Sparkles className="h-3.5 w-3.5" />
-                Quản lý Chương & Bài học
-              </span>
-            </div>
-          </div>
-
-          <div className="flex flex-col justify-between gap-6 xl:flex-row xl:items-center">
-            {/* COURSE INFO */}
-
-            <div className="flex items-center gap-4">
-              <div className="relative h-16 w-24 shrink-0 overflow-hidden rounded-2xl border border-white/20 bg-white/10 shadow-inner">
-                {course?.thumbnailUrl ? (
-                  <img
-                    src={course.thumbnailUrl}
-                    alt={course.title}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center">
-                    <ImageOff className="h-6 w-6 text-indigo-200" />
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
-                  {course?.title}
-                </h1>
-
-                <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-indigo-100/80">
-                  <span className="flex items-center gap-1 whitespace-nowrap font-semibold text-indigo-200">
-                    <Layers className="h-3.5 w-3.5" />
-                    {modules.length} Chương
-                  </span>
-
-                  <span>•</span>
-
-                  <span className="flex items-center gap-1 whitespace-nowrap font-semibold text-indigo-200">
-                    <BookOpen className="h-3.5 w-3.5" />
-                    {lessons.length} Bài học
-                  </span>
-
-                  <span>•</span>
-
-                  <span className="flex items-center gap-1 whitespace-nowrap font-semibold text-indigo-200">
-                    <Clock className="h-3.5 w-3.5" />
-                    {totalDuration} phút
-                  </span>
-
-                  {course?.status && (
-                    <>
-                      <span>•</span>
-
-                      <CourseStatusBadge status={course.status} size="sm" />
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* ACTION BUTTONS */}
-
-            <div className="flex max-w-2xl flex-col items-start gap-2 xl:items-end">
-              {/* PRIMARY ACTIONS */}
-
-              <div className="flex flex-wrap items-center justify-start gap-2 xl:justify-end">
-                {(course?.status === 'DRAFT' ||
-                  course?.status === 'REJECTED') && (
-                  <button
-                    onClick={handleSendForApproval}
-                    disabled={isSubmittingForApproval}
-                    className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 px-3.5 py-2 text-xs font-semibold text-white shadow-md shadow-amber-500/30 transition-all hover:from-amber-400 hover:to-orange-400 active:scale-95 disabled:opacity-50"
-                  >
-                    <Send className="h-4 w-4" />
-                    <span>Gửi Admin duyệt</span>
-                  </button>
-                )}
-
-                <button
-                  onClick={handleOpenCreateModule}
-                  className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-indigo-600 px-3.5 py-2 text-xs font-semibold text-white shadow-md shadow-indigo-600/30 transition-all hover:bg-indigo-500 active:scale-95"
-                >
-                  <FolderPlus className="h-4 w-4" />
-                  <span>Thêm Chương mới</span>
-                </button>
-
-                {modules.length > 0 && (
-                  <>
-                    <button
-                      onClick={() => handleOpenCreateLesson(modules[0]?.moduleId)}
-                      className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white shadow-md shadow-blue-600/30 transition-all hover:bg-blue-500 active:scale-95"
-                    >
-                      <PlusCircle className="h-4 w-4" />
-                      <span>Thêm Bài học</span>
-                    </button>
-
-                <button
-                  onClick={() => handleOpenCreateSpeakingAssignment(null)}
-                  className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-purple-600 px-3.5 py-2 text-xs font-semibold text-white shadow-md shadow-purple-600/30 transition-all hover:bg-purple-500 active:scale-95"
-                >
-                  <Mic2 className="h-4 w-4" />
-                  <span>+ Tạo Bài tập nói tổng khóa</span>
-                </button>
-                  </>
-                )}
-
-                <button
-                  onClick={() => navigate(`/courses/${courseId}/learn`)}
-                  className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-emerald-600 px-3.5 py-2 text-xs font-semibold text-white shadow-md shadow-emerald-600/30 transition-all hover:bg-emerald-500 active:scale-95"
-                >
-                  <PlayCircle className="h-4 w-4" />
-                  <span>Vào xem video bài học</span>
-                </button>
-              </div>
-
-              {/* SECONDARY ACTIONS */}
-
-              <div className="flex flex-wrap items-center justify-start gap-2 xl:justify-end">
-                <button
-                  onClick={handleSyncAllDurations}
-                  disabled={isSyncingDurations}
-                  title="Tự động cập nhật thời lượng cho tất cả bài học trong khóa theo video thực tế và nội dung"
-                  className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-amber-400/40 bg-amber-500/20 px-3.5 py-2 text-xs font-semibold text-amber-200 backdrop-blur-md transition-all hover:bg-amber-500/30 active:scale-95 disabled:opacity-50"
-                >
-                  <Sparkles className="h-4 w-4 text-amber-300" />
-                  <span>{isSyncingDurations ? 'Đang đồng bộ...' : 'Đồng bộ thời lượng'}</span>
-                </button>
-
-                <button
-                  onClick={() => setIsStudentsModalOpen(true)}
-                  className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-white/20 bg-white/10 px-3.5 py-2 text-xs font-semibold text-white backdrop-blur-md transition-all hover:bg-white/20 active:scale-95"
-                >
-                  <Users className="h-4 w-4 text-cyan-300" />
-                  <span>Danh sách học viên</span>
-                </button>
-
-                <button
-                  onClick={() => navigate(`/instructor/courses/${courseId}/speaking`)}
-                  className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-white/20 bg-white/10 px-3.5 py-2 text-xs font-semibold text-white backdrop-blur-md transition-all hover:bg-white/20 active:scale-95"
-                >
-                  <Mic2 className="h-4 w-4 text-cyan-300" />
-                  <span>Chấm bài nói (Speaking)</span>
-                </button>
-
-                <button
-                  onClick={() => setMaterialTarget({ lessonId: null })}
-                  className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-white/20 bg-white/10 px-3.5 py-2 text-xs font-semibold text-white backdrop-blur-md transition-all hover:bg-white/20 active:scale-95"
-                >
-                  <Paperclip className="h-4 w-4 text-amber-300" />
-                  <span>Tài liệu khóa học</span>
-                </button>
-
-                <button
-                  onClick={() => setIsModuleImportModalOpen(true)}
-                  className="inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-white/20 bg-white/10 px-3.5 py-2 text-xs font-semibold text-white backdrop-blur-md transition-all hover:bg-white/20 active:scale-95"
-                >
-                  <FileSpreadsheet className="h-4 w-4 text-emerald-300" />
-                  <span>Nhập từ CSV</span>
-                </button>
-              </div>
-            </div>
+    <div className="min-h-screen bg-[#f5f8fe] pb-16">
+      {/* COURSE HERO */}
+      <div className="mx-auto max-w-[1500px] px-4 pt-5 sm:px-6">
+        <div className="relative overflow-hidden rounded-[24px] bg-[#071d53] px-6 py-7 text-white shadow-[0_18px_45px_-22px_rgba(5,45,140,.6)] sm:px-9 sm:py-9">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_78%_75%,rgba(0,125,255,.55),transparent_48%),linear-gradient(120deg,#061a48_10%,#0648bf_75%,#061a48)]" />
+          <div className="pointer-events-none absolute -right-12 top-[-80px] h-[350px] w-[500px] rotate-[-16deg] rounded-full border-[45px] border-blue-400/10" />
+          <div className="pointer-events-none absolute right-[7%] top-1/2 hidden -translate-y-1/2 items-center gap-[5px] opacity-60 lg:flex">{Array.from({length:43},(_,i)=><span key={i} className="w-[3px] rounded-full bg-cyan-300" style={{height:`${10+Math.abs(Math.sin(i*1.8)*Math.cos(i*.35))*105}px`}} />)}</div>
+          <Mic2 className="pointer-events-none absolute bottom-[-65px] right-[11%] hidden h-[260px] w-[260px] rotate-[-13deg] text-cyan-200/30 drop-shadow-2xl lg:block" strokeWidth={1.2}/>
+          <div className="relative z-10 max-w-[850px]">
+            <button onClick={()=>navigate('/instructor/courses')} className="mb-6 inline-flex items-center gap-2 rounded-lg bg-blue-600/60 px-3 py-2 text-xs font-semibold text-white transition hover:bg-blue-500"><ArrowLeft size={15}/> Quay lại khóa học</button>
+            <p className="mb-2 text-sm text-blue-100">Quản lý nội dung khóa học</p>
+            <div className="flex flex-wrap items-center gap-3"><h1 className="text-2xl font-extrabold leading-tight tracking-tight sm:text-[30px]">{course?.title || 'Khóa học'}</h1>{course?.status && <CourseStatusBadge status={course.status} size="sm"/>}</div>
+            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-blue-100/85">{course?.description || 'Xây dựng nội dung luyện giọng, phát âm và truyền đạt chuyên nghiệp qua từng bài học.'}</p>
           </div>
         </div>
-      </div>
-
-      {/* =====================================================================
-          CONTENT CONTAINER (MODULES & LESSONS)
-      ====================================================================== */}
-
-      <div className="mx-auto max-w-7xl space-y-6 px-6 pt-8">
-        {/* MODULE LOADING */}
-
-        {isModulesLoading || isLessonsLoading ? (
-          <div className="animate-pulse space-y-4 p-6">
-            {[...Array(3)].map((_, i) => (
-              <div key={i} className="h-24 rounded-3xl bg-slate-200/70" />
-            ))}
-          </div>
-        ) : modules.length === 0 && unassignedLessons.length === 0 ? (
-          /* EMPTY */
-
-          <div className="flex flex-col items-center justify-center rounded-3xl border border-slate-200/80 bg-white px-6 py-20 text-center shadow-xs">
-            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
-              <Layers className="h-8 w-8" />
+        {/* NAVIGATION TABS */}
+        <div className="mt-4 flex flex-wrap items-center gap-2 rounded-2xl border border-blue-100 bg-white p-3 shadow-sm">
+          {([{key:'lessons',label:'Bài giảng',count:lessons.filter(l=>l.lessonType!=='ASSIGNMENT').length,icon:PlayCircle},{key:'quizzes',label:'Quiz',count:quizzes.length,icon:ClipboardList},{key:'materials',label:'Tài liệu',icon:FileText},{key:'assignments',label:'Bài tập nói',count:lessons.filter(l=>l.lessonType==='ASSIGNMENT').length,icon:Mic2}] as const).map(tab=><button key={tab.key} onClick={()=>{setContentTab(tab.key);if(tab.key==='quizzes')document.getElementById('quiz-management')?.scrollIntoView({behavior:'smooth',block:'start'});if(tab.key==='assignments')document.getElementById('speaking-assignment-management')?.scrollIntoView({behavior:'smooth',block:'start'});if(tab.key==='materials')setMaterialTarget({lessonId:null});}} className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition ${contentTab===tab.key?'bg-[#0754ef] text-white shadow-lg shadow-blue-600/20':'bg-[#f4f8ff] text-[#173c81] hover:bg-blue-100'}`}><tab.icon size={16}/>{tab.label}{'count' in tab && <span className="opacity-75">({tab.count})</span>}</button>)}
+          <button onClick={()=>navigate(`/courses/${courseId}/learn`)} className="ml-auto inline-flex items-center gap-2 rounded-xl border border-blue-100 bg-white px-4 py-2.5 text-xs font-bold text-blue-700 hover:bg-blue-50"><Eye size={16}/> Xem trước khóa học</button>
+        </div>
+        <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_330px]">
+          <main className="min-w-0 space-y-4">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              {([{label:'Tổng số bài giảng',value:lessons.filter(l=>l.lessonType!=='ASSIGNMENT').length,icon:PlayCircle,color:'text-blue-600',bg:'bg-blue-50'},{label:'Tổng số Quiz',value:quizzes.length,icon:ClipboardList,color:'text-blue-600',bg:'bg-blue-50'},{label:'Số chương học',value:modules.length,icon:Layers,color:'text-emerald-600',bg:'bg-emerald-50'},{label:'Thời lượng dự kiến',value:`${Math.floor(totalDuration/60)} giờ ${totalDuration%60} phút`,icon:Clock,color:'text-amber-600',bg:'bg-amber-50'}] as const).map(stat=><div key={stat.label} className="flex min-h-[105px] items-center gap-3 rounded-2xl border border-[#e8effb] bg-white p-4 shadow-sm"><div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${stat.bg} ${stat.color}`}><stat.icon size={24}/></div><div className="min-w-0"><p className="text-xs font-medium text-[#52709f]">{stat.label}</p><p className="mt-1 text-lg font-extrabold text-[#0a245c]">{stat.value}</p></div></div>)}
             </div>
-
-            <h4 className="text-lg font-bold text-slate-800">
-              Khóa học chưa có chương & bài học nào
-            </h4>
-
-            <p className="mt-1 max-w-md text-xs text-slate-500">
-              Bạn có thể tạo Chương học (Module) trước để tổ chức các bài giảng
-              khoa học, hoặc nhập nhanh từ file CSV.
-            </p>
-
-            <div className="mt-6 flex gap-3">
-              <button
-                onClick={handleOpenCreateModule}
-                className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-xs font-semibold text-white shadow-md shadow-indigo-500/20 transition-all hover:bg-indigo-700 active:scale-95"
-              >
-                <FolderPlus className="h-4 w-4" />
-                Thêm Chương học đầu tiên
-              </button>
-
-              <button
-                onClick={() => setIsModuleImportModalOpen(true)}
-                className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-xs font-semibold text-slate-700 transition-all hover:bg-slate-50 active:scale-95"
-              >
-                <FileSpreadsheet className="h-4 w-4 text-indigo-600" />
-                Nhập file CSV mẫu
-              </button>
-            </div>
-          </div>
-        ) : (
-          <>
-            {/* =================================================================
-                MODULE LIST
-            ================================================================== */}
-
-            {[...modules]
-              .sort((a, b) => a.orderIndex - b.orderIndex)
-              .map((mod) => {
-                const moduleLessons = lessonsByModule[mod.moduleId] || [];
-
-                const isCollapsed = collapsedModules[mod.moduleId];
-
-                const modDuration = moduleLessons.reduce(
-                  (sum, lesson) => sum + getLessonDurationMinutes(lesson),
-                  0
-                );
-
-                return (
-                  <div
-                    key={mod.moduleId}
-                    className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-xs transition-all"
-                  >
-                    {/* MODULE HEADER */}
-
-                    <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/90 px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <button
-                          onClick={() => toggleModuleCollapse(mod.moduleId)}
-                          className="cursor-pointer rounded-xl p-1.5 text-slate-500 transition-all hover:bg-slate-200/60"
-                        >
-                          {isCollapsed ? (
-                            <ChevronRight className="h-5 w-5" />
-                          ) : (
-                            <ChevronDown className="h-5 w-5" />
-                          )}
-                        </button>
-
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-indigo-100 text-sm font-bold text-indigo-700 shadow-xs">
-                          #{mod.orderIndex}
-                        </div>
-
-                        <div>
-                          <h3 className="flex items-center gap-2 text-base font-bold text-slate-900">
-                            {mod.title}
-                          </h3>
-
-                          <p className="mt-0.5 flex items-center gap-3 text-xs text-slate-500">
-                            <span>{moduleLessons.length} bài học</span>
-
-                            <span>•</span>
-
-                            <span>{modDuration} phút</span>
-
-                            {mod.description && (
-                              <>
-                                <span>•</span>
-
-                                <span className="line-clamp-1 italic text-slate-400">
-                                  {mod.description}
-                                </span>
-                              </>
-                            )}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* MODULE ACTIONS */}
-
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleOpenCreateLesson(mod.moduleId)}
-                          className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-white px-3 py-1.5 text-xs font-semibold text-indigo-600 shadow-xs transition-all hover:bg-indigo-50 active:scale-95"
-                        >
-                          <PlusCircle className="h-3.5 w-3.5" />
-                          Thêm bài học
-                        </button>
-
-                        <button
-                          onClick={() => handleOpenEditModule(mod)}
-                          title="Chỉnh sửa chương"
-                          className="cursor-pointer rounded-xl p-2 text-slate-400 transition-all hover:bg-indigo-50 hover:text-indigo-600 active:scale-95"
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </button>
-
-                        <button
-                          onClick={() => setModuleToDelete(mod)}
-                          title="Xóa chương"
-                          className="cursor-pointer rounded-xl p-2 text-slate-400 transition-all hover:bg-red-50 hover:text-red-500 active:scale-95"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* LESSONS */}
-
-                    {!isCollapsed && (
-                      <div>
-                        {moduleLessons.length === 0 ? (
-                          <div className="px-6 py-8 text-center text-xs text-slate-400">
-                            Chưa có bài học nào trong chương này.
-                            <div className="mt-2 flex items-center justify-center gap-3">
-                              <button
-                                onClick={() => handleOpenCreateLesson(mod.moduleId)}
-                                className="cursor-pointer font-semibold text-indigo-600 underline hover:text-indigo-800"
-                              >
-                                + Thêm bài học mới
-                              </button>
-                              <span>|</span>
-                              <button
-                                onClick={() => handleOpenCreateSpeakingAssignment(mod.moduleId)}
-                                className="cursor-pointer font-semibold text-purple-600 underline hover:text-purple-800"
-                              >
-                                + Thêm Bài tập nói (Speaking)
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-left text-xs">
-                              <thead>
-                                <tr className="border-b border-slate-100 bg-slate-50/50 font-bold uppercase tracking-wider text-slate-400">
-                                  <th className="w-14 px-6 py-3">STT</th>
-                                  <th className="px-6 py-3">Tên bài học</th>
-                                  <th className="px-4 py-3">Thời lượng</th>
-                                  <th className="px-4 py-3">Xem thử</th>
-                                  <th className="px-4 py-3">Video / Link</th>
-                                  <th className="px-6 py-3 text-right">
-                                    Thao tác
-                                  </th>
-                                </tr>
-                              </thead>
-
-                              <tbody className="divide-y divide-slate-100">
-                                {moduleLessons.map((lesson) => {
-                                  const isDragging =
-                                    draggedLesson?.lessonId === lesson.lessonId;
-
-                                  const isDragOver =
-                                    dragOverLessonId === lesson.lessonId &&
-                                    !isDragging;
-
-                                  return (
-                                    <tr
-                                      key={lesson.lessonId}
-                                      draggable
-                                      onDragStart={(e) =>
-                                        handleLessonDragStart(e, lesson)
-                                      }
-                                      onDragOver={(e) =>
-                                        handleLessonDragOver(e, lesson)
-                                      }
-                                      onDragEnd={handleLessonDragEnd}
-                                      onDrop={(e) => handleLessonDrop(e, lesson)}
-                                      className={`group transition-all duration-150 ${
-                                        isDragging
-                                          ? 'border-2 border-dashed border-indigo-400 bg-indigo-50/60 opacity-40'
-                                          : isDragOver
-                                          ? 'border-t-2 border-indigo-600 bg-indigo-100/50 shadow-xs'
-                                          : 'hover:bg-indigo-50/20'
-                                      }`}
-                                    >
-                                      {/* ORDER */}
-
-                                      <td className="px-5 py-3.5 font-bold text-slate-700">
-                                        <div className="flex items-center gap-1.5">
-                                          <div
-                                            className="cursor-grab p-1 text-slate-300 transition-colors hover:text-indigo-600 group-hover:text-slate-500 active:cursor-grabbing"
-                                            title="Nhấp giữ & kéo thả để thay đổi thứ tự bài học"
-                                          >
-                                            <GripVertical className="h-4 w-4" />
-                                          </div>
-
-                                          <span>#{lesson.orderIndex}</span>
-                                        </div>
-                                      </td>
-
-                                      {/* LESSON TITLE */}
-
-                                      <td className="px-6 py-3.5">
-                                        <button
-                                          onClick={() =>
-                                            navigate(
-                                              `/courses/${courseId}/learn?lessonId=${lesson.lessonId}`
-                                            )
-                                          }
-                                          className="group/title flex cursor-pointer items-start gap-2.5 text-left"
-                                        >
-                                          <div className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg shadow-xs transition-all ${
-                                            lesson.lessonType === 'ASSIGNMENT'
-                                              ? 'bg-purple-100 text-purple-700 group-hover/title:bg-purple-600 group-hover/title:text-white'
-                                              : 'bg-indigo-50 text-indigo-600 group-hover/title:bg-indigo-600 group-hover/title:text-white'
-                                          }`}>
-                                            {lesson.lessonType === 'ASSIGNMENT' ? (
-                                              <Mic2 className="h-3.5 w-3.5" />
-                                            ) : (
-                                              <PlayCircle className="h-3.5 w-3.5" />
-                                            )}
-                                          </div>
-
-                                          <div>
-                                            <div className="flex items-center gap-2">
-                                              <p className="line-clamp-1 text-sm font-semibold text-slate-900 transition-colors group-hover/title:text-indigo-600">
-                                                {lesson.title}
-                                              </p>
-                                              {lesson.lessonType === 'ASSIGNMENT' && (
-                                                <span className="inline-flex items-center gap-1 rounded-md bg-purple-100 px-2 py-0.5 text-[10px] font-bold text-purple-700">
-                                                  🎙️ Bài tập nói
-                                                </span>
-                                              )}
-                                            </div>
-
-                                            {lesson.description && (
-                                              <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">
-                                                {lesson.description}
-                                              </p>
-                                            )}
-                                          </div>
-                                        </button>
-                                      </td>
-
-                                      {/* DURATION */}
-
-                                      <td className="px-4 py-3.5 font-medium text-slate-700">
-                                        {getLessonDuration(lesson)}
-                                      </td>
-
-                                      {/* PREVIEW */}
-
-                                      <td className="px-4 py-3.5">
-                                        {lesson.isPreview ? (
-                                          <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200/80 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700">
-                                            <Eye className="h-3 w-3" />
-                                            Xem thử
-                                          </span>
-                                        ) : (
-                                          <span className="font-medium text-slate-400">
-                                            —
-                                          </span>
-                                        )}
-                                      </td>
-
-                                      {/* VIDEO */}
-
-                                      <td className="px-4 py-3.5">
-                                        {lesson.videoUrl ? (
-                                          <div className="flex items-center gap-2">
-                                            <button
-                                              onClick={() =>
-                                                navigate(
-                                                  `/courses/${courseId}/learn?lessonId=${lesson.lessonId}`
-                                                )
-                                              }
-                                              className="inline-flex items-center gap-1 rounded-xl border border-blue-200/80 bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700 transition-all hover:bg-blue-100"
-                                            >
-                                              <PlayCircle className="h-3 w-3 text-blue-600" />
-                                              <span>Xem video</span>
-                                            </button>
-
-                                            <a
-                                              href={lesson.videoUrl}
-                                              target="_blank"
-                                              rel="noopener noreferrer"
-                                              title="Mở link YouTube bên ngoài"
-                                              className="p-1 text-slate-400 transition-colors hover:text-blue-600"
-                                            >
-                                              <ExternalLink className="h-3.5 w-3.5" />
-                                            </a>
-                                          </div>
-                                        ) : (
-                                          <span className="text-slate-400">
-                                            Chưa gắn video
-                                          </span>
-                                        )}
-                                      </td>
-
-                                      {/* ACTIONS */}
-
-                                      <td className="px-6 py-3.5 text-right">
-                                        <div className="flex items-center justify-end gap-1.5">
-                                          {/* MATERIAL */}
-
-                                          <button
-                                            onClick={() =>
-                                              setMaterialTarget({
-                                                lessonId: lesson.lessonId,
-                                                lessonTitle: lesson.title,
-                                              })
-                                            }
-                                            title="Tài liệu bài học"
-                                            className="cursor-pointer rounded-xl p-1.5 text-slate-400 transition-all hover:bg-amber-50 hover:text-amber-600 active:scale-95"
-                                          >
-                                            <Paperclip className="h-4 w-4" />
-                                          </button>
-
-                                          {/* CREATE LESSON QUIZ */}
-
-                                          <button
-                                            type="button"
-                                            onClick={() =>
-                                              navigate(
-                                                `/instructor/quizzes/new?courseId=${courseId}&lessonId=${lesson.lessonId}`
-                                              )
-                                            }
-                                            title="Tạo Quiz cho bài học"
-                                            className="cursor-pointer rounded-xl p-1.5 text-slate-400 transition-all hover:bg-violet-50 hover:text-violet-600 active:scale-95"
-                                          >
-                                            <ClipboardList className="h-4 w-4" />
-                                          </button>
-
-                                          {/* EDIT LESSON */}
-
-                                          <button
-                                            onClick={() =>
-                                              handleOpenEditLesson(lesson)
-                                            }
-                                            title="Chỉnh sửa bài học"
-                                            className="cursor-pointer rounded-xl p-1.5 text-slate-400 transition-all hover:bg-blue-50 hover:text-blue-600 active:scale-95"
-                                          >
-                                            <Edit2 className="h-4 w-4" />
-                                          </button>
-
-                                          {/* DELETE LESSON */}
-
-                                          <button
-                                            onClick={() =>
-                                              setLessonToDelete(lesson)
-                                            }
-                                            title="Xóa bài học"
-                                            className="cursor-pointer rounded-xl p-1.5 text-slate-400 transition-all hover:bg-red-50 hover:text-red-500 active:scale-95"
-                                          >
-                                            <Trash2 className="h-4 w-4" />
-                                          </button>
-                                        </div>
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-
-            {/* =================================================================
-                UNASSIGNED LESSONS
-            ================================================================== */}
-
-            {unassignedLessons.length > 0 && (
-              <div className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-xs">
-                <div className="flex items-center justify-between border-b border-amber-100 bg-amber-50/70 px-6 py-4">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-xs font-bold text-amber-700">
-                      ?
-                    </div>
-
-                    <div>
-                      <h3 className="text-base font-bold text-amber-950">
-                        Bài học chưa phân Chương
-                      </h3>
-
-                      <p className="text-xs text-amber-700/80">
-                        {unassignedLessons.length} bài học chưa được đưa vào
-                        chương nào
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead>
-                      <tr className="border-b border-slate-100 bg-slate-50/50 font-bold uppercase tracking-wider text-slate-400">
-                        <th className="w-14 px-6 py-3">STT</th>
-                        <th className="px-6 py-3">Tên bài học</th>
-                        <th className="px-4 py-3">Thời lượng</th>
-                        <th className="px-4 py-3">Xem thử</th>
-                        <th className="px-4 py-3">Video / Link</th>
-                        <th className="px-6 py-3 text-right">Thao tác</th>
-                      </tr>
-                    </thead>
-
-                    <tbody className="divide-y divide-slate-100">
-                      {unassignedLessons.map((lesson) => {
-                        const isDragging =
-                          draggedLesson?.lessonId === lesson.lessonId;
-
-                        const isDragOver =
-                          dragOverLessonId === lesson.lessonId && !isDragging;
-
-                        return (
-                          <tr
-                            key={lesson.lessonId}
-                            draggable
-                            onDragStart={(e) => handleLessonDragStart(e, lesson)}
-                            onDragOver={(e) => handleLessonDragOver(e, lesson)}
-                            onDragEnd={handleLessonDragEnd}
-                            onDrop={(e) => handleLessonDrop(e, lesson)}
-                            className={`group transition-all duration-150 ${
-                              isDragging
-                                ? 'border-2 border-dashed border-amber-400 bg-amber-50/60 opacity-40'
-                                : isDragOver
-                                ? 'border-t-2 border-amber-600 bg-amber-100/50 shadow-xs'
-                                : 'hover:bg-amber-50/20'
-                            }`}
-                          >
-                            {/* ORDER */}
-
-                            <td className="px-5 py-3.5 font-bold text-slate-700">
-                              <div className="flex items-center gap-1.5">
-                                <div
-                                  className="cursor-grab p-1 text-slate-300 transition-colors hover:text-amber-600 group-hover:text-slate-500 active:cursor-grabbing"
-                                  title="Nhấp giữ & kéo thả để thay đổi thứ tự bài học"
-                                >
-                                  <GripVertical className="h-4 w-4" />
-                                </div>
-
-                                <span>#{lesson.orderIndex}</span>
-                              </div>
-                            </td>
-
-                            {/* TITLE */}
-
-                            <td className="px-6 py-3.5">
-                              <button
-                                onClick={() =>
-                                  navigate(
-                                    `/courses/${courseId}/learn?lessonId=${lesson.lessonId}`
-                                  )
-                                }
-                                className="group/title flex cursor-pointer items-start gap-2.5 text-left"
-                              >
-                                <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-700 shadow-xs transition-all group-hover/title:bg-amber-600 group-hover/title:text-white">
-                                  <PlayCircle className="h-3.5 w-3.5" />
-                                </div>
-
-                                <div>
-                                  <p className="line-clamp-1 text-sm font-semibold text-slate-900 transition-colors group-hover/title:text-amber-700">
-                                    {lesson.title}
-                                  </p>
-
-                                  {lesson.description && (
-                                    <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">
-                                      {lesson.description}
-                                    </p>
-                                  )}
-                                </div>
-                              </button>
-                            </td>
-
-                            {/* DURATION */}
-
-                            <td className="px-4 py-3.5 font-medium text-slate-700">
-                                        {getLessonDuration(lesson)}
-                                      </td>
-
-                            {/* PREVIEW */}
-
-                            <td className="px-4 py-3.5">
-                              {lesson.isPreview ? (
-                                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200/80 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700">
-                                  <Eye className="h-3 w-3" />
-                                  Xem thử
-                                </span>
-                              ) : (
-                                <span className="font-medium text-slate-400">
-                                  —
-                                </span>
-                              )}
-                            </td>
-
-                            {/* VIDEO */}
-
-                            <td className="px-4 py-3.5">
-                              {lesson.videoUrl ? (
-                                <div className="flex items-center gap-2">
-                                  <button
-                                    onClick={() =>
-                                      navigate(
-                                        `/courses/${courseId}/learn?lessonId=${lesson.lessonId}`
-                                      )
-                                    }
-                                    className="inline-flex items-center gap-1 rounded-xl border border-blue-200/80 bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700 transition-all hover:bg-blue-100"
-                                  >
-                                    <PlayCircle className="h-3 w-3 text-blue-600" />
-                                    <span>Xem video</span>
-                                  </button>
-                                </div>
-                              ) : (
-                                <span className="text-slate-400">
-                                  Chưa gắn video
-                                </span>
-                              )}
-                            </td>
-
-                            {/* ACTIONS */}
-
-                            <td className="px-6 py-3.5 text-right">
-                              <div className="flex items-center justify-end gap-1.5">
-                                {/* MATERIAL */}
-
-                                <button
-                                  onClick={() =>
-                                    setMaterialTarget({
-                                      lessonId: lesson.lessonId,
-                                      lessonTitle: lesson.title,
-                                    })
-                                  }
-                                  title="Tài liệu bài học"
-                                  className="cursor-pointer rounded-xl p-1.5 text-slate-400 transition-all hover:bg-amber-50 hover:text-amber-600 active:scale-95"
-                                >
-                                  <Paperclip className="h-4 w-4" />
-                                </button>
-
-                                {/* LESSON QUIZ */}
-
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    navigate(
-                                      `/instructor/quizzes/new?courseId=${courseId}&lessonId=${lesson.lessonId}`
-                                    )
-                                  }
-                                  title="Tạo Quiz cho bài học"
-                                  className="cursor-pointer rounded-xl p-1.5 text-slate-400 transition-all hover:bg-violet-50 hover:text-violet-600 active:scale-95"
-                                >
-                                  <ClipboardList className="h-4 w-4" />
-                                </button>
-
-                                {/* EDIT */}
-
-                                <button
-                                  onClick={() => handleOpenEditLesson(lesson)}
-                                  title="Gán vào chương / Chỉnh sửa"
-                                  className="cursor-pointer rounded-xl p-1.5 text-slate-400 transition-all hover:bg-amber-100 hover:text-amber-800 active:scale-95"
-                                >
-                                  <Edit2 className="h-4 w-4" />
-                                </button>
-
-                                {/* DELETE */}
-
-                                <button
-                                  onClick={() => setLessonToDelete(lesson)}
-                                  title="Xóa bài học"
-                                  className="cursor-pointer rounded-xl p-1.5 text-slate-400 transition-all hover:bg-red-50 hover:text-red-500 active:scale-95"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </>
-        )}
+            <div className="rounded-2xl border border-[#e8effb] bg-white p-3 shadow-sm"><div className="flex flex-wrap items-center gap-2"><label className="relative min-w-[180px] flex-1"><Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400"/><input value={lessonSearch} onChange={e=>setLessonSearch(e.target.value)} placeholder="Tìm kiếm bài học..." className="w-full rounded-xl border border-[#dbe6f8] bg-white py-2.5 pl-10 pr-3 text-sm outline-none focus:border-blue-500"/></label><button onClick={()=>setCollapsedModules({})} className="rounded-xl border border-blue-100 px-3 py-2.5 text-xs font-semibold text-blue-700 hover:bg-blue-50">Mở tất cả</button><button onClick={()=>setCollapsedModules(Object.fromEntries(modules.map(m=>[m.moduleId,true])))} className="rounded-xl border border-blue-100 px-3 py-2.5 text-xs font-semibold text-blue-700 hover:bg-blue-50">Thu gọn</button></div></div>
+            {isModulesLoading||isLessonsLoading?<div className="space-y-3">{[1,2,3].map(i=><div key={i} className="h-24 animate-pulse rounded-2xl bg-blue-100/60"/>)}</div>:modules.length===0&&lessons.filter(l=>l.lessonType!=='ASSIGNMENT').length===0?<div className="rounded-2xl border border-dashed border-blue-200 bg-white p-12 text-center"><Layers className="mx-auto mb-3 text-blue-600" size={36}/><h3 className="font-bold text-[#0a245c]">Khóa học chưa có chương và bài học</h3><p className="mt-2 text-sm text-slate-500">Tạo chương đầu tiên hoặc nhập dữ liệu từ CSV.</p><button onClick={handleOpenCreateModule} className="mt-5 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white">+ Thêm chương</button></div>:<>
+              {[...modules].sort((a,b)=>a.orderIndex-b.orderIndex).map(mod=>{const moduleLessons=(lessonsByModule[mod.moduleId]||[]).sort((a,b)=>a.orderIndex-b.orderIndex);const visible=moduleLessons.filter(l=>`${l.title} ${l.description||''}`.toLowerCase().includes(lessonSearch.toLowerCase()));if(lessonSearch&&!visible.length&&!mod.title.toLowerCase().includes(lessonSearch.toLowerCase()))return null;const collapsed=collapsedModules[mod.moduleId]&&!lessonSearch;return <section key={mod.moduleId} className="overflow-hidden rounded-2xl border border-[#e5edfa] bg-white shadow-sm"><div className="flex items-center gap-3 bg-[#f0f6ff] px-4 py-3"><button onClick={()=>toggleModuleCollapse(mod.moduleId)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white"><Layers size={19}/></button><button onClick={()=>toggleModuleCollapse(mod.moduleId)} className="min-w-0 flex-1 text-left"><h3 className="truncate text-sm font-extrabold text-[#0a245c]">Chương {mod.orderIndex}: {mod.title}</h3><p className="mt-1 text-xs text-[#5071a7]">{moduleLessons.length} bài học · {moduleLessons.reduce((n,l)=>n+getLessonDurationMinutes(l),0)} phút</p></button><button title="Thêm bài học" onClick={()=>handleOpenCreateLesson(mod.moduleId)} className="rounded-lg p-2 text-blue-600 hover:bg-white"><Plus size={17}/></button><button title="Sửa chương" onClick={()=>handleOpenEditModule(mod)} className="rounded-lg p-2 text-blue-600 hover:bg-white"><Edit2 size={16}/></button><button title="Xóa chương" onClick={()=>setModuleToDelete(mod)} className="rounded-lg p-2 text-rose-500 hover:bg-white"><Trash2 size={16}/></button><button onClick={()=>toggleModuleCollapse(mod.moduleId)} className="rounded-lg p-2 text-blue-600 hover:bg-white">{collapsed?<ChevronDown size={18}/>:<ChevronDown size={18} className="rotate-180"/>}</button></div>
+                {!collapsed&&<div className="divide-y divide-[#eaf0fa] px-3">{visible.length?visible.map((lesson,i)=><div key={lesson.lessonId} draggable onDragStart={e=>handleLessonDragStart(e,lesson)} onDragOver={e=>handleLessonDragOver(e,lesson)} onDrop={e=>handleLessonDrop(e,lesson)} onDragEnd={handleLessonDragEnd} className={`group flex items-center gap-3 rounded-lg px-2 py-3 transition hover:bg-[#f6f9ff] ${dragOverLessonId===lesson.lessonId?'bg-blue-100':''}`}><GripVertical size={15} className="shrink-0 cursor-grab text-slate-300"/><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#edf3ff] text-xs font-bold text-blue-700">{lesson.orderIndex||i+1}</span><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#e8f1ff] text-blue-600">{lesson.lessonType==='DOCUMENT'?<FileText size={20}/>:lesson.lessonType==='QUIZ'?<ClipboardList size={20}/>:<PlayCircle size={20}/>}</div><button onClick={()=>navigate(`/courses/${courseId}/learn?lessonId=${lesson.lessonId}`)} className="min-w-0 flex-1 text-left"><p className="truncate text-sm font-bold text-[#0a245c] group-hover:text-blue-600">{lesson.title}</p><p className="mt-1 truncate text-xs text-[#6883ae]">{lesson.lessonType==='DOCUMENT'?'Tài liệu':lesson.lessonType==='QUIZ'?'Quiz':'Bài giảng'} · {getLessonDuration(lesson)} {lesson.isPreview?'· Cho phép xem thử':''}</p></button><span className="hidden rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700 sm:inline-flex">{lesson.isPreview?'Xem thử':'Đã tạo'}</span><button title="Xem bài học" onClick={()=>navigate(`/courses/${courseId}/learn?lessonId=${lesson.lessonId}`)} className="rounded-lg p-2 text-blue-600 hover:bg-blue-50"><Eye size={16}/></button><button title="Chỉnh sửa" onClick={()=>handleOpenEditLesson(lesson)} className="rounded-lg p-2 text-blue-600 hover:bg-blue-50"><Edit2 size={16}/></button><div className="group/menu relative"><button title="Thêm thao tác" className="rounded-lg p-2 text-blue-600 hover:bg-blue-50"><MoreVertical size={16}/></button><div className="invisible absolute right-0 top-8 z-20 w-48 rounded-xl border border-blue-100 bg-white p-1 opacity-0 shadow-xl transition group-hover/menu:visible group-hover/menu:opacity-100 group-focus-within/menu:visible group-focus-within/menu:opacity-100"><button onClick={()=>setMaterialTarget({lessonId:lesson.lessonId,lessonTitle:lesson.title})} className="block w-full rounded-lg px-3 py-2 text-left text-xs hover:bg-blue-50">Tài liệu bài học</button><button onClick={()=>navigate(`/instructor/quizzes/new?courseId=${courseId}&lessonId=${lesson.lessonId}`)} className="block w-full rounded-lg px-3 py-2 text-left text-xs hover:bg-blue-50">Tạo Quiz cho bài học</button>{lesson.videoUrl&&<a href={lesson.videoUrl} target="_blank" rel="noreferrer" className="block rounded-lg px-3 py-2 text-xs hover:bg-blue-50">Mở video gốc</a>}<button onClick={()=>setLessonToDelete(lesson)} className="block w-full rounded-lg px-3 py-2 text-left text-xs text-rose-600 hover:bg-rose-50">Xóa bài học</button></div></div></div>):<div className="py-8 text-center text-xs text-slate-400">{lessonSearch?'Không có bài học phù hợp':'Chưa có bài học trong chương này'}</div>}<button onClick={()=>handleOpenCreateLesson(mod.moduleId)} className="w-full py-3 text-left text-xs font-bold text-blue-600 hover:text-blue-800">+ Thêm bài học</button></div>}</section>})}
+              {unassignedLessons.filter(l=>`${l.title} ${l.description||''}`.toLowerCase().includes(lessonSearch.toLowerCase())).length>0&&<section className="rounded-2xl border border-amber-200 bg-white p-4"><h3 className="mb-3 font-bold text-amber-800">Bài học chưa phân chương</h3>{unassignedLessons.filter(l=>`${l.title} ${l.description||''}`.toLowerCase().includes(lessonSearch.toLowerCase())).map(lesson=><div key={lesson.lessonId} draggable onDragStart={e=>handleLessonDragStart(e,lesson)} onDragEnd={handleLessonDragEnd} className="flex items-center gap-3 border-t border-amber-100 py-3"><GripVertical size={15} className="text-amber-400"/><BookOpen size={18} className="text-blue-600"/><span className="min-w-0 flex-1 truncate text-sm font-semibold">{lesson.title}</span><button onClick={()=>setMaterialTarget({lessonId:lesson.lessonId,lessonTitle:lesson.title})} title="Tài liệu"><Paperclip size={16}/></button><button onClick={()=>navigate(`/instructor/quizzes/new?courseId=${courseId}&lessonId=${lesson.lessonId}`)} title="Tạo Quiz"><ClipboardList size={16}/></button><button onClick={()=>handleOpenEditLesson(lesson)} title="Sửa / Gán chương"><Edit2 size={16}/></button><button onClick={()=>setLessonToDelete(lesson)} title="Xóa"><Trash2 size={16} className="text-rose-500"/></button></div>)}</section>}
+            </>}
+          </main>
+          <aside className="space-y-4">
+            <div className="rounded-2xl border border-[#e8effb] bg-white p-4 shadow-sm"><div className="relative"><button onClick={()=>setAddMenuOpen(!addMenuOpen)} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0754ef] px-4 py-3 text-sm font-bold text-white shadow-md shadow-blue-600/20 hover:bg-blue-700"><Plus size={18}/> Thêm nội dung <ChevronDown size={16}/></button>{addMenuOpen&&<div className="absolute left-0 right-0 top-[calc(100%+6px)] z-30 rounded-xl border border-blue-100 bg-white p-2 shadow-xl">{[{label:'Thêm chương',action:handleOpenCreateModule},{label:'Thêm bài giảng',action:()=>handleOpenCreateLesson(modules[0]?.moduleId)},{label:'Thêm Quiz',action:()=>navigate(`/instructor/quizzes/new?courseId=${courseId}`)},{label:'Thêm tài liệu',action:()=>setMaterialTarget({lessonId:null})},{label:'Thêm bài tập nói',action:()=>handleOpenCreateSpeakingAssignment(null)},{label:'Nhập từ CSV',action:()=>setIsModuleImportModalOpen(true)}].map(item=><button key={item.label} onClick={()=>{setAddMenuOpen(false);item.action()}} className="block w-full rounded-lg px-3 py-2.5 text-left text-xs font-semibold text-[#15376f] hover:bg-blue-50">{item.label}</button>)}</div>}</div><h3 className="mb-3 mt-5 text-sm font-extrabold text-[#0a245c]">Thao tác nhanh</h3><div className="grid grid-cols-2 gap-2">{[{label:'Thêm chương',icon:FolderPlus,action:handleOpenCreateModule},{label:'Thêm bài học',icon:PlusCircle,action:()=>handleOpenCreateLesson(modules[0]?.moduleId)},{label:'Nhập CSV',icon:FileSpreadsheet,action:()=>setIsModuleImportModalOpen(true)},{label:'Đồng bộ Quiz',icon:GitCompareArrows,action:()=>document.getElementById('quiz-management')?.scrollIntoView({behavior:'smooth'})},{label:'Chấm bài nói',icon:Mic2,action:()=>navigate(`/instructor/courses/${courseId}/speaking`)},{label:'Học viên',icon:Users,action:()=>setIsStudentsModalOpen(true)}].map(item=><button key={item.label} onClick={item.action} className="flex items-center justify-center gap-2 rounded-xl border border-[#dce8fb] bg-[#f9fbff] px-2 py-3 text-[11px] font-semibold text-[#17448e] hover:bg-blue-50"><item.icon size={15}/>{item.label}</button>)}</div></div>
+            <div className="rounded-2xl border border-[#e8effb] bg-white p-4 shadow-sm"><h3 className="mb-4 text-sm font-extrabold text-[#0a245c]">Thông tin khóa học</h3><div className="flex gap-3">{course?.thumbnailUrl?<img src={course.thumbnailUrl} alt={course.title} className="h-20 w-20 rounded-xl object-cover"/>:<div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl bg-blue-100"><Mic2 size={30} className="text-blue-600"/></div>}<div className="min-w-0"><p className="line-clamp-3 text-sm font-bold text-[#0a245c]">{course?.title}</p>{course?.status&&<div className="mt-2"><CourseStatusBadge status={course.status} size="sm"/></div>}</div></div><div className="mt-4 space-y-3 border-t border-blue-50 pt-4 text-xs text-[#52709f]"><p className="flex justify-between"><span>Chương học</span><strong className="text-[#0a245c]">{modules.length}</strong></p><p className="flex justify-between"><span>Bài học</span><strong className="text-[#0a245c]">{lessons.length}</strong></p><p className="flex justify-between"><span>Quiz</span><strong className="text-[#0a245c]">{quizzes.length}</strong></p><p className="flex justify-between"><span>Thời lượng dự kiến</span><strong className="text-[#0a245c]">{totalDuration} phút</strong></p></div><button onClick={()=>navigate('/instructor/courses')} className="mt-4 w-full rounded-xl border border-blue-200 py-2.5 text-xs font-bold text-blue-700 hover:bg-blue-50">Quản lý khóa học</button></div>
+            <div className="rounded-2xl border border-[#e8effb] bg-white p-4 shadow-sm"><h3 className="mb-3 text-sm font-extrabold text-[#0a245c]">Cập nhật & phê duyệt</h3><button onClick={handleSyncAllDurations} disabled={isSyncingDurations} className="mb-2 w-full rounded-xl border border-blue-200 bg-blue-50 py-2.5 text-xs font-bold text-blue-700 hover:bg-blue-100 disabled:opacity-50">{isSyncingDurations?'Đang đồng bộ...':'Đồng bộ thời lượng bài học'}</button>{(course?.status==='DRAFT'||course?.status==='REJECTED')&&<button onClick={handleSendForApproval} disabled={isSubmittingForApproval} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0754ef] py-3 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-50"><Send size={15}/> Gửi duyệt khóa học</button>}<p className="mt-3 rounded-xl bg-[#edf5ff] p-3 text-xs leading-relaxed text-[#4167a1]">Sau khi hoàn thành nội dung, hãy kiểm tra bài học, Quiz và bài tập nói trước khi gửi duyệt.</p></div>
+          </aside>
+        </div>
       </div>
 
       {/* =====================================================================
           COURSE-LEVEL SPEAKING ASSIGNMENT MANAGEMENT
       ====================================================================== */}
 
-      <div id="speaking-assignment-management" className="mx-auto max-w-7xl px-6 pt-10">
-        <div className="overflow-hidden rounded-3xl border border-purple-200/80 bg-white shadow-xs">
+      <div id="speaking-assignment-management" className="mx-auto max-w-[1500px] px-6 pt-10">
+        <div className="overflow-hidden rounded-[30px] border border-[#d8e6ff] bg-white shadow-[0_12px_35px_-18px_rgba(7,84,239,0.18)] transition-all duration-300 hover:shadow-xl hover:shadow-blue-600/10">
           {/* HEADER */}
-          <div className="flex flex-col gap-4 border-b border-purple-100 bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-100/50 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-4 border-b border-[#e0eaff] bg-gradient-to-r from-[#f1f6ff] via-[#f8fbff] to-[#f1f6ff] px-7 py-6 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-purple-100 text-purple-700 shadow-inner">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-[#cfe0ff] bg-[#e8f1ff] text-[#0754ef] shadow-sm">
                 <Mic2 className="h-5 w-5" />
               </div>
 
               <div>
-                <h2 className="text-base font-bold text-slate-900">
+                <h2 className="text-lg font-extrabold text-slate-900">
                   Bài tập nói (Speaking Assignment) Tổng khóa học
                 </h2>
 
@@ -1618,7 +879,7 @@ export const CourseLessonsPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => handleOpenCreateSpeakingAssignment(null)}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-purple-600 px-4 py-2.5 text-xs font-semibold text-white shadow-md shadow-purple-500/20 transition-all hover:bg-purple-700 active:scale-95 cursor-pointer"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#0754ef] px-4 py-2.5 text-xs font-semibold text-white shadow-md shadow-blue-600/20 transition-all hover:bg-[#0644c4] active:scale-95 cursor-pointer"
               >
                 <Plus className="h-4 w-4" />
                 Tạo Bài tập nói tổng khóa
@@ -1632,17 +893,17 @@ export const CourseLessonsPage: React.FC = () => {
             if (assignment) {
               return (
                 <div className="p-6">
-                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 rounded-2xl border border-purple-100 bg-purple-50/40 p-5">
+                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 rounded-2xl border border-[#e0eaff] bg-[#f8fbff] p-5">
                     <div className="space-y-1.5 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="inline-flex items-center gap-1 rounded-md bg-purple-100 px-2.5 py-0.5 text-xs font-extrabold text-purple-700">
+                        <span className="inline-flex items-center gap-1 rounded-md bg-[#e8f1ff] px-2.5 py-0.5 text-xs font-extrabold text-[#17448e]">
                           🎙️ Bài tập nói tổng khóa
                         </span>
                         <span className="text-xs font-semibold text-slate-500">
                           • {assignment.durationMinutes} phút dự kiến
                         </span>
                       </div>
-                      <h3 className="text-base font-bold text-slate-900">{assignment.title}</h3>
+                      <h3 className="text-lg font-extrabold text-slate-900">{assignment.title}</h3>
                       {assignment.description && (
                         <p className="text-xs text-slate-600 leading-relaxed max-w-3xl">
                           {assignment.description}
@@ -1654,7 +915,7 @@ export const CourseLessonsPage: React.FC = () => {
                             href={assignment.videoUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-xs font-semibold text-purple-600 hover:underline"
+                            className="inline-flex items-center gap-1 text-xs font-semibold text-[#0754ef] hover:underline"
                           >
                             <ExternalLink className="h-3.5 w-3.5" />
                             <span>Link Audio mẫu / Hướng dẫn đề bài</span>
@@ -1666,14 +927,14 @@ export const CourseLessonsPage: React.FC = () => {
                     <div className="flex items-center gap-2 self-end md:self-center shrink-0">
                       <button
                         onClick={() => handleOpenEditLesson(assignment)}
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-purple-200 bg-white px-3.5 py-2 text-xs font-bold text-purple-700 shadow-xs hover:bg-purple-50 active:scale-95 transition-all cursor-pointer"
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-[#cfe0ff] bg-white px-3.5 py-2 text-xs font-bold text-[#17448e] shadow-xs hover:bg-[#f1f6ff] active:scale-95 transition-all duration-300 hover:-translate-y-0.5 active:scale-95 cursor-pointer"
                       >
                         <Edit2 className="h-4 w-4" />
                         <span>Chỉnh sửa</span>
                       </button>
                       <button
                         onClick={() => setLessonToDelete(assignment)}
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-white px-3.5 py-2 text-xs font-bold text-red-600 shadow-xs hover:bg-red-50 active:scale-95 transition-all cursor-pointer"
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-white px-3.5 py-2 text-xs font-bold text-red-600 shadow-xs hover:bg-red-50 active:scale-95 transition-all duration-300 hover:-translate-y-0.5 active:scale-95 cursor-pointer"
                       >
                         <Trash2 className="h-4 w-4" />
                         <span>Xóa</span>
@@ -1685,18 +946,18 @@ export const CourseLessonsPage: React.FC = () => {
             }
 
             return (
-              <div className="flex flex-col items-center justify-center p-8 text-center">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-purple-50 text-purple-500 mb-3">
+              <div className="flex flex-col items-center justify-center px-6 py-7 text-center">
+                <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-xl bg-[#f1f6ff] text-[#b58a40]">
                   <Mic2 className="h-6 w-6" />
                 </div>
                 <h4 className="text-sm font-bold text-slate-800">Chưa tạo Bài tập nói tổng khóa</h4>
-                <p className="mt-1 text-xs text-slate-500 max-w-md">
+                <p className="mt-1 max-w-lg text-xs leading-relaxed text-slate-500">
                   Mỗi khóa học cần có 1 Bài tập nói tổng cuối khóa để học viên nộp bản thu âm cho Giảng viên chấm điểm. Khóa học chỉ có thể gửi Admin duyệt khi đã tạo bài tập này.
                 </p>
                 <button
                   type="button"
                   onClick={() => handleOpenCreateSpeakingAssignment(null)}
-                  className="mt-4 inline-flex items-center gap-2 rounded-xl bg-purple-600 px-4 py-2 text-xs font-bold text-white shadow-md hover:bg-purple-700 transition-all cursor-pointer"
+                  className="mt-3 inline-flex items-center gap-2 rounded-xl bg-[#0754ef] px-4 py-2 text-xs font-bold text-white shadow-md shadow-blue-500/20 hover:bg-[#0644c4] transition-all duration-300 hover:-translate-y-0.5 active:scale-95 cursor-pointer"
                 >
                   <Plus className="h-4 w-4" />
                   Tạo Bài tập nói ngay
@@ -1711,22 +972,22 @@ export const CourseLessonsPage: React.FC = () => {
           QUIZ MANAGEMENT  (đã được chuyển xuống cuối trang)
       ====================================================================== */}
 
-      <div id="quiz-management" className="mx-auto max-w-7xl px-6 pt-10">
-        <div className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-xs">
+      <div id="quiz-management" className="mx-auto max-w-[1500px] px-6 pt-10 scroll-mt-28">
+        <div className="overflow-hidden rounded-[30px] border border-[#d8e6ff] bg-white shadow-[0_12px_35px_-18px_rgba(7,84,239,0.18)] transition-all duration-300 hover:shadow-xl hover:shadow-blue-600/10">
           {/* QUIZ HEADER */}
 
-          <div className="flex flex-col gap-4 border-b border-slate-100 bg-gradient-to-r from-indigo-50 to-blue-50 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative flex flex-col gap-4 overflow-hidden border-b border-[#e0eaff] bg-gradient-to-r from-[#f1f6ff] via-[#f8fbff] to-[#f1f6ff] px-7 py-6 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-600">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-[#cfe0ff] bg-[#e8f1ff] text-[#0754ef]">
                 <ClipboardList className="h-5 w-5" />
               </div>
 
               <div>
-                <h2 className="text-base font-bold text-slate-900">
+                <h2 className="text-lg font-extrabold text-slate-900">
                   Quản lý Quiz
                 </h2>
 
-                <p className="mt-0.5 text-xs text-slate-500">
+                <p className="mt-1 text-xs text-slate-500">
                   {quizzes.length} bài kiểm tra trong khóa học
                 </p>
               </div>
@@ -1739,12 +1000,22 @@ export const CourseLessonsPage: React.FC = () => {
               onClick={() =>
                 navigate(`/instructor/quizzes/new?courseId=${courseId}`)
               }
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-semibold text-white shadow-md shadow-indigo-500/20 transition-all hover:bg-indigo-700 active:scale-95"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#0754ef] px-5 py-3 text-xs font-extrabold text-white shadow-lg shadow-blue-600/25 transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#0644c4] active:scale-95"
             >
               <Plus className="h-4 w-4" />
               Tạo Quiz tổng khóa học
             </button>
           </div>
+
+          {/* IMPORT / SEARCH: luôn hiển thị, kể cả khi chưa có Quiz */}
+          <div className="flex flex-wrap items-center gap-3 border-b border-slate-100 bg-white px-6 py-3.5">
+            <motion.button type="button" whileHover={reducedMotion ? undefined : { y: -3 }} whileTap={{ scale: 0.98 }} onClick={() => setQuizImportOpen(true)} className="inline-flex items-center gap-2 rounded-xl border border-[#e0eaff] bg-[#f3f8ff] px-5 py-3 text-sm font-bold text-[#102947] shadow-sm hover:bg-[#e8f1ff]">
+              <FileUp size={18} className="text-[#0754ef]"/> Import Excel / Google Sheets
+            </motion.button>
+            <div className="inline-flex items-center gap-2 rounded-xl bg-[#f1f6ff] px-3 py-2.5 text-xs font-semibold text-[#17448e]"><ShieldCheck size={16}/> Đồng bộ tự động sau khi thiết lập baseline</div>
+            <label className="relative ml-auto min-w-[220px] flex-1 sm:max-w-sm"><Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/><input value={quizSearch} onChange={e => setQuizSearch(e.target.value)} placeholder="Tìm bài kiểm tra..." className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-4 text-sm outline-none focus:border-[#3b82f6]"/></label>
+          </div>
+          {quizNotice && <p role="status" className="mx-6 mt-4 rounded-xl bg-blue-50 px-4 py-3 text-sm text-blue-800">{quizNotice}</p>}
 
           {/* QUIZ CONTENT */}
 
@@ -1758,12 +1029,12 @@ export const CourseLessonsPage: React.FC = () => {
               ))}
             </div>
           ) : quizzes.length === 0 ? (
-            <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-500">
+            <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#f1f6ff] text-[#0754ef]">
                 <ClipboardList className="h-7 w-7" />
               </div>
 
-              <h3 className="mt-4 text-sm font-bold text-slate-800">
+              <h3 className="mt-3 text-lg font-extrabold text-slate-900">
                 Chưa có Quiz nào
               </h3>
 
@@ -1777,7 +1048,7 @@ export const CourseLessonsPage: React.FC = () => {
                 onClick={() =>
                   navigate(`/instructor/quizzes/new?courseId=${courseId}`)
                 }
-                className="mt-5 inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-indigo-700"
+                className="mt-3 inline-flex items-center gap-2 rounded-xl bg-[#0754ef] px-4 py-2.5 text-xs font-semibold text-white shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#0644c4] active:scale-95"
               >
                 <Plus className="h-4 w-4" />
                 Tạo Quiz tổng khóa học
@@ -1799,13 +1070,13 @@ export const CourseLessonsPage: React.FC = () => {
                 </thead>
 
                 <tbody className="divide-y divide-slate-100">
-                  {quizzes.map((quiz) => {
+                  {quizzes.filter(quiz => `${quiz.title} ${quiz.description || ''}`.toLowerCase().includes(quizSearch.trim().toLowerCase())).map((quiz) => {
                     const lesson = getQuizLesson(quiz);
 
                     return (
                       <tr
                         key={quiz.quizId}
-                        className="group transition-colors hover:bg-indigo-50/20"
+                        className="group transition-colors hover:bg-[#f1f6ff]"
                       >
                         {/* QUIZ */}
 
@@ -1829,7 +1100,7 @@ export const CourseLessonsPage: React.FC = () => {
                           {quiz.lessonId == null ? (
                             /* OVERALL COURSE QUIZ */
 
-                            <div className="inline-flex items-center gap-2 rounded-xl bg-indigo-50 px-3 py-2 text-[11px] font-semibold text-indigo-700">
+                            <div className="inline-flex items-center gap-2 rounded-xl bg-[#f1f6ff] px-3 py-2 text-[11px] font-semibold text-[#17448e]">
                               <ClipboardList className="h-3.5 w-3.5" />
                               <span>Quiz tổng khóa học</span>
                             </div>
@@ -1838,9 +1109,9 @@ export const CourseLessonsPage: React.FC = () => {
 
                             <div className="max-w-xs">
                               <div className="flex items-center gap-2">
-                                <BookOpen className="h-3.5 w-3.5 shrink-0 text-violet-500" />
+                                <BookOpen className="h-3.5 w-3.5 shrink-0 text-[#0754ef]" />
 
-                                <span className="font-semibold text-violet-700">
+                                <span className="font-semibold text-[#17448e]">
                                   Bài học
                                 </span>
                               </div>
@@ -1914,6 +1185,8 @@ export const CourseLessonsPage: React.FC = () => {
 
                         <td className="px-6 py-4">
                           <div className="flex items-center justify-end gap-1.5">
+                            <button type="button" title="Xem đồng bộ và giải quyết xung đột" onClick={() => setQuizSyncTarget({ id: quiz.quizId, title: quiz.title })} className="rounded-xl p-2 text-[#0754ef] transition hover:-translate-y-0.5 hover:bg-amber-50"><GitCompareArrows size={18}/></button>
+                            <button type="button" title="Export Google Sheets" disabled={quizExporting === quiz.quizId} onClick={async () => { setQuizExporting(quiz.quizId); setQuizNotice(''); try { const r = await quizImportApi.exportGoogle(quiz.quizId); setQuizNotice(r.success ? `Đã gửi yêu cầu export Quiz #${quiz.quizId}. Kiểm tra trạng thái đồng bộ để xác nhận.` : r.message || 'Export chưa thành công.'); } catch(e) { setQuizNotice(e instanceof Error ? e.message : 'Export thất bại.'); } finally { setQuizExporting(null); } }} className="rounded-xl p-2 text-blue-600 transition hover:-translate-y-0.5 hover:bg-blue-50 disabled:opacity-50"><CloudUpload size={18}/></button>
                             {/* DETAIL */}
 
                             <button
@@ -1922,7 +1195,7 @@ export const CourseLessonsPage: React.FC = () => {
                               onClick={() =>
                                 navigate(`/instructor/quizzes/${quiz.quizId}`)
                               }
-                              className="rounded-xl p-2 text-slate-400 transition-all hover:bg-indigo-50 hover:text-indigo-600"
+                              className="rounded-xl p-2 text-slate-400 transition-all hover:bg-[#f1f6ff] hover:text-[#0754ef]"
                             >
                               <Eye className="h-4 w-4" />
                             </button>
@@ -1965,6 +1238,27 @@ export const CourseLessonsPage: React.FC = () => {
           )}
         </div>
       </div>
+
+      <AnimatePresence>
+        {quizImportOpen && (
+          <QuizImportStudio
+            courseId={courseId}
+            lessons={lessons.filter(lesson => lesson.lessonType !== 'ASSIGNMENT').map(lesson => ({ lessonId: lesson.lessonId, title: lesson.title }))}
+            onClose={() => setQuizImportOpen(false)}
+            onImported={() => {
+              void queryClient.invalidateQueries({ queryKey: ['quizzes', 'course', courseId] });
+              setQuizNotice('Đã import Quiz thành công. Danh sách đang được cập nhật.');
+            }}
+          />
+        )}
+        {quizSyncTarget && (
+          <QuizSyncStudio
+            quizId={quizSyncTarget.id}
+            title={quizSyncTarget.title}
+            onClose={() => setQuizSyncTarget(null)}
+          />
+        )}
+      </AnimatePresence>
 
       {/* =====================================================================
           MODALS
@@ -2122,6 +1416,7 @@ export const CourseLessonsPage: React.FC = () => {
         isOpen={isStudentsModalOpen}
         onClose={() => setIsStudentsModalOpen(false)}
         courseTitle={course?.title}
+        courseId={courseId}
       />
 
       {/* INCOMPLETE COURSE */}

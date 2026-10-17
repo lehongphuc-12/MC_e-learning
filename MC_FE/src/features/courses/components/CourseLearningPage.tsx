@@ -1,10 +1,10 @@
+import { LearnerQuizHistoryActions } from '../../quizzes/pages/LearnerQuizHistoryActions';
 // =============================================================================
 // CourseLearningPage.tsx — Course Video Player / Learning Page
 // =============================================================================
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-
 import {
   ArrowLeft,
   ChevronLeft,
@@ -65,12 +65,12 @@ interface LearnerSpeakingWorkspaceProps {
   courseId: number;
   onMarkComplete?: (lessonId: number) => void;
 }
-
 const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
   lesson,
   courseId,
   onMarkComplete,
 }) => {
+  
   const [submission, setSubmission] = useState<SpeakingSubmissionDto | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isRecording, setIsRecording] = useState<boolean>(false);
@@ -344,7 +344,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
       {/* ── Top Header ────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center justify-between gap-4 pb-6 border-b border-slate-200">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 text-xs font-bold mb-2">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-violet-500/10 border border-violet-500/30 text-violet-400 text-xs font-bold mb-2">
             <Mic className="w-3.5 h-3.5" />
             <span>BÀI KIỂM TRA NÓI CUỐI KHÓA</span>
           </div>
@@ -355,7 +355,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
 
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs font-medium text-slate-500">
-            <Clock className="w-4 h-4 text-indigo-400" />
+            <Clock className="w-4 h-4 text-violet-400" />
             <span>Thời lượng: {lesson.durationMinutes || 15} phút</span>
           </div>
         </div>
@@ -366,7 +366,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
         {/* Left / Prompt Area (5 cols) */}
         <div className="lg:col-span-5 flex flex-col gap-5">
           <div className="rounded-2xl border border-slate-200/80 bg-white/80 p-5 backdrop-blur-sm shadow-lg">
-            <h3 className="text-sm font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-2 mb-3">
+            <h3 className="text-sm font-bold text-violet-300 uppercase tracking-wider flex items-center gap-2 mb-3">
               <FileText className="w-4 h-4" />
               <span>Đề Bài & Yêu Cầu</span>
             </h3>
@@ -393,7 +393,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
         <div className="lg:col-span-7 flex flex-col gap-5">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center p-12 bg-white/60 rounded-2xl border border-slate-200">
-              <div className="w-8 h-8 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin mb-3" />
+              <div className="w-8 h-8 border-3 border-violet-500 border-t-transparent rounded-full animate-spin mb-3" />
               <p className="text-xs text-slate-500">Đang tải thông tin bài làm...</p>
             </div>
           ) : submission && !isReRecording ? (
@@ -466,7 +466,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
               {/* Submitted Audio Player */}
               <div className="mb-5">
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2 flex items-center gap-2">
-                  <Volume2 className="w-4 h-4 text-indigo-400" />
+                  <Volume2 className="w-4 h-4 text-violet-400" />
                   <span>Bài thu âm của bạn đã lưu trên Cloud:</span>
                 </label>
                 <div className="p-3 bg-[#f4f7fa] rounded-xl border border-slate-200">
@@ -487,7 +487,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                   onClick={() => setIsReRecording(true)}
                   className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-all flex items-center gap-2 border border-slate-700 cursor-pointer"
                 >
-                  <RotateCcw className="w-4 h-4 text-indigo-400" />
+                  <RotateCcw className="w-4 h-4 text-violet-400" />
                   <span>Ghi âm & Nộp bài làm mới</span>
                 </button>
               </div>
@@ -498,7 +498,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
               {/* Header & Submission Mode Selector Tabs */}
               <div className="flex flex-wrap items-center justify-between gap-3 mb-5 pb-3 border-b border-slate-200">
                 <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                  <Mic className="w-4 h-4 text-indigo-400" />
+                  <Mic className="w-4 h-4 text-violet-400" />
                   <span>Khu Vực Làm Bài Thi Nói</span>
                 </h3>
 
@@ -510,7 +510,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                     disabled={isRecording || isSubmitting}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                       submissionMode === 'MIC'
-                        ? 'bg-blue-600 text-white shadow-xs'
+                        ? 'bg-violet-600 text-white shadow-xs'
                         : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
@@ -524,7 +524,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                     disabled={isRecording || isSubmitting}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                       submissionMode === 'UPLOAD'
-                        ? 'bg-blue-600 text-white shadow-xs'
+                        ? 'bg-violet-600 text-white shadow-xs'
                         : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
@@ -548,11 +548,11 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                   <div className="mb-5 bg-[#f4f7fa]/80 p-3.5 rounded-xl border border-slate-200">
                     <div className="flex items-center justify-between mb-2">
                       <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                        <Sliders className="w-3.5 h-3.5 text-blue-600" />
+                        <Sliders className="w-3.5 h-3.5 text-violet-600" />
                         <span>Chọn thiết bị Micrô ghi âm:</span>
                       </label>
                       {audioDevices.length > 0 && (
-                        <span className="text-[10px] text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full font-bold border border-blue-200">
+                        <span className="text-[10px] text-violet-700 bg-violet-100 px-2 py-0.5 rounded-full font-bold border border-violet-200">
                           {audioDevices.length} thiết bị
                         </span>
                       )}
@@ -563,7 +563,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                         value={selectedDeviceId}
                         onChange={(e) => setSelectedDeviceId(e.target.value)}
                         disabled={isRecording || isSubmitting}
-                        className="w-full pl-9 pr-8 py-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 transition-all cursor-pointer"
+                        className="w-full pl-9 pr-8 py-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500 disabled:opacity-50 transition-all cursor-pointer"
                       >
                         {audioDevices.length === 0 ? (
                           <option value="">(Micrô mặc định của thiết bị)</option>
@@ -578,7 +578,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                           ))
                         )}
                       </select>
-                      <Mic className="w-4 h-4 text-blue-600 absolute left-3 top-2.5 pointer-events-none" />
+                      <Mic className="w-4 h-4 text-violet-600 absolute left-3 top-2.5 pointer-events-none" />
                     </div>
                   </div>
 
@@ -587,7 +587,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                     <div className="flex flex-col items-center justify-center p-8 bg-[#f4f7fa]/70 rounded-2xl border border-slate-200/80 text-center">
                       <button
                         onClick={handleStartRecording}
-                        className="w-20 h-20 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white flex items-center justify-center shadow-lg shadow-blue-500/30 hover:scale-105 active:scale-95 transition-all cursor-pointer mb-4 group"
+                        className="w-20 h-20 rounded-full bg-gradient-to-tr from-violet-600 to-violet-600 hover:from-violet-500 hover:to-violet-500 text-white flex items-center justify-center shadow-lg shadow-violet-500/30 hover:scale-105 active:scale-95 transition-all cursor-pointer mb-4 group"
                       >
                         <Mic className="w-9 h-9 group-hover:scale-110 transition-transform" />
                       </button>
@@ -616,7 +616,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                         {[40, 70, 30, 90, 60, 100, 50, 80, 40, 70].map((h, i) => (
                           <div
                             key={i}
-                            className="w-1.5 rounded-full bg-blue-600 animate-pulse"
+                            className="w-1.5 rounded-full bg-violet-600 animate-pulse"
                             style={{
                               height: `${h}%`,
                               animationDelay: `${i * 100}ms`,
@@ -659,7 +659,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                           value={learnerNote}
                           onChange={(e) => setLearnerNote(e.target.value)}
                           placeholder="Nhập ghi chú hoặc thắc mắc nếu có..."
-                          className="w-full p-3 bg-[#f4f7fa] border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          className="w-full p-3 bg-[#f4f7fa] border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500"
                         />
                       </div>
 
@@ -688,7 +688,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                           <button
                             onClick={handleSubmitAssignment}
                             disabled={isSubmitting}
-                            className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
+                            className="px-6 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold shadow-md shadow-violet-500/20 transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
                           >
                             {isSubmitting ? (
                               <>
@@ -723,16 +723,16 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                   {!uploadedFile ? (
                     <div
                       onClick={() => fileInputRef.current?.click()}
-                      className="flex flex-col items-center justify-center p-8 bg-[#f4f7fa]/70 rounded-2xl border-2 border-dashed border-slate-300 hover:border-blue-500 text-center transition-all cursor-pointer group"
+                      className="flex flex-col items-center justify-center p-8 bg-[#f4f7fa]/70 rounded-2xl border-2 border-dashed border-slate-300 hover:border-violet-500 text-center transition-all cursor-pointer group"
                     >
-                      <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                      <div className="w-16 h-16 rounded-2xl bg-violet-50 text-violet-600 border border-violet-200 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
                         <UploadCloud className="w-8 h-8" />
                       </div>
                       <h4 className="text-sm font-bold text-slate-900">Tải file ghi âm từ máy cá nhân</h4>
                       <p className="text-xs text-slate-500 mt-1 max-w-xs">
                         Bấm vào đây để chọn file âm thanh bài phát biểu của bạn từ máy tính.
                       </p>
-                      <span className="mt-3 text-[11px] font-semibold text-blue-700 bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
+                      <span className="mt-3 text-[11px] font-semibold text-violet-700 bg-violet-50 px-3 py-1 rounded-full border border-violet-200">
                         Định dạng hỗ trợ: .MP3, .WAV, .M4A, .OGG, .WEBM (Tối đa 50MB)
                       </span>
                     </div>
@@ -742,7 +742,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                       <div className="p-4 bg-[#f4f7fa] rounded-2xl border border-slate-200">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 border border-blue-200 flex items-center justify-center shrink-0">
+                            <div className="w-10 h-10 rounded-xl bg-violet-100 text-violet-600 border border-violet-200 flex items-center justify-center shrink-0">
                               <FileAudio className="w-5 h-5" />
                             </div>
                             <div className="min-w-0">
@@ -787,7 +787,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                           value={learnerNote}
                           onChange={(e) => setLearnerNote(e.target.value)}
                           placeholder="Nhập ghi chú hoặc thắc mắc nếu có..."
-                          className="w-full p-3 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full p-3 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500"
                         />
                       </div>
 
@@ -808,7 +808,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                           type="button"
                           onClick={handleSubmitAssignment}
                           disabled={isSubmitting}
-                          className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
+                          className="px-6 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold shadow-md shadow-violet-500/20 transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
                         >
                           {isSubmitting ? (
                             <>
@@ -1413,28 +1413,10 @@ export const CourseLearningPage: React.FC = () => {
     );
   };
 
-  const renderQuizButton = (
-    lessonId: number,
-  ) => {
+  const renderQuizButton = (lessonId: number) => {
     const quiz = getQuizForLesson(lessonId);
-
     if (!quiz) return null;
-
-    return (
-      <button
-        type="button"
-        onClick={() =>
-          handleTakeQuiz(
-            quiz.quizId,
-            lessonId,
-          )
-        }
-        className="mt-1 ml-7 inline-flex items-center gap-1.5 rounded-lg bg-violet-50 px-2.5 py-1 text-[11px] font-bold text-violet-700 border border-violet-200 transition-all hover:bg-violet-100 hover:text-violet-900 active:scale-95 shadow-2xs"
-      >
-        <ClipboardList className="h-3 w-3 text-violet-600" />
-        Làm Quiz
-      </button>
-    );
+    return <div className="ml-7 mt-1 max-w-md"><LearnerQuizHistoryActions quizId={quiz.quizId} maxAttempts={quiz.maxAttempts} passingScore={quiz.passingScore} returnTo={getQuizReturnTo(lessonId)} onTake={() => handleTakeQuiz(quiz.quizId, lessonId)} /></div>;
   };
 
   // ===========================================================================
@@ -1937,7 +1919,7 @@ export const CourseLearningPage: React.FC = () => {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-[#f4f7fa] text-slate-900">
         <div className="flex flex-col items-center gap-3">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-indigo-500 border-t-transparent" />
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-violet-500 border-t-transparent" />
 
           <p className="text-xs font-medium text-slate-500">
             Đang tải không gian học tập...
@@ -2047,15 +2029,43 @@ export const CourseLearningPage: React.FC = () => {
   // ===========================================================================
 
   return (
-    <div className="flex h-screen w-full flex-col bg-[#f4f7fa] text-slate-900 overflow-hidden font-sans">
+    <div className="mseek-light-studio flex h-screen w-full flex-col bg-[#eaf3ff] text-slate-900 overflow-hidden font-sans">
+      <style>{`
+        .mseek-light-studio{background:linear-gradient(145deg,#dbeaff 0%,#f0f7ff 50%,#dceaff 100%);color:#101d50}
+        .mseek-topbar{backdrop-filter:blur(16px);background:linear-gradient(90deg,#f9fcff,#e9f2ff 55%,#edf3ff);border-color:#c9ddff}
+        .mseek-stage-hero{background:linear-gradient(90deg,rgba(222,235,255,.92) 0%,rgba(199,221,255,.60) 43%,rgba(191,214,255,.13) 78%),url('/images/mseek-mc-blue-banner.png') center/cover no-repeat,#bcd5ff;min-height:132px}
+        .mseek-stage-glow{background:radial-gradient(circle at 24% 0%,rgba(255,255,255,.68),transparent 34%);pointer-events:none}
+        .mseek-stage-mic{animation:mseekFloat 5s ease-in-out infinite}
+        .mseek-stage-main{background:transparent}
+        .mseek-curriculum,.mseek-right-rail{box-shadow:0 8px 32px rgba(18,69,154,.08)}
+        .mseek-light-studio button{transition:transform .2s ease,box-shadow .2s ease,background-color .2s ease,border-color .2s ease}
+        .mseek-light-studio button:not(:disabled):active{transform:scale(.97)}
+        .mseek-light-studio button:focus-visible{outline:3px solid #93baff;outline-offset:3px}
+        .mseek-light-studio .shadow-2xl{box-shadow:0 16px 38px rgba(26,75,156,.12)}
+        .mseek-light-studio .shadow-xl{box-shadow:0 10px 30px rgba(26,75,156,.10)}
+        .mseek-light-studio .shadow-lg{box-shadow:0 6px 24px rgba(26,75,156,.09)}
+        .mseek-light-studio audio{accent-color:#1557f5}
+        .mseek-light-studio .bg-violet-600{background-color:#1654f5}
+        .mseek-light-studio .hover\:bg-violet-700:hover{background-color:#0c3fce}
+        .mseek-light-studio .text-violet-700{color:#1648c7}
+        .mseek-light-studio .text-violet-600{color:#1554e8}
+        .mseek-light-studio .border-violet-100{border-color:#d5e4ff}
+        .mseek-light-studio .border-violet-200{border-color:#bed5ff}
+        .mseek-light-studio .bg-violet-50{background-color:#eef5ff}
+        .mseek-light-studio .bg-violet-100{background-color:#dceaff}
+        @keyframes mseekFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+        @media(max-width:1279px){.mseek-right-rail{display:none}}
+        @media(max-width:767px){.mseek-curriculum{width:min(80vw,320px)}.mseek-stage-hero{padding:14px 16px;min-height:112px}}
+        @media(prefers-reduced-motion:reduce){.mseek-stage-mic{animation:none}.mseek-light-studio *{transition-duration:.01ms!important;animation-duration:.01ms!important}}
+      `}</style>
       {/* ── Top Bar ─────────────────────────────────────────────────────── */}
 
-      <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 shadow-2xs z-30">
+      <header className="mseek-topbar flex min-h-16 shrink-0 items-center justify-between border-b border-blue-100 bg-white/95 px-4 md:px-6 shadow-sm z-30">
         <div className="flex items-center gap-3">
           <button
             onClick={handleBackToLessons}
             title="Quay lại quản lý bài học"
-            className="flex items-center gap-2 rounded-xl bg-slate-50 text-slate-700 hover:bg-slate-100 hover:text-blue-600 border border-slate-200 px-3 py-1.5 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+            className="flex items-center gap-2 rounded-xl bg-slate-50 text-slate-700 hover:bg-slate-100 hover:text-violet-600 border border-slate-200 px-3 py-1.5 text-xs font-bold transition-all cursor-pointer shadow-2xs"
           >
             <ArrowLeft className="h-4 w-4 text-slate-500" />
 
@@ -2104,7 +2114,7 @@ export const CourseLearningPage: React.FC = () => {
           <div className="hidden sm:flex items-center gap-2 rounded-full bg-slate-100 border border-slate-200 px-3 py-1 text-xs text-slate-700 font-semibold">
             <div className="w-16 bg-slate-200 rounded-full h-1.5 overflow-hidden">
               <div
-                className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                className="bg-blue-600 h-full rounded-full transition-all duration-500"
                 style={{
                   width: `${Math.min(
                     100,
@@ -2114,7 +2124,7 @@ export const CourseLearningPage: React.FC = () => {
               />
             </div>
 
-            <span className="text-[11px] text-emerald-600 font-black">
+            <span className="text-[11px] text-blue-700 font-black">
               {completionPercentage}%
             </span>
           </div>
@@ -2141,8 +2151,8 @@ export const CourseLearningPage: React.FC = () => {
             </button>
           )}
 
-          <div className="hidden md:flex items-center gap-1.5 rounded-full bg-blue-50 border border-blue-200 px-3 py-1 text-xs text-blue-700 font-bold">
-            <Sparkles className="h-3.5 w-3.5 text-blue-600" />
+          <div className="hidden md:flex items-center gap-1.5 rounded-full bg-violet-50 border border-violet-200 px-3 py-1 text-xs text-violet-700 font-bold">
+            <Sparkles className="h-3.5 w-3.5 text-violet-600" />
 
             <span>
               Bài{' '}
@@ -2159,7 +2169,7 @@ export const CourseLearningPage: React.FC = () => {
                 !isSidebarOpen,
               )
             }
-            className="flex items-center gap-1.5 rounded-xl bg-blue-600 text-white hover:bg-blue-700 px-3 py-1.5 text-xs font-bold transition-all cursor-pointer shadow-sm shadow-blue-500/20"
+            className="flex items-center gap-1.5 rounded-xl bg-violet-600 text-white hover:bg-violet-700 px-3 py-1.5 text-xs font-bold transition-all cursor-pointer shadow-sm shadow-violet-500/20"
           >
             {isSidebarOpen ? (
               <X className="h-4 w-4" />
@@ -2176,13 +2186,49 @@ export const CourseLearningPage: React.FC = () => {
         </div>
       </header>
 
+      {/* Course banner: dynamic title, decorative background only */}
+      <section className="mseek-stage-hero relative shrink-0 overflow-hidden rounded-b-2xl border-b border-blue-200 px-5 py-4 md:px-8 md:py-5">
+        <div className="mseek-stage-glow absolute inset-0" />
+        <div className="relative z-10 flex min-h-[86px] items-center gap-4">
+          <div className="mseek-stage-mic flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-white bg-white/90 shadow-lg"><BookOpen className="h-7 w-7 text-blue-600" /></div>
+          <div className="min-w-0 max-w-[min(65%,760px)]">
+            <p className="mb-1 text-[10px] font-black uppercase tracking-[.16em] text-blue-700">MSEEK · MC VOICE STUDIO</p>
+            <h2 className="text-lg font-black tracking-tight text-[#09236c] md:text-2xl">{course?.title || 'Hành trình làm chủ giọng nói'}</h2>
+            <p className="mt-1 text-xs font-medium text-blue-700">Tự tin cất tiếng · Truyền cảm hứng · Tỏa sáng trên sân khấu</p>
+          </div>
+        </div>
+      </section>
+
       {/* ── Main Container ──────────────────────────────────────────────── */}
 
-      <div className="flex flex-1 overflow-hidden relative">
+      <div className="flex flex-1 overflow-hidden relative flex-row-reverse">
+        {/* Right study summary: only data already available in this page */}
+        <aside className="mseek-right-rail hidden w-[286px] shrink-0 flex-col gap-3 overflow-y-auto bg-transparent p-3 xl:flex">
+          <div className="rounded-2xl border border-blue-100 bg-white/90 p-4 shadow-sm">
+            <h3 className="mb-4 flex items-center gap-2 text-sm font-extrabold text-[#0c2056]"><Award className="h-4 w-4 text-blue-600"/> Tiến độ học tập</h3>
+            <div className="flex items-center gap-4">
+              <div className="grid h-[88px] w-[88px] shrink-0 place-items-center rounded-full" style={{background:`conic-gradient(#1554f5 ${Math.min(100,completionPercentage)}%,#dbe8ff 0)`}}>
+                <div className="grid h-[69px] w-[69px] place-items-center rounded-full bg-white text-xl font-black text-blue-700">{completionPercentage}%</div>
+              </div>
+              <div className="space-y-2 text-[11px] text-slate-600"><p>✓ Đã hoàn thành <b>{completedLessonIds.length}/{totalLessonCount} bài</b></p><p>◷ Tổng thời lượng: <b>{totalDuration} phút</b></p><p>▣ Bài hiện tại: <b>{currentIndex >= 0 ? currentIndex+1 : 1}/{totalLessonCount}</b></p></div>
+            </div>
+          </div>
+          <div className="rounded-2xl border border-blue-100 bg-white/90 p-4 shadow-sm">
+            <h3 className="mb-3 flex items-center gap-2 text-sm font-extrabold text-[#0c2056]"><FileText className="h-4 w-4 text-blue-600"/> Thông tin bài học</h3>
+            <p className="text-xs font-bold text-blue-700">{activeLesson?.title || 'Chọn bài học để bắt đầu'}</p>
+            <p className="mt-2 text-xs leading-relaxed text-slate-600">{activeLesson?.description || 'Xem nội dung, học qua video và thực hành luyện giọng theo lộ trình.'}</p>
+            <div className="mt-3 rounded-xl bg-blue-50 p-3 text-xs text-blue-700">Thời lượng: {getLessonDuration(activeLesson)}</div>
+          </div>
+          <div className="rounded-2xl border border-blue-100 bg-white/90 p-4 shadow-sm">
+            <h3 className="mb-2 flex items-center gap-2 text-sm font-extrabold text-[#0c2056]"><Mic className="h-4 w-4 text-blue-600"/> Luyện tập giọng nói</h3>
+            <p className="text-xs leading-relaxed text-slate-600">Chọn bài tập nói trong lộ trình để ghi âm hoặc tải tệp âm thanh lên cho giảng viên đánh giá.</p>
+            <div className="mt-4 flex h-12 items-center justify-center gap-[3px]">{[12,22,32,18,38,26,14,34,43,19,30,17,40,23,12,35,26,15,33,20,38,16,27,12].map((h,i)=><span key={i} className="w-[3px] rounded-full bg-blue-400/80" style={{height:h}}/>)}</div>
+          </div>
+        </aside>
         {/* Left / Center Main Content */}
 
-        <main className="flex-1 overflow-y-auto bg-[#f4f7fa] p-4 md:p-6 scrollbar-thin scrollbar-thumb-slate-800">
-          <div className="mx-auto max-w-5xl space-y-6">
+        <main className="mseek-stage-main min-w-0 flex-1 overflow-y-auto bg-transparent p-3 md:p-4 scrollbar-thin scrollbar-thumb-violet-300">
+          <div className="mx-auto max-w-6xl space-y-6">
             {/* Main Workspace Container (Video or Speaking Assignment) */}
 
             <div
@@ -2235,7 +2281,7 @@ export const CourseLearningPage: React.FC = () => {
 
                               handleSelectLesson(nextLesson);
                             }}
-                            className="inline-flex items-center gap-2 rounded-xl bg-blue-600 text-white shadow-blue-500/30 hover:bg-blue-500 active:scale-95 transition-all cursor-pointer"
+                            className="inline-flex items-center gap-2 rounded-xl bg-violet-600 text-white shadow-violet-500/30 hover:bg-violet-500 active:scale-95 transition-all cursor-pointer"
                           >
                             <span>
                               Bài tiếp theo: {nextLesson.title}
@@ -2312,7 +2358,7 @@ export const CourseLearningPage: React.FC = () => {
                     )
                   ) : (
                     <div className="flex h-full w-full flex-col items-center justify-center p-6 text-center bg-slate-950">
-                      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-500/10 text-blue-400 border border-blue-500/20 mb-3">
+                      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-violet-500/10 text-violet-400 border border-violet-500/20 mb-3">
                         <Video className="h-8 w-8" />
                       </div>
 
@@ -2342,7 +2388,7 @@ export const CourseLearningPage: React.FC = () => {
                     prevLesson,
                   )
                 }
-                className="flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-blue-600 border border-slate-300 shadow-2xs disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-slate-700 transition-all cursor-pointer"
+                className="flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-violet-600 border border-slate-300 shadow-2xs disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-slate-700 transition-all cursor-pointer"
               >
                 <ChevronLeft className="h-4 w-4 text-slate-500" />
 
@@ -2416,7 +2462,7 @@ export const CourseLearningPage: React.FC = () => {
                     nextLesson,
                   )
                 }
-                className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-blue-600 transition-all cursor-pointer shadow-md shadow-blue-500/20"
+                className="flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2 text-xs font-bold text-white hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-violet-600 transition-all cursor-pointer shadow-md shadow-violet-500/20"
               >
                 <span className="hidden sm:inline">
                   Bài tiếp:
@@ -2438,7 +2484,7 @@ export const CourseLearningPage: React.FC = () => {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <div className="flex items-center gap-2 mb-1.5">
-                    <span className="rounded-md bg-blue-50 px-2 py-0.5 text-[11px] font-bold text-blue-700 border border-blue-200">
+                    <span className="rounded-md bg-violet-50 px-2 py-0.5 text-[11px] font-bold text-violet-700 border border-violet-200">
                       Bài #
                       {activeLesson?.orderIndex ??
                         (currentIndex >= 0
@@ -2473,7 +2519,7 @@ export const CourseLearningPage: React.FC = () => {
                     }
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 transition-colors"
+                    className="inline-flex items-center gap-1.5 text-xs font-bold text-violet-600 hover:text-violet-700 transition-colors"
                   >
                     <ExternalLink className="h-3.5 w-3.5" />
                     <span>
@@ -2495,7 +2541,7 @@ export const CourseLearningPage: React.FC = () => {
                   className={`pb-2.5 transition-colors relative cursor-pointer ${
                     activeTab ===
                     'overview'
-                      ? 'text-blue-600 font-bold'
+                      ? 'text-violet-600 font-bold'
                       : 'hover:text-slate-800'
                   }`}
                 >
@@ -2503,7 +2549,7 @@ export const CourseLearningPage: React.FC = () => {
 
                   {activeTab ===
                     'overview' && (
-                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full" />
+                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-violet-600 rounded-full" />
                   )}
                 </button>
 
@@ -2516,7 +2562,7 @@ export const CourseLearningPage: React.FC = () => {
                   className={`pb-2.5 transition-colors relative cursor-pointer ${
                     activeTab ===
                     'notes'
-                      ? 'text-blue-600 font-bold'
+                      ? 'text-violet-600 font-bold'
                       : 'hover:text-slate-800'
                   }`}
                 >
@@ -2524,7 +2570,7 @@ export const CourseLearningPage: React.FC = () => {
 
                   {activeTab ===
                     'notes' && (
-                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full" />
+                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-violet-600 rounded-full" />
                   )}
                 </button>
 
@@ -2537,7 +2583,7 @@ export const CourseLearningPage: React.FC = () => {
                   className={`pb-2.5 transition-colors relative cursor-pointer ${
                     activeTab ===
                     'discussion'
-                      ? 'text-blue-600 font-bold'
+                      ? 'text-violet-600 font-bold'
                       : 'hover:text-slate-800'
                   }`}
                 >
@@ -2545,7 +2591,7 @@ export const CourseLearningPage: React.FC = () => {
 
                   {activeTab ===
                     'discussion' && (
-                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 rounded-full" />
+                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-violet-600 rounded-full" />
                   )}
                 </button>
               </div>
@@ -2569,7 +2615,7 @@ export const CourseLearningPage: React.FC = () => {
                     </p>
 
                     <div className="flex items-center gap-3 rounded-xl bg-slate-50 p-3 border border-slate-200">
-                      <FileText className="h-5 w-5 text-blue-600" />
+                      <FileText className="h-5 w-5 text-violet-600" />
 
                       <div>
                         <p className="font-bold text-slate-900">
@@ -2594,7 +2640,7 @@ export const CourseLearningPage: React.FC = () => {
                     </p>
 
                     <div className="flex items-center gap-3 rounded-xl bg-white p-3 border border-slate-200">
-                      <MessageSquare className="h-5 w-5 text-blue-600" />
+                      <MessageSquare className="h-5 w-5 text-violet-600" />
 
                       <input
                         type="text"
@@ -2612,11 +2658,11 @@ export const CourseLearningPage: React.FC = () => {
         {/* ── Right Sidebar Playlist ───────────────────────────────────── */}
 
         {isSidebarOpen && (
-          <aside className="w-80 shrink-0 border-l border-slate-200 bg-slate-50 flex flex-col h-full z-20 transition-all duration-300">
+          <aside className="mseek-curriculum w-[310px] shrink-0 border-r border-violet-100 bg-white/90 flex flex-col h-full z-20 transition-all duration-300">
             <div className="p-4 border-b border-slate-200 bg-white flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                  <BookOpen className="h-4 w-4 text-blue-600" />
+                  <BookOpen className="h-4 w-4 text-violet-600" />
                   Lộ trình học tập
                 </h3>
 
@@ -2666,10 +2712,10 @@ export const CourseLearningPage: React.FC = () => {
                                 mod.moduleId,
                               )
                             }
-                            className="w-full flex items-center justify-between p-3 bg-slate-50/80 hover:bg-blue-50/50 text-left transition-colors cursor-pointer border-b border-slate-100"
+                            className="w-full flex items-center justify-between p-3 bg-slate-50/80 hover:bg-violet-50/50 text-left transition-colors cursor-pointer border-b border-slate-100"
                           >
                             <div className="flex items-center gap-2 min-w-0 pr-2">
-                              <Layers className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                              <Layers className="h-3.5 w-3.5 text-violet-600 shrink-0" />
 
                               <span className="text-xs font-bold text-slate-800 truncate">
                                 Chương{' '}
@@ -2682,7 +2728,7 @@ export const CourseLearningPage: React.FC = () => {
                             </div>
 
                             <div className="flex items-center gap-1 shrink-0 text-slate-500">
-                              <span className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-bold border border-blue-200/60">
+                              <span className="text-[10px] bg-violet-50 text-violet-700 px-1.5 py-0.5 rounded font-bold border border-violet-200/60">
                                 {
                                   modLessons.length
                                 }
@@ -2735,7 +2781,7 @@ export const CourseLearningPage: React.FC = () => {
                                           }
                                           className={`w-full flex items-start gap-2.5 p-2.5 rounded-lg text-left text-xs transition-all cursor-pointer ${
                                             isActive
-                                              ? 'bg-blue-50 border border-blue-300 text-blue-900 shadow-2xs font-bold'
+                                              ? 'bg-violet-50 border border-violet-300 text-violet-900 shadow-2xs font-bold'
                                               : 'hover:bg-slate-100/70 border border-transparent text-slate-700'
                                           }`}
                                         >
@@ -2743,7 +2789,7 @@ export const CourseLearningPage: React.FC = () => {
                                             {isCompleted ? (
                                               <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                                             ) : isActive ? (
-                                              <PlayCircle className="h-4 w-4 text-blue-600 animate-pulse" />
+                                              <PlayCircle className="h-4 w-4 text-violet-600 animate-pulse" />
                                             ) : (
                                               <span className="flex h-4 w-4 items-center justify-center text-[10px] font-bold text-slate-400">
                                                 #
@@ -2758,7 +2804,7 @@ export const CourseLearningPage: React.FC = () => {
                                             <p
                                               className={`line-clamp-2 ${
                                                 isActive
-                                                  ? 'text-blue-700 font-bold'
+                                                  ? 'text-violet-700 font-bold'
                                                   : 'text-slate-800 font-medium'
                                               }`}
                                             >
@@ -3001,20 +3047,15 @@ export const CourseLearningPage: React.FC = () => {
                             </span>
                           </div>
 
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleTakeQuiz(
-                                overallQuiz.quizId,
-                                activeLesson?.lessonId,
-                              )
-                            }
-                            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-violet-600 px-3 py-2 text-[11px] font-bold text-white shadow-xs shadow-violet-600/20 transition-all hover:bg-violet-700 active:scale-[0.98]"
-                          >
-                            <ClipboardList className="h-3.5 w-3.5" />
-
-                            Làm Quiz tổng hợp
-                          </button>
+                          <div className="mt-3">
+                            <LearnerQuizHistoryActions
+                              quizId={overallQuiz.quizId}
+                              maxAttempts={overallQuiz.maxAttempts}
+                              passingScore={overallQuiz.passingScore}
+                              returnTo={getQuizReturnTo(activeLesson?.lessonId)}
+                              onTake={() => handleTakeQuiz(overallQuiz.quizId, activeLesson?.lessonId)}
+                            />
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -3050,7 +3091,7 @@ export const CourseLearningPage: React.FC = () => {
                           }
                           className={`w-full flex items-start gap-3 p-3 rounded-xl text-left text-xs transition-all cursor-pointer ${
                             isActive
-                              ? 'bg-blue-50 border border-blue-300 text-blue-900 shadow-2xs'
+                              ? 'bg-violet-50 border border-violet-300 text-violet-900 shadow-2xs'
                               : 'hover:bg-slate-100/70 text-slate-700 border border-transparent'
                           }`}
                         >
@@ -3058,7 +3099,7 @@ export const CourseLearningPage: React.FC = () => {
                             {isCompleted ? (
                               <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                             ) : isActive ? (
-                              <PlayCircle className="h-4 w-4 text-blue-600 animate-pulse" />
+                              <PlayCircle className="h-4 w-4 text-violet-600 animate-pulse" />
                             ) : (
                               <span className="flex h-4 w-4 items-center justify-center text-[10px] font-bold text-slate-400">
                                 #
@@ -3073,7 +3114,7 @@ export const CourseLearningPage: React.FC = () => {
                             <p
                               className={`line-clamp-2 ${
                                 isActive
-                                  ? 'text-blue-700 font-bold'
+                                  ? 'text-violet-700 font-bold'
                                   : 'text-slate-800 font-medium'
                               }`}
                             >

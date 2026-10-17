@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Route } from 'react-router-dom';
 import { ScreenType, User } from '../../types';
@@ -6,6 +7,8 @@ import { EditQuizPage } from './pages/EditQuizPage';
 import { TakeQuizPage } from './pages/TakeQuizPage';
 import { QuizResultPage } from './pages/QuizResultPage';
 import { QuizDetailPage } from './pages/QuizDetailPage';
+import { InstructorQuizGradingPage } from './pages/InstructorQuizGradingPage';
+import { InstructorQuizOverviewPage } from './pages/InstructorQuizOverviewPage';
 import { QuizManagementPage } from './pages/QuizManagementPage';
 import { ProtectedRoute } from '../../components/common/ProtectedRoute';
 import { ToastType } from '../../components/common/Toast';
@@ -29,97 +32,64 @@ export const renderQuizRoutes = ({
 }: QuizRoutesProps) => {
   return (
     <>
+      {/* Instructor - Tổng hợp Quiz của tất cả khóa học */}
+      <Route path="/instructor/quizzes" element={
+        <ProtectedRoute user={user} allowedRoles={['instructor', 'admin']} currentScreen={currentScreen} onNavigate={onNavigate} onToast={onToast}>
+          {withInstructorLayout(<InstructorQuizOverviewPage mode="management" />)}
+        </ProtectedRoute>
+      } />
+
+      {/* Instructor - Tổng hợp bài Quiz cần chấm */}
+      <Route path="/instructor/quiz-grading" element={
+        <ProtectedRoute user={user} allowedRoles={['instructor', 'admin']} currentScreen={currentScreen} onNavigate={onNavigate} onToast={onToast}>
+          {withInstructorLayout(<InstructorQuizOverviewPage mode="grading" />)}
+        </ProtectedRoute>
+      } />
+
+      {/* Instructor - Đọc và chấm bài theo từng Quiz */}
+      <Route path="/instructor/quizzes/:quizId/grading" element={
+        <ProtectedRoute user={user} allowedRoles={['instructor', 'admin']} currentScreen={currentScreen} onNavigate={onNavigate} onToast={onToast}>
+          {withInstructorLayout(<InstructorQuizGradingPage />)}
+        </ProtectedRoute>
+      } />
+
       {/* Instructor Quiz Management Routes */}
-      <Route
-        path="/instructor/quizzes/new"
-        element={
-          <ProtectedRoute
-            user={user}
-            allowedRoles={['instructor', 'admin']}
-            currentScreen={currentScreen}
-            onNavigate={onNavigate}
-            onToast={onToast}
-          >
-            {withInstructorLayout(<CreateQuizPage onToast={onToast} />)}
-          </ProtectedRoute>
-        }
-      />
+      <Route path="/instructor/quizzes/new" element={
+        <ProtectedRoute user={user} allowedRoles={['instructor', 'admin']} currentScreen={currentScreen} onNavigate={onNavigate} onToast={onToast}>
+          {withInstructorLayout(<CreateQuizPage onToast={onToast} />)}
+        </ProtectedRoute>
+      } />
 
-      <Route
-        path="/instructor/quizzes/:id/edit"
-        element={
-          <ProtectedRoute
-            user={user}
-            allowedRoles={['instructor', 'admin']}
-            currentScreen={currentScreen}
-            onNavigate={onNavigate}
-            onToast={onToast}
-          >
-            {withInstructorLayout(<EditQuizPage onToast={onToast} />)}
-          </ProtectedRoute>
-        }
-      />
+      <Route path="/instructor/quizzes/:id/edit" element={
+        <ProtectedRoute user={user} allowedRoles={['instructor', 'admin']} currentScreen={currentScreen} onNavigate={onNavigate} onToast={onToast}>
+          {withInstructorLayout(<EditQuizPage onToast={onToast} />)}
+        </ProtectedRoute>
+      } />
 
-      <Route
-        path="/instructor/quizzes/:id"
-        element={
-          <ProtectedRoute
-            user={user}
-            allowedRoles={['instructor', 'admin']}
-            currentScreen={currentScreen}
-            onNavigate={onNavigate}
-            onToast={onToast}
-          >
-            {withInstructorLayout(<QuizDetailPage />)}
-          </ProtectedRoute>
-        }
-      />
+      <Route path="/instructor/quizzes/:id" element={
+        <ProtectedRoute user={user} allowedRoles={['instructor', 'admin']} currentScreen={currentScreen} onNavigate={onNavigate} onToast={onToast}>
+          {withInstructorLayout(<QuizDetailPage />)}
+        </ProtectedRoute>
+      } />
 
-      <Route
-        path="/instructor/courses/:courseId/quizzes"
-        element={
-          <ProtectedRoute
-            user={user}
-            allowedRoles={['instructor', 'admin']}
-            currentScreen={currentScreen}
-            onNavigate={onNavigate}
-            onToast={onToast}
-          >
-            {withInstructorLayout(<QuizManagementPage />)}
-          </ProtectedRoute>
-        }
-      />
+      <Route path="/instructor/courses/:courseId/quizzes" element={
+        <ProtectedRoute user={user} allowedRoles={['instructor', 'admin']} currentScreen={currentScreen} onNavigate={onNavigate} onToast={onToast}>
+          {withInstructorLayout(<QuizManagementPage />)}
+        </ProtectedRoute>
+      } />
 
       {/* Student Quiz Routes */}
-      <Route
-        path="/quizzes/:quizId/take"
-        element={
-          <ProtectedRoute
-            user={user}
-            allowedRoles={['student']}
-            currentScreen={currentScreen}
-            onNavigate={onNavigate}
-            onToast={onToast}
-          >
-            {withMainLayout(<TakeQuizPage />)}
-          </ProtectedRoute>
-        }
-      />
+      <Route path="/quizzes/:quizId/take" element={
+        <ProtectedRoute user={user} allowedRoles={['student']} currentScreen={currentScreen} onNavigate={onNavigate} onToast={onToast}>
+          {withMainLayout(<TakeQuizPage />)}
+        </ProtectedRoute>
+      } />
 
-      <Route
-        path="/quizzes/:quizId/result/:attemptId"
-        element={
-          <ProtectedRoute
-            user={user}
-            allowedRoles={['student']}
-            currentScreen={currentScreen}
-            onNavigate={onNavigate}
-            onToast={onToast}
-          >
-            {withMainLayout(<QuizResultPage />)}
-          </ProtectedRoute>
-        }
-      />
+      <Route path="/quizzes/:quizId/result/:attemptId" element={
+        <ProtectedRoute user={user} allowedRoles={['student']} currentScreen={currentScreen} onNavigate={onNavigate} onToast={onToast}>
+          {withMainLayout(<QuizResultPage />)}
+        </ProtectedRoute>
+      } />
     </>
   );
 };

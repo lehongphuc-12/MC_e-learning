@@ -22,6 +22,17 @@ export interface EnrollmentDto {
   expiresAt?: string | null;
   createdAt: string;
 }
+export interface CourseEnrolledStudentDto {
+  enrollmentId: number;
+  courseId: number;
+  userId: number;
+  fullName: string;
+  email: string;
+  avatarUrl: string | null;
+  enrolledAt: string | null;
+  enrollmentStatus: string;
+  completionPercentage: number;
+}
 
 export interface CreatePaymentResponseDto {
   paymentId: number;

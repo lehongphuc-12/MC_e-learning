@@ -2053,6 +2053,14 @@ namespace MC_BE.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("QuizId"));
 
+                    b.Property<DateTime?>("AvailableFrom")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("AvailableFrom");
+
+                    b.Property<DateTime?>("AvailableUntil")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("AvailableUntil");
+
                     b.Property<int?>("CourseId")
                         .HasColumnType("integer")
                         .HasColumnName("CourseID");
