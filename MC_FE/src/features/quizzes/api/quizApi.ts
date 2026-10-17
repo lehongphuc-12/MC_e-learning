@@ -1,3 +1,4 @@
+import type { LearnerQuizAttemptHistoryDto } from '../types/quizTypes';
 import type { InstructorQuizAttemptDto } from '../types/instructorGradingTypes';
 
 import { request } from '../../../services/api';
@@ -149,5 +150,8 @@ export const quizApi = {
     return request(`/quizzes/${quizId}/latest-result`, {
       method: 'GET',
     });
+  },
+  async getMyQuizAttempts(quizId: number): Promise<{ success: boolean; message: string; data: LearnerQuizAttemptHistoryDto[]; errors?: string[] }> {
+    return request(`/quizzes/${quizId}/my-attempts`, { method: 'GET' });
   },
 };

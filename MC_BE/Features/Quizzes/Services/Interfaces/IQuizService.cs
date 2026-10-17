@@ -1,3 +1,4 @@
+
 using MC_BE.Features.Quizzes.DTOs;
 
 namespace MC_BE.Features.Quizzes.Services.Interfaces;
@@ -15,4 +16,5 @@ public interface IQuizService
     Task<QuizResultDto?> GradeQuizAnswerAsync(int instructorId, int quizAnswerId, ManualGradeQuizAnswerRequest request);
     Task<List<QuizListItemDto>> GetQuizzesByCourseAsync(int courseId);
     Task<int?> GetLatestQuizResultAsync(int quizId, int learnerId);
+    Task<List<LearnerQuizAttemptHistoryDto>> GetMyQuizAttemptsAsync(int quizId, int learnerId);
 }

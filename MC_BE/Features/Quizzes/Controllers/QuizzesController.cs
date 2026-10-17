@@ -1,4 +1,5 @@
 using MC_BE.Core.DTOs;
+using MC_BE.Shared.Services.Interfaces;
 using MC_BE.Features.Quizzes.DTOs;
 using MC_BE.Features.Quizzes.Services.Interfaces;
 using MC_BE.Features.Quizzes.Sync;
@@ -14,11 +15,13 @@ public class QuizzesController : ControllerBase
     private readonly IQuizService _quizService;
     private readonly QuizSheetExporter _sheetExporter;
     private readonly ILogger<QuizzesController> _logger;
-    public QuizzesController(IQuizService quizService, QuizSheetExporter sheetExporter, ILogger<QuizzesController> logger)
+    private readonly ICloudinaryService _cloudinaryService;
+    public QuizzesController(IQuizService quizService, QuizSheetExporter sheetExporter, ILogger<QuizzesController> logger, ICloudinaryService cloudinaryService)
     {
         _quizService = quizService;
         _sheetExporter = sheetExporter;
         _logger = logger;
+        _cloudinaryService = cloudinaryService;
     }
     private async Task TrySyncSheetAsync(int quizId)
     {
@@ -402,4 +405,81 @@ public async Task<IActionResult> GetLatestQuizResult(int quizId)
         }
     });
 }
+    [HttpGet("{quizId:int}/my-attempts")]
+    [Authorize(Roles = "Learner")]
+    public async Task<ActionResult<ApiResponse<List<LearnerQuizAttemptHistoryDto>>>> GetMyQuizAttempts(int quizId)
+    {
+        var learnerId = GetCurrentUserId();
+        if (learnerId is null) return Unauthorized();
+        if (quizId <= 0) return BadRequest(ApiResponse<List<LearnerQuizAttemptHistoryDto>>.FailureResponse("QuizId không hợp lệ."));
+        var attempts = await _quizService.GetMyQuizAttemptsAsync(quizId, learnerId.Value);
+        return Ok(ApiResponse<List<LearnerQuizAttemptHistoryDto>>.SuccessResponse(attempts, "Lịch sử làm Quiz của học viên."));
+    }
+
+
+    [HttpPost("media/upload")]
+    [Authorize(Roles = "Instructor")]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(110L * 1024 * 1024)]
+    [RequestFormLimits(MultipartBodyLengthLimit = 110L * 1024 * 1024)]
+    public async Task<IActionResult> UploadQuizMedia([FromForm] IFormFile? file, [FromForm] string? mediaType)
+    {
+        if (file is null || file.Length == 0)
+            return BadRequest(new { message = "Vui lòng chọn file cần tải lên." });
+
+        var type = mediaType?.Trim().ToUpperInvariant();
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+        var allowedExtensions = new Dictionary<string, string[]>
+        {
+            ["AUDIO"] = new[] { ".mp3", ".wav", ".m4a", ".ogg" },
+            ["VIDEO"] = new[] { ".mp4", ".webm", ".mov" },
+            ["IMAGE"] = new[] { ".jpg", ".jpeg", ".png", ".webp" }
+        };
+        var limits = new Dictionary<string, long>
+        {
+            ["AUDIO"] = 25L * 1024 * 1024,
+            ["VIDEO"] = 100L * 1024 * 1024,
+            ["IMAGE"] = 10L * 1024 * 1024
+        };
+
+        if (type is null || !allowedExtensions.ContainsKey(type))
+            return BadRequest(new { message = "Loại media không hợp lệ." });
+        if (!allowedExtensions[type].Contains(extension))
+            return BadRequest(new { message = "Định dạng file không được hỗ trợ." });
+        if (file.Length > limits[type])
+            return BadRequest(new { message = $"Dung lượng tối đa {limits[type] / (1024 * 1024)}MB." });
+
+        try
+        {
+            var folder = $"mseek/quizzes/{type.ToLowerInvariant()}";
+            string? mediaUrl;
+            string? publicId;
+            if (type == "IMAGE")
+            {
+                var result = await _cloudinaryService.UploadImageAsync(file, folder);
+                mediaUrl = result.SecureUrl?.ToString();
+                publicId = result.PublicId;
+            }
+            else
+            {
+                // Cloudinary uses resource_type=video for audio and video.
+                var result = await _cloudinaryService.UploadVideoAsync(file, folder);
+                mediaUrl = result.SecureUrl?.ToString();
+                publicId = result.PublicId;
+            }
+            if (string.IsNullOrWhiteSpace(mediaUrl) || string.IsNullOrWhiteSpace(publicId))
+            {
+                _logger.LogWarning("Cloudinary returned incomplete media upload data for {MediaType}", type);
+                return StatusCode(502, new { message = "Cloudinary không trả về thông tin file hợp lệ." });
+            }
+            return Ok(new { mediaUrl, mediaType = type, publicId });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Quiz media upload failed for {MediaType}", type);
+            return StatusCode(502, new { message = "Không thể tải file lên Cloudinary. Vui lòng thử lại." });
+        }
+    }
+
+
 }

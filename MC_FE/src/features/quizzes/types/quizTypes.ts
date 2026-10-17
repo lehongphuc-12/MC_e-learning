@@ -51,3 +51,5 @@ export interface ManualGradeQuizAnswerRequest { score: number; teacherFeedback?:
 export interface LatestQuizResultDto { attemptId: number; }
 export interface QuizListItemDto { quizId: number; courseId: number; lessonId: number | null; title: string; description?: string | null; timeLimitMinutes: number; passingScore: number; maxAttempts: number; status: QuizStatus; availableFrom?: string | null; availableUntil?: string | null; createdAt: string; questionCount?: number; }
 export interface ApiResponse<T> { success: boolean; message: string; data: T; errors: string[]; }
+
+export interface LearnerQuizAttemptHistoryDto { attemptId: number; quizId: number; attemptNumber: number; score: number | null; resultStatus: QuizAttemptStatus | number | null; startedAt: string; submittedAt: string | null; }

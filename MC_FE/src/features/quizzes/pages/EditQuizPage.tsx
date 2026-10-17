@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Plus, Save, CalendarClock } from 'lucide-react';
+import { ArrowLeft, Plus, Save, CalendarClock, Mic2, ClipboardList, Clock3, Target, FileQuestion, CheckCircle2, Sparkles, Lightbulb, Headphones, ShieldCheck, ChevronDown, ChevronUp, Copy, Trash2, GripVertical, AlertCircle, Loader2 } from 'lucide-react';
 import { useQuiz, useUpdateQuiz } from '../hooks/useQuiz';
 import { QuizQuestionEditor } from '../components/QuizQuestionEditor';
 import { CreateQuestionRequest, QuestionDto, QuestionType, QuizStatus, UpdateChoiceRequest, UpdateQuestionRequest, UpdateQuizRequest } from '../types/quizTypes';
@@ -449,6 +449,7 @@ export const EditQuizPage: React.FC<EditQuizPageProps> = ({ onToast }) => {
     null
   );
   const [errorMessage, setErrorMessage] = useState('');
+  const [expandedQuestions, setExpandedQuestions] = useState<number[]>([]);
   useEffect(() => {
     if (!quiz || initializedQuizId === quiz.quizId) return;
     setTitle(quiz.title ?? '');
@@ -511,6 +512,26 @@ export const EditQuizPage: React.FC<EditQuizPageProps> = ({ onToast }) => {
     );
     setErrorMessage('');
   };
+  const toggleQuestion = (index: number) => setExpandedQuestions(current => current.includes(index) ? current.filter(i => i !== index) : [...current, index]);
+  const handleMoveQuestion = (index: number, direction: -1 | 1) => {
+    const target = index + direction;
+    if (target < 0 || target >= questions.length) return;
+    setQuestions(current => { const next = [...current]; [next[index], next[target]] = [next[target], next[index]]; return next.map((q, i) => ({ ...q, orderIndex: i + 1 })); });
+    setIdentities(current => { const next = [...current]; [next[index], next[target]] = [next[target], next[index]]; return next; });
+    setExpandedQuestions(current => current.map(i => i === index ? target : i === target ? index : i));
+  };
+  const handleDuplicateQuestion = (index: number) => {
+    const original = questions[index];
+    const duplicate: CreateQuestionRequest = { ...original, choices: original.choices.map(c => ({ ...c })), media: (original.media ?? []).map(m => ({ ...m })), errorRegions: (original.errorRegions ?? []).map(r => ({ ...r })), annotations: (original.annotations ?? []).map(a => ({ ...a })), arrangeItems: (original.arrangeItems ?? []).map(a => ({ ...a })), writingConfig: original.writingConfig ? { ...original.writingConfig } : null, scenarioNodes: (original.scenarioNodes ?? []).map((n: NonNullable<CreateQuestionRequest['scenarioNodes']>[number]) => ({ ...n, choices: (n.choices ?? []).map((c: NonNullable<typeof n.choices>[number]) => ({ ...c })) })) };
+    setQuestions(current => { const next = [...current]; next.splice(index + 1, 0, duplicate); return next.map((q, i) => ({ ...q, orderIndex: i + 1 })); });
+    setIdentities(current => { const next = [...current]; next.splice(index + 1, 0, { questionId: 0, choiceIds: duplicate.choices.map(() => 0) }); return next; });
+    setExpandedQuestions(current => [...current.map(i => i > index ? i + 1 : i), index + 1]);
+    setErrorMessage('');
+  };
+  const totalPoints = questions.reduce((sum, q) => sum + (Number(q.points) || 0), 0);
+  const statusLabel: Record<string, string> = { DRAFT: 'Bản nháp', ACTIVE: 'Đã xuất bản', INACTIVE: 'Ngừng hoạt động', ARCHIVED: 'Lưu trữ' };
+  const handleAddAndExpand = () => { setExpandedQuestions(current => [...current, questions.length]); handleAddQuestion(); };
+  const handleRemoveAndCollapse = (index: number) => { handleRemoveQuestion(index); setExpandedQuestions(current => current.filter(i => i !== index).map(i => i > index ? i - 1 : i)); };
   const validateForm = (): string | null => {
     if (availableFrom && Number.isNaN(new Date(availableFrom).getTime())) return 'Ngày giờ bắt đầu không hợp lệ.';
     if (availableUntil && Number.isNaN(new Date(availableUntil).getTime())) return 'Ngày giờ kết thúc không hợp lệ.';
@@ -660,211 +681,68 @@ export const EditQuizPage: React.FC<EditQuizPageProps> = ({ onToast }) => {
     );
   }
   return (
-    <div className="min-h-screen bg-slate-50">
-      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mb-6">
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            className="mb-4 inline-flex items-center gap-2 text-sm font-semibold text-slate-500 transition hover:text-blue-600"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Quay lại
-          </button>
-          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-600">
-                Quiz Management
-              </p>
-              <h1 className="mt-2 text-2xl font-black text-slate-900 sm:text-3xl">
-                Chỉnh sửa Quiz
-              </h1>
-              <p className="mt-2 text-sm text-slate-500">
-                Quiz #{quiz.quizId}
-                {quiz.lessonId
-                  ? ` • Lesson #${quiz.lessonId}`
-                  : ' • Quiz tổng khóa học'}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={handleUpdateQuiz}
-              disabled={updateQuizMutation.isPending}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <Save className="h-4 w-4" />
-              {updateQuizMutation.isPending
-                ? 'Đang lưu...'
-                : 'Lưu thay đổi'}
-            </button>
+    <div className="min-h-screen bg-[#eaf2fd] pb-12 text-[#10265b]">
+      <style>{`@keyframes eq-rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}@keyframes eq-wave{0%,100%{transform:scaleY(.35)}50%{transform:scaleY(1)}}@keyframes eq-glow{0%,100%{opacity:.45;transform:translateX(0)}50%{opacity:.8;transform:translateX(15px)}}.eq-rise{animation:eq-rise .55s ease both}.eq-card{transition:box-shadow .25s ease,transform .25s ease}.eq-card:hover{box-shadow:0 14px 36px rgba(31,89,167,.09)}.eq-wave span{display:block;width:3px;border-radius:6px;background:#70c6ff;animation:eq-wave 1.3s ease-in-out infinite}@media(prefers-reduced-motion:reduce){.eq-rise,.eq-wave span{animation:none!important}.eq-card{transition:none!important}}`}</style>
+      <header className="relative overflow-hidden bg-gradient-to-r from-[#071c50] via-[#0752ba] to-[#092c76] text-white">
+        <div className="pointer-events-none absolute -right-16 -top-32 h-96 w-[650px] rounded-full border-[70px] border-blue-400/10 rotate-[-18deg]" />
+        <div className="pointer-events-none absolute bottom-0 left-1/3 h-24 w-[650px] rounded-[100%] bg-blue-400/15 blur-3xl" />
+        <div className="relative mx-auto flex max-w-[1460px] items-center justify-between gap-6 px-5 pb-12 pt-5 sm:px-8 lg:px-10">
+          <div className="eq-rise relative z-10 max-w-3xl">
+            <button type="button" onClick={() => navigate(-1)} className="mb-5 inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-xs font-bold transition hover:bg-white/20"><ArrowLeft className="h-4 w-4" /> Quay lại</button>
+            <p className="text-[11px] font-bold uppercase tracking-[.2em] text-blue-100">Quiz Management / Chỉnh sửa Quiz</p>
+            <h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">Chỉnh sửa Quiz</h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-blue-50/90">Cập nhật thông tin, chỉnh sửa câu hỏi và thiết lập cấu hình phù hợp với mục tiêu bài học.</p>
+            <div className="mt-4 flex items-center gap-2"><span className="h-1.5 w-14 rounded-full bg-amber-300" /><span className="h-1.5 w-8 rounded-full bg-sky-300" /><span className="h-1.5 w-6 rounded-full bg-emerald-300" /></div>
+            <p className="mt-3 text-xs text-blue-100/80">Quiz #{quiz.quizId} · {quiz.lessonId ? `Lesson #${quiz.lessonId}` : 'Quiz tổng khóa học'}</p>
+          </div>
+          <div className="pointer-events-none hidden items-center gap-5 lg:flex">
+            <div className="eq-wave flex h-20 items-center gap-1">{Array.from({length:19}, (_,i) => <span key={i} style={{height:`${14+(i*17%55)}px`,animationDelay:`${i*.09}s`}} />)}</div>
+            <div className="relative flex h-32 w-32 items-center justify-center rounded-full border border-sky-300/25 bg-white/10 shadow-[0_0_65px_rgba(80,185,255,.25)]"><Mic2 className="h-20 w-20 text-sky-100 drop-shadow-lg" /><Sparkles className="absolute -right-2 top-1 h-6 w-6 text-amber-200" /></div>
           </div>
         </div>
-        {errorMessage && (
-          <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-            {errorMessage}
-          </div>
-        )}
-        <section className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-          <div className="mb-5">
-            <h2 className="text-lg font-bold text-slate-900">
-              Thông tin Quiz
-            </h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Chỉnh sửa thông tin chung của bài kiểm tra.
-            </p>
-          </div>
-          <div className="grid gap-5 md:grid-cols-2">
-            <label className="md:col-span-2">
-              <span className={labelClass}>Tên Quiz *</span>
-              <input
-                value={title}
-                onChange={(e) => {
-                  setTitle(e.target.value);
-                  setErrorMessage('');
-                }}
-                className={inputClass}
-              />
-            </label>
-            <label className="md:col-span-2">
-              <span className={labelClass}>Mô tả</span>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={3}
-                className={`${inputClass} resize-none`}
-              />
-            </label>
-            <div className="md:col-span-2 rounded-2xl border border-violet-200 bg-violet-50/50 p-4 sm:p-5">
-              <div className="mb-4 flex items-center gap-2 text-violet-900"><CalendarClock className="h-5 w-5" /><h3 className="font-bold">Lịch mở và đóng Quiz</h3></div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label><span className={labelClass}>Ngày và giờ bắt đầu</span><input type="datetime-local" value={availableFrom} onChange={(e) => { setAvailableFrom(e.target.value); setErrorMessage(''); }} className={inputClass} /></label>
-                <label><span className={labelClass}>Ngày và giờ kết thúc</span><input type="datetime-local" min={availableFrom || undefined} value={availableUntil} onChange={(e) => { setAvailableUntil(e.target.value); setErrorMessage(''); }} className={inputClass} /></label>
+      </header>
+      <div className="relative z-10 mx-auto -mt-6 max-w-[1460px] px-4 sm:px-7 lg:px-9">
+        {errorMessage && <div role="alert" className="eq-rise mb-4 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-semibold text-red-700"><AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />{errorMessage}</div>}
+        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_350px]">
+          <main className="min-w-0 space-y-4">
+            <section className="eq-rise eq-card rounded-[22px] border border-[#dce8fa] bg-white p-5 shadow-sm sm:p-6">
+              <div className="mb-5 flex items-center gap-3"><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-100 text-blue-600"><ClipboardList className="h-6 w-6" /></div><div><h2 className="text-base font-extrabold">Thông tin Quiz</h2><p className="text-xs text-slate-500">Cập nhật các thông tin cơ bản của bài kiểm tra.</p></div></div>
+              <div className="grid gap-x-5 gap-y-4 md:grid-cols-[minmax(0,1fr)_230px]">
+                <label className="block"><span className={labelClass}>Tên Quiz <span className="text-red-500">*</span></span><input value={title} onChange={e => {setTitle(e.target.value);setErrorMessage('');}} className={inputClass} placeholder="Nhập tên bài kiểm tra" /></label>
+                <label className="block"><span className={labelClass}>Trạng thái</span><select value={status} onChange={e => setStatus(e.target.value as QuizStatus)} className={inputClass}><option value="DRAFT">Bản nháp</option><option value="ACTIVE">Đã xuất bản</option><option value="INACTIVE">Ngừng hoạt động</option><option value="ARCHIVED">Lưu trữ</option></select></label>
+                <label className="block"><span className={labelClass}>Mô tả</span><textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} className={`${inputClass} resize-none`} placeholder="Mô tả nội dung bài kiểm tra" /></label>
+                <label className="block"><span className={labelClass}>Thời gian làm bài (phút)</span><input type="number" min={0} value={timeLimitMinutes} onChange={e => setTimeLimitMinutes(Math.max(0,Number(e.target.value)))} className={inputClass} /><span className="mt-1 block text-[11px] text-slate-400">0 = không giới hạn thời gian.</span></label>
+                <div className="md:col-span-2 grid gap-4 sm:grid-cols-2">
+                  <label><span className={labelClass}>Thời gian mở</span><input type="datetime-local" value={availableFrom} onChange={e => {setAvailableFrom(e.target.value);setErrorMessage('');}} className={inputClass} /></label>
+                  <label><span className={labelClass}>Thời gian đóng</span><input type="datetime-local" min={availableFrom || undefined} value={availableUntil} onChange={e => {setAvailableUntil(e.target.value);setErrorMessage('');}} className={inputClass} /></label>
+                </div>
+                <div className="md:col-span-2 grid gap-4 sm:grid-cols-2"><label><span className={labelClass}>Điểm đạt (%)</span><input type="number" min={0} max={100} value={passingScore} onChange={e => setPassingScore(Number(e.target.value))} className={inputClass} /></label><label><span className={labelClass}>Số lần được làm</span><input type="number" min={1} step={1} value={maxAttempts} onChange={e => setMaxAttempts(Number(e.target.value))} className={inputClass} /></label></div>
+                <p className="md:col-span-2 -mt-1 flex items-center gap-2 text-[11px] text-slate-400"><CalendarClock className="h-3.5 w-3.5" /> Để trống lịch nếu không giới hạn. Thời gian nhập theo thiết bị và lưu dưới dạng UTC.</p>
               </div>
-              <p className="mt-3 text-xs text-slate-500">Để trống nếu không giới hạn. Giờ theo thiết bị, lưu UTC.</p>
-            </div>
-            <label>
-              <span className={labelClass}>
-                Thời gian làm bài (phút)
-              </span>
-              <input
-                type="number"
-                min={0}
-                value={timeLimitMinutes}
-                onChange={(e) =>
-                  setTimeLimitMinutes(
-                    Math.max(0, Number(e.target.value))
-                  )
-                }
-                className={inputClass}
-              />
-              <span className="mt-1 block text-xs text-slate-400">
-                0 = không giới hạn thời gian.
-              </span>
-            </label>
-            <label>
-              <span className={labelClass}>Điểm đạt (%)</span>
-              <input
-                type="number"
-                min={0}
-                max={100}
-                value={passingScore}
-                onChange={(e) =>
-                  setPassingScore(Number(e.target.value))
-                }
-                className={inputClass}
-              />
-            </label>
-            <label>
-              <span className={labelClass}>Số lần được làm</span>
-              <input
-                type="number"
-                min={1}
-                step={1}
-                value={maxAttempts}
-                onChange={(e) =>
-                  setMaxAttempts(Number(e.target.value))
-                }
-                className={inputClass}
-              />
-            </label>
-            <label>
-              <span className={labelClass}>Trạng thái</span>
-              <select
-                value={status}
-                onChange={(e) =>
-                  setStatus(e.target.value as QuizStatus)
-                }
-                className={inputClass}
-              >
-                <option value="DRAFT">Nháp</option>
-                <option value="ACTIVE">Đã xuất bản</option>
-                <option value="INACTIVE">Ngừng hoạt động</option>
-                <option value="ARCHIVED">Lưu trữ</option>
-              </select>
-            </label>
-          </div>
-        </section>
-        <section>
-          <div className="mb-4 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-            <div>
-              <h2 className="text-lg font-bold text-slate-900">
-                Câu hỏi & bài tập
-              </h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Quiz hiện có {questions.length} câu hỏi/bài tập.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={handleAddQuestion}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-bold text-blue-600 transition hover:border-blue-300 hover:bg-blue-100"
-            >
-              <Plus className="h-4 w-4" />
-              Thêm câu hỏi
-            </button>
-          </div>
-          <div className="space-y-5">
-            {questions.map((question, index) => (
-              <QuizQuestionEditor
-                key={`${identities[index]?.questionId ?? 0}-${index}`}
-                question={question}
-                questionNumber={index + 1}
-                onChange={(updatedQuestion) =>
-                  handleQuestionChange(index, updatedQuestion)
-                }
-                onRemove={() => handleRemoveQuestion(index)}
-                canRemove={questions.length > 1}
-              />
-            ))}
-          </div>
-        </section>
-        <div className="mt-8 flex flex-col-reverse gap-3 border-t border-slate-200 pt-6 sm:flex-row sm:justify-end">
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            disabled={updateQuizMutation.isPending}
-            className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50 disabled:opacity-60"
-          >
-            Hủy
-          </button>
-          <button
-            type="button"
-            onClick={handleUpdateQuiz}
-            disabled={updateQuizMutation.isPending}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            <Save className="h-4 w-4" />
-            {updateQuizMutation.isPending
-              ? 'Đang lưu...'
-              : 'Lưu thay đổi'}
-          </button>
+            </section>
+            <section className="eq-rise eq-card rounded-[22px] border border-[#dce8fa] bg-white p-5 shadow-sm sm:p-6" style={{animationDelay:'.08s'}}>
+              <div className="mb-5 flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-3"><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-100 text-blue-600"><FileQuestion className="h-6 w-6" /></div><div><h2 className="text-base font-extrabold">Danh sách câu hỏi</h2><p className="text-xs text-slate-500">{questions.length} câu hỏi · Mở từng câu để chỉnh sửa nội dung.</p></div></div><button type="button" onClick={handleAddAndExpand} className="inline-flex items-center gap-2 rounded-xl bg-[#0865f6] px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-blue-200 transition hover:-translate-y-0.5 hover:bg-blue-700"><Plus className="h-4 w-4" /> Thêm câu hỏi</button></div>
+              <div className="space-y-3">
+                {questions.map((question,index) => { const expanded = expandedQuestions.includes(index); return <div key={`${identities[index]?.questionId ?? 0}-${index}`} className="overflow-hidden rounded-xl border border-[#dbe6f6] bg-white transition hover:border-blue-200 hover:shadow-sm">
+                  <div className="flex items-start gap-2 px-3 py-3 sm:px-4"><GripVertical className="mt-1 h-4 w-4 shrink-0 text-slate-300" /><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="text-sm font-extrabold">Câu {index+1}</span><span className="rounded-md bg-blue-50 px-2 py-1 text-[10px] font-bold text-blue-700">{question.questionType.replaceAll('_',' ')}</span><span className="rounded-md bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-700">{question.points ?? 0} điểm</span>{question.isRequired && <span className="rounded-md bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700">Bắt buộc</span>}</div><p className="mt-1.5 truncate text-xs text-slate-600">{question.questionText || 'Câu hỏi chưa có nội dung'}</p></div>
+                    <div className="flex shrink-0 items-center gap-1"><button type="button" title="Di chuyển lên" disabled={index===0} onClick={() => handleMoveQuestion(index,-1)} className="rounded-lg border border-slate-200 p-1.5 text-slate-500 hover:bg-blue-50 disabled:opacity-30"><ChevronUp className="h-4 w-4" /></button><button type="button" title="Di chuyển xuống" disabled={index===questions.length-1} onClick={() => handleMoveQuestion(index,1)} className="rounded-lg border border-slate-200 p-1.5 text-slate-500 hover:bg-blue-50 disabled:opacity-30"><ChevronDown className="h-4 w-4" /></button><button type="button" title="Nhân bản câu hỏi" onClick={() => handleDuplicateQuestion(index)} className="rounded-lg border border-slate-200 p-1.5 text-slate-500 hover:bg-blue-50"><Copy className="h-4 w-4" /></button><button type="button" title={expanded?'Thu gọn':'Chỉnh sửa'} onClick={() => toggleQuestion(index)} className="rounded-lg border border-blue-200 p-1.5 text-blue-600 hover:bg-blue-50">{expanded?<ChevronUp className="h-4 w-4" />:<ChevronDown className="h-4 w-4" />}</button><button type="button" title="Xóa câu hỏi" disabled={questions.length<=1} onClick={() => handleRemoveAndCollapse(index)} className="rounded-lg border border-red-100 p-1.5 text-red-500 hover:bg-red-50 disabled:opacity-30"><Trash2 className="h-4 w-4" /></button></div>
+                  </div>
+                  {expanded && <div className="border-t border-[#e6edf9] bg-[#f8fbff] p-3 sm:p-4"><QuizQuestionEditor question={question} questionNumber={index+1} onChange={updated => handleQuestionChange(index,updated)} onRemove={() => handleRemoveAndCollapse(index)} canRemove={questions.length>1} /></div>}
+                </div>; })}
+              </div>
+            </section>
+            <div className="flex flex-wrap justify-end gap-3 pb-6"><button type="button" disabled={updateQuizMutation.isPending} onClick={() => navigate(-1)} className="rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-600 hover:bg-slate-50 disabled:opacity-60">Hủy</button><button type="button" disabled={updateQuizMutation.isPending} onClick={handleUpdateQuiz} className="inline-flex items-center gap-2 rounded-xl bg-[#0865f6] px-6 py-3 text-sm font-bold text-white shadow-lg shadow-blue-200 transition hover:-translate-y-0.5 hover:bg-blue-700 disabled:opacity-60">{updateQuizMutation.isPending?<Loader2 className="h-4 w-4 animate-spin" />:<Save className="h-4 w-4" />}{updateQuizMutation.isPending?'Đang lưu...':'Lưu thay đổi'}</button></div>
+          </main>
+          <aside className="space-y-4 xl:sticky xl:top-5">
+            <section className="eq-rise eq-card rounded-[22px] border border-[#dce8fa] bg-white p-5 shadow-sm" style={{animationDelay:'.1s'}}><div className="mb-4 flex items-center gap-3"><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-100 text-blue-600"><Target className="h-6 w-6" /></div><div><h2 className="text-base font-extrabold">Tổng quan Quiz</h2><p className="text-xs text-slate-500">Thông tin và thống kê nhanh</p></div></div><div className="grid grid-cols-2 gap-3"><div className="rounded-xl border border-blue-50 bg-[#f5f9ff] p-3"><FileQuestion className="mb-2 h-5 w-5 text-blue-600" /><strong className="block text-lg font-black">{questions.length}</strong><span className="text-[11px] text-slate-500">Tổng câu hỏi</span></div><div className="rounded-xl border border-amber-100 bg-amber-50/60 p-3"><Sparkles className="mb-2 h-5 w-5 text-amber-500" /><strong className="block text-lg font-black">{totalPoints}</strong><span className="text-[11px] text-slate-500">Tổng điểm</span></div><div className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-3"><Clock3 className="mb-2 h-5 w-5 text-emerald-600" /><strong className="block text-lg font-black">{timeLimitMinutes || '∞'}</strong><span className="text-[11px] text-slate-500">{timeLimitMinutes?'Phút làm bài':'Không giới hạn'}</span></div><div className="rounded-xl border border-blue-50 bg-[#f7f7ff] p-3"><ShieldCheck className="mb-2 h-5 w-5 text-blue-600" /><strong className="block truncate text-sm font-extrabold">{statusLabel[status] || status}</strong><span className="text-[11px] text-slate-500">Trạng thái</span></div></div><div className="mt-4 flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-xs"><span className="text-slate-500">Điểm đạt</span><span className="font-extrabold text-blue-700">{passingScore}%</span></div></section>
+            <section className="eq-rise rounded-[22px] border border-amber-100 bg-[#fff9ed] p-5" style={{animationDelay:'.16s'}}><h3 className="flex items-center gap-2 text-sm font-extrabold text-amber-800"><Lightbulb className="h-5 w-5 text-amber-500" /> Mẹo chỉnh sửa hiệu quả</h3><div className="mt-4 space-y-3">{['Kiểm tra nội dung câu hỏi trước khi lưu','Đảm bảo đáp án đúng cho mỗi câu hỏi','Cung cấp hướng dẫn chi tiết cho học viên','Thiết lập thời gian phù hợp','Kiểm tra lại Quiz sau khi cập nhật'].map(item => <div key={item} className="flex items-start gap-2 text-xs leading-5 text-[#25406b]"><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />{item}</div>)}</div></section>
+            <section className="eq-rise rounded-[22px] border border-blue-100 bg-[#eff6ff] p-5" style={{animationDelay:'.22s'}}><div className="flex items-start gap-3"><div className="rounded-xl bg-blue-100 p-3 text-blue-600"><Headphones className="h-6 w-6" /></div><div><h3 className="text-sm font-extrabold">Cần hỗ trợ?</h3><p className="mt-1 text-xs leading-5 text-slate-500">Mở từng câu hỏi để sử dụng đầy đủ bộ công cụ chỉnh sửa nội dung, âm thanh và đáp án.</p></div></div></section>
+          </aside>
         </div>
       </div>
     </div>
   );
 };
-const inputClass =
-  'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100';
-const labelClass =
-  'mb-1.5 block text-xs font-bold text-slate-600';
+const inputClass = 'w-full rounded-xl border border-[#d5e1f2] bg-white px-3.5 py-2.5 text-sm text-[#18305c] outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 placeholder:text-slate-400';
+const labelClass = 'mb-1.5 block text-xs font-bold text-[#18305c]';
 export default EditQuizPage;

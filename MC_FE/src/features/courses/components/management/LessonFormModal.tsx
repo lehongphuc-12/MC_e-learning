@@ -6,7 +6,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   X, Save, Loader2, Video, Mic2, FileText, ClipboardList,
-  Upload, Link2, CheckCircle2, Trash2, CloudUpload,
+  Upload, Link2, CheckCircle2, Trash2, CloudUpload, Sparkles, Clock,
 } from 'lucide-react';
 import type { Lesson, CreateLessonDto } from '../../types/lessonTypes';
 import type { CourseModule } from '../../types/moduleTypes';
@@ -86,7 +86,22 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
       setVideoUrl(existingLesson.videoUrl ?? '');
       setModuleId(existingLesson.moduleId ?? null);
       setLessonType(existingLesson.lessonType || 'VIDEO');
-      setDurationMinutes(existingLesson.durationMinutes);
+
+      // Sync duration with detected duration or content reading time
+      let computedMins = existingLesson.durationMinutes;
+      try {
+        const cached = localStorage.getItem(`mseek_lesson_duration_${existingLesson.lessonId}`);
+        if (cached) {
+          const sec = parseFloat(cached);
+          if (!isNaN(sec) && sec > 0) {
+            computedMins = Math.max(1, Math.round(sec / 60));
+          }
+        } else if (!existingLesson.videoUrl && (computedMins > 20 || computedMins === 0)) {
+          computedMins = calculateDurationFromContent(existingLesson.description ?? '');
+        }
+      } catch (_) {}
+
+      setDurationMinutes(computedMins);
       setOrderIndex(existingLesson.orderIndex);
       setIsPreview(existingLesson.isPreview);
     } else {
@@ -107,6 +122,102 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
     setUploadError(null);
     setVideoInputMode('url');
   }, [existingLesson, isOpen, defaultModuleId, defaultLessonType, modules]);
+
+  // ─── Duration calculation & auto-detection ───────────────────────────
+
+  // Auto-calculate reading duration from description text content
+  const calculateDurationFromContent = (text: string) => {
+    const words = text.trim().split(/\s+/).filter(Boolean).length;
+    if (words === 0) return 10;
+    // Average reading speed ~ 150 words per minute
+    return Math.max(1, Math.ceil(words / 150));
+  };
+
+  // Auto-detect duration when direct video URL is entered
+  useEffect(() => {
+    if (!videoUrl || videoUrl.trim() === '') return;
+
+    const isDirectVideo =
+      videoUrl.endsWith('.mp4') ||
+      videoUrl.endsWith('.webm') ||
+      videoUrl.endsWith('.ogg') ||
+      videoUrl.includes('r2.cloudflarestorage.com') ||
+      videoUrl.includes('res.cloudinary.com') ||
+      videoUrl.includes('storage.googleapis.com');
+
+    if (isDirectVideo) {
+      try {
+        const v = document.createElement('video');
+        v.preload = 'metadata';
+        v.src = videoUrl;
+        v.onloadedmetadata = () => {
+          if (v.duration && !isNaN(v.duration) && v.duration > 0) {
+            const mins = Math.max(1, Math.round(v.duration / 60));
+            setDurationMinutes(mins);
+          }
+        };
+      } catch (_) {}
+    }
+  }, [videoUrl]);
+
+  // Listen to YouTube postMessage from preview player to capture duration
+  useEffect(() => {
+    const handleMsg = (e: MessageEvent) => {
+      try {
+        let data = e.data;
+        if (typeof data === 'string' && data.startsWith('{')) {
+          data = JSON.parse(data);
+        }
+        const info = data?.info || data;
+        const dur = info?.duration ?? data?.duration;
+        if (typeof dur === 'number' && dur > 0 && !isNaN(dur)) {
+          const mins = Math.max(1, Math.round(dur / 60));
+          setDurationMinutes(mins);
+        }
+      } catch (_) {}
+    };
+
+    window.addEventListener('message', handleMsg);
+    return () => window.removeEventListener('message', handleMsg);
+  }, []);
+
+  const handleAutoCalculateDuration = () => {
+    if (selectedFile) {
+      try {
+        const v = document.createElement('video');
+        v.preload = 'metadata';
+        const objUrl = URL.createObjectURL(selectedFile);
+        v.src = objUrl;
+        v.onloadedmetadata = () => {
+          if (v.duration && v.duration > 0) {
+            setDurationMinutes(Math.max(1, Math.round(v.duration / 60)));
+          }
+          URL.revokeObjectURL(objUrl);
+        };
+      } catch (_) {}
+      return;
+    }
+
+    if (videoUrl) {
+      const isDirect = !videoUrl.includes('youtube.com') && !videoUrl.includes('youtu.be');
+      if (isDirect) {
+        try {
+          const v = document.createElement('video');
+          v.preload = 'metadata';
+          v.src = videoUrl;
+          v.onloadedmetadata = () => {
+            if (v.duration && v.duration > 0) {
+              setDurationMinutes(Math.max(1, Math.round(v.duration / 60)));
+            }
+          };
+        } catch (_) {}
+        return;
+      }
+    }
+
+    // Otherwise calculate from description content
+    setDurationMinutes(calculateDurationFromContent(description));
+  };
 
   if (!isOpen) return null;
 
@@ -130,6 +241,21 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
     }
 
     setSelectedFile(file);
+
+    // Auto-detect duration from file
+    try {
+      const tempVideo = document.createElement('video');
+      tempVideo.preload = 'metadata';
+      const objUrl = URL.createObjectURL(file);
+      tempVideo.src = objUrl;
+      tempVideo.onloadedmetadata = () => {
+        if (tempVideo.duration && !isNaN(tempVideo.duration) && tempVideo.duration > 0) {
+          const mins = Math.max(1, Math.round(tempVideo.duration / 60));
+          setDurationMinutes(mins);
+        }
+        URL.revokeObjectURL(objUrl);
+      };
+    } catch (_) {}
   };
 
   // ─── Direct upload to R2 (edit mode only) ─────────────────────────────
@@ -502,7 +628,7 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
                       src={
                         (() => {
                           const m = videoUrl.match(/(?:youtu\.be\/|v\/|u\/\w+\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/);
-                          return (m && m[1]) ? `https://www.youtube.com/embed/${m[1]}` : videoUrl;
+                          return (m && m[1]) ? `https://www.youtube.com/embed/${m[1]}?enablejsapi=1` : videoUrl;
                         })()
                       }
                       className="w-full aspect-video rounded-lg max-h-56 border border-slate-800 shadow-md"
@@ -512,6 +638,12 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
                     <video
                       src={videoUrl}
                       controls
+                      onLoadedMetadata={(e) => {
+                        const dur = e.currentTarget.duration;
+                        if (dur && dur > 0) {
+                          setDurationMinutes(Math.max(1, Math.round(dur / 60)));
+                        }
+                      }}
                       className="w-full max-h-56 rounded-lg bg-black border border-slate-800 shadow-md"
                     />
                   )}
@@ -576,7 +708,14 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
                   : 'Nội dung chính học viên sẽ thu hoạch được sau bài học này...'
               }
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setDescription(val);
+                // Auto-update duration from content if no video is specified
+                if (!videoUrl && !selectedFile && !isEditMode) {
+                  setDurationMinutes(calculateDurationFromContent(val));
+                }
+              }}
               className="w-full rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-50/80 transition-all resize-none"
             />
           </div>
@@ -584,9 +723,20 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
           {/* Row: Duration & OrderIndex */}
           <div className={`grid ${lessonType === 'ASSIGNMENT' ? 'grid-cols-1' : 'grid-cols-2'} gap-4`}>
             <div>
-              <label htmlFor="lesson-duration" className="block text-xs font-bold text-slate-700 mb-1">
-                Thời lượng (Phút)
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label htmlFor="lesson-duration" className="block text-xs font-bold text-slate-700">
+                  Thời lượng (Phút)
+                </label>
+                <button
+                  type="button"
+                  onClick={handleAutoCalculateDuration}
+                  className="text-[11px] font-bold text-blue-600 hover:text-blue-700 flex items-center gap-1 cursor-pointer transition-colors"
+                  title="Tự động tính thời lượng dựa theo Video hoặc độ dài Nội dung bài học"
+                >
+                  <Sparkles className="h-3 w-3 text-amber-500" />
+                  <span>Tự tính theo {videoUrl || selectedFile ? 'video' : 'nội dung'}</span>
+                </button>
+              </div>
               <input
                 id="lesson-duration"
                 type="number"
@@ -595,6 +745,14 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
                 onChange={(e) => setDurationMinutes(Number(e.target.value))}
                 className="w-full rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-2.5 text-sm text-slate-800 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-50/80 transition-all"
               />
+              <p className="mt-1 text-[11px] text-slate-400 flex items-center gap-1">
+                <Clock className="h-3 w-3 text-slate-400 shrink-0" />
+                <span>
+                  {videoUrl || selectedFile
+                    ? 'Tự cập nhật theo video (hoặc bấm nút trên để tính lại).'
+                    : 'Tự cập nhật theo độ dài nội dung (ước tính ~150 từ/phút, mặc định 10 phút).'}
+                </span>
+              </p>
             </div>
 
             {lessonType !== 'ASSIGNMENT' && (

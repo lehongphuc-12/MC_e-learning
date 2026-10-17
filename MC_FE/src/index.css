@@ -89,6 +89,20 @@
   }
 }
 
+/* Scrollbar hide utility */
+.scrollbar-hide {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Instructor sidebar scrollbar */
+.instructor-sidebar nav::-webkit-scrollbar {
+  display: none;
+}
+
 /* scrollbar cho chat */
 .mseek-chat-scroll::-webkit-scrollbar {
   width: 5px;

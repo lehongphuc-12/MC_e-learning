@@ -27,6 +27,7 @@ public class QuizService : IQuizService
     private readonly IGenericRepository<QuizAnswerScenarioPath> _answerScenarioPathRepository;
     private readonly IGenericRepository<Course> _courseRepository;
     private readonly IGenericRepository<Lesson> _lessonRepository;
+    private readonly IGenericRepository<User> _userRepository;
     private readonly IUnitOfWork _unitOfWork;
 
     public QuizService(
@@ -49,6 +50,7 @@ public class QuizService : IQuizService
         IGenericRepository<QuizAnswerScenarioPath> answerScenarioPathRepository,
         IGenericRepository<Course> courseRepository,
         IGenericRepository<Lesson> lessonRepository,
+        IGenericRepository<User> userRepository,
         IUnitOfWork unitOfWork)
     {
         _quizRepository = quizRepository;
@@ -70,6 +72,7 @@ public class QuizService : IQuizService
         _answerScenarioPathRepository = answerScenarioPathRepository;
         _courseRepository = courseRepository;
         _lessonRepository = lessonRepository;
+        _userRepository = userRepository;
         _unitOfWork = unitOfWork;
     }
 
@@ -498,6 +501,8 @@ public class QuizService : IQuizService
 
         var attempts = (await _attemptRepository.FindAsync(a => a.QuizId == quizId && a.UserId == learnerId)).ToList();
         var attempt = attempts.FirstOrDefault(a => !a.SubmittedAt.HasValue);
+        if (attempts.Any(a => a.ResultStatus == QuizAttemptStatus.PASSED)) throw new ArgumentException("You have already passed this quiz.");
+        if (attempts.Any(a => a.ResultStatus == QuizAttemptStatus.PENDING_GRADING)) throw new ArgumentException("Your previous attempt is awaiting instructor grading.");
         if (attempt is null)
         {
             if (attempts.Count >= quiz.MaxAttempts) throw new ArgumentException("You have reached the maximum number of attempts.");
@@ -749,9 +754,21 @@ public class QuizService : IQuizService
         if (quiz is null) throw new ArgumentException("Quiz not found.");
         if (quiz.CreatedById != instructorId) throw new UnauthorizedAccessException("You do not have permission to view these attempts.");
         var attempts = (await _attemptRepository.FindAsync(a => a.QuizId == quizId && a.SubmittedAt.HasValue)).OrderByDescending(a => a.SubmittedAt).ToList();
-        var ids = attempts.Select(a => a.AttemptId).ToList();
-        var answers = (await _answerRepository.FindAsync(a => ids.Contains(a.AttemptId))).ToList();
-        return attempts.Select(a => new InstructorQuizAttemptDto { AttemptId = a.AttemptId, QuizId = a.QuizId, UserId = a.UserId, AttemptNumber = a.AttemptNumber, SubmittedAt = a.SubmittedAt, ResultStatus = a.ResultStatus, Score = a.Score, PendingAnswers = answers.Count(x => x.AttemptId == a.AttemptId && !x.Score.HasValue) }).ToList();
+        if (attempts.Count == 0) return new List<InstructorQuizAttemptDto>();
+        var attemptIds = attempts.Select(a => a.AttemptId).ToList();
+        var userIds = attempts.Select(a => a.UserId).Distinct().ToList();
+        var answers = (await _answerRepository.FindAsync(a => attemptIds.Contains(a.AttemptId))).ToList();
+        var users = (await _userRepository.FindAsync(u => userIds.Contains(u.UserId))).ToList();
+        var names = users.ToDictionary(u => u.UserId, u => u.FullName);
+        var pendingCounts = answers.Where(a => !a.Score.HasValue).GroupBy(a => a.AttemptId).ToDictionary(g => g.Key, g => g.Count());
+        return attempts.Select(a => new InstructorQuizAttemptDto
+        {
+            AttemptId = a.AttemptId, QuizId = a.QuizId, UserId = a.UserId,
+            FullName = names.TryGetValue(a.UserId, out var name) ? name : null,
+            AttemptNumber = a.AttemptNumber, SubmittedAt = a.SubmittedAt,
+            ResultStatus = a.ResultStatus, Score = a.Score,
+            PendingAnswers = pendingCounts.TryGetValue(a.AttemptId, out var count) ? count : 0
+        }).ToList();
     }
 
     public async Task<QuizResultDto?> GetInstructorAttemptResultAsync(int instructorId, int quizId, int attemptId)
@@ -896,5 +913,22 @@ public async Task<int?> GetLatestQuizResultAsync(
     return latestAttempt?.AttemptId;
 
 }
+
+    public async Task<List<LearnerQuizAttemptHistoryDto>> GetMyQuizAttemptsAsync(int quizId, int learnerId)
+    {
+        var attempts = await _attemptRepository.FindAsync(a => a.QuizId == quizId && a.UserId == learnerId && a.SubmittedAt.HasValue);
+        return attempts.OrderByDescending(a => a.AttemptNumber).ThenByDescending(a => a.SubmittedAt)
+            .Select(a => new LearnerQuizAttemptHistoryDto
+            {
+                AttemptId = a.AttemptId,
+                QuizId = a.QuizId,
+                AttemptNumber = a.AttemptNumber,
+                Score = a.Score,
+                ResultStatus = a.ResultStatus,
+                StartedAt = a.StartedAt,
+                SubmittedAt = a.SubmittedAt
+            }).ToList();
+    }
+
 
 }

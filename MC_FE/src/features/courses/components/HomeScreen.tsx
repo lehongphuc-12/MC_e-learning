@@ -32,6 +32,174 @@ const fallbackAvatars = [
   'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=160&q=80',
   'https://images.unsplash.com/photo-1531123897727-8f129e1688ce?auto=format&fit=crop&w=160&q=80',
 ];
+
+const ROADMAP_DATA = [
+  {
+    step: 'Bước 1',
+    title: 'Tìm khóa học dành cho bạn',
+    desc: 'Khám phá những khóa học MC phù hợp với mục tiêu của mình và chọn nơi bắt đầu hành trình.',
+    img: '/images/lo_trinh_1.jpg',
+    bg: 'bg-[#1e40af]',
+  },
+  {
+    step: 'Bước 2',
+    title: 'Luyện tập cùng AI, tự tin theo cách của bạn',
+    desc: 'Thử nói, luyện lại và hoàn thiện bài dẫn nhiều lần. Khi đã hài lòng với phần thể hiện của mình, bạn chọn bài tốt nhất để nộp cho giảng viên.',
+    img: '/images/lo_trinh_2.jpg',
+    bg: 'bg-[#4338ca]',
+  },
+  {
+    step: 'Bước 3',
+    title: 'Học từ góp ý của giảng viên',
+    desc: 'Học qua từng bài giảng, thực hành và nhận nhận xét cho bài làm. Mỗi góp ý là một cơ hội để bạn dẫn tốt hơn ở lần tiếp theo.',
+    img: '/images/lo_trinh_3.jpg',
+    bg: 'bg-[#6d28d9]',
+  },
+  {
+    step: 'Bước 4',
+    title: 'Nhìn lại hành trình của mình',
+    desc: 'Theo dõi tiến độ, hoàn thành khóa học và nhận chứng chỉ khi đủ điều kiện. Từ những bài học đầu tiên, bạn sẽ thấy mình đã tiến xa đến đâu.',
+    img: '/images/lo_trinh_4.jpg',
+    bg: 'bg-[#0369a1]',
+  },
+];
+
+const RoadmapSection: React.FC<{ onNavigate: (screen: ScreenType) => void }> = ({ onNavigate }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const stickyTop = 80; // Chiều cao header dự kiến
+      const stickyHeight = window.innerHeight - stickyTop;
+      
+      // Quãng đường cuộn thực tế mà sticky có thể hoạt động
+      const scrollableDistance = rect.height - stickyHeight;
+      
+      // Tiến độ: bắt đầu từ 0 khi top của section chạm mép dưới header (rect.top == 80)
+      let currentProgress = (stickyTop - rect.top) / scrollableDistance;
+      
+      currentProgress = Math.max(0, Math.min(1, currentProgress));
+      setProgress(currentProgress);
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  return (
+    <>
+      <div id="mc-roadmap" className="bg-[#f4f7fa] pt-20 sm:pt-28">
+        {/* Tiêu đề và mô tả nằm ngoài vùng cuộn sticky */}
+        <div className="mx-auto max-w-6xl px-5 text-center sm:px-6 lg:px-8">
+          <div className="mb-4 text-[11px] font-black uppercase tracking-[0.2em] text-blue-600">
+            Lộ trình học MC
+          </div>
+          <h2 className="text-3xl font-black tracking-tight text-[#071d4c] sm:text-4xl md:text-5xl">
+            Từ lần cầm mic đầu tiên đến phiên bản tự tin hơn của bạn
+          </h2>
+          <p className="mx-auto mt-5 max-w-2xl text-sm font-medium text-slate-500 sm:text-base">
+            Một hành trình học MC để bạn học, luyện tập và trưởng thành qua từng lần cất tiếng nói.
+          </p>
+        </div>
+
+        {/* Vùng cuộn 400vh */}
+        <section ref={containerRef} className="relative mt-12 sm:mt-16" style={{ height: '400vh' }}>
+          <div className="sticky top-[80px] flex w-full items-center justify-center px-5" style={{ height: 'calc(100vh - 80px)' }}>
+            
+            {/* Khung thẻ cố định kích thước, cắt phần tràn ở viền */}
+            <div className="relative flex w-full max-w-[960px] overflow-hidden rounded-[32px] sm:h-[480px]" style={{ height: '480px' }}>
+              {ROADMAP_DATA.map((item, index) => {
+                const totalTransitions = ROADMAP_DATA.length - 1; // 3 transitions
+                
+                // Tính độ lùi về sau (depth) khi thẻ bị đè
+                const depth = Math.max(0, (progress * totalTransitions) - index);
+
+                // Khởi tạo transform state
+                let translateYPercent = 100;
+
+                if (progress * totalTransitions >= index) {
+                   translateYPercent = 0;
+                } else if (progress * totalTransitions > index - 1) {
+                   const sectionProgress = (progress * totalTransitions) - (index - 1);
+                   translateYPercent = (1 - sectionProgress) * 100;
+                } else {
+                   translateYPercent = 100;
+                }
+
+                // Tính toán hiệu ứng tối dần và thu nhỏ cho thẻ đang bị đè (thu nhỏ nhiều hơn và vào trung tâm)
+                const scale = 1 - (depth * 0.08); // Thu nhỏ 8% mỗi tầng
+                const brightness = 1 - (depth * 0.3); // Tối đi 30% mỗi tầng
+
+                return (
+                  <div
+                    key={item.step}
+                    className={`absolute inset-0 flex flex-col ${item.bg} text-white md:flex-row rounded-[32px] shadow-[0_-15px_40px_rgba(0,0,0,0.3)] transition-transform duration-[50ms]`}
+                    style={{
+                      zIndex: 10 + index,
+                      transform: `translateY(${translateYPercent}%) scale(${scale})`,
+                      transformOrigin: 'center',
+                      filter: `brightness(${brightness})`,
+                      willChange: 'transform',
+                    }}
+                  >
+                    {/* Left Content */}
+                    <div className="flex flex-1 flex-col justify-center p-8 md:p-14">
+                      <div className="mb-4 inline-block w-fit rounded-full bg-white/20 px-4 py-1.5 text-[11px] font-black uppercase tracking-widest text-white backdrop-blur-md">
+                        {item.step}
+                      </div>
+                      <h3 className="mb-4 text-2xl font-black leading-[1.15] sm:text-3xl md:text-[34px]">
+                        {item.title}
+                      </h3>
+                      <p className="text-[13px] font-medium leading-relaxed text-white/85 sm:text-[15px] md:text-base">
+                        {item.desc}
+                      </p>
+                    </div>
+                    {/* Right Image */}
+                    <div className="relative min-h-[220px] w-full md:w-[45%] lg:w-[50%]">
+                      <img
+                        src={item.img}
+                        alt={item.title}
+                        className="absolute inset-0 h-full w-full object-cover opacity-90"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-[#071d4c]/60 to-transparent md:bg-gradient-to-l" />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      </div>
+
+      {/* CTA Section */}
+      <section className="bg-[#f4f7fa] pb-24 pt-10">
+        <div className="mx-auto max-w-6xl px-5 text-center sm:px-6 lg:px-8">
+          <h3 className="mb-8 text-2xl font-black tracking-tight text-[#071d4c] sm:text-3xl">
+            Bạn đã sẵn sàng tự tin cất tiếng nói của mình chưa?
+          </h3>
+          <button
+            type="button"
+            onClick={() => {
+              document.getElementById('final-cta')?.scrollIntoView({ 
+                behavior: 'smooth', 
+                block: 'center' 
+              });
+            }}
+            className="inline-flex items-center gap-3 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-9 py-4 text-[15px] font-black text-white shadow-[0_15px_30px_rgba(37,99,235,0.3)] transition-all hover:-translate-y-1 hover:shadow-[0_20px_40px_rgba(37,99,235,0.4)]"
+          >
+            Bắt đầu hành trình MC cùng MSEEK
+            <ArrowRight className="h-5 w-5" />
+          </button>
+        </div>
+      </section>
+    </>
+  );
+};
+
 export const HomeScreen: React.FC<HomeScreenProps> = ({
   onNavigate,
   onSelectCourse,
@@ -71,7 +239,7 @@ useEffect(() => {
   return (
     <main
       id="home-screen-container"
-      className="mseek-premium-home overflow-hidden bg-white text-slate-950"
+      className="mseek-premium-home bg-white text-slate-950"
     >
       <section id="hero-section" className="relative min-h-[520px] overflow-hidden bg-[#03163f] lg:min-h-[560px]">
   <img src={IMAGES.heroStage} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover object-center" />
@@ -157,7 +325,17 @@ useEffect(() => {
       </div>
 
       <div className="mt-8 grid max-w-[650px] grid-cols-1 gap-3 sm:grid-cols-3">
-        <div className="flex items-center gap-3 rounded-2xl border border-white/15 bg-[#06265f]/65 px-4 py-3 shadow-lg backdrop-blur-md">
+        <button 
+          type="button"
+          onClick={() => {
+            const el = document.getElementById('mc-roadmap');
+            if (el) {
+              const y = el.getBoundingClientRect().top + window.scrollY - 80;
+              window.scrollTo({ top: y, behavior: 'smooth' });
+            }
+          }}
+          className="flex w-full items-center gap-3 rounded-2xl border border-white/15 bg-[#06265f]/65 px-4 py-3 text-left shadow-lg backdrop-blur-md transition-all hover:bg-white/10 active:scale-95"
+        >
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/25 text-blue-100">
             <Mic className="h-5 w-5" />
           </div>
@@ -165,19 +343,33 @@ useEffect(() => {
             <div className="text-xs font-black text-white">Lộ trình học</div>
             <div className="mt-0.5 text-[10px] text-blue-100/70">bài bản, thực tế</div>
           </div>
-        </div>
+        </button>
 
-        <div className="flex items-center gap-3 rounded-2xl border border-white/15 bg-[#06265f]/65 px-4 py-3 shadow-lg backdrop-blur-md">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/25 text-blue-100">
+        <button
+          type="button"
+          onClick={() => onNavigate('ai-voice-coach')}
+          className="flex w-full items-center gap-3 rounded-2xl border border-white/15 bg-[#06265f]/65 px-4 py-3 text-left shadow-lg backdrop-blur-md transition-all hover:bg-white/10 active:scale-95 group"
+        >
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/25 text-blue-100 transition-transform group-hover:scale-110">
             <BarChart3 className="h-5 w-5" />
           </div>
           <div>
             <div className="text-xs font-black text-white">Thực hành & đánh giá</div>
             <div className="mt-0.5 text-[10px] text-blue-100/70">giọng nói với AI</div>
           </div>
-        </div>
+        </button>
 
-        <div className="flex items-center gap-3 rounded-2xl border border-white/15 bg-[#06265f]/65 px-4 py-3 shadow-lg backdrop-blur-md">
+        <button
+          type="button"
+          onClick={() => {
+            const el = document.getElementById('instructors-section');
+            if (el) {
+              const y = el.getBoundingClientRect().top + window.scrollY - 80;
+              window.scrollTo({ top: y, behavior: 'smooth' });
+            }
+          }}
+          className="flex w-full items-center gap-3 rounded-2xl border border-white/15 bg-[#06265f]/65 px-4 py-3 text-left shadow-lg backdrop-blur-md transition-all hover:bg-white/10 active:scale-95"
+        >
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/25 text-blue-100">
             <Users className="h-5 w-5" />
           </div>
@@ -185,7 +377,7 @@ useEffect(() => {
             <div className="text-xs font-black text-white">Giảng viên đồng hành</div>
             <div className="mt-0.5 text-[10px] text-blue-100/70">và góp ý chi tiết</div>
           </div>
-        </div>
+        </button>
       </div>
     </div>
   </div>
@@ -308,6 +500,8 @@ useEffect(() => {
     </div>
   </div>
 </section>
+
+      <RoadmapSection onNavigate={onNavigate} />
       <section
   ref={studioRef}
   id="voice-studio"
@@ -1303,7 +1497,7 @@ useEffect(() => {
   `}</style>
 </section>
       {/* INSTRUCTORS */}
-<section className="instructor-section relative overflow-hidden bg-gradient-to-br from-[#edf5ff] via-[#f8fbff] to-[#fff8e8] py-10 sm:py-12 lg:py-14">  {/* Decorative background */}
+<section id="instructors-section" className="instructor-section relative overflow-hidden bg-gradient-to-br from-[#edf5ff] via-[#f8fbff] to-[#fff8e8] py-10 sm:py-12 lg:py-14">  {/* Decorative background */}
   <div className="pointer-events-none absolute inset-0">
     <div className="instructor-glow-blue absolute -left-32 top-16 h-[420px] w-[420px] rounded-full bg-blue-400/[0.09] blur-[110px]" />
     <div className="instructor-glow-yellow absolute -right-32 bottom-[-80px] h-[420px] w-[420px] rounded-full bg-[#ffc928]/10 blur-[110px]" />
@@ -1768,7 +1962,7 @@ useEffect(() => {
   `}</style>
 </section>
       {/* FINAL CTA */}
-<section className="relative bg-white px-5 pb-8 pt-0 sm:px-6 sm:pb-9 sm:pt-0 lg:px-8 lg:pb-11 lg:pt-0">
+<section id="final-cta" className="relative bg-white px-5 pb-8 pt-0 sm:px-6 sm:pb-9 sm:pt-0 lg:px-8 lg:pb-11 lg:pt-0">
   <div className="cta-premium group relative mx-auto max-w-[1450px] overflow-hidden rounded-[24px] bg-[#0b4aa2]/20 shadow-[0_20px_55px_rgba(37,99,235,0.14)]">
     {/* BACKGROUND IMAGE */}
     <img

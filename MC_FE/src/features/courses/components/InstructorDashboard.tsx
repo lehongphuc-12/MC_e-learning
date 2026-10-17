@@ -65,45 +65,25 @@ export const InstructorDashboard: React.FC = () => {
         <div className="absolute left-1/3 -bottom-16 h-56 w-56 rounded-full bg-indigo-500/10 blur-2xl pointer-events-none" />
 
         <div className="mx-auto max-w-7xl px-6 py-8 relative z-10">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-            <div className="flex items-center gap-4">
-              <img
-                src={user?.avatar || 'https://ui-avatars.com/api/?name=Instructor&background=2563eb&color=fff'}
-                alt={user?.name || 'Giảng viên'}
-                className="h-16 w-16 rounded-2xl object-cover ring-2 ring-blue-400/40 shadow-lg"
-              />
-              <div>
-                <div className="flex items-center gap-2">
-                  <h1 className="text-2xl font-black tracking-tight text-white sm:text-3xl">
-                    Xin chào, {user?.name || 'Giảng viên'}!
-                  </h1>
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-500/20 px-3 py-1 text-xs font-bold text-blue-300 border border-blue-400/30">
-                    <Sparkles className="h-3.5 w-3.5" />
-                    Giảng viên Chuyên nghiệp
-                  </span>
-                </div>
-                <p className="mt-1 text-sm text-slate-300">
-                  Chào mừng bạn quay trở lại. Tổng quan hoạt động đào tạo và các khóa học của bạn hôm nay.
-                </p>
+          <div className="flex items-center gap-4">
+            <img
+              src={user?.avatar || 'https://ui-avatars.com/api/?name=Instructor&background=2563eb&color=fff'}
+              alt={user?.name || 'Giảng viên'}
+              className="h-16 w-16 rounded-2xl object-cover ring-2 ring-blue-400/40 shadow-lg"
+            />
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-black tracking-tight text-white sm:text-3xl">
+                  Xin chào, {user?.name || 'Giảng viên'}!
+                </h1>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-500/20 px-3 py-1 text-xs font-bold text-blue-300 border border-blue-400/30">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Giảng viên Chuyên nghiệp
+                </span>
               </div>
-            </div>
-
-            {/* Quick Header Actions */}
-            <div className="flex items-center gap-3 flex-wrap">
-              <button
-                onClick={() => setIsImportModalOpen(true)}
-                className="inline-flex items-center gap-2 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 px-4 py-2.5 text-xs font-bold text-white hover:bg-white/20 active:scale-95 transition-all cursor-pointer shadow-sm"
-              >
-                <FileSpreadsheet className="h-4 w-4 text-blue-300" />
-                <span>Nhập CSV / Excel</span>
-              </button>
-              <button
-                onClick={() => navigate('/instructor/courses/new')}
-                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-blue-600/30 hover:from-blue-500 hover:to-indigo-500 active:scale-95 transition-all cursor-pointer"
-              >
-                <PlusCircle className="h-4 w-4" />
-                <span>Tạo khóa học mới</span>
-              </button>
+              <p className="mt-1 text-sm text-slate-300">
+                Chào mừng bạn quay trở lại. Tổng quan hoạt động đào tạo và các khóa học của bạn hôm nay.
+              </p>
             </div>
           </div>
 
