@@ -422,7 +422,7 @@ public async Task<IActionResult> GetLatestQuizResult(int quizId)
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(110L * 1024 * 1024)]
     [RequestFormLimits(MultipartBodyLengthLimit = 110L * 1024 * 1024)]
-    public async Task<IActionResult> UploadQuizMedia([FromForm] IFormFile? file, [FromForm] string? mediaType)
+    public async Task<IActionResult> UploadQuizMedia(IFormFile? file, [FromForm] string? mediaType)
     {
         if (file is null || file.Length == 0)
             return BadRequest(new { message = "Vui lòng chọn file cần tải lên." });
@@ -480,6 +480,4 @@ public async Task<IActionResult> GetLatestQuizResult(int quizId)
             return StatusCode(502, new { message = "Không thể tải file lên Cloudinary. Vui lòng thử lại." });
         }
     }
-
-
 }
