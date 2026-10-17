@@ -1,3 +1,5 @@
+import type { InstructorQuizAttemptDto } from '../types/instructorGradingTypes';
+
 import { request } from '../../../services/api';
 import {
   CreateQuizRequest,
@@ -38,6 +40,15 @@ export const quizApi = {
       method: 'PUT',
       body: JSON.stringify(data),
     });
+  },
+
+  async getQuiz(quizId: number): Promise<{
+    success: boolean;
+    message: string;
+    data: QuizDto;
+    errors: string[];
+  }> {
+    return this.getQuizById(quizId);
   },
 
   async getQuizById(
@@ -95,6 +106,12 @@ export const quizApi = {
     });
   },
 
+  async getInstructorAttempts(quizId: number): Promise<{ success: boolean; message: string; data: InstructorQuizAttemptDto[] }> {
+    return request(`/quizzes/${quizId}/instructor/attempts`, { method: 'GET' });
+  },
+  async getInstructorAttempt(quizId: number, attemptId: number): Promise<{ success: boolean; message: string; data: QuizResultDto }> {
+    return request(`/quizzes/${quizId}/instructor/attempts/${attemptId}`, { method: 'GET' });
+  },
   async gradeQuizAnswer(
     quizAnswerId: number,
     data: ManualGradeQuizAnswerRequest

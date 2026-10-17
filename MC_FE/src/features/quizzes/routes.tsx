@@ -6,6 +6,7 @@ import { EditQuizPage } from './pages/EditQuizPage';
 import { TakeQuizPage } from './pages/TakeQuizPage';
 import { QuizResultPage } from './pages/QuizResultPage';
 import { QuizDetailPage } from './pages/QuizDetailPage';
+import { InstructorQuizGradingPage } from './pages/InstructorQuizGradingPage';
 import { QuizManagementPage } from './pages/QuizManagementPage';
 import { ProtectedRoute } from '../../components/common/ProtectedRoute';
 import { ToastType } from '../../components/common/Toast';
@@ -29,6 +30,7 @@ export const renderQuizRoutes = ({
 }: QuizRoutesProps) => {
   return (
     <>
+      <Route path="/instructor/quizzes/:quizId/grading" element={<ProtectedRoute user={user} allowedRoles={['instructor', 'admin']} currentScreen={currentScreen} onNavigate={onNavigate} onToast={onToast}>{withInstructorLayout(<InstructorQuizGradingPage />)}</ProtectedRoute>} />
       {/* Instructor Quiz Management Routes */}
       <Route
         path="/instructor/quizzes/new"

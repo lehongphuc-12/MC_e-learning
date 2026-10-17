@@ -1,27 +1,7 @@
 import React from 'react';
-import {
-  AlertTriangle,
-  ArrowDown,
-  ArrowUp,
-  FileText,
-  GitBranch,
-  Headphones,
-  Image,
-  ListChecks,
-  MapPin,
-  Mic2,
-  Plus,
-  Trash2,
-} from 'lucide-react';
-import {
-  AnnotationType,
-  CreateChoiceRequest,
-  CreateQuestionRequest,
-  QuestionMediaType,
-  QuestionType,
-  ScenarioNodeType,
-} from '../types/quizTypes';
-
+import { QuizMediaFileInput } from './QuizMediaFileInput';
+import { AlertTriangle, ArrowDown, ArrowUp, FileText, GitBranch, Headphones, Image, ListChecks, MapPin, Mic2, Plus, Trash2 } from 'lucide-react';
+import { AnnotationType, CreateChoiceRequest, CreateQuestionRequest, QuestionMediaType, QuestionType, ScenarioNodeType } from '../types/quizTypes';
 interface QuizQuestionEditorProps {
   question: CreateQuestionRequest;
   questionNumber: number;
@@ -29,7 +9,6 @@ interface QuizQuestionEditorProps {
   onRemove: () => void;
   canRemove: boolean;
 }
-
 const QUESTION_TYPES: { value: QuestionType; label: string; group: string }[] = [
   { value: 'SINGLE_CHOICE', label: 'Knowledge Quiz - Một đáp án', group: 'Knowledge Quiz' },
   { value: 'MULTIPLE_CHOICE', label: 'Knowledge Quiz - Nhiều đáp án', group: 'Knowledge Quiz' },
@@ -46,7 +25,6 @@ const QUESTION_TYPES: { value: QuestionType; label: string; group: string }[] = 
   { value: 'SCENARIO_DECISION_TREE', label: 'Scenario Decision Tree', group: 'Scenario' },
   { value: 'ESSAY', label: 'Tự luận (Legacy)', group: 'Legacy' },
 ];
-
 const CHOICE_TYPES: QuestionType[] = [
   'SINGLE_CHOICE',
   'MULTIPLE_CHOICE',
@@ -55,7 +33,6 @@ const CHOICE_TYPES: QuestionType[] = [
   'AUDIO_COMPARISON',
   'LISTEN_CLASSIFY',
 ];
-
 const AUDIO_TYPES: QuestionType[] = [
   'LISTEN_IDENTIFY_ERROR',
   'LISTEN_LOCATE_ERROR',
@@ -63,14 +40,11 @@ const AUDIO_TYPES: QuestionType[] = [
   'LISTEN_CLASSIFY',
   'ERROR_CORRECTION_LAB',
 ];
-
 const ERROR_REGION_TYPES: QuestionType[] = [
   'LISTEN_LOCATE_ERROR',
   'ERROR_CORRECTION_LAB',
 ];
-
 const WRITING_TYPES: QuestionType[] = ['SCRIPT_WRITING', 'ESSAY'];
-
 const createChoice = (orderIndex: number): CreateChoiceRequest => ({
   choiceText: '',
   optionValue: null,
@@ -78,7 +52,6 @@ const createChoice = (orderIndex: number): CreateChoiceRequest => ({
   explanation: null,
   orderIndex,
 });
-
 const normalizeQuestionForType = (
   question: CreateQuestionRequest,
   type: QuestionType
@@ -94,18 +67,15 @@ const normalizeQuestionForType = (
     writingConfig: null,
     scenarioNodes: [],
   };
-
   if (['SINGLE_CHOICE', 'MULTIPLE_CHOICE', 'LISTEN_IDENTIFY_ERROR', 'LISTEN_CLASSIFY'].includes(type)) {
     base.choices = [createChoice(1), createChoice(2)];
   }
-
   if (type === 'TRUE_FALSE') {
     base.choices = [
       { ...createChoice(1), choiceText: 'Đúng', optionValue: 'TRUE' },
       { ...createChoice(2), choiceText: 'Sai', optionValue: 'FALSE' },
     ];
   }
-
   if (type === 'FILL_BLANK') {
     base.choices = [
       {
@@ -116,7 +86,6 @@ const normalizeQuestionForType = (
       },
     ];
   }
-
   if (type === 'LISTEN_IDENTIFY_ERROR') {
     base.media = [
       {
@@ -128,7 +97,6 @@ const normalizeQuestionForType = (
       },
     ];
   }
-
   if (type === 'LISTEN_LOCATE_ERROR') {
     base.media = [
       {
@@ -151,7 +119,6 @@ const normalizeQuestionForType = (
       },
     ];
   }
-
   if (type === 'AUDIO_COMPARISON') {
     base.media = [
       {
@@ -171,7 +138,6 @@ const normalizeQuestionForType = (
     ];
     base.choices = [createChoice(1), createChoice(2)];
   }
-
   if (type === 'LISTEN_CLASSIFY') {
     base.media = [
       {
@@ -183,7 +149,6 @@ const normalizeQuestionForType = (
       },
     ];
   }
-
   if (type === 'SCRIPT_ANNOTATION') {
     base.annotations = [
       {
@@ -196,7 +161,6 @@ const normalizeQuestionForType = (
       },
     ];
   }
-
   if (type === 'SCRIPT_WRITING') {
     base.writingConfig = {
       eventType: '',
@@ -208,14 +172,12 @@ const normalizeQuestionForType = (
       gradingRubricJson: null,
     };
   }
-
   if (type === 'ARRANGE_SCRIPT') {
     base.arrangeItems = [
       { content: '', correctOrder: 1, isDistractor: false },
       { content: '', correctOrder: 2, isDistractor: false },
     ];
   }
-
   if (type === 'ERROR_CORRECTION_LAB') {
     base.media = [
       {
@@ -238,7 +200,6 @@ const normalizeQuestionForType = (
       },
     ];
   }
-
   if (type === 'SCENARIO_DECISION_TREE') {
     base.scenarioNodes = [
       {
@@ -273,10 +234,8 @@ const normalizeQuestionForType = (
       },
     ];
   }
-
   return base;
 };
-
 export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
   question,
   questionNumber,
@@ -288,11 +247,9 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
     key: K,
     value: CreateQuestionRequest[K]
   ) => onChange({ ...question, [key]: value });
-
   const handleTypeChange = (type: QuestionType) => {
     onChange(normalizeQuestionForType(question, type));
   };
-
   const updateChoice = (
     index: number,
     patch: Partial<CreateChoiceRequest>
@@ -302,14 +259,12 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
     );
     update('choices', choices);
   };
-
   const addChoice = () => {
     update('choices', [
       ...question.choices,
       createChoice(question.choices.length + 1),
     ]);
   };
-
   const removeChoice = (index: number) => {
     update(
       'choices',
@@ -318,13 +273,11 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
         .map((choice, i) => ({ ...choice, orderIndex: i + 1 }))
     );
   };
-
   const setCorrectChoice = (index: number, checked: boolean) => {
     if (question.questionType === 'MULTIPLE_CHOICE') {
       updateChoice(index, { isCorrect: checked });
       return;
     }
-
     update(
       'choices',
       question.choices.map((choice, i) => ({
@@ -333,7 +286,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
       }))
     );
   };
-
   const addMedia = (mediaType: QuestionMediaType = 'AUDIO') => {
     const media = question.media ?? [];
     update('media', [
@@ -347,7 +299,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
       },
     ]);
   };
-
   const updateMedia = (index: number, patch: Record<string, unknown>) => {
     update(
       'media',
@@ -356,7 +307,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
       )
     );
   };
-
   const removeMedia = (index: number) => {
     update(
       'media',
@@ -365,7 +315,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
         .map((item, i) => ({ ...item, orderIndex: i + 1 }))
     );
   };
-
   const addErrorRegion = () => {
     const regions = question.errorRegions ?? [];
     update('errorRegions', [
@@ -381,7 +330,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
       },
     ]);
   };
-
   const updateErrorRegion = (
     index: number,
     patch: Record<string, unknown>
@@ -393,14 +341,12 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
       )
     );
   };
-
   const removeErrorRegion = (index: number) => {
     update(
       'errorRegions',
       (question.errorRegions ?? []).filter((_, i) => i !== index)
     );
   };
-
   const addAnnotation = () => {
     update('annotations', [
       ...(question.annotations ?? []),
@@ -414,7 +360,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
       },
     ]);
   };
-
   const updateAnnotation = (
     index: number,
     patch: Record<string, unknown>
@@ -426,14 +371,12 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
       )
     );
   };
-
   const removeAnnotation = (index: number) => {
     update(
       'annotations',
       (question.annotations ?? []).filter((_, i) => i !== index)
     );
   };
-
   const addArrangeItem = () => {
     const items = question.arrangeItems ?? [];
     update('arrangeItems', [
@@ -445,7 +388,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
       },
     ]);
   };
-
   const updateArrangeItem = (
     index: number,
     patch: Record<string, unknown>
@@ -457,41 +399,32 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
       )
     );
   };
-
   const removeArrangeItem = (index: number) => {
     update(
       'arrangeItems',
       (question.arrangeItems ?? []).filter((_, i) => i !== index)
     );
   };
-
   const moveArrangeItem = (index: number, direction: -1 | 1) => {
     const items = [...(question.arrangeItems ?? [])];
     const target = index + direction;
-
     if (target < 0 || target >= items.length) return;
-
     [items[index], items[target]] = [items[target], items[index]];
-
     const normalized = items.map((item: any, i) => ({
       ...item,
       correctOrder: item.isDistractor ? null : i + 1,
     }));
-
     update('arrangeItems', normalized);
   };
-
   const updateWritingConfig = (patch: Record<string, unknown>) => {
     update('writingConfig', {
       ...(question.writingConfig ?? {}),
       ...patch,
     });
   };
-
   const addScenarioNode = () => {
     const nodes = question.scenarioNodes ?? [];
     const clientKey = `node-${nodes.length + 1}`;
-
     update('scenarioNodes', [
       ...nodes,
       {
@@ -507,7 +440,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
       },
     ]);
   };
-
   const updateScenarioNode = (
     index: number,
     patch: Record<string, unknown>
@@ -519,24 +451,19 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
       )
     );
   };
-
   const removeScenarioNode = (index: number) => {
     const nodes = question.scenarioNodes ?? [];
     if (nodes.length <= 2) return;
-
     update(
       'scenarioNodes',
       nodes.filter((_, i) => i !== index)
     );
   };
-
   const addScenarioChoice = (nodeIndex: number) => {
     const nodes = question.scenarioNodes ?? [];
     const node = nodes[nodeIndex];
     if (!node) return;
-
     const choices = node.choices ?? [];
-
     updateScenarioNode(nodeIndex, {
       choices: [
         ...choices,
@@ -550,7 +477,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
       ],
     });
   };
-
   const updateScenarioChoice = (
     nodeIndex: number,
     choiceIndex: number,
@@ -559,14 +485,12 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
     const nodes = question.scenarioNodes ?? [];
     const node = nodes[nodeIndex];
     if (!node) return;
-
     updateScenarioNode(nodeIndex, {
       choices: (node.choices ?? []).map((choice: any, i: number) =>
         i === choiceIndex ? { ...choice, ...patch } : choice
       ),
     });
   };
-
   const removeScenarioChoice = (
     nodeIndex: number,
     choiceIndex: number
@@ -574,7 +498,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
     const nodes = question.scenarioNodes ?? [];
     const node = nodes[nodeIndex];
     if (!node) return;
-
     updateScenarioNode(nodeIndex, {
       choices: (node.choices ?? [])
         .filter((_: any, i: number) => i !== choiceIndex)
@@ -584,10 +507,8 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
         })),
     });
   };
-
   const renderChoices = () => {
     if (!CHOICE_TYPES.includes(question.questionType)) return null;
-
     return (
       <Section
         title="Đáp án"
@@ -620,7 +541,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                 />
                 Đúng
               </label>
-
               <input
                 value={choice.choiceText}
                 onChange={(e) =>
@@ -632,7 +552,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                 disabled={question.questionType === 'TRUE_FALSE'}
                 className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500"
               />
-
               <input
                 value={choice.optionValue ?? ''}
                 onChange={(e) =>
@@ -643,7 +562,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                 placeholder="Giá trị (tuỳ chọn)"
                 className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500"
               />
-
               <button
                 type="button"
                 disabled={
@@ -655,7 +573,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
               >
                 <Trash2 className="h-4 w-4" />
               </button>
-
               <input
                 value={choice.explanation ?? ''}
                 onChange={(e) =>
@@ -669,24 +586,20 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
             </div>
           ))}
         </div>
-
         {question.questionType !== 'TRUE_FALSE' && (
           <AddButton onClick={addChoice}>Thêm đáp án</AddButton>
         )}
       </Section>
     );
   };
-
   const renderFillBlank = () => {
     if (question.questionType !== 'FILL_BLANK') return null;
-
     const answer =
       question.choices[0] ??
       ({
         ...createChoice(1),
         isCorrect: true,
       } as CreateChoiceRequest);
-
     return (
       <Section
         title="Đáp án điền từ"
@@ -713,7 +626,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
       </Section>
     );
   };
-
   const renderMedia = () => {
     if (
       !AUDIO_TYPES.includes(question.questionType) &&
@@ -721,11 +633,10 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
     ) {
       return null;
     }
-
     return (
       <Section
         title="Media"
-        description="Nhập URL audio, video hoặc hình ảnh của câu hỏi."
+        description="Nhập URL hoặc tải trực tiếp audio, video, hình ảnh lên Cloudinary."
         icon={<Headphones className="h-5 w-5" />}
       >
         <div className="space-y-3">
@@ -748,7 +659,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                   <option value="VIDEO">Video</option>
                   <option value="IMAGE">Hình ảnh</option>
                 </select>
-
                 <input
                   value={media.mediaUrl ?? ''}
                   onChange={(e) =>
@@ -759,7 +669,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                   placeholder="URL media..."
                   className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500"
                 />
-
                 <input
                   value={media.label ?? ''}
                   onChange={(e) =>
@@ -770,7 +679,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                   placeholder="Nhãn"
                   className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500"
                 />
-
                 <button
                   type="button"
                   onClick={() => removeMedia(index)}
@@ -779,7 +687,16 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                   <Trash2 className="h-4 w-4" />
                 </button>
               </div>
-
+              <QuizMediaFileInput mediaType={media.mediaType as 'AUDIO' | 'VIDEO' | 'IMAGE'} onUploaded={(url) => updateMedia(index, { mediaUrl: url })} />
+              {!!media.mediaUrl?.trim() && (media.mediaType === 'AUDIO' ? (
+                <audio controls preload="metadata" src={media.mediaUrl} className="mt-3 w-full" />
+              ) : media.mediaType === 'IMAGE' ? (
+                <img src={media.mediaUrl} alt={media.label || 'Ảnh câu hỏi'} className="mt-3 max-h-64 rounded-lg object-contain" />
+              ) : /^https?:\/\/(?:www\.)?(?:youtube\.com|youtu\.be)/i.test(media.mediaUrl) ? (
+                <a href={media.mediaUrl} target="_blank" rel="noopener noreferrer" className="mt-3 block text-sm text-violet-700 underline">Mở video YouTube</a>
+              ) : media.mediaType === 'VIDEO' ? (
+                <video controls preload="metadata" src={media.mediaUrl} className="mt-3 max-h-64 w-full rounded-lg bg-black" />
+              ) : null)}
               <div className="mt-3">
                 <label className="text-xs font-semibold text-slate-500">
                   Thời lượng (giây)
@@ -801,7 +718,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
             </div>
           ))}
         </div>
-
         <div className="mt-3 flex flex-wrap gap-2">
           <AddButton onClick={() => addMedia('AUDIO')}>
             Thêm audio
@@ -816,10 +732,8 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
       </Section>
     );
   };
-
   const renderErrorRegions = () => {
     if (!ERROR_REGION_TYPES.includes(question.questionType)) return null;
-
     return (
       <Section
         title={
@@ -849,7 +763,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
-
                 <div className="grid gap-3 md:grid-cols-2">
                   <Field label="Bắt đầu (ms)">
                     <input
@@ -864,7 +777,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                       className={inputClass}
                     />
                   </Field>
-
                   <Field label="Kết thúc (ms)">
                     <input
                       type="number"
@@ -878,7 +790,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                       className={inputClass}
                     />
                   </Field>
-
                   <Field label="Nhóm lỗi">
                     <input
                       value={region.errorCategory ?? ''}
@@ -891,7 +802,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                       className={inputClass}
                     />
                   </Field>
-
                   <Field label="Mã lỗi">
                     <input
                       value={region.errorCode ?? ''}
@@ -904,7 +814,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                       className={inputClass}
                     />
                   </Field>
-
                   <Field label="Điểm">
                     <input
                       type="number"
@@ -919,7 +828,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                       className={inputClass}
                     />
                   </Field>
-
                   <Field label="Mô tả lỗi">
                     <input
                       value={region.description ?? ''}
@@ -932,7 +840,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                     />
                   </Field>
                 </div>
-
                 {question.questionType === 'ERROR_CORRECTION_LAB' && (
                   <Field label="Cách sửa">
                     <textarea
@@ -952,15 +859,12 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
             )
           )}
         </div>
-
         <AddButton onClick={addErrorRegion}>Thêm vùng lỗi</AddButton>
       </Section>
     );
   };
-
   const renderAnnotations = () => {
     if (question.questionType !== 'SCRIPT_ANNOTATION') return null;
-
     return (
       <Section
         title="Annotation chuẩn"
@@ -990,7 +894,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                     <option value="PITCH_RISE">Pitch Rise</option>
                     <option value="PITCH_FALL">Pitch Fall</option>
                   </select>
-
                   <input
                     type="number"
                     min={0}
@@ -1003,7 +906,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                     placeholder="Start index"
                     className={inputClass}
                   />
-
                   <input
                     type="number"
                     min={0}
@@ -1016,7 +918,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                     placeholder="End index"
                     className={inputClass}
                   />
-
                   <button
                     type="button"
                     onClick={() => removeAnnotation(index)}
@@ -1025,7 +926,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
-
                 <div className="mt-3 grid gap-3 md:grid-cols-3">
                   <input
                     value={annotation.annotationValue ?? ''}
@@ -1037,7 +937,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                     placeholder="Giá trị annotation"
                     className={inputClass}
                   />
-
                   <input
                     value={annotation.explanation ?? ''}
                     onChange={(e) =>
@@ -1048,7 +947,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                     placeholder="Giải thích"
                     className={inputClass}
                   />
-
                   <input
                     type="number"
                     min={0}
@@ -1067,15 +965,12 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
             )
           )}
         </div>
-
         <AddButton onClick={addAnnotation}>Thêm annotation</AddButton>
       </Section>
     );
   };
-
   const renderWritingConfig = () => {
     if (!WRITING_TYPES.includes(question.questionType)) return null;
-
     if (question.questionType === 'ESSAY') {
       return (
         <Section
@@ -1089,9 +984,7 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
         </Section>
       );
     }
-
     const config = question.writingConfig ?? {};
-
     return (
       <Section
         title="Yêu cầu Script Writing"
@@ -1111,7 +1004,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
               className={inputClass}
             />
           </Field>
-
           <Field label="Đối tượng khán giả">
             <input
               value={config.audience ?? ''}
@@ -1124,7 +1016,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
               className={inputClass}
             />
           </Field>
-
           <Field label="Phong cách">
             <input
               value={config.style ?? ''}
@@ -1137,7 +1028,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
               className={inputClass}
             />
           </Field>
-
           <Field label="Số từ tối thiểu">
             <input
               type="number"
@@ -1153,7 +1043,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
               className={inputClass}
             />
           </Field>
-
           <Field label="Số từ tối đa">
             <input
               type="number"
@@ -1170,7 +1059,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
             />
           </Field>
         </div>
-
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           <Field label="Required Elements JSON">
             <textarea
@@ -1185,7 +1073,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
               className={`${inputClass} resize-none font-mono text-xs`}
             />
           </Field>
-
           <Field label="Grading Rubric JSON">
             <textarea
               value={config.gradingRubricJson ?? ''}
@@ -1203,10 +1090,8 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
       </Section>
     );
   };
-
   const renderArrange = () => {
     if (question.questionType !== 'ARRANGE_SCRIPT') return null;
-
     return (
       <Section
         title="Các đoạn cần sắp xếp"
@@ -1223,7 +1108,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-sm font-bold text-blue-700">
                   {index + 1}
                 </span>
-
                 <input
                   value={item.content}
                   onChange={(e) =>
@@ -1234,7 +1118,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                   placeholder="Nội dung đoạn script..."
                   className={`${inputClass} flex-1`}
                 />
-
                 <label className="flex shrink-0 items-center gap-2 text-xs font-semibold text-slate-600">
                   <input
                     type="checkbox"
@@ -1251,7 +1134,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                   />
                   Distractor
                 </label>
-
                 <div className="flex gap-1">
                   <button
                     type="button"
@@ -1279,17 +1161,13 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
             )
           )}
         </div>
-
         <AddButton onClick={addArrangeItem}>Thêm đoạn</AddButton>
       </Section>
     );
   };
-
   const renderScenario = () => {
     if (question.questionType !== 'SCENARIO_DECISION_TREE') return null;
-
     const nodes = question.scenarioNodes ?? [];
-
     return (
       <Section
         title="Scenario Decision Tree"
@@ -1311,7 +1189,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                     Client Key: {node.clientKey}
                   </p>
                 </div>
-
                 <button
                   type="button"
                   disabled={nodes.length <= 2}
@@ -1321,7 +1198,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                   <Trash2 className="h-4 w-4" />
                 </button>
               </div>
-
               <div className="mt-4 grid gap-3 md:grid-cols-2">
                 <Field label="Client Key">
                   <input
@@ -1334,7 +1210,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                     className={inputClass}
                   />
                 </Field>
-
                 <Field label="Loại node">
                   <select
                     value={node.nodeType}
@@ -1351,7 +1226,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                     <option value="RESULT">Result</option>
                   </select>
                 </Field>
-
                 <Field label="Tiêu đề">
                   <input
                     value={node.title ?? ''}
@@ -1363,7 +1237,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                     className={inputClass}
                   />
                 </Field>
-
                 <Field label="Media URL">
                   <input
                     value={node.mediaUrl ?? ''}
@@ -1376,7 +1249,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                   />
                 </Field>
               </div>
-
               <Field label="Nội dung">
                 <textarea
                   value={node.content}
@@ -1389,7 +1261,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                   className={`${inputClass} resize-none`}
                 />
               </Field>
-
               <div className="mt-3 flex flex-wrap gap-5">
                 <label className="flex items-center gap-2 text-sm font-semibold text-slate-600">
                   <input
@@ -1397,7 +1268,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                     checked={node.isStartNode}
                     onChange={(e) => {
                       const checked = e.target.checked;
-
                       update(
                         'scenarioNodes',
                         nodes.map((item: any, i: number) => ({
@@ -1415,7 +1285,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                   />
                   Start Node
                 </label>
-
                 <label className="flex items-center gap-2 text-sm font-semibold text-slate-600">
                   <input
                     type="checkbox"
@@ -1431,13 +1300,11 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                   End Node
                 </label>
               </div>
-
               {!node.isEndNode && (
                 <div className="mt-5 border-t border-indigo-100 pt-4">
                   <p className="mb-3 text-sm font-bold text-slate-700">
                     Lựa chọn
                   </p>
-
                   <div className="space-y-3">
                     {(node.choices ?? []).map(
                       (choice: any, choiceIndex: number) => (
@@ -1461,7 +1328,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                                 className={inputClass}
                               />
                             </Field>
-
                             <Field label="Đi tới node">
                               <select
                                 value={
@@ -1501,7 +1367,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                                   ))}
                               </select>
                             </Field>
-
                             <Field label="Điểm">
                               <input
                                 type="number"
@@ -1521,7 +1386,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                                 className={inputClass}
                               />
                             </Field>
-
                             <Field label="Feedback">
                               <input
                                 value={choice.feedback ?? ''}
@@ -1539,7 +1403,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                               />
                             </Field>
                           </div>
-
                           <button
                             type="button"
                             onClick={() =>
@@ -1557,7 +1420,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                       )
                     )}
                   </div>
-
                   <AddButton
                     onClick={() =>
                       addScenarioChoice(nodeIndex)
@@ -1570,14 +1432,12 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
             </div>
           ))}
         </div>
-
         <AddButton onClick={addScenarioNode}>
           Thêm scenario node
         </AddButton>
       </Section>
     );
   };
-
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="flex items-center justify-between gap-4 border-b border-slate-100 bg-slate-50/70 px-5 py-4">
@@ -1589,7 +1449,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
             Câu hỏi {questionNumber}
           </h3>
         </div>
-
         {canRemove && (
           <button
             type="button"
@@ -1601,7 +1460,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
           </button>
         )}
       </div>
-
       <div className="space-y-6 p-5">
         <div className="grid gap-4 md:grid-cols-2">
           <Field label="Dạng câu hỏi">
@@ -1636,7 +1494,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
               ))}
             </select>
           </Field>
-
           <Field label="Điểm">
             <input
               type="number"
@@ -1653,8 +1510,7 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
             />
           </Field>
         </div>
-
-        <Field label="Nội dung câu hỏi *">
+        <Field label="Nội dung câu hỏi \*">
           <textarea
             value={question.questionText}
             onChange={(e) =>
@@ -1670,7 +1526,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
             className={`${inputClass} resize-none`}
           />
         </Field>
-
         <div className="grid gap-4 md:grid-cols-2">
           <Field label="Hướng dẫn">
             <textarea
@@ -1686,7 +1541,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
               className={`${inputClass} resize-none`}
             />
           </Field>
-
           <Field label="Giải thích">
             <textarea
               value={question.explanation ?? ''}
@@ -1702,7 +1556,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
             />
           </Field>
         </div>
-
         <label className="flex w-fit items-center gap-2 text-sm font-semibold text-slate-600">
           <input
             type="checkbox"
@@ -1714,7 +1567,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
           />
           Câu hỏi bắt buộc
         </label>
-
         {question.questionType ===
           'ERROR_CORRECTION_LAB' && (
           <div className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
@@ -1732,7 +1584,6 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
             </div>
           </div>
         )}
-
         {renderMedia()}
         {renderChoices()}
         {renderFillBlank()}
@@ -1745,10 +1596,8 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
     </div>
   );
 };
-
 const inputClass =
   'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100';
-
 const Field: React.FC<{
   label: string;
   children: React.ReactNode;
@@ -1760,7 +1609,6 @@ const Field: React.FC<{
     {children}
   </label>
 );
-
 const Section: React.FC<{
   title: string;
   description?: string;
@@ -1774,12 +1622,10 @@ const Section: React.FC<{
           {icon}
         </div>
       )}
-
       <div>
         <h4 className="text-sm font-extrabold text-slate-900">
           {title}
         </h4>
-
         {description && (
           <p className="mt-1 text-xs leading-5 text-slate-500">
             {description}
@@ -1787,11 +1633,9 @@ const Section: React.FC<{
         )}
       </div>
     </div>
-
     {children}
   </section>
 );
-
 const AddButton: React.FC<{
   onClick: () => void;
   children: React.ReactNode;
@@ -1805,5 +1649,4 @@ const AddButton: React.FC<{
     {children}
   </button>
 );
-
 export default QuizQuestionEditor;
