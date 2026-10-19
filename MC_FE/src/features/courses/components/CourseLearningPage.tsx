@@ -1484,19 +1484,12 @@ export const CourseLearningPage: React.FC = () => {
                   if (event.data === 0) {
                     const current = activeLessonRef.current;
                     const duration = event.target?.getDuration?.() || 0;
-                    if (!current || !recordActualPlayback(current.lessonId, event.target?.getCurrentTime?.() || duration, duration)) return;
-                    videoCompletionTriggeredRef.current[current.lessonId] = true;
-                    setIsVideoEnded(true);
-
-                    if (
-                      activeLessonRef.current
-                    ) {
-                      handleMarkLessonComplete(
-                        activeLessonRef.current
-                          .lessonId,
-                        true,
-                      );
+                    if (!current) return;
+                    if (!videoCompletionTriggeredRef.current[current.lessonId]) {
+                      videoCompletionTriggeredRef.current[current.lessonId] = true;
+                      handleMarkLessonComplete(current.lessonId, true);
                     }
+                    setIsVideoEnded(true);
                   }
                 },
               },
@@ -1539,7 +1532,6 @@ export const CourseLearningPage: React.FC = () => {
 
                 if (watchedEnough && currentTime >= duration * 0.95 && !videoCompletionTriggeredRef.current[activeLessonRef.current?.lessonId || 0]) {
                   videoCompletionTriggeredRef.current[activeLessonRef.current!.lessonId] = true;
-                  setIsVideoEnded(true);
                   if (
                     activeLessonRef.current
                   ) {
@@ -1648,14 +1640,15 @@ export const CourseLearningPage: React.FC = () => {
             if (recordActualPlayback(current.lessonId, seconds, length) && !videoCompletionTriggeredRef.current[current.lessonId]) {
               videoCompletionTriggeredRef.current[current.lessonId] = true;
               handleMarkLessonComplete(current.lessonId, true);
-              setIsVideoEnded(true);
             }
           }
-          if (data.event === 'ended' && activeLessonRef.current && !videoCompletionTriggeredRef.current[activeLessonRef.current.lessonId]) {
+          if (data.event === 'ended' && activeLessonRef.current) {
             const current = activeLessonRef.current;
-            videoCompletionTriggeredRef.current[current.lessonId] = true;
+            if (!videoCompletionTriggeredRef.current[current.lessonId]) {
+              videoCompletionTriggeredRef.current[current.lessonId] = true;
+              handleMarkLessonComplete(current.lessonId, true);
+            }
             setVideoWatchProgress(prev => ({ ...prev, [current.lessonId]: 100 }));
-            handleMarkLessonComplete(current.lessonId, true);
             setIsVideoEnded(true);
           }
           return;
@@ -1702,24 +1695,17 @@ export const CourseLearningPage: React.FC = () => {
 
         const watchedEnough = activeLessonRef.current && typeof currentTime === 'number' && typeof duration === 'number'
           ? recordActualPlayback(activeLessonRef.current.lessonId, currentTime, duration) : false;
-        if (isEndedByState && watchedEnough && activeLessonRef.current && !videoCompletionTriggeredRef.current[activeLessonRef.current.lessonId]) {
-          videoCompletionTriggeredRef.current[activeLessonRef.current.lessonId] = true;
-          setIsVideoEnded(true);
-
-          const currentTargetLesson =
-            activeLessonRef.current;
-
-          if (currentTargetLesson) {
-            handleMarkLessonComplete(
-              currentTargetLesson.lessonId,
-              true,
-            );
+        if (isEndedByState && activeLessonRef.current) {
+          const currentTargetLesson = activeLessonRef.current;
+          if (!videoCompletionTriggeredRef.current[currentTargetLesson.lessonId]) {
+            videoCompletionTriggeredRef.current[currentTargetLesson.lessonId] = true;
+            handleMarkLessonComplete(currentTargetLesson.lessonId, true);
           }
+          setIsVideoEnded(true);
         } else if (
           watchedEnough && typeof currentTime === 'number' && typeof duration === 'number' && currentTime >= duration * 0.95 && activeLessonRef.current && !videoCompletionTriggeredRef.current[activeLessonRef.current.lessonId]
         ) {
           videoCompletionTriggeredRef.current[activeLessonRef.current.lessonId] = true;
-          setIsVideoEnded(true);
           const currentTargetLesson =
             activeLessonRef.current;
 
@@ -2421,7 +2407,6 @@ export const CourseLearningPage: React.FC = () => {
 
                           if (watchedEnough && v.currentTime >= v.duration * 0.95 && activeLesson && !videoCompletionTriggeredRef.current[activeLesson.lessonId]) {
                             videoCompletionTriggeredRef.current[activeLesson.lessonId] = true;
-                            setIsVideoEnded(true);
                             handleMarkLessonComplete(activeLesson.lessonId, true);
                           }
                         }}
@@ -2429,17 +2414,12 @@ export const CourseLearningPage: React.FC = () => {
                           handleVideoTimeUpdate(e.currentTarget.currentTime)
                         }
                         onEnded={(e) => {
-                          if (!activeLesson || !recordActualPlayback(activeLesson.lessonId, e.currentTarget.currentTime, e.currentTarget.duration)) return;
-                          if (videoCompletionTriggeredRef.current[activeLesson.lessonId]) return;
-                          videoCompletionTriggeredRef.current[activeLesson.lessonId] = true;
-                          setIsVideoEnded(true);
-
-                          if (activeLesson) {
-                            handleMarkLessonComplete(
-                              activeLesson.lessonId,
-                              true,
-                            );
+                          if (!activeLesson) return;
+                          if (!videoCompletionTriggeredRef.current[activeLesson.lessonId]) {
+                            videoCompletionTriggeredRef.current[activeLesson.lessonId] = true;
+                            handleMarkLessonComplete(activeLesson.lessonId, true);
                           }
+                          setIsVideoEnded(true);
                         }}
                         className="h-full w-full object-contain"
                       >
