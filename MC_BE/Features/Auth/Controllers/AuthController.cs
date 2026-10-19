@@ -97,13 +97,13 @@ public class AuthController : ControllerBase
     [HttpGet("me")]
     public async Task<ActionResult<ApiResponse<UserDto>>> GetMe()
     {
-        var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
+        var currentUserId = GetCurrentUserId();
+        if (!currentUserId.HasValue)
         {
             return Unauthorized(ApiResponse<UserDto>.FailureResponse("Unauthorized access. Invalid user token."));
         }
 
-        var result = await _authService.GetMeAsync(userId);
+        var result = await _authService.GetMeAsync(currentUserId.Value);
         if (!result.Success)
         {
             return BadRequest(result);
@@ -114,15 +114,15 @@ public class AuthController : ControllerBase
 
     [Authorize]
     [HttpGet("profile")]
-    public async Task<ActionResult<ApiResponse<UserProfileDto>>> GetProfile([FromQuery] GetProfileRequestDto request)
+    public async Task<ActionResult<ApiResponse<UserProfileDto>>> GetProfile([FromQuery] GetProfileRequestDto? request = null)
     {
-        var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var currentUserId))
+        var currentUserId = GetCurrentUserId();
+        if (!currentUserId.HasValue)
         {
             return Unauthorized(ApiResponse<UserProfileDto>.FailureResponse("Unauthorized access. Invalid user token."));
         }
 
-        var result = await _userProfileService.GetProfileAsync(request, currentUserId);
+        var result = await _userProfileService.GetProfileAsync(request, currentUserId.Value);
         if (!result.Success)
         {
             return BadRequest(result);
@@ -141,13 +141,13 @@ public class AuthController : ControllerBase
             return BadRequest(ApiResponse<UserProfileDto>.FailureResponse("Validation failed.", errors));
         }
 
-        var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
+        var currentUserId = GetCurrentUserId();
+        if (!currentUserId.HasValue)
         {
             return Unauthorized(ApiResponse<UserProfileDto>.FailureResponse("Unauthorized access. Invalid user token."));
         }
 
-        var result = await _userProfileService.UpdateProfileAsync(userId, request);
+        var result = await _userProfileService.UpdateProfileAsync(currentUserId.Value, request);
         if (!result.Success)
         {
             return BadRequest(result);
@@ -166,13 +166,13 @@ public class AuthController : ControllerBase
             return BadRequest(ApiResponse<UserProfileDto>.FailureResponse("Validation failed.", errors));
         }
 
-        var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
+        var currentUserId = GetCurrentUserId();
+        if (!currentUserId.HasValue)
         {
             return Unauthorized(ApiResponse<UserProfileDto>.FailureResponse("Unauthorized access. Invalid user token."));
         }
 
-        var result = await _userProfileService.UpdateAvatarAsync(userId, request);
+        var result = await _userProfileService.UpdateAvatarAsync(currentUserId.Value, request);
         if (!result.Success)
         {
             return BadRequest(result);
@@ -222,18 +222,27 @@ public class AuthController : ControllerBase
             return BadRequest(ApiResponse<string>.FailureResponse("Validation failed.", errors));
         }
 
-        var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userIdClaim) || !int.TryParse(userIdClaim, out var userId))
+        var currentUserId = GetCurrentUserId();
+        if (!currentUserId.HasValue)
         {
             return Unauthorized(ApiResponse<string>.FailureResponse("Unauthorized access. Invalid user token."));
         }
 
-        var result = await _authService.ChangePasswordAsync(userId, request);
+        var result = await _authService.ChangePasswordAsync(currentUserId.Value, request);
         if (!result.Success)
         {
             return BadRequest(result);
         }
 
         return Ok(result);
+    }
+
+    private int? GetCurrentUserId()
+    {
+        var claimValue = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+            ?? User.FindFirst("sub")?.Value
+            ?? User.FindFirst("id")?.Value;
+
+        return int.TryParse(claimValue, out var userId) ? userId : null;
     }
 }
