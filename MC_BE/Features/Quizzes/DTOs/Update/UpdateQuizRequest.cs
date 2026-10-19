@@ -20,6 +20,10 @@ public class UpdateQuizRequest
     [Range(1, int.MaxValue)]
     public int MaxAttempts { get; set; }
 
+    public QuizPurpose Purpose { get; set; } = QuizPurpose.PRACTICE;
+
+    public int? ModuleId { get; set; }
+
     public QuizStatus Status { get; set; }
 
     [Required]

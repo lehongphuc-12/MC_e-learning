@@ -102,6 +102,7 @@ public class QuizService : IQuizService
             TimeLimitMinutes = request.TimeLimitMinutes,
             PassingScore = request.PassingScore,
             MaxAttempts = request.MaxAttempts,
+            Purpose = request.Purpose, ModuleId = request.ModuleId,
             Status = request.Status,
             CreatedAt = DateTime.UtcNow
         };
@@ -226,6 +227,7 @@ public class QuizService : IQuizService
         var hasAttempts = (await _attemptRepository.FindAsync(a => a.QuizId == quizId)).Any();
         quiz.Title = request.Title.Trim(); quiz.Description = request.Description?.Trim(); quiz.TimeLimitMinutes = request.TimeLimitMinutes;
         quiz.PassingScore = request.PassingScore; quiz.MaxAttempts = request.MaxAttempts; quiz.Status = request.Status;
+        if (!hasAttempts) { quiz.Purpose = request.Purpose; quiz.ModuleId = request.ModuleId; }
         _quizRepository.Update(quiz);
 
         var existingQuestions = (quiz.Questions ?? new List<Question>()).ToList();
@@ -505,7 +507,32 @@ public class QuizService : IQuizService
         if (attempts.Any(a => a.ResultStatus == QuizAttemptStatus.PENDING_GRADING)) throw new ArgumentException("Your previous attempt is awaiting instructor grading.");
         if (attempt is null)
         {
-            if (attempts.Count >= quiz.MaxAttempts) throw new ArgumentException("You have reached the maximum number of attempts.");
+            // PRACTICE: unlimited retakes. Assessments: three failed submissions per cycle.
+            // A pending manual grade never counts as a failure and is blocked above.
+            if (quiz.Purpose != QuizPurpose.PRACTICE)
+            {
+                var cooldown = quiz.Purpose == QuizPurpose.CHAPTER_ASSESSMENT ? TimeSpan.FromHours(1) : TimeSpan.FromHours(6);
+                var failures = attempts.Where(a => a.ResultStatus == QuizAttemptStatus.FAILED && a.SubmittedAt.HasValue)
+                    .OrderBy(a => a.SubmittedAt!.Value).ToList();
+                // Find the current cycle by resetting after each completed cooldown.
+                var cycle = new List<QuizAttempt>();
+                foreach (var failed in failures)
+                {
+                    if (cycle.Count == 3)
+                    {
+                        var unlockAt = cycle[2].SubmittedAt!.Value.Add(cooldown);
+                        if (failed.SubmittedAt!.Value < unlockAt) continue;
+                        cycle.Clear();
+                    }
+                    cycle.Add(failed);
+                }
+                if (cycle.Count >= 3)
+                {
+                    var unlockAt = cycle[2].SubmittedAt!.Value.Add(cooldown);
+                    if (DateTime.UtcNow < unlockAt)
+                        throw new ArgumentException($"Quiz cooldown active until {unlockAt:O}");
+                }
+            }
             attempt = new QuizAttempt { QuizId = quizId, UserId = learnerId, AttemptNumber = attempts.Count + 1, StartedAt = DateTime.UtcNow };
             await _attemptRepository.AddAsync(attempt);
             await _unitOfWork.SaveChangesAsync();

@@ -25,6 +25,10 @@ public class CreateQuizRequest
     [Range(1, int.MaxValue)]
     public int MaxAttempts { get; set; } = 1;
 
+    public QuizPurpose Purpose { get; set; } = QuizPurpose.PRACTICE;
+
+    public int? ModuleId { get; set; }
+
     public QuizStatus Status { get; set; } = QuizStatus.DRAFT;
 
     [Required]

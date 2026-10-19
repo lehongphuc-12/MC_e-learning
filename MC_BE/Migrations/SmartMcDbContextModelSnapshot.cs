@@ -2089,11 +2089,19 @@ namespace MC_BE.Migrations
                         .HasDefaultValue(1)
                         .HasColumnName("MaxAttempts");
 
+                    b.Property<int?>("ModuleId")
+                        .HasColumnType("integer")
+                        .HasColumnName("ModuleID");
+
                     b.Property<decimal>("PassingScore")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("decimal(5,2)")
                         .HasDefaultValue(80.00m)
                         .HasColumnName("PassingScore");
+
+                    b.Property<int>("Purpose")
+                        .HasColumnType("integer")
+                        .HasColumnName("Purpose");
 
                     b.Property<string>("Status")
                         .IsRequired()
