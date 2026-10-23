@@ -32,8 +32,7 @@ public class LessonService : ILessonService
 
     private LessonDto MapToDto(Lesson lesson)
     {
-        var material = lesson.CourseMaterials?.FirstOrDefault(m => m.MaterialType == MaterialType.VIDEO);
-        var videoUrl = material?.FileUrl;
+        var videoUrl = LessonVideoUrlResolver.Resolve(lesson.CourseMaterials);
 
         if (!string.IsNullOrWhiteSpace(videoUrl))
         {
@@ -116,7 +115,7 @@ public class LessonService : ILessonService
                 UploaderId = instructorId,
                 Title = $"{request.Title} - Video",
                 MaterialType = MaterialType.VIDEO,
-                FileUrl = request.VideoUrl.Trim(),
+                FileUrl = LessonVideoUrlResolver.NormalizeStoredUrl(request.VideoUrl),
                 CreatedAt = DateTime.UtcNow,
             };
             await _materialRepository.AddAsync(material);
@@ -164,7 +163,7 @@ public class LessonService : ILessonService
             var existingMaterial = lesson.CourseMaterials?.FirstOrDefault(m => m.MaterialType == MaterialType.VIDEO);
             if (existingMaterial != null)
             {
-                existingMaterial.FileUrl = request.VideoUrl;
+                existingMaterial.FileUrl = LessonVideoUrlResolver.NormalizeStoredUrl(request.VideoUrl);
                 _materialRepository.Update(existingMaterial);
             }
             else if (!string.IsNullOrWhiteSpace(request.VideoUrl))
@@ -176,7 +175,7 @@ public class LessonService : ILessonService
                     UploaderId = instructorId,
                     Title = $"{lesson.Title} - Video",
                     MaterialType = MaterialType.VIDEO,
-                    FileUrl = request.VideoUrl.Trim(),
+                    FileUrl = LessonVideoUrlResolver.NormalizeStoredUrl(request.VideoUrl),
                     CreatedAt = DateTime.UtcNow,
                 });
             }

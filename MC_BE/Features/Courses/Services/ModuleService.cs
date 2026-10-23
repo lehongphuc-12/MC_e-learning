@@ -45,7 +45,7 @@ public class ModuleService : IModuleService
                 IsPreview = l.IsPreview,
                 Status = l.Status,
                 CreatedAt = l.CreatedAt,
-                VideoUrl = l.CourseMaterials?.FirstOrDefault(cm => cm.MaterialType == Core.Enums.MaterialType.OTHER || cm.MaterialType == Core.Enums.MaterialType.DOCUMENT || cm.FileUrl.Contains("youtube.com") || cm.FileUrl.Contains("youtu.be"))?.FileUrl
+                VideoUrl = LessonVideoUrlResolver.Resolve(l.CourseMaterials)
             })
             .ToList();
 
@@ -201,8 +201,8 @@ public class ModuleService : IModuleService
                             LessonId = lesson.LessonId,
                             UploaderId = instructorId,
                             Title = $"{lesReq.Title.Trim()} - Video",
-                            MaterialType = Core.Enums.MaterialType.OTHER,
-                            FileUrl = lesReq.VideoUrl.Trim(),
+                            MaterialType = Core.Enums.MaterialType.VIDEO,
+                            FileUrl = LessonVideoUrlResolver.NormalizeStoredUrl(lesReq.VideoUrl),
                             CreatedAt = DateTime.UtcNow
                         };
                         await _materialRepository.AddAsync(material);
