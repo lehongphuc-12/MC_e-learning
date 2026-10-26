@@ -2729,6 +2729,10 @@ namespace MC_BE.Migrations
                         .HasColumnType("character varying(150)")
                         .HasColumnName("Email");
 
+                    b.Property<int>("FailedLoginAttempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("FailedLoginAttempts");
+
                     b.Property<string>("FullName")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -2746,6 +2750,10 @@ namespace MC_BE.Migrations
                     b.Property<DateTime?>("LastSeenAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("LastSeenAt");
+
+                    b.Property<DateTime?>("LockoutUntil")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("LockoutUntil");
 
                     b.Property<string>("PasswordHash")
                         .HasMaxLength(255)

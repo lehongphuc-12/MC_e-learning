@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading.RateLimiting;
 using MC_BE.Core.Entities;
 using MC_BE.Features.Admin.Services;
 using MC_BE.Features.Admin.Services.Interfaces;
@@ -31,10 +32,13 @@ using MC_BE.Shared.Services;
 using MC_BE.Shared.Services.Interfaces;
 using MC_BE.Shared.Settings;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+
 var builder = WebApplication.CreateBuilder(args);
+
 // ============================================================
 // KESTREL — allow large file uploads (max 500 MB for video)
 // ============================================================
@@ -49,6 +53,7 @@ builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(optio
     options.MultipartBodyLengthLimit = 500L * 1024L * 1024L; // 500 MB
     options.MultipartHeadersLengthLimit = int.MaxValue;
 });
+
 // ============================================================
 // DATABASE
 // ============================================================
@@ -56,6 +61,7 @@ builder.Services.AddDbContext<SmartMcDbContext>(options =>
 {
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"));
 });
+
 // ============================================================
 // SETTINGS
 // ============================================================
@@ -63,25 +69,59 @@ builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection(
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
 builder.Services.Configure<PayOsSettings>(builder.Configuration.GetSection("PayOS"));
 builder.Services.Configure<R2Settings>(builder.Configuration.GetSection("CloudflareR2"));
+
 // ============================================================
-// CORS
+// CORS — restrict to known origins only (never wildcard + credentials)
 // ============================================================
+var allowedOrigins = builder.Configuration
+    .GetSection("Cors:AllowedOrigins")
+    .Get<string[]>()
+    ?? new[] { "http://localhost:3000", "http://localhost:5173" };
+
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", policy =>
+    options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.SetIsOriginAllowed(_ => true)
-            .AllowAnyMethod()
-            .AllowAnyHeader()
-            .AllowCredentials();
+        policy.WithOrigins(allowedOrigins)
+              .AllowAnyMethod()
+              .AllowAnyHeader()
+              .AllowCredentials();
     });
 });
+
+// ============================================================
+// RATE LIMITING — protect auth endpoints from brute-force / spam
+// ============================================================
+builder.Services.AddRateLimiter(rateLimiterOptions =>
+{
+    // Auth endpoints: 10 requests per IP per minute
+    rateLimiterOptions.AddFixedWindowLimiter("AuthPolicy", options =>
+    {
+        options.PermitLimit = 10;
+        options.Window = TimeSpan.FromMinutes(1);
+        options.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        options.QueueLimit = 0;
+    });
+
+    // General API: 200 requests per IP per minute
+    rateLimiterOptions.AddFixedWindowLimiter("GeneralPolicy", options =>
+    {
+        options.PermitLimit = 200;
+        options.Window = TimeSpan.FromMinutes(1);
+        options.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        options.QueueLimit = 5;
+    });
+
+    rateLimiterOptions.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+});
+
 // ============================================================
 // REPOSITORY / UNIT OF WORK
 // ============================================================
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddHttpContextAccessor();
+
 // ============================================================
 // AUTH / USER / ADMIN
 // ============================================================
@@ -92,6 +132,7 @@ builder.Services.AddScoped<IUserProfileService, UserProfileService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<IAdminStatsService, AdminStatsService>();
+
 // ============================================================
 // COURSE MANAGEMENT
 // ============================================================
@@ -99,6 +140,7 @@ builder.Services.AddScoped<ICourseService, CourseService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<IModuleService, ModuleService>();
 builder.Services.AddScoped<ILessonService, LessonService>();
+
 // ============================================================
 // QUIZ MANAGEMENT
 // ============================================================
@@ -118,6 +160,7 @@ builder.Services.AddScoped<IForumPostService, ForumPostService>();
 builder.Services.AddScoped<IForumCommentService, ForumCommentService>();
 builder.Services.AddScoped<IForumInteractionService, ForumInteractionService>();
 builder.Services.AddScoped<IAdminForumService, AdminForumService>();
+
 // ============================================================
 // LEARNING / CERTIFICATION
 // ============================================================
@@ -125,12 +168,14 @@ builder.Services.AddScoped<ICertificateService, CertificateService>();
 builder.Services.AddScoped<ILearningProgressService, LearningProgressService>();
 builder.Services.AddScoped<ISpeakingSubmissionRepository, SpeakingSubmissionRepository>();
 builder.Services.AddScoped<ISpeakingSubmissionService, SpeakingSubmissionService>();
+
 // ============================================================
 // EMAIL / CLOUDINARY
 // ============================================================
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
 builder.Services.AddScoped<IR2StorageService, R2StorageService>();
+
 // ============================================================
 // ENROLLMENT / PAYMENT
 // ============================================================
@@ -141,11 +186,13 @@ builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddScoped<IAdminPaymentService, AdminPaymentService>();
 builder.Services.AddScoped<IPayOsService, PayOsService>();
 builder.Services.AddHostedService<EnrollmentExpirationWorker>();
+
 // ============================================================
 // CHAT / CALL
 // ============================================================
 builder.Services.AddScoped<IChatService, ChatService>();
 builder.Services.AddScoped<ICallService, CallService>();
+
 // ============================================================
 // SIGNALR
 // ============================================================
@@ -154,6 +201,7 @@ builder.Services.AddSignalR(options =>
     options.EnableDetailedErrors = builder.Environment.IsDevelopment();
     options.MaximumReceiveMessageSize = 128 * 1024;
 });
+
 // ============================================================
 // JWT AUTHENTICATION
 // ============================================================
@@ -191,6 +239,7 @@ builder.Services.AddAuthentication(options =>
         }
     };
 });
+
 // ============================================================
 // CONTROLLERS / JSON
 // ============================================================
@@ -199,8 +248,9 @@ builder.Services.AddControllers()
     {
         options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
     });
+
 // ============================================================
-// OPEN API / SWAGGER
+// OPEN API / SWAGGER (always registered so dev tools work; UI gated below)
 // ============================================================
 builder.Services.AddOpenApi();
 builder.Services.AddEndpointsApiExplorer();
@@ -238,16 +288,24 @@ builder.Services.AddSwaggerGen(c =>
         }
     });
 });
+
 // ============================================================
 // BUILD APP
 // ============================================================
 var app = builder.Build();
+
 // ============================================================
 // GLOBAL EXCEPTION
 // ============================================================
 app.UseMiddleware<GlobalExceptionMiddleware>();
+
 // ============================================================
-// DATABASE MIGRATION + SEED ROLES
+// HTTPS REDIRECT — ensure HTTP requests are upgraded to HTTPS
+// ============================================================
+app.UseHttpsRedirection();
+
+// ============================================================
+// DATABASE MIGRATION + PATCH
 // ============================================================
 using (var scope = app.Services.CreateScope())
 {
@@ -265,77 +323,41 @@ using (var scope = app.Services.CreateScope())
         Console.WriteLine($"Database column patch notice: {ex.Message}");
     }
 }
-//using (var scope = app.Services.CreateScope())
-//{
-//    var context = scope.ServiceProvider.GetRequiredService<SmartMcDbContext>();
-//    try
-//    {
-//        Console.WriteLine("====================================");
-//        Console.WriteLine("Running database migrations...");
-//        context.Database.Migrate();
-//        Console.WriteLine("Database migration completed.");
-//        if (!context.Roles.Any())
-//        {
-//            Console.WriteLine("Seeding default roles...");
-//            context.Roles.AddRange(
-//                new Role
-//                {
-//                    RoleName = "Learner",
-//                    Description = "Student user who consumes learning materials."
-//                },
-//                new Role
-//                {
-//                    RoleName = "Instructor",
-//                    Description = "Teacher user who teaches classes and uploads materials."
-//                },
-//                new Role
-//                {
-//                    RoleName = "Admin",
-//                    Description = "Administrator user with system-wide permissions."
-//                }
-//            );
-//            context.SaveChanges();
-//            Console.WriteLine("Default roles seeded.");
-//        }
-//        Console.WriteLine("Database initialization completed.");
-//        Console.WriteLine("====================================");
-//    }
-//    catch (Exception ex)
-//    {
-//        Console.WriteLine("====================================");
-//        Console.WriteLine("DATABASE INITIALIZATION ERROR");
-//        Console.WriteLine("====================================");
-//        Console.WriteLine(ex);
-//        Console.WriteLine("====================================");
-//        throw;
-//    }
-//}
+
 // ============================================================
 // HTTP PIPELINE
 // ============================================================
 app.UseRouting();
-app.UseCors("AllowAll");
+app.UseCors("AllowFrontend");
+app.UseRateLimiter();
 app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
+
 // ============================================================
 // SIGNALR HUBS
 // ============================================================
 app.MapHub<ChatHub>("/hubs/chat");
 app.MapHub<CallHub>("/hubs/call");
+
 // ============================================================
-// SWAGGER
+// SWAGGER — only expose UI in Development environment
 // ============================================================
-app.UseSwagger();
-app.UseSwaggerUI(c =>
+if (app.Environment.IsDevelopment())
 {
-    c.SwaggerEndpoint("/swagger/v1/swagger.json", "MC E-Learning API v1");
-    c.RoutePrefix = "swagger";
-});
+    app.UseSwagger();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "MC E-Learning API v1");
+        c.RoutePrefix = "swagger";
+    });
+}
+
 // ============================================================
 // CONTROLLERS
 // ============================================================
 app.MapControllers();
+
 // ============================================================
 // RUN
 // ============================================================
