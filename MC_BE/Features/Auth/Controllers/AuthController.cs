@@ -1,5 +1,6 @@
 using MC_BE.Core.DTOs;
 using MC_BE.Features.Auth.DTOs;
+using Microsoft.AspNetCore.RateLimiting;
 using MC_BE.Features.Auth.DTOs.auth;
 using MC_BE.Features.Auth.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -20,6 +21,7 @@ public class AuthController : ControllerBase
         _userProfileService = userProfileService;
     }
 
+    [EnableRateLimiting("AuthPolicy")]
     [HttpPost("register")]
     public async Task<ActionResult<ApiResponse<UserDto>>> Register([FromBody] RegisterRequest request)
     {
@@ -38,6 +40,7 @@ public class AuthController : ControllerBase
         return Ok(result);
     }
 
+    [EnableRateLimiting("AuthPolicy")]
     [HttpPost("login")]
     public async Task<ActionResult<ApiResponse<LoginResponse>>> Login([FromBody] LoginRequest request)
     {
@@ -56,6 +59,7 @@ public class AuthController : ControllerBase
         return Ok(result);
     }
 
+    [EnableRateLimiting("AuthPolicy")]
     [HttpPost("google-login")]
     public async Task<ActionResult<ApiResponse<LoginResponse>>> GoogleLogin([FromBody] GoogleLoginRequest request)
     {
@@ -181,6 +185,7 @@ public class AuthController : ControllerBase
         return Ok(result);
     }
 
+    [EnableRateLimiting("AuthPolicy")]
     [HttpPost("forgot-password")]
     public async Task<ActionResult<ApiResponse<string>>> ForgotPassword([FromBody] ForgotPasswordRequestDto request)
     {
