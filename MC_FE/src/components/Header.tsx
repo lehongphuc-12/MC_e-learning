@@ -102,66 +102,39 @@ export const Header: React.FC<HeaderProps> = ({
       {isAnnouncementVisible && (
         <div
           id="top-announcement-bar"
-          className="mseek-announcement relative z-50 overflow-hidden bg-[#031a43] text-white"
+          className="relative z-50 overflow-hidden bg-gradient-to-r from-[#03163f] via-[#072352] to-[#03163f] text-white border-b border-blue-900/30"
         >
-          {/* animated background */}
-          <div className="pointer-events-none absolute inset-0">
-            <div className="announcement-glow-left absolute -left-20 -top-16 h-32 w-72 rounded-full bg-blue-500/25 blur-[70px]" />
-
-            <div className="announcement-glow-right absolute -right-10 -top-20 h-40 w-72 rounded-full bg-[#ffc928]/15 blur-[80px]" />
-
-            <div className="announcement-wave absolute left-1/2 top-0 hidden h-full w-[360px] -translate-x-1/2 opacity-40 lg:block">
-              <span className="wave-line wave-line-1" />
-              <span className="wave-line wave-line-2" />
-              <span className="wave-line wave-line-3" />
-            </div>
-
-            <span className="announcement-particle particle-one" />
-            <span className="announcement-particle particle-two" />
-            <span className="announcement-particle particle-three" />
-          </div>
-
           <div className="relative mx-auto flex min-h-[38px] max-w-[1500px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
             {/* LEFT */}
             <div className="flex min-w-0 items-center gap-3">
-              <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-[#ffc928]/30 bg-[#ffc928]/10 px-2.5 py-1">
-                <Sparkles className="h-3 w-3 text-[#ffc928]" />
-
-                <span className="text-[9px] font-black uppercase tracking-[0.14em] text-[#ffd95e]">
-                  MSEEK
+              <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-amber-400/40 bg-amber-400/10 px-2.5 py-0.5">
+                <Sparkles className="h-3 w-3 text-amber-400" />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300">
+                  MSEEK ACADEMY
                 </span>
               </div>
 
-              <div className="hidden items-center gap-2 text-[10px] font-semibold text-blue-100/85 sm:flex lg:text-[11px]">
+              <div className="hidden items-center gap-2 text-xs font-medium text-slate-200 sm:flex">
                 <span>Nâng tầm giọng nói</span>
-
-                <span className="h-1 w-1 rounded-full bg-[#ffc928]" />
-
+                <span className="h-1 w-1 rounded-full bg-amber-400" />
                 <span>Tự tin làm chủ sân khấu</span>
-
-                <span className="hidden h-1 w-1 rounded-full bg-[#ffc928] lg:block" />
-
-                <span className="hidden font-black text-[#ffc928] lg:inline">
-                  Bắt đầu hành trình cùng MSEEK
+                <span className="hidden h-1 w-1 rounded-full bg-amber-400 lg:block" />
+                <span className="hidden font-semibold text-amber-300 lg:inline">
+                  Khóa đào tạo MC & Diễn thuyết chuyên nghiệp
                 </span>
               </div>
 
-              <span className="truncate text-[9px] font-bold text-blue-100 sm:hidden">
+              <span className="truncate text-xs font-medium text-slate-200 sm:hidden">
                 Luyện giọng chuyên nghiệp cùng MSEEK
               </span>
             </div>
 
             {/* RIGHT */}
-            <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-              <div className="hidden items-center gap-2 text-[10px] font-semibold text-blue-100/80 xl:flex">
-                <span className="announcement-live-dot" />
-                Khóa học luyện giọng cho MC chuyên nghiệp
-              </div>
-
+            <div className="flex shrink-0 items-center gap-3">
               <button
                 type="button"
                 onClick={() => onNavigate('courses')}
-                className="announcement-cta hidden items-center gap-1.5 rounded-full bg-[#ffc928] px-3 py-1.5 text-[9px] font-black text-[#082554] shadow-[0_5px_18px_rgba(255,201,40,0.22)] transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#ffd950] sm:flex"
+                className="hidden items-center gap-1.5 rounded-full bg-amber-400 hover:bg-amber-300 px-3.5 py-1 text-xs font-bold text-slate-950 transition-all duration-200 hover:-translate-y-0.5 sm:flex"
               >
                 Khám phá ngay
                 <ArrowRight className="h-3 w-3" />
@@ -170,8 +143,8 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 type="button"
                 onClick={() => setIsAnnouncementVisible(false)}
-                title="Đóng"
-                className="flex h-6 w-6 items-center justify-center rounded-full text-blue-100/60 transition-all duration-300 hover:rotate-90 hover:bg-white/10 hover:text-white"
+                aria-label="Đóng thông báo"
+                className="flex h-6 w-6 items-center justify-center rounded-full text-slate-300 transition-colors hover:bg-white/10 hover:text-white"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -185,25 +158,15 @@ export const Header: React.FC<HeaderProps> = ({
       ========================================================== */}
       <header
         id="main-header"
-        className={`sticky top-0 z-40 transition-all duration-500 ${
+        className={`sticky top-0 z-40 transition-all duration-300 ${
           isScrolled
-            ? 'border-b border-blue-100/80 bg-white/90 shadow-[0_12px_40px_rgba(8,47,107,0.10)] backdrop-blur-2xl'
-            : 'border-b border-slate-100 bg-white/95 shadow-[0_8px_30px_rgba(15,65,130,0.06)] backdrop-blur-xl'
+            ? 'border-b border-slate-200/80 bg-white/95 shadow-sm backdrop-blur-md'
+            : 'border-b border-slate-100 bg-white/90 backdrop-blur-md'
         }`}
       >
-        {/* TOP LIGHT */}
-        <div className="header-top-light pointer-events-none absolute left-0 right-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-blue-500/60 to-transparent" />
-
-        {/* BACKGROUND GLOW */}
-        <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="header-glow absolute -left-20 -top-20 h-44 w-72 rounded-full bg-blue-400/[0.07] blur-[80px]" />
-
-          <div className="header-glow-yellow absolute -right-16 -top-24 h-44 w-64 rounded-full bg-[#ffc928]/[0.06] blur-[80px]" />
-        </div>
-
         <div className="relative mx-auto max-w-[1500px] px-4 sm:px-6 lg:px-8">
   <div
-    className={`flex items-center justify-between transition-all duration-500 ${
+    className={`flex items-center justify-between transition-all duration-300 ${
       isScrolled ? 'h-[58px]' : 'h-[64px]'
     }`}
   >
@@ -216,25 +179,19 @@ export const Header: React.FC<HeaderProps> = ({
         id="brand-logo-btn"
         type="button"
         onClick={() => onNavigate('home')}
-        className="logo-wrapper group relative flex shrink-0 items-center"
+        className="group relative flex shrink-0 items-center"
         aria-label="MSeek - Trang chủ"
       >
-        {/* logo glow */}
-        <div className="logo-glow pointer-events-none absolute inset-0 scale-75 rounded-full bg-cyan-400/25 opacity-0 blur-xl transition-all duration-500 group-hover:scale-125 group-hover:opacity-100" />
-        {/* animated stars */}
-        <span className="logo-star logo-star-one" />
-        <span className="logo-star logo-star-two" />
-
         {/* LOGO IMAGE */}
-<div className="relative z-10 aspect-square overflow-hidden rounded-full border-2 border-white/90 bg-[#061a38] shadow-[0_5px_18px_rgba(8,37,84,0.18)] ring-1 ring-blue-100/80 transition-all duration-500 group-hover:-translate-y-0.5 group-hover:scale-[1.04] group-hover:shadow-[0_8px_24px_rgba(8,37,84,0.25)]">
-  <img
-    src="/images/logo/mseekk-logo.png"
-    alt="MSeek - Speak. Seek. Inspire."
-    className={`block aspect-square w-auto rounded-full object-cover transition-all duration-500 group-hover:scale-[1.06] ${
-      isScrolled ? 'h-[42px]' : 'h-[48px]'
-    }`}
-  />
-</div>
+        <div className="relative z-10 aspect-square overflow-hidden rounded-full border border-slate-200/80 bg-[#061a38] shadow-sm transition-all duration-200 group-hover:scale-105 group-hover:shadow-md">
+          <img
+            src="/images/logo/mseekk-logo.png"
+            alt="MSeek - Speak. Seek. Inspire."
+            className={`block aspect-square w-auto rounded-full object-cover transition-all duration-300 ${
+              isScrolled ? 'h-[40px]' : 'h-[46px]'
+            }`}
+          />
+        </div>
       </button>
 
       {/* DESKTOP NAV */}

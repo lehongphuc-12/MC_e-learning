@@ -75,6 +75,17 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [isAlreadyEnrolled, setIsAlreadyEnrolled] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isProcessing) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, isProcessing, onClose]);
+
   if (!isOpen || !course) {
     return null;
   }
@@ -304,7 +315,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     >
       <div
         id="checkout-modal-card"
-        className="relative w-full max-w-2xl bg-gradient-to-b from-[#0B132B] via-[#070B19] to-[#040711] text-white rounded-3xl shadow-2xl border border-blue-500/25 overflow-hidden"
+        className="relative w-full max-w-2xl bg-gradient-to-b from-[#0B132B] via-[#070B19] to-[#040711] text-white rounded-3xl shadow-2xl border border-blue-500/25 overflow-hidden max-h-[92vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Spotlight Stage Glow Background */}
@@ -321,11 +332,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-base font-black tracking-tight text-white">
-                  MSEEK Secure Checkout
+                  Thanh toán an toàn MSEEK
                 </h3>
 
                 <span className="px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/30 text-[10px] font-bold uppercase tracking-wider">
-                  Course #{realCourseId}
+                  Khóa học #{realCourseId}
                 </span>
               </div>
 
@@ -367,7 +378,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         ) : (
           <form
             onSubmit={handleProcessPayment}
-            className="p-6 sm:p-8 space-y-6 relative z-10"
+            className="p-5 sm:p-8 space-y-6 relative z-10 overflow-y-auto flex-1 scrollbar-thin scrollbar-thumb-slate-700"
           >
             {/* Lỗi cảnh báo */}
             {errorMessage && (
