@@ -15,19 +15,22 @@ public class LessonService : ILessonService
     private readonly IGenericRepository<CourseMaterial> _materialRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IR2StorageService _r2;
+    private readonly ITranscriptionQueue _transcriptionQueue;
 
     public LessonService(
         IGenericRepository<Lesson> lessonRepository,
         IGenericRepository<Course> courseRepository,
         IGenericRepository<CourseMaterial> materialRepository,
         IUnitOfWork unitOfWork,
-        IR2StorageService r2)
+        IR2StorageService r2,
+        ITranscriptionQueue transcriptionQueue)
     {
         _lessonRepository = lessonRepository;
         _courseRepository = courseRepository;
         _materialRepository = materialRepository;
         _unitOfWork = unitOfWork;
         _r2 = r2;
+        _transcriptionQueue = transcriptionQueue;
     }
 
     private LessonDto MapToDto(Lesson lesson)
@@ -44,6 +47,16 @@ public class LessonService : ILessonService
             }
         }
 
+        var subtitleUrl = lesson.SubtitleUrl;
+        if (!string.IsNullOrWhiteSpace(subtitleUrl))
+        {
+            var subKey = _r2.ExtractKeyFromUrl(subtitleUrl);
+            if (subKey != null && subtitleUrl.Contains(".r2.cloudflarestorage.com") && !subtitleUrl.Contains("X-Amz-Signature"))
+            {
+                subtitleUrl = _r2.GetPresignedUrl(subKey);
+            }
+        }
+
         return new LessonDto
         {
             LessonId = lesson.LessonId,
@@ -57,6 +70,9 @@ public class LessonService : ILessonService
             IsPreview = lesson.IsPreview,
             Status = lesson.Status,
             VideoUrl = videoUrl,
+            Transcript = lesson.Transcript,
+            SubtitleUrl = subtitleUrl,
+            TranscriptStatus = lesson.TranscriptStatus,
             CreatedAt = lesson.CreatedAt,
         };
     }
@@ -232,13 +248,23 @@ public class LessonService : ILessonService
             }
         }
 
-        // Upload new file to R2
-        await using var stream = file.OpenReadStream();
-        var publicUrl = await _r2.UploadAsync(
-            stream,
-            file.FileName,
-            file.ContentType ?? "video/mp4",
-            folder);
+        // Save uploaded video temporarily to disk for background transcription
+        var tempVideoPath = Path.Combine(Path.GetTempPath(), $"mseek_upload_{lessonId}_{Guid.NewGuid():N}{Path.GetExtension(file.FileName)}");
+        await using (var tempFs = new FileStream(tempVideoPath, FileMode.Create, FileAccess.Write, FileShare.None))
+        {
+            await file.CopyToAsync(tempFs);
+        }
+
+        // Upload new file to R2 from local file stream
+        string publicUrl;
+        await using (var uploadStream = File.OpenRead(tempVideoPath))
+        {
+            publicUrl = await _r2.UploadAsync(
+                uploadStream,
+                file.FileName,
+                file.ContentType ?? "video/mp4",
+                folder);
+        }
 
         if (existingMaterial != null)
         {
@@ -264,7 +290,22 @@ public class LessonService : ILessonService
             });
         }
 
+        // Mark transcription as PROCESSING and reset previous transcript/subtitles
+        lesson.TranscriptStatus = TranscriptStatus.PROCESSING;
+        lesson.Transcript = null;
+        lesson.SubtitleUrl = null;
+        _lessonRepository.Update(lesson);
+
         await _unitOfWork.SaveChangesAsync();
+
+        // Enqueue background transcription job
+        await _transcriptionQueue.EnqueueAsync(new TranscriptionJob
+        {
+            LessonId = lesson.LessonId,
+            VideoTempFilePath = tempVideoPath,
+            OriginalFileName = file.FileName
+        });
+
         return await GetLessonByIdAsync(lessonId);
     }
 
@@ -283,12 +324,27 @@ public class LessonService : ILessonService
 
         if (material == null) return false;
 
-        // Remove from R2
+        // Remove video from R2
         var key = _r2.ExtractKeyFromUrl(material.FileUrl ?? string.Empty);
         if (key != null)
         {
             try { await _r2.DeleteAsync(key); }
             catch { /* log and continue */ }
+        }
+
+        // Remove subtitle from R2 if present
+        if (!string.IsNullOrWhiteSpace(lesson.SubtitleUrl))
+        {
+            var subKey = _r2.ExtractKeyFromUrl(lesson.SubtitleUrl);
+            if (subKey != null)
+            {
+                try { await _r2.DeleteAsync(subKey); }
+                catch { /* log and continue */ }
+            }
+            lesson.SubtitleUrl = null;
+            lesson.Transcript = null;
+            lesson.TranscriptStatus = TranscriptStatus.NONE;
+            _lessonRepository.Update(lesson);
         }
 
         // Remove the DB record

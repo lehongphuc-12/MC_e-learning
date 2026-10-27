@@ -16,6 +16,9 @@ public class LessonDto
     public bool IsPreview { get; set; } = false;
     public LessonStatus Status { get; set; } = LessonStatus.ACTIVE;
     public string? VideoUrl { get; set; }
+    public string? Transcript { get; set; }
+    public string? SubtitleUrl { get; set; }
+    public TranscriptStatus TranscriptStatus { get; set; } = TranscriptStatus.NONE;
     public DateTime CreatedAt { get; set; }
 }
 

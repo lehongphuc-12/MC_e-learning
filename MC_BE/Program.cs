@@ -69,6 +69,7 @@ builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection(
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
 builder.Services.Configure<PayOsSettings>(builder.Configuration.GetSection("PayOS"));
 builder.Services.Configure<R2Settings>(builder.Configuration.GetSection("CloudflareR2"));
+builder.Services.Configure<GroqSettings>(builder.Configuration.GetSection("Groq"));
 
 // ============================================================
 // CORS — restrict to known origins only (never wildcard + credentials)
@@ -175,6 +176,14 @@ builder.Services.AddScoped<ISpeakingSubmissionService, SpeakingSubmissionService
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
 builder.Services.AddScoped<IR2StorageService, R2StorageService>();
+
+// ============================================================
+// AI SPEECH-TO-TEXT & TRANSCRIPTION
+// ============================================================
+builder.Services.AddHttpClient<IGroqWhisperService, GroqWhisperService>();
+builder.Services.AddSingleton<IAudioExtractorService, AudioExtractorService>();
+builder.Services.AddSingleton<ITranscriptionQueue, TranscriptionQueue>();
+builder.Services.AddHostedService<TranscriptionWorker>();
 
 // ============================================================
 // ENROLLMENT / PAYMENT
@@ -316,6 +325,9 @@ using (var scope = app.Services.CreateScope())
         context.Database.ExecuteSqlRaw(@"
             ALTER TABLE course_materials ALTER COLUMN ""FileUrl"" TYPE text;
             ALTER TABLE course_materials ALTER COLUMN ""Title"" TYPE character varying(500);
+            ALTER TABLE IF EXISTS lessons ADD COLUMN IF NOT EXISTS ""Transcript"" text;
+            ALTER TABLE IF EXISTS lessons ADD COLUMN IF NOT EXISTS ""SubtitleUrl"" text;
+            ALTER TABLE IF EXISTS lessons ADD COLUMN IF NOT EXISTS ""TranscriptStatus"" integer NOT NULL DEFAULT 0;
         ");
     }
     catch (Exception ex)

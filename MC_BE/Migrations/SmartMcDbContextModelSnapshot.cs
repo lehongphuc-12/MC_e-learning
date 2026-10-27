@@ -1380,11 +1380,23 @@ namespace MC_BE.Migrations
                         .HasDefaultValue("ACTIVE")
                         .HasColumnName("Status");
 
+                    b.Property<string>("SubtitleUrl")
+                        .HasColumnType("text")
+                        .HasColumnName("SubtitleUrl");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)")
                         .HasColumnName("Title");
+
+                    b.Property<string>("Transcript")
+                        .HasColumnType("text")
+                        .HasColumnName("Transcript");
+
+                    b.Property<int>("TranscriptStatus")
+                        .HasColumnType("integer")
+                        .HasColumnName("TranscriptStatus");
 
                     b.HasKey("LessonId");
 
