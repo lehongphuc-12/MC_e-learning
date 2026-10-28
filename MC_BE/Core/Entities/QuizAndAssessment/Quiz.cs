@@ -45,6 +45,13 @@ public class Quiz
     [Column("CreatedAt")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+    // UTC. Null = không giới hạn phía tương ứng.
+    [Column("AvailableFrom")]
+    public DateTime? AvailableFrom { get; set; }
+
+    [Column("AvailableUntil")]
+    public DateTime? AvailableUntil { get; set; }
+
     // Navigation properties
     [ForeignKey("CourseId")]
     public virtual Course? Course { get; set; }

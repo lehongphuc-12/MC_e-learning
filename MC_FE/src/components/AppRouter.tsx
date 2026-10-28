@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Routes, Route, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
+import { Routes, Route, useNavigate, useSearchParams, useLocation, Navigate } from 'react-router-dom';
 import { ScreenType, Course, User } from '../types';
 import { CourseCatalogScreen } from '../features/courses/components/CourseCatalogScreen';
 import { CourseDetailScreen } from '../features/courses/components/CourseDetailScreen';
@@ -25,6 +25,7 @@ import { MaintenanceScreen } from './common/MaintenanceScreen';
 import { adminApi } from '../features/admin/services/adminApi';
 import { mockCourses } from '../data/mockData';
 import { HomeScreen } from '../features/courses/components/HomeScreen';
+import { AiVoiceCoachPage } from '../features/courses/components/AiVoiceCoachPage';
 
 // Feature route modules
 import { renderAuthRoutes } from '../features/auth/routes';
@@ -51,8 +52,17 @@ interface AppRouterProps {
   onUpdateUser?: (updatedUser: Partial<User>) => void;
   onToast?: (title: string, desc?: string, type?: ToastType) => void;
   onLogout: () => void;
-  cartCount: number;
+   cartCount: number;
   onOpenCart: () => void;
+  isCourseInCart: (
+    courseId: string | number
+  ) => boolean;
+  isCourseEnrolled: (
+    courseId: string | number
+  ) => boolean;
+  isCoursePendingPayment: (
+    courseId: string | number
+  ) => boolean;
 }
 
 export const AppRouter: React.FC<AppRouterProps> = ({
@@ -73,6 +83,9 @@ export const AppRouter: React.FC<AppRouterProps> = ({
   onLogout,
   cartCount,
   onOpenCart,
+  isCourseInCart,
+  isCourseEnrolled,
+  isCoursePendingPayment,
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -134,6 +147,7 @@ export const AppRouter: React.FC<AppRouterProps> = ({
     if (path === '/register') return 'register';
     if (path === '/forgot-password') return 'forgot-password';
     if (path === '/reset-password') return 'reset-password';
+    if (path.startsWith('/ai-voice-coach') || path.startsWith('/ai-coach')) return 'ai-voice-coach';
     return 'home';
   })();
 
@@ -194,24 +208,28 @@ export const AppRouter: React.FC<AppRouterProps> = ({
         onToast,
       })}
 
-      {/* ── 2. Course Routes (/, /courses, /course-detail, /instructor/courses/*) ── */}
       {renderCourseRoutes({
-        onNavigate: handleNavigate,
-        onSelectCourse: handleSelectCourse,
-        onPreviewVideo,
-        onAddToCart,
-        onToggleWishlist,
-        onEnrollDirectly,
-        wishlistCourseIds,
-        searchQuery,
-        onSearchChange,
-        activeCourse,
-        withMainLayout,
-        withInstructorLayout,
-        user,
-        currentScreen,
-        onToast,
-      })}
+  onNavigate: handleNavigate,
+  onSelectCourse: handleSelectCourse,
+  onPreviewVideo,
+  onAddToCart,
+  onToggleWishlist,
+  onEnrollDirectly,
+  wishlistCourseIds,
+  searchQuery,
+  onSearchChange,
+  activeCourse,
+  withMainLayout,
+  withInstructorLayout,
+  user,
+  currentScreen,
+  onToast,
+
+  onOpenCart,
+  isCourseInCart,
+  isCourseEnrolled,
+  isCoursePendingPayment,
+})}
 
       {/* ── 3. Quiz Routes (/quizzes/*, /instructor/quizzes/*) ── */}
       {renderQuizRoutes({
@@ -347,6 +365,20 @@ export const AppRouter: React.FC<AppRouterProps> = ({
             onToast={onToast}
           />
         }
+      />
+      <Route
+        path="/ai-voice-coach"
+        element={withMainLayout(
+          <AiVoiceCoachPage
+            onNavigate={handleNavigate}
+            user={user}
+            onSelectCourse={handleSelectCourse}
+          />
+        )}
+      />
+      <Route
+        path="/ai-coach"
+        element={<Navigate to="/ai-voice-coach" replace />}
       />
       <Route
         path="*"

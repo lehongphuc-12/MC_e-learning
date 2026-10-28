@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel.DataAnnotations;
 
 namespace MC_BE.Core.DTOs;
 
@@ -17,6 +18,9 @@ public class EnrollmentDto
 
 public class RevokeEnrollmentRequest
 {
+    [Required(ErrorMessage = "Vui lòng nhập lý do thu hồi")]
+    [StringLength(255)]
     public string Reason { get; set; } = string.Empty;
-    public bool IsRefunded { get; set; }
+
+    public bool IsRefunded { get; set; } = false;
 }

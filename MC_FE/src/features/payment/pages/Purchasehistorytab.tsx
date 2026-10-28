@@ -905,9 +905,11 @@ export const PurchaseHistoryTab: React.FC = () => {
                     </span>
                   </DetailRow>
                   <DetailRow label="Phương thức">{selectedPayment.paymentMethod}</DetailRow>
-                  <DetailRow label="Mã VNPay">
-                    <span className="font-mono">{selectedPayment.vnPayTransactionNo || 'Chưa có'}</span>
-                  </DetailRow>
+                  <DetailRow label="Mã giao dịch payOS">
+  <span className="font-mono">
+    {selectedPayment.latestTransaction?.providerTransactionNo || 'Chưa có'}
+  </span>
+</DetailRow>
                   <DetailRow label="Trạng thái ghi danh">
                     <span className="rounded-md bg-white px-2 py-0.5 ring-1 ring-inset ring-slate-200">
                       {selectedPayment.enrollmentStatus}

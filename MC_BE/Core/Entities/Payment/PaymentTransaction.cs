@@ -1,4 +1,3 @@
-using System;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -19,7 +18,7 @@ public class PaymentTransaction
     [Required]
     [MaxLength(50)]
     [Column("Provider")]
-    public string Provider { get; set; } = "VNPAY";
+    public string Provider { get; set; } = "PAYOS";
 
     [MaxLength(100)]
     [Column("ProviderTransactionNo")]
@@ -55,7 +54,6 @@ public class PaymentTransaction
     [Column("CreatedAt")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-    // Navigation property
     [ForeignKey(nameof(PaymentId))]
     public virtual Payment Payment { get; set; } = null!;
 }

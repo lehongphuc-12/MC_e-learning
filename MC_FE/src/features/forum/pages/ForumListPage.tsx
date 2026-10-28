@@ -139,10 +139,10 @@ export const ForumListPage: React.FC<ForumListPageProps> = ({ user, onToast }) =
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 py-8 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[#f4f7fa] text-slate-900 py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto space-y-8">
         {/* Banner Hero */}
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-cyan-900/60 via-slate-900 to-slate-900 border border-cyan-500/20 p-8 shadow-2xl">
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#03163f] via-[#06265f] to-[#031b4d] border border-blue-900/50 p-8 shadow-2xl">
           <div className="absolute right-0 top-0 -mt-12 -mr-12 w-96 h-96 rounded-full bg-cyan-500/10 blur-3xl pointer-events-none" />
 
           <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -204,14 +204,14 @@ export const ForumListPage: React.FC<ForumListPageProps> = ({ user, onToast }) =
             {loading ? (
               <div className="space-y-6">
                 {[1, 2, 3].map((n) => (
-                  <div key={n} className="h-64 rounded-3xl bg-slate-900/60 border border-slate-800 animate-pulse" />
+                  <div key={n} className="h-64 rounded-3xl bg-white border border-slate-200 animate-pulse" />
                 ))}
               </div>
             ) : posts.length === 0 ? (
-              <div className="rounded-3xl bg-slate-900/60 border border-slate-800/80 p-12 text-center space-y-3">
+              <div className="rounded-3xl bg-white border border-slate-200/80 p-12 text-center space-y-3">
                 <MessageSquare className="h-12 w-12 text-slate-600 mx-auto" />
-                <h3 className="text-base font-bold text-white">Chưa có bài viết nào</h3>
-                <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                <h3 className="text-base font-bold text-slate-900">Chưa có bài viết nào</h3>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">
                   Hãy là người đầu tiên chia sẻ câu chuyện hoặc đặt câu hỏi trên diễn đàn!
                 </p>
                 <button
@@ -239,8 +239,8 @@ export const ForumListPage: React.FC<ForumListPageProps> = ({ user, onToast }) =
 
             {/* Pagination controls */}
             {totalPages > 1 && (
-              <div className="flex items-center justify-between pt-6 border-t border-slate-800">
-                <div className="text-xs text-slate-400">
+              <div className="flex items-center justify-between pt-6 border-t border-slate-200">
+                <div className="text-xs text-slate-500">
                   Hiển thị <strong>{posts.length}</strong> / <strong>{totalItems}</strong> bài viết
                 </div>
 
@@ -249,18 +249,18 @@ export const ForumListPage: React.FC<ForumListPageProps> = ({ user, onToast }) =
                     type="button"
                     disabled={page <= 1}
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                    className="p-2 rounded-xl bg-slate-900 border border-slate-200 text-slate-600 hover:bg-slate-800 hover:text-slate-900 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </button>
-                  <span className="text-xs font-semibold text-slate-300 px-3">
+                  <span className="text-xs font-semibold text-slate-600 px-3">
                     Trang {page} / {totalPages}
                   </span>
                   <button
                     type="button"
                     disabled={page >= totalPages}
                     onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                    className="p-2 rounded-xl bg-slate-900 border border-slate-200 text-slate-600 hover:bg-slate-800 hover:text-slate-900 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                   >
                     <ChevronRight className="h-4 w-4" />
                   </button>
@@ -272,32 +272,32 @@ export const ForumListPage: React.FC<ForumListPageProps> = ({ user, onToast }) =
           {/* Right Sidebar */}
           <div className="space-y-6">
             {/* Quick Stats Widget */}
-            <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-5 space-y-4">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2 border-b border-slate-800 pb-3">
+            <div className="rounded-2xl bg-white border border-slate-200 p-5 space-y-4">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2 border-b border-slate-200 pb-3">
                 <TrendingUp className="h-4 w-4 text-cyan-400" />
                 Thống kê Diễn đàn
               </h3>
 
               <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
-                  <div className="text-[10px] text-slate-400 uppercase font-semibold">Tổng bài viết</div>
+                <div className="p-3 rounded-xl bg-[#f4f7fa] border border-slate-200">
+                  <div className="text-[10px] text-slate-500 uppercase font-semibold">Tổng bài viết</div>
                   <div className="text-lg font-black text-cyan-400 mt-1">{totalItems}</div>
                 </div>
 
-                <div className="p-3 rounded-xl bg-slate-950 border border-slate-800">
-                  <div className="text-[10px] text-slate-400 uppercase font-semibold">Chủ đề</div>
+                <div className="p-3 rounded-xl bg-[#f4f7fa] border border-slate-200">
+                  <div className="text-[10px] text-slate-500 uppercase font-semibold">Chủ đề</div>
                   <div className="text-lg font-black text-pink-400 mt-1">{topics.length}</div>
                 </div>
               </div>
             </div>
 
             {/* Rules Widget */}
-            <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-5 space-y-3 text-xs text-slate-400 leading-relaxed">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2 border-b border-slate-800 pb-3">
+            <div className="rounded-2xl bg-white border border-slate-200 p-5 space-y-3 text-xs text-slate-500 leading-relaxed">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2 border-b border-slate-200 pb-3">
                 <Filter className="h-4 w-4 text-amber-400" />
                 Nội quy Diễn đàn
               </h3>
-              <ul className="space-y-2 list-disc list-inside text-slate-300">
+              <ul className="space-y-2 list-disc list-inside text-slate-600">
                 <li>Tôn trọng các thành viên khác, không phát ngôn thù hận.</li>
                 <li>Không đăng bài quảng cáo rác (spam) hoặc thông tin sai lệch.</li>
                 <li>Bài viết/Bình luận nhận đủ <strong>5 báo cáo</strong> sẽ tự động ẩn chờ kiểm duyệt.</li>

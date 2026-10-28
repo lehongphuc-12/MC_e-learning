@@ -47,12 +47,12 @@ export const ForumReactionButtons: React.FC<ForumReactionButtonsProps> = ({
         onClick={() => handleToggle('LIKE')}
         className={`inline-flex items-center rounded-xl font-medium transition-all duration-200 ${btnSizeClass} ${
           currentReaction === 'LIKE'
-            ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 shadow-sm'
-            : 'bg-slate-800/60 text-slate-400 hover:text-slate-200 hover:bg-slate-700/60 border border-slate-700/40'
+            ? 'bg-blue-100 text-blue-600 border border-blue-300 shadow-sm'
+            : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200 border border-slate-200'
         } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer active:scale-95'}`}
         title="Thích"
       >
-        <ThumbsUp className={`${iconSizeClass} ${currentReaction === 'LIKE' ? 'fill-cyan-400' : ''}`} />
+        <ThumbsUp className={`${iconSizeClass} ${currentReaction === 'LIKE' ? 'fill-blue-600' : ''}`} />
         <span>Thích</span>
       </button>
 
@@ -62,12 +62,12 @@ export const ForumReactionButtons: React.FC<ForumReactionButtonsProps> = ({
         onClick={() => handleToggle('LOVE')}
         className={`inline-flex items-center rounded-xl font-medium transition-all duration-200 ${btnSizeClass} ${
           currentReaction === 'LOVE'
-            ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40 shadow-sm'
-            : 'bg-slate-800/60 text-slate-400 hover:text-slate-200 hover:bg-slate-700/60 border border-slate-700/40'
+            ? 'bg-rose-100 text-rose-600 border border-rose-300 shadow-sm'
+            : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200 border border-slate-200'
         } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer active:scale-95'}`}
         title="Yêu thích"
       >
-        <Heart className={`${iconSizeClass} ${currentReaction === 'LOVE' ? 'fill-rose-400' : ''}`} />
+        <Heart className={`${iconSizeClass} ${currentReaction === 'LOVE' ? 'fill-rose-600' : ''}`} />
         <span>Thả tim</span>
       </button>
 
@@ -77,12 +77,12 @@ export const ForumReactionButtons: React.FC<ForumReactionButtonsProps> = ({
         onClick={() => handleToggle('HELPFUL')}
         className={`inline-flex items-center rounded-xl font-medium transition-all duration-200 ${btnSizeClass} ${
           currentReaction === 'HELPFUL'
-            ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40 shadow-sm'
-            : 'bg-slate-800/60 text-slate-400 hover:text-slate-200 hover:bg-slate-700/60 border border-slate-700/40'
+            ? 'bg-amber-100 text-amber-600 border border-amber-300 shadow-sm'
+            : 'bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200 border border-slate-200'
         } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer active:scale-95'}`}
         title="Hữu ích"
       >
-        <Award className={`${iconSizeClass} ${currentReaction === 'HELPFUL' ? 'fill-amber-400' : ''}`} />
+        <Award className={`${iconSizeClass} ${currentReaction === 'HELPFUL' ? 'fill-amber-600' : ''}`} />
         <span>Hữu ích</span>
       </button>
 

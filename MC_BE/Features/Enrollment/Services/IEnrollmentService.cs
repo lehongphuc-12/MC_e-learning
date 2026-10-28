@@ -1,7 +1,6 @@
+using MC_BE.Core.DTOs;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using MC_BE.Core.DTOs;
-
 namespace MC_BE.Shared.Services.Interfaces;
 
 public interface IEnrollmentService
@@ -11,4 +10,8 @@ public interface IEnrollmentService
     Task<ApiResponse<bool>> CancelPendingEnrollmentAsync(int learnerId, int enrollmentId);
     Task<ApiResponse<bool>> RevokeEnrollmentByAdminAsync(int enrollmentId, RevokeEnrollmentRequest request);
     Task<bool> HasActiveAccessAsync(int learnerId, int courseId);
+    Task<ApiResponse<List<CourseEnrolledStudentDto>>> GetCourseStudentsAsync(
+    int instructorId,
+    int courseId
+);
 }

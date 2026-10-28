@@ -1,35 +1,29 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-
+using System.Threading.RateLimiting;
 using MC_BE.Core.Entities;
-
 using MC_BE.Features.Admin.Services;
 using MC_BE.Features.Admin.Services.Interfaces;
-
+using MC_BE.Features.Forum.Services;
+using MC_BE.Features.Forum.Services.Interfaces;
 using MC_BE.Features.Auth.Services;
 using MC_BE.Features.Auth.Services.Interfaces;
-
 using MC_BE.Features.Courses.Services;
 using MC_BE.Features.Courses.Services.Interfaces;
-
 using MC_BE.Features.Users.Services;
 using MC_BE.Features.Users.Services.Interfaces;
-
 using MC_BE.Features.Learning.Repositories;
 using MC_BE.Features.Learning.Repositories.Interfaces;
 using MC_BE.Features.Learning.Services;
 using MC_BE.Features.Learning.Services.Interfaces;
-
 using MC_BE.Features.Chat.Hubs;
 using MC_BE.Features.Chat.Services;
 using MC_BE.Features.Chat.Services.Interfaces;
-
 using MC_BE.Features.Quizzes.Services;
 using MC_BE.Features.Quizzes.Services.Interfaces;
-
-
+using MC_BE.Features.Quizzes.Sync;
 using MC_BE.Shared.Data;
 using MC_BE.Shared.Middleware;
 using MC_BE.Shared.Repositories;
@@ -37,20 +31,32 @@ using MC_BE.Shared.Repositories.Interfaces;
 using MC_BE.Shared.Services;
 using MC_BE.Shared.Services.Interfaces;
 using MC_BE.Shared.Settings;
-
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using MC_BE.Features.Forum.Services;
-using MC_BE.Features.Forum.Services.Interfaces;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // ============================================================
+// KESTREL — allow large file uploads (max 500 MB for video)
+// ============================================================
+builder.WebHost.ConfigureKestrel(options =>
+{
+    // Per-request limit; individual endpoints can be lower via [RequestSizeLimit]
+    options.Limits.MaxRequestBodySize = 500L * 1024L * 1024L; // 500 MB
+});
+builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
+{
+    options.ValueLengthLimit = int.MaxValue;
+    options.MultipartBodyLengthLimit = 500L * 1024L * 1024L; // 500 MB
+    options.MultipartHeadersLengthLimit = int.MaxValue;
+});
+
+// ============================================================
 // DATABASE
 // ============================================================
-
 builder.Services.AddDbContext<SmartMcDbContext>(options =>
 {
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"));
@@ -59,30 +65,60 @@ builder.Services.AddDbContext<SmartMcDbContext>(options =>
 // ============================================================
 // SETTINGS
 // ============================================================
-
 builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection("Cloudinary"));
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
-builder.Services.Configure<VnPaySettings>(builder.Configuration.GetSection("VnPay"));
+builder.Services.Configure<PayOsSettings>(builder.Configuration.GetSection("PayOS"));
+builder.Services.Configure<R2Settings>(builder.Configuration.GetSection("CloudflareR2"));
+builder.Services.Configure<GroqSettings>(builder.Configuration.GetSection("Groq"));
 
 // ============================================================
-// CORS
+// CORS — restrict to known origins only (never wildcard + credentials)
 // ============================================================
+var allowedOrigins = builder.Configuration
+    .GetSection("Cors:AllowedOrigins")
+    .Get<string[]>()
+    ?? new[] { "http://localhost:3000", "http://localhost:5173" };
 
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", policy =>
+    options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.SetIsOriginAllowed(_ => true)
-            .AllowAnyMethod()
-            .AllowAnyHeader()
-            .AllowCredentials();
+        policy.WithOrigins(allowedOrigins)
+              .AllowAnyMethod()
+              .AllowAnyHeader()
+              .AllowCredentials();
     });
+});
+
+// ============================================================
+// RATE LIMITING — protect auth endpoints from brute-force / spam
+// ============================================================
+builder.Services.AddRateLimiter(rateLimiterOptions =>
+{
+    // Auth endpoints: 10 requests per IP per minute
+    rateLimiterOptions.AddFixedWindowLimiter("AuthPolicy", options =>
+    {
+        options.PermitLimit = 10;
+        options.Window = TimeSpan.FromMinutes(1);
+        options.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        options.QueueLimit = 0;
+    });
+
+    // General API: 200 requests per IP per minute
+    rateLimiterOptions.AddFixedWindowLimiter("GeneralPolicy", options =>
+    {
+        options.PermitLimit = 200;
+        options.Window = TimeSpan.FromMinutes(1);
+        options.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        options.QueueLimit = 5;
+    });
+
+    rateLimiterOptions.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 });
 
 // ============================================================
 // REPOSITORY / UNIT OF WORK
 // ============================================================
-
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddHttpContextAccessor();
@@ -90,7 +126,6 @@ builder.Services.AddHttpContextAccessor();
 // ============================================================
 // AUTH / USER / ADMIN
 // ============================================================
-
 builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
@@ -102,7 +137,6 @@ builder.Services.AddScoped<IAdminStatsService, AdminStatsService>();
 // ============================================================
 // COURSE MANAGEMENT
 // ============================================================
-
 builder.Services.AddScoped<ICourseService, CourseService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<IModuleService, ModuleService>();
@@ -111,16 +145,14 @@ builder.Services.AddScoped<ILessonService, LessonService>();
 // ============================================================
 // QUIZ MANAGEMENT
 // ============================================================
-
 builder.Services.AddScoped<IQuizService, QuizService>();
-
-// ============================================================
-// LEARNING / CERTIFICATION
-// ============================================================
-builder.Services.AddScoped<ICertificateService, CertificateService>();
-builder.Services.AddScoped<ILearningProgressService, LearningProgressService>();
-builder.Services.AddScoped<ISpeakingSubmissionRepository, SpeakingSubmissionRepository>();
-builder.Services.AddScoped<ISpeakingSubmissionService, SpeakingSubmissionService>();
+builder.Services.AddScoped<QuizSheetReader>();
+builder.Services.AddScoped<QuizImportService>();
+builder.Services.AddScoped<QuizSheetExporter>();
+builder.Services.AddScoped<QuizSyncReviewService>();
+builder.Services.AddScoped<QuizSyncSafetyService>();
+builder.Services.AddScoped<QuizFullSyncService>();
+builder.Services.AddHostedService<QuizAutoSyncWorker>();
 
 // ============================================================
 // FORUM
@@ -131,22 +163,37 @@ builder.Services.AddScoped<IForumInteractionService, ForumInteractionService>();
 builder.Services.AddScoped<IAdminForumService, AdminForumService>();
 
 // ============================================================
+// LEARNING / CERTIFICATION
+// ============================================================
+builder.Services.AddScoped<ICertificateService, CertificateService>();
+builder.Services.AddScoped<ILearningProgressService, LearningProgressService>();
+builder.Services.AddScoped<ISpeakingSubmissionRepository, SpeakingSubmissionRepository>();
+builder.Services.AddScoped<ISpeakingSubmissionService, SpeakingSubmissionService>();
+
+// ============================================================
 // EMAIL / CLOUDINARY
 // ============================================================
-
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
+builder.Services.AddScoped<IR2StorageService, R2StorageService>();
+
+// ============================================================
+// AI SPEECH-TO-TEXT & TRANSCRIPTION
+// ============================================================
+builder.Services.AddHttpClient<IGroqWhisperService, GroqWhisperService>();
+builder.Services.AddSingleton<IAudioExtractorService, AudioExtractorService>();
+builder.Services.AddSingleton<ITranscriptionQueue, TranscriptionQueue>();
+builder.Services.AddHostedService<TranscriptionWorker>();
 
 // ============================================================
 // ENROLLMENT / PAYMENT
 // ============================================================
-
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<ICourseCatalogService, CourseCatalogService>();
 builder.Services.AddScoped<IEnrollmentService, EnrollmentService>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddScoped<IAdminPaymentService, AdminPaymentService>();
-builder.Services.AddHttpClient<IVnPayService, VnPayService>();
+builder.Services.AddScoped<IPayOsService, PayOsService>();
 builder.Services.AddHostedService<EnrollmentExpirationWorker>();
 
 // ============================================================
@@ -154,10 +201,10 @@ builder.Services.AddHostedService<EnrollmentExpirationWorker>();
 // ============================================================
 builder.Services.AddScoped<IChatService, ChatService>();
 builder.Services.AddScoped<ICallService, CallService>();
+
 // ============================================================
 // SIGNALR
 // ============================================================
-
 builder.Services.AddSignalR(options =>
 {
     options.EnableDetailedErrors = builder.Environment.IsDevelopment();
@@ -167,9 +214,7 @@ builder.Services.AddSignalR(options =>
 // ============================================================
 // JWT AUTHENTICATION
 // ============================================================
-
 var secretKey = builder.Configuration["Jwt:Secret"] ?? throw new InvalidOperationException("JWT Secret not found.");
-
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -187,7 +232,6 @@ builder.Services.AddAuthentication(options =>
         ValidAudience = builder.Configuration["Jwt:Audience"],
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey))
     };
-
     // SignalR sends JWT through ?access_token=... when using WebSocket.
     options.Events = new JwtBearerEvents
     {
@@ -195,13 +239,11 @@ builder.Services.AddAuthentication(options =>
         {
             var accessToken = context.Request.Query["access_token"];
             var path = context.HttpContext.Request.Path;
-
             if (!string.IsNullOrEmpty(accessToken) &&
                 (path.StartsWithSegments("/hubs/chat") || path.StartsWithSegments("/hubs/call")))
             {
                 context.Token = accessToken;
             }
-
             return Task.CompletedTask;
         }
     };
@@ -210,7 +252,6 @@ builder.Services.AddAuthentication(options =>
 // ============================================================
 // CONTROLLERS / JSON
 // ============================================================
-
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
@@ -218,12 +259,10 @@ builder.Services.AddControllers()
     });
 
 // ============================================================
-// OPEN API / SWAGGER
+// OPEN API / SWAGGER (always registered so dev tools work; UI gated below)
 // ============================================================
-
 builder.Services.AddOpenApi();
 builder.Services.AddEndpointsApiExplorer();
-
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo
@@ -231,9 +270,7 @@ builder.Services.AddSwaggerGen(c =>
         Title = "MC E-Learning API",
         Version = "v1"
     });
-
     c.CustomSchemaIds(x => x.FullName?.Replace("+", "."));
-
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Description = "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\"",
@@ -242,7 +279,6 @@ builder.Services.AddSwaggerGen(c =>
         Type = SecuritySchemeType.ApiKey,
         Scheme = "Bearer"
     });
-
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {
@@ -265,77 +301,47 @@ builder.Services.AddSwaggerGen(c =>
 // ============================================================
 // BUILD APP
 // ============================================================
-
 var app = builder.Build();
 
 // ============================================================
 // GLOBAL EXCEPTION
 // ============================================================
-
 app.UseMiddleware<GlobalExceptionMiddleware>();
 
 // ============================================================
-// DATABASE MIGRATION + SEED ROLES
+// HTTPS REDIRECT — ensure HTTP requests are upgraded to HTTPS
 // ============================================================
+app.UseHttpsRedirection();
 
+// ============================================================
+// DATABASE MIGRATION + PATCH
+// ============================================================
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<SmartMcDbContext>();
-
     try
     {
-        Console.WriteLine("====================================");
-        Console.WriteLine("Running database migrations...");
-
-        context.Database.Migrate();
-
-        Console.WriteLine("Database migration completed.");
-        if (!context.Roles.Any())
-        {
-            Console.WriteLine("Seeding default roles...");
-
-            context.Roles.AddRange(
-                new Role
-                {
-                    RoleName = "Learner",
-                    Description = "Student user who consumes learning materials."
-                },
-                new Role
-                {
-                    RoleName = "Instructor",
-                    Description = "Teacher user who teaches classes and uploads materials."
-                },
-                new Role
-                {
-                    RoleName = "Admin",
-                    Description = "Administrator user with system-wide permissions."
-                }
-            );
-
-            context.SaveChanges();
-            Console.WriteLine("Default roles seeded.");
-        }
-
-        Console.WriteLine("Database initialization completed.");
-        Console.WriteLine("====================================");
+        // Execute DDL to patch existing Postgres table column types if needed
+        context.Database.ExecuteSqlRaw(@"
+            ALTER TABLE course_materials ALTER COLUMN ""FileUrl"" TYPE text;
+            ALTER TABLE course_materials ALTER COLUMN ""Title"" TYPE character varying(500);
+            ALTER TABLE IF EXISTS lessons ADD COLUMN IF NOT EXISTS ""Transcript"" text;
+            ALTER TABLE IF EXISTS lessons ADD COLUMN IF NOT EXISTS ""SubtitleUrl"" text;
+            ALTER TABLE IF EXISTS lessons ADD COLUMN IF NOT EXISTS ""TranscriptStatus"" integer NOT NULL DEFAULT 0;
+        ");
     }
     catch (Exception ex)
     {
-        Console.WriteLine("====================================");
-        Console.WriteLine("DATABASE INITIALIZATION ERROR");
-        Console.WriteLine("====================================");
-        Console.WriteLine(ex);
-        Console.WriteLine("====================================");
-        throw;
+        Console.WriteLine($"Database column patch notice: {ex.Message}");
     }
 }
 
 // ============================================================
 // HTTP PIPELINE
 // ============================================================
-
 app.UseRouting();
-app.UseCors("AllowAll");
+app.UseCors("AllowFrontend");
+app.UseRateLimiter();
 app.UseStaticFiles();
 app.UseAuthentication();
 app.UseAuthorization();
@@ -343,30 +349,28 @@ app.UseAuthorization();
 // ============================================================
 // SIGNALR HUBS
 // ============================================================
-
 app.MapHub<ChatHub>("/hubs/chat");
 app.MapHub<CallHub>("/hubs/call");
 
 // ============================================================
-// SWAGGER
+// SWAGGER — only expose UI in Development environment
 // ============================================================
-
-app.UseSwagger();
-
-app.UseSwaggerUI(c =>
+if (app.Environment.IsDevelopment())
 {
-    c.SwaggerEndpoint("/swagger/v1/swagger.json", "MC E-Learning API v1");
-    c.RoutePrefix = "swagger";
-});
+    app.UseSwagger();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "MC E-Learning API v1");
+        c.RoutePrefix = "swagger";
+    });
+}
 
 // ============================================================
 // CONTROLLERS
 // ============================================================
-
 app.MapControllers();
 
 // ============================================================
 // RUN
 // ============================================================
-
 app.Run();

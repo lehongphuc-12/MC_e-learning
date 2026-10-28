@@ -19,15 +19,21 @@ public class Choice
     [Column("ChoiceText")]
     public string ChoiceText { get; set; } = string.Empty;
 
+    [Column("OptionValue")]
+    public string? OptionValue { get; set; }
+
     [Column("IsCorrect")]
     public bool IsCorrect { get; set; } = false;
+
+    [Column("Explanation")]
+    public string? Explanation { get; set; }
 
     [Column("OrderIndex")]
     public int OrderIndex { get; set; } = 1;
 
-    // Navigation properties
     [ForeignKey("QuestionId")]
     public virtual Question Question { get; set; } = null!;
 
     public virtual ICollection<QuizAnswer> QuizAnswers { get; set; } = new List<QuizAnswer>();
+    public virtual ICollection<QuizAnswerSelectedChoice> SelectedByAnswers { get; set; } = new List<QuizAnswerSelectedChoice>();
 }

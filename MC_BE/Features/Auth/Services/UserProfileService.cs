@@ -26,9 +26,9 @@ public class UserProfileService : IUserProfileService
         _cloudinaryService = cloudinaryService;
     }
 
-    public async Task<ApiResponse<UserProfileDto>> GetProfileAsync(GetProfileRequestDto request, int currentUserId)
+    public async Task<ApiResponse<UserProfileDto>> GetProfileAsync(GetProfileRequestDto? request, int currentUserId)
     {
-        var targetUserId = request.UserId ?? currentUserId;
+        var targetUserId = request?.UserId ?? currentUserId;
         var usersFound = await _userRepository.FindAsync(
             u => u.UserId == targetUserId,
             u => u.Role,

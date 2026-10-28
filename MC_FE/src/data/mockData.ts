@@ -3,76 +3,40 @@ import { Course, Instructor, Category, Testimonial, PricingPlan, User, ActivityL
 export const mockInstructors: Instructor[] = [
   {
     id: 'inst-1',
-    name: 'Jonathan Sterling',
-    title: 'Master Host, Broadcaster & Celebrity MC',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
-    bio: 'Former BBC broadcaster and premier international wedding and gala MC with 15+ years of live stage experience hosting over 600 luxury weddings and high-profile galas worldwide.',
+    name: 'MC Đức Bảo',
+    title: 'MC • Chuyên gia đào tạo',
+    avatar: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTeBd71L5y3gk9py2QcpAATSbVInpfHQV_3m8TCQ6Nierv3dcdi0ZWM5Dg&s=10',
+    bio: 'MC giàu kinh nghiệm thực tế trong dẫn chương trình, kỹ năng sân khấu và giao tiếp trước công chúng.',
     rating: 4.95,
     studentsCount: 45120,
     coursesCount: 6,
-    badge: 'Master Mentor',
+    badge: 'MC Chuyên Nghiệp',
     verified: true,
   },
   {
     id: 'inst-2',
-    name: 'Elena Vance',
-    title: 'TEDx Speaker Coach & Executive Pitch Strategist',
-    avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=400&q=80',
-    bio: 'Elena has coached Fortune 500 CEOs and over 40 TEDx speakers to craft magnetic stories, commanding boardroom pitches, and memorable keynote presentations.',
+    name: 'MC Khánh Vy',
+    title: 'MC • BTV',
+    avatar: 'https://cafefcdn.com/203337114487263232/2025/10/26/dsc8843-1-1761466602081-176146660229710323563.jpg',
+    bio: 'MC và người dẫn chương trình với kinh nghiệm thực chiến, chia sẻ kỹ năng giọng nói, phong thái và xử lý tình huống.',
     rating: 4.92,
     studentsCount: 38400,
     coursesCount: 4,
-    badge: 'TEDx Coach',
+    badge: 'MC Chuyên Nghiệp',
     verified: true,
   },
   {
     id: 'inst-3',
-    name: 'Jameson Burke',
-    title: 'Global Conference Moderator & Event Producer',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=400&q=80',
-    bio: 'Lead moderator for World Tech Summits and Davos side events. Specializes in panel dynamics, live audience banter, and VIP executive handling.',
+    name: 'Thanh Thanh Huyền',
+    title: 'MC • Người dẫn chương trình',
+    avatar: 'https://media-cdn-v2.laodong.vn/storage/newsportal/2023/2/4/1144243/Thanh-Thanh-Huyen.jpg',
+    bio: 'MC và người dẫn chương trình, chia sẻ kinh nghiệm về giọng nói, phong thái sân khấu và kỹ năng dẫn chương trình.',
     rating: 4.88,
     studentsCount: 29500,
     coursesCount: 5,
-    badge: 'Summit Host',
+    badge: 'MC Chuyên Nghiệp',
     verified: true,
   },
-  {
-    id: 'inst-4',
-    name: 'Sophie Laurent',
-    title: 'Vocal Coach & Broadcast Diction Specialist',
-    avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=400&q=80',
-    bio: 'Classical voice specialist trained at the Paris Conservatory, transforming stage resonance, breath control, and eliminating vocal fatigue for high-volume speakers.',
-    rating: 4.96,
-    studentsCount: 22100,
-    coursesCount: 3,
-    badge: 'Voice Virtuoso',
-    verified: true,
-  },
-  {
-    id: 'inst-5',
-    name: 'Derek Cho',
-    title: 'Storytelling Director & Keynote Architect',
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=400&q=80',
-    bio: 'Bestselling author and narrative architect behind multiple $100M venture funding pitches and viral commencement speeches.',
-    rating: 4.89,
-    studentsCount: 31200,
-    coursesCount: 4,
-    badge: 'Story Master',
-    verified: true,
-  },
-  {
-    id: 'inst-6',
-    name: 'Sarah Jenkins',
-    title: 'Corporate Crisis Communicator & Media Trainer',
-    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=400&q=80',
-    bio: 'Veteran news anchor and crisis communications advisor coaching executives through high-stakes press conferences and live television appearances.',
-    rating: 4.91,
-    studentsCount: 19800,
-    coursesCount: 3,
-    badge: 'Media Pro',
-    verified: true,
-  }
 ];
 
 export const mockCategories: Category[] = [
@@ -496,31 +460,37 @@ export const mockCourses: Course[] = [
 export const mockTestimonials: Testimonial[] = [
   {
     id: 'test-1',
-    quote: 'MSEEK completely altered the trajectory of my career. The live stage simulation and Jonathan’s timeline blueprints gave me the confidence to host our APAC Tech Gala of 1,200 attendees flawlessly.',
-    author: 'Rebecca Thorne',
-    role: 'Global Events Director',
-    company: 'Nexus Tech Global',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
-    rating: 5
+    quote:
+      'Sau một thời gian luyện tập tại MSEEK, mình cảm nhận rõ giọng nói tự tin và truyền cảm hơn. Các bài tập thực hành giúp mình nhận ra những điểm cần cải thiện và tiến bộ từng ngày.',
+    author: 'Trần Lê Vy',
+    role: 'Học viên khóa Luyện giọng MC',
+    company: 'MSEEK Academy',
+    avatar:
+      'https://scontent.fdad3-5.fna.fbcdn.net/v/t39.30808-6/635231409_1364886208743685_331936875683754675_n.jpg?stp=dst-jpg_tt6&cstp=mx1536x2048&ctp=s1536x2048&_nc_cat=111&ccb=1-7&_nc_sid=833d8c&_nc_ohc=wxkCFU64QwQQ7kNvwEIWCox&_nc_oc=Adr-X2vTlOHleco9WS8anCJKrtrW0YpzVJFgXOgYsgElOL8GBnbPn6G6Ksf46h2sVHY&_nc_zt=23&_nc_ht=scontent.fdad3-5.fna&_nc_gid=HvCbeDlwB5N0hfGC6YCWMA&_nc_ss=7a2a8&oh=00_AQP3YTSsVeLPl9Kun8-vsE56khn0NM-CMA0alce7yLfVhQ&oe=6AC0988F',
+    rating: 5,
   },
   {
     id: 'test-2',
-    quote: 'Before MSEEK, I used to freeze on stage and rush through slides. Elena Vance’s storytelling course helped me deliver a keynote that resulted in our Series B funding round.',
-    author: 'Marcus Vance',
-    role: 'Co-Founder & CEO',
-    company: 'Synthetix AI',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80',
-    rating: 5
+    quote:
+      'Giảng viên hướng dẫn rất chi tiết và dễ hiểu. Sau khóa học, mình cải thiện rõ cách lấy hơi, phát âm và kiểm soát tốc độ nói, đặc biệt là khi đứng trước nhiều người.',
+    author: 'Huỳnh Thị Minh Nguyệt',
+    role: 'Học viên khóa Phát âm & Giọng nói',
+    company: 'MSEEK Academy',
+    avatar:
+      'https://scontent.fdad3-4.fna.fbcdn.net/v/t39.30808-6/727884662_2044770086458658_5899285227501805164_n.jpg?stp=dst-jpg_tt6&cstp=mx1014x1024&ctp=s1014x1024&_nc_cat=107&ccb=1-7&_nc_sid=6ee11a&_nc_ohc=vu5603ujSRsQ7kNvwEzeeWL&_nc_oc=AdqtWj3Ua5lU1IU4Gpq1cYCy29HG9SQOBKNEvNiNkgyvwAAYQ-IoCzO8EfhrdCyClaQ&_nc_zt=23&_nc_ht=scontent.fdad3-4.fna&_nc_gid=YzTf5oCfn2B3XiYdhMZEdg&_nc_ss=7a2a8&oh=00_AQPBz0yCT-sC1z46p-7m5AP_NBSGkSJ1eVMwRuLlQDD55Q&oe=6AC06C09',
+    rating: 5,
   },
   {
     id: 'test-3',
-    quote: 'The wedding MC masterclass is the most practical educational program I have ever taken online. Clear frameworks, real-world case studies, and zero wasted time.',
-    author: 'Camilla Duarte',
-    role: 'Luxury Wedding Planner & Host',
-    company: 'Duarte Atelier',
-    avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=300&q=80',
-    rating: 5
-  }
+    quote:
+      'Mình thích nhất phần luyện tập và nhận phản hồi sau mỗi bài học. Nhờ đó mình dần khắc phục những lỗi trong giọng nói và tự tin hơn rất nhiều khi dẫn chương trình.',
+    author: 'Huỳnh Thị Việt Trinh',
+    role: 'Học viên khóa Kỹ năng dẫn chương trình',
+    company: 'MSEEK Academy',
+    avatar:
+      'https://thanhnienviet.mediacdn.vn/thumb_w/480/wp-content/uploads/2025/10/566227769_866693415693410_5095782323798968884_n-683x1024.jpg',
+    rating: 5,
+  },
 ];
 
 export const mockPricingPlans: PricingPlan[] = [

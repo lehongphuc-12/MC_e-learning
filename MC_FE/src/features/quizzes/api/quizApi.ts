@@ -1,3 +1,6 @@
+import type { LearnerQuizAttemptHistoryDto } from '../types/quizTypes';
+import type { InstructorQuizAttemptDto } from '../types/instructorGradingTypes';
+
 import { request } from '../../../services/api';
 import {
   CreateQuizRequest,
@@ -9,28 +12,11 @@ import {
   QuizListItemDto,
   ApiResponse,
   LatestQuizResultDto,
+  ManualGradeQuizAnswerRequest,
 } from '../types/quizTypes';
 
-/**
- * API cho chức năng Quiz
- *
- * Backend:
- * /api/quizzes
- *
- * Phân quyền:
- * - Instructor: Create / Update Quiz
- * - Learner: Take / Submit / View Result
- */
 export const quizApi = {
-  // ============================================================
-  // IN03 - Create Quiz
-  // POST /api/quizzes
-  // Role: Instructor
-  // ============================================================
-
-  async createQuiz(
-    data: CreateQuizRequest
-  ): Promise<{
+  async createQuiz(data: CreateQuizRequest): Promise<{
     success: boolean;
     message: string;
     data: QuizDto;
@@ -40,14 +26,7 @@ export const quizApi = {
       method: 'POST',
       body: JSON.stringify(data),
     });
-    
   },
-
-  // ============================================================
-  // IN04 - Update Quiz
-  // PUT /api/quizzes/{quizId}
-  // Role: Instructor
-  // ============================================================
 
   async updateQuiz(
     quizId: number,
@@ -64,13 +43,16 @@ export const quizApi = {
     });
   },
 
-  // ============================================================
-  // Get Quiz Detail
-  // GET /api/quizzes/{id}
-  // Role: Authenticated user
-  // ============================================================
+  async getQuiz(quizId: number): Promise<{
+    success: boolean;
+    message: string;
+    data: QuizDto;
+    errors: string[];
+  }> {
+    return this.getQuizById(quizId);
+  },
 
-  async getQuiz(
+  async getQuizById(
     quizId: number
   ): Promise<{
     success: boolean;
@@ -82,12 +64,6 @@ export const quizApi = {
       method: 'GET',
     });
   },
-
-  // ============================================================
-  // LE12 - Take Quiz
-  // GET /api/quizzes/{quizId}/take
-  // Role: Learner
-  // ============================================================
 
   async takeQuiz(
     quizId: number
@@ -101,12 +77,6 @@ export const quizApi = {
       method: 'GET',
     });
   },
-
-  // ============================================================
-  // LE12 - Submit Quiz
-  // POST /api/quizzes/{quizId}/submit
-  // Role: Learner
-  // ============================================================
 
   async submitQuiz(
     quizId: number,
@@ -123,12 +93,6 @@ export const quizApi = {
     });
   },
 
-  // ============================================================
-  // LE16 - View Quiz Result
-  // GET /api/quizzes/{quizId}/result/{attemptId}
-  // Role: Learner
-  // ============================================================
-
   async getQuizResult(
     quizId: number,
     attemptId: number
@@ -138,34 +102,56 @@ export const quizApi = {
     data: QuizResultDto;
     errors: string[];
   }> {
-    return request(
-      `/quizzes/${quizId}/result/${attemptId}`,
-      {
-        method: 'GET',
-      }
-    );
-  },
-  // ============================================================
-// IN - Get Quizzes By Course
-// GET /api/quizzes/course/{courseId}
-// Role: Instructor / Admin
-// ============================================================
-
-async getQuizzesByCourse(
-  courseId: number
-): Promise<ApiResponse<QuizListItemDto[]>> {
-  return request(`/quizzes/course/${courseId}`, {
-    method: 'GET',
-  });
-},
-async getLatestQuizResult(
-  quizId: number
-): Promise<ApiResponse<LatestQuizResultDto | null>> {
-  return request(
-    `/quizzes/${quizId}/latest-result`,
-    {
+    return request(`/quizzes/${quizId}/result/${attemptId}`, {
       method: 'GET',
-    }
-  );
-},
+    });
+  },
+
+  async getInstructorAttempts(quizId: number): Promise<{ success: boolean; message: string; data: InstructorQuizAttemptDto[] }> {
+    return request(`/quizzes/${quizId}/instructor/attempts`, { method: 'GET' });
+  },
+  async getInstructorAttempt(quizId: number, attemptId: number): Promise<{ success: boolean; message: string; data: QuizResultDto }> {
+    return request(`/quizzes/${quizId}/instructor/attempts/${attemptId}`, { method: 'GET' });
+  },
+  async gradeQuizAnswer(
+    quizAnswerId: number,
+    data: ManualGradeQuizAnswerRequest
+  ): Promise<{
+    success: boolean;
+    message: string;
+    data: QuizResultDto;
+    errors: string[];
+  }> {
+    return request(`/quizzes/answers/${quizAnswerId}/grade`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async getQuizzesByCourse(
+    courseId: number
+  ): Promise<{
+    success: boolean;
+    message: string;
+    data: QuizListItemDto[];
+    errors: string[];
+  }> {
+    return request(`/quizzes/course/${courseId}`, {
+      method: 'GET',
+    });
+  },
+
+  async getLatestQuizResult(
+    quizId: number
+  ): Promise<{
+    success: boolean;
+    data: LatestQuizResultDto;
+  }> {
+    return request(`/quizzes/${quizId}/latest-result`, {
+      method: 'GET',
+    });
+  },
+  async getMyQuizAttempts(quizId: number): Promise<{ success: boolean; message: string; data: LearnerQuizAttemptHistoryDto[]; errors?: string[] }> {
+    return request(`/quizzes/${quizId}/my-attempts`, { method: 'GET' });
+  },
 };

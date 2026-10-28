@@ -1,16 +1,19 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { profileApi } from '../api/profileApi';
 import { AUTH_QUERY_KEYS } from '../../auth/hooks/useAuthQueries';
+import { useAuthStore } from '../../../store/useAuthStore';
 
 export const PROFILE_QUERY_KEYS = {
   profile: ['profile'] as const,
 };
 
 export const useProfileQuery = (enabled: boolean = true) => {
+  const token = useAuthStore((state) => state.token);
+
   return useQuery({
     queryKey: PROFILE_QUERY_KEYS.profile,
     queryFn: () => profileApi.getProfile(),
-    enabled: enabled && !!localStorage.getItem('token'),
+    enabled: enabled && !!token,
     staleTime: 1000 * 60 * 5, // 5 mins cache
   });
 };

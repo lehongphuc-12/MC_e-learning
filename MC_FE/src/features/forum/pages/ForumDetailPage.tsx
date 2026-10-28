@@ -10,6 +10,7 @@ import { ForumCommentItem } from '../components/ForumCommentItem';
 import { ForumReportModal } from '../components/ForumReportModal';
 import { ForumPostFormModal } from '../components/ForumPostFormModal';
 import { ForumUserProfileModal } from '../components/ForumUserProfileModal';
+import { ForumConfirmModal } from '../components/ForumConfirmModal';
 import { User } from '../../../types';
 import { ToastType } from '../../../components/common/Toast';
 
@@ -29,6 +30,8 @@ export const ForumDetailPage: React.FC<ForumDetailPageProps> = ({ user, onToast 
 
   const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState<boolean>(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState<boolean>(false);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
   const [selectedUserProfileUserId, setSelectedUserProfileUserId] = useState<number | null>(null);
   const [isUserProfileModalOpen, setIsUserProfileModalOpen] = useState<boolean>(false);
 
@@ -75,20 +78,20 @@ export const ForumDetailPage: React.FC<ForumDetailPageProps> = ({ user, onToast 
 
   if (loading && !post) {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 py-12 px-4 flex items-center justify-center">
-        <div className="text-slate-400 text-xs">Đang tải chi tiết bài viết...</div>
+      <div className="min-h-screen bg-[#f4f7fa] text-slate-900 py-12 px-4 flex items-center justify-center">
+        <div className="text-slate-500 text-xs">Đang tải chi tiết bài viết...</div>
       </div>
     );
   }
 
   if (!post) {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 py-16 px-4 text-center space-y-4">
-        <h2 className="text-lg font-bold text-white">Bài viết không tồn tại hoặc đã bị ẩn</h2>
+      <div className="min-h-screen bg-[#f4f7fa] text-slate-900 py-16 px-4 text-center space-y-4">
+        <h2 className="text-lg font-bold text-slate-900">Bài viết không tồn tại hoặc đã bị ẩn</h2>
         <button
           type="button"
           onClick={() => navigate('/forum')}
-          className="px-4 py-2 rounded-xl text-xs font-bold bg-cyan-500 text-slate-950 hover:bg-cyan-400 transition-all"
+          className="px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 text-slate-950 hover:bg-cyan-400 transition-all"
         >
           Quay lại Diễn đàn
         </button>
@@ -111,11 +114,22 @@ export const ForumDetailPage: React.FC<ForumDetailPageProps> = ({ user, onToast 
   };
 
   const handleDeletePost = async () => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa bài viết này?')) return;
-    const res = await forumApi.deletePost(post.postId);
-    if (res.success) {
-      if (onToast) onToast('Thành công', 'Đã xóa bài viết.', 'success');
-      navigate('/forum');
+    setIsDeleting(true);
+    try {
+      const res = await forumApi.deletePost(post.postId);
+      if (res.success) {
+        if (onToast) onToast('Thành công', 'Đã xóa bài viết.', 'success');
+        setIsDeleteModalOpen(false);
+        navigate('/forum');
+      } else {
+        if (onToast) onToast('Lỗi', res.message || 'Không thể xóa bài viết.', 'error');
+        setIsDeleteModalOpen(false);
+      }
+    } catch (_) {
+      if (onToast) onToast('Lỗi', 'Đã xảy ra lỗi khi xóa bài viết.', 'error');
+      setIsDeleteModalOpen(false);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -258,13 +272,13 @@ export const ForumDetailPage: React.FC<ForumDetailPageProps> = ({ user, onToast 
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 py-8 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[#f4f7fa] text-slate-900 py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Navigation Back button */}
         <button
           type="button"
           onClick={() => navigate('/forum')}
-          className="inline-flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-white transition-colors"
+          className="inline-flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
           <span>Quay lại Diễn đàn</span>
@@ -272,8 +286,8 @@ export const ForumDetailPage: React.FC<ForumDetailPageProps> = ({ user, onToast 
 
         {/* Post Card Detail */}
         <div
-          className={`rounded-3xl bg-slate-900/90 border p-6 sm:p-8 space-y-6 ${
-            isHidden ? 'border-amber-500/40 opacity-75 grayscale bg-amber-950/10' : 'border-slate-800'
+          className={`rounded-3xl bg-white border p-6 sm:p-8 space-y-6 ${
+            isHidden ? 'border-amber-500/40 opacity-75 grayscale bg-amber-950/10' : 'border-slate-200'
           }`}
         >
           {/* Header info */}
@@ -293,7 +307,7 @@ export const ForumDetailPage: React.FC<ForumDetailPageProps> = ({ user, onToast 
                   type="button"
                   onClick={() => setIsReportModalOpen(true)}
                   disabled={post.userHasReported}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 text-slate-300 hover:text-amber-400 hover:bg-slate-700 transition-all ${
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-600 hover:text-amber-400 hover:bg-slate-200 transition-all ${
                     post.userHasReported ? 'text-amber-400 opacity-50 cursor-not-allowed' : ''
                   }`}
                 >
@@ -307,7 +321,7 @@ export const ForumDetailPage: React.FC<ForumDetailPageProps> = ({ user, onToast 
                   <button
                     type="button"
                     onClick={() => setIsEditModalOpen(true)}
-                    className="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-cyan-400 hover:bg-slate-700 transition-colors"
+                    className="p-2 rounded-xl bg-slate-100 text-slate-600 hover:text-blue-600 hover:bg-slate-200 transition-colors"
                     title="Sửa bài viết"
                   >
                     <Edit className="h-4 w-4" />
@@ -315,8 +329,8 @@ export const ForumDetailPage: React.FC<ForumDetailPageProps> = ({ user, onToast 
 
                   <button
                     type="button"
-                    onClick={handleDeletePost}
-                    className="p-2 rounded-xl bg-slate-800 text-slate-300 hover:text-rose-400 hover:bg-slate-700 transition-colors"
+                    onClick={() => setIsDeleteModalOpen(true)}
+                    className="p-2 rounded-xl bg-slate-100 text-slate-600 hover:text-rose-600 hover:bg-rose-50 transition-colors"
                     title="Xóa bài viết"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -327,7 +341,7 @@ export const ForumDetailPage: React.FC<ForumDetailPageProps> = ({ user, onToast 
           </div>
 
           {/* Title */}
-          <h1 className="text-xl sm:text-3xl font-black text-white leading-tight tracking-tight">
+          <h1 className="text-xl sm:text-3xl font-black text-slate-900 leading-tight tracking-tight">
             {post.title}
           </h1>
 
@@ -338,26 +352,26 @@ export const ForumDetailPage: React.FC<ForumDetailPageProps> = ({ user, onToast 
                 handleAuthorClick(post.authorId);
               }
             }}
-            className={`flex items-center gap-3 pb-4 border-b border-slate-800 ${
+            className={`flex items-center gap-3 pb-4 border-b border-slate-200 ${
               !post.isAnonymous && post.authorId ? 'cursor-pointer hover:opacity-90' : ''
             }`}
           >
-            <div className="h-10 w-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center overflow-hidden shrink-0">
+            <div className="h-10 w-10 rounded-full bg-slate-100 border border-slate-300 flex items-center justify-center overflow-hidden shrink-0">
               {post.isAnonymous ? (
-                <EyeOff className="h-5 w-5 text-cyan-400" />
+                <EyeOff className="h-5 w-5 text-blue-600" />
               ) : post.authorAvatar ? (
                 <img src={post.authorAvatar} alt={post.authorName} className="h-full w-full object-cover" />
               ) : (
-                <UserIcon className="h-5 w-5 text-slate-400" />
+                <UserIcon className="h-5 w-5 text-slate-500" />
               )}
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-white hover:text-cyan-400 transition-colors">
+                <span className="text-sm font-bold text-slate-900 hover:text-blue-600 transition-colors">
                   {post.isAnonymous ? 'Học viên ẩn danh' : post.authorName}
                 </span>
                 {post.isAnonymous && (
-                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/20">
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-600 bg-blue-600/10 px-2 py-0.5 rounded-full border border-cyan-500/20">
                     <EyeOff className="h-3 w-3" />
                     Ẩn danh
                   </span>
@@ -368,26 +382,26 @@ export const ForumDetailPage: React.FC<ForumDetailPageProps> = ({ user, onToast 
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-3 text-xs text-slate-400 mt-0.5">
+              <div className="flex items-center gap-3 text-xs text-slate-500 mt-0.5">
                 <span>Đăng ngày: {new Date(post.createdAt).toLocaleString('vi-VN')}</span>
               </div>
             </div>
           </div>
 
           {/* Main Post Content */}
-          <div className="text-sm sm:text-base text-slate-200 leading-relaxed whitespace-pre-line">
+          <div className="text-sm sm:text-base text-slate-700 leading-relaxed whitespace-pre-line">
             {post.content}
           </div>
 
           {/* Main Post Image */}
           {post.imageUrl && (
-            <div className="rounded-2xl overflow-hidden max-h-[500px] border border-slate-800 bg-black/40 flex items-center justify-center">
+            <div className="rounded-2xl overflow-hidden max-h-[500px] border border-slate-200 bg-black/40 flex items-center justify-center">
               <img src={post.imageUrl} alt={post.title} className="w-full h-full object-contain max-h-[500px] rounded-2xl" />
             </div>
           )}
 
           {/* Reactions Footer */}
-          <div className="flex items-center justify-between pt-4 border-t border-slate-800">
+          <div className="flex items-center justify-between pt-4 border-t border-slate-200">
             <ForumReactionButtons
               reactionsCount={post.reactionsCount}
               userReaction={post.userReaction}
@@ -395,7 +409,7 @@ export const ForumDetailPage: React.FC<ForumDetailPageProps> = ({ user, onToast 
               onReact={handleReactPost}
             />
 
-            <div className="flex items-center gap-1.5 text-xs text-slate-400">
+            <div className="flex items-center gap-1.5 text-xs text-slate-500">
               <MessageSquare className="h-4 w-4" />
               <span>{comments.length} bình luận</span>
             </div>
@@ -403,9 +417,9 @@ export const ForumDetailPage: React.FC<ForumDetailPageProps> = ({ user, onToast 
         </div>
 
         {/* Comments Section */}
-        <div className="rounded-3xl bg-slate-900/90 border border-slate-800 p-6 sm:p-8 space-y-6">
-          <h3 className="text-lg font-bold text-white flex items-center gap-2 border-b border-slate-800 pb-4">
-            <MessageSquare className="h-5 w-5 text-cyan-400" />
+        <div className="rounded-3xl bg-white border border-slate-200 p-6 sm:p-8 space-y-6">
+          <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2 border-b border-slate-200 pb-4">
+            <MessageSquare className="h-5 w-5 text-blue-600" />
             Bình luận ({comments.length})
           </h3>
 
@@ -479,6 +493,19 @@ export const ForumDetailPage: React.FC<ForumDetailPageProps> = ({ user, onToast 
         isOpen={isUserProfileModalOpen}
         onClose={() => setIsUserProfileModalOpen(false)}
         onToast={(title, desc, type) => onToast && onToast(title, desc, type)}
+      />
+
+      {/* Delete Post Confirmation Modal */}
+      <ForumConfirmModal
+        isOpen={isDeleteModalOpen}
+        title="Xác nhận xóa bài viết"
+        message="Bạn có chắc chắn muốn xóa bài viết này không? Hành động này không thể hoàn tác."
+        confirmText="Xác nhận"
+        cancelText="Hủy"
+        variant="danger"
+        isLoading={isDeleting}
+        onConfirm={handleDeletePost}
+        onClose={() => setIsDeleteModalOpen(false)}
       />
     </div>
   );

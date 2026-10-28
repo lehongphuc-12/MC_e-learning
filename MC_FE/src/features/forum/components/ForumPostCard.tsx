@@ -17,12 +17,12 @@ export const ForumPostCard: React.FC<ForumPostCardProps> = ({ post, onClick, onR
   return (
     <div
       onClick={onClick}
-      className={`group relative rounded-3xl bg-slate-900/90 border p-6 sm:p-7 transition-all duration-300 hover:shadow-2xl cursor-pointer space-y-4 ${
+      className={`group relative rounded-3xl bg-blue-50/40 border p-6 sm:p-7 transition-all duration-300 hover:shadow-2xl cursor-pointer space-y-4 ${
         isHidden
           ? 'border-amber-500/40 opacity-75 grayscale bg-amber-950/10'
           : post.isPinned
-          ? 'border-cyan-500/40 bg-gradient-to-br from-cyan-950/20 via-slate-900 to-slate-900 shadow-cyan-500/10'
-          : 'border-slate-800 hover:border-slate-700/80'
+          ? 'border-cyan-500/40 bg-gradient-to-br from-blue-50/20 via-white to-white shadow-cyan-500/10'
+          : 'border-blue-100 hover:border-blue-200'
       }`}
     >
       {/* Header: Author Info & Badges */}
@@ -36,18 +36,18 @@ export const ForumPostCard: React.FC<ForumPostCardProps> = ({ post, onClick, onR
           }}
           className={`flex items-center gap-3 ${!post.isAnonymous && post.authorId ? 'cursor-pointer hover:opacity-90' : ''}`}
         >
-          <div className="h-10 w-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center overflow-hidden shrink-0">
+          <div className="h-10 w-10 rounded-full bg-slate-100 border border-slate-700 flex items-center justify-center overflow-hidden shrink-0">
             {post.isAnonymous ? (
               <EyeOff className="h-5 w-5 text-cyan-400" />
             ) : post.authorAvatar ? (
               <img src={post.authorAvatar} alt={post.authorName} className="h-full w-full object-cover" />
             ) : (
-              <UserIcon className="h-5 w-5 text-slate-400" />
+              <UserIcon className="h-5 w-5 text-slate-500" />
             )}
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-sm font-bold text-white group-hover:text-cyan-400 transition-colors">
+              <span className="text-sm font-bold text-slate-900 group-hover:text-cyan-400 transition-colors">
                 {post.isAnonymous ? 'Học viên ẩn danh' : post.authorName}
               </span>
               {post.isAnonymous && (
@@ -62,7 +62,7 @@ export const ForumPostCard: React.FC<ForumPostCardProps> = ({ post, onClick, onR
                 </span>
               )}
             </div>
-            <span className="text-xs text-slate-400">
+            <span className="text-xs text-slate-500">
               {new Date(post.createdAt).toLocaleString('vi-VN')}
             </span>
           </div>
@@ -86,18 +86,18 @@ export const ForumPostCard: React.FC<ForumPostCardProps> = ({ post, onClick, onR
       </div>
 
       {/* Post Title */}
-      <h2 className="text-lg sm:text-2xl font-black text-white leading-snug group-hover:text-cyan-300 transition-colors tracking-tight">
+      <h2 className="text-lg sm:text-2xl font-black text-slate-900 leading-snug group-hover:text-cyan-300 transition-colors tracking-tight">
         {post.title}
       </h2>
 
       {/* Content Snippet */}
-      <p className="text-sm text-slate-300 leading-relaxed line-clamp-4 whitespace-pre-line">
+      <p className="text-sm text-slate-600 leading-relaxed line-clamp-4 whitespace-pre-line">
         {post.content}
       </p>
 
       {/* Large Image Showcase */}
       {post.imageUrl && (
-        <div className="rounded-2xl overflow-hidden border border-slate-800 bg-black/40 max-h-[460px] flex items-center justify-center">
+        <div className="rounded-2xl overflow-hidden border border-slate-200 bg-[#f4f7fa] max-h-[460px] flex items-center justify-center">
           <img
             src={post.imageUrl}
             alt={post.title}
@@ -107,7 +107,7 @@ export const ForumPostCard: React.FC<ForumPostCardProps> = ({ post, onClick, onR
       )}
 
       {/* Action Footer */}
-      <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-800/80">
+      <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-slate-200/80">
         <div onClick={(e) => e.stopPropagation()}>
           <ForumReactionButtons
             reactionsCount={post.reactionsCount}
@@ -118,8 +118,8 @@ export const ForumPostCard: React.FC<ForumPostCardProps> = ({ post, onClick, onR
           />
         </div>
 
-        <div className="flex items-center gap-4 text-xs font-semibold text-slate-400">
-          <span className="flex items-center gap-1.5 hover:text-white transition-colors">
+        <div className="flex items-center gap-4 text-xs font-semibold text-slate-500">
+          <span className="flex items-center gap-1.5 hover:text-slate-900 transition-colors">
             <MessageSquare className="h-4 w-4 text-cyan-400" />
             <span>{post.commentsCount} bình luận</span>
           </span>

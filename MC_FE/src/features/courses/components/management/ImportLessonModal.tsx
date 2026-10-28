@@ -169,7 +169,18 @@ export const ImportLessonModal: React.FC<ImportLessonModalProps> = ({
               title: title.trim(),
               description: description.trim() || undefined,
               videoUrl: videoUrl.trim() || undefined,
-              durationMinutes: !isNaN(duration) && duration > 0 ? duration : 10,
+              durationMinutes:
+                !isNaN(duration) && duration > 0
+                  ? duration
+                  : Math.max(
+                      1,
+                      Math.ceil(
+                        (description || '')
+                          .trim()
+                          .split(/\s+/)
+                          .filter(Boolean).length / 150,
+                      ) || 10,
+                    ),
               orderIndex: !isNaN(orderIndex) && orderIndex > 0 ? orderIndex : i,
               isPreview,
               status: 'ACTIVE',

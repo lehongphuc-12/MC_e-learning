@@ -12,9 +12,8 @@ public static class EnrollmentPaymentModule
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        services.Configure<VnPaySettings>(
-            configuration.GetSection("VnPay")
-        );
+        services.Configure<PayOsSettings>(
+            configuration.GetSection("PayOS"));
 
         services.AddHttpContextAccessor();
 
@@ -23,7 +22,7 @@ public static class EnrollmentPaymentModule
         services.AddScoped<IEnrollmentService, EnrollmentService>();
         services.AddScoped<IPaymentService, PaymentService>();
         services.AddScoped<IAdminPaymentService, AdminPaymentService>();
-        services.AddHttpClient<IVnPayService, VnPayService>();
+        services.AddScoped<IPayOsService, PayOsService>();
         services.AddHostedService<EnrollmentExpirationWorker>();
 
         return services;
