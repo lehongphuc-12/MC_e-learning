@@ -20,7 +20,6 @@ public class LessonDto
     public string? LockReason { get; set; }
     public DateTime CreatedAt { get; set; }
 }
-
 public class CreateLessonRequest
 {
     public int? ModuleId { get; set; }
