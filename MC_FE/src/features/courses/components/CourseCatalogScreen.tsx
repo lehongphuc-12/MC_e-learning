@@ -50,6 +50,7 @@ export const CourseCatalogScreen: React.FC<CourseCatalogScreenProps> = ({
   const [priceFilter, setPriceFilter] = useState<'all' | 'free' | 'paid'>('all');
   const [sortBy, setSortBy] = useState<'popular' | 'rating' | 'price-low' | 'price-high' | 'newest'>('popular');
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const [isMobileFilterOpen, setIsMobileFilterOpen] = useState<boolean>(false);
   const itemsPerPage = 6;
 
   const navigate = useNavigate();
@@ -129,8 +130,22 @@ export const CourseCatalogScreen: React.FC<CourseCatalogScreenProps> = ({
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-slate-500 flex items-center gap-1">
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Mobile Filter Toggle */}
+            <button
+              type="button"
+              onClick={() => setIsMobileFilterOpen((prev) => !prev)}
+              aria-label="Đóng mở bộ lọc tìm kiếm"
+              className="flex lg:hidden items-center gap-2 px-3 py-2 bg-white rounded-xl border border-slate-200 text-xs font-bold text-slate-800 hover:bg-slate-50 transition-colors shadow-xs"
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5 text-blue-600" />
+              <span>Bộ lọc</span>
+              {(selectedCategory !== 'All' || selectedLevel !== 'All' || minRating > 0 || priceFilter !== 'all' || searchQuery) && (
+                <span className="w-2 h-2 rounded-full bg-blue-600" />
+              )}
+            </button>
+
+            <span className="text-xs font-semibold text-slate-500 hidden sm:flex items-center gap-1">
               <ArrowUpDown className="w-3.5 h-3.5" />
               Sắp xếp theo:
             </span>
@@ -151,7 +166,13 @@ export const CourseCatalogScreen: React.FC<CourseCatalogScreenProps> = ({
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Left Filter Sidebar */}
-        <aside id="catalog-filters-sidebar" className="lg:col-span-3 space-y-6 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
+        <aside id="catalog-filters-sidebar" className={`lg:col-span-3 space-y-6 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs ${isMobileFilterOpen ? "block" : "hidden lg:block"}`}>
+            {/* Header mobile close button */}
+            <div className="flex lg:hidden justify-end">
+              <button type="button" onClick={() => setIsMobileFilterOpen(false)} className="text-xs text-slate-500 hover:text-slate-800 flex items-center gap-1 py-1 font-semibold">
+                <X className="w-3.5 h-3.5" /> Thu gọn bộ lọc
+              </button>
+            </div>
           <div className="flex items-center justify-between pb-4 border-b border-slate-100">
             <div className="flex items-center gap-2">
               <SlidersHorizontal className="w-4 h-4 text-blue-600" />

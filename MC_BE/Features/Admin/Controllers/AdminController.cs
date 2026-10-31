@@ -109,7 +109,6 @@ public class AdminController : ControllerBase
     }
 
     [HttpGet("/api/system/settings")]
-    [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<PlatformSettingsDto>>> GetPublicSystemSettings()
     {
         try

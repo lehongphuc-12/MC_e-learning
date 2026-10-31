@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
+  CheckCircle2,
   ArrowRight,
   Award,
   BookOpen,
@@ -23,9 +24,11 @@ interface FooterProps {
 }
 
 export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
+  const [isSubscribed, setIsSubscribed] = useState(false);
+
   const handleSubscribe = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    alert('Cảm ơn bạn đã đăng ký nhận thông tin từ MSEEK!');
+    setIsSubscribed(true);
   };
 
   const linkClass =
@@ -165,6 +168,12 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
 
             {/* SUBSCRIBE */}
             <div className="lg:col-span-5">
+              {isSubscribed ? (
+                <div className="flex items-center gap-2.5 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 px-5 py-3.5 text-xs font-bold text-emerald-300 shadow-md animate-fadeIn">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+                  <span>Cảm ơn bạn! MSEEK đã ghi nhận email nhận thông tin ưu đãi.</span>
+                </div>
+              ) : (
               <form
   onSubmit={handleSubscribe}
   className="footer-form relative ml-auto w-full max-w-[470px]"
@@ -180,7 +189,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
         type="email"
         required
         placeholder="Nhập địa chỉ email của bạn"
-        className="h-full w-full border-0 bg-transparent pl-[48px] pr-3 text-[10px] font-semibold text-white outline-none placeholder:text-blue-100/35"
+        className="h-full w-full border-0 bg-transparent pl-[48px] pr-3 text-xs sm:text-sm font-semibold text-white outline-none placeholder:text-blue-100/35"
       />
     </div>
 
@@ -192,12 +201,13 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
       {/* LIGHT SHINE */}
       <span className="footer-button-shine pointer-events-none absolute -left-[70%] top-[-100%] h-[300%] w-[35%] rotate-[20deg] bg-gradient-to-r from-transparent via-white/70 to-transparent" />
 
-      <span className="relative z-10 text-[10px] font-black leading-none">
+      <span className="relative z-10 text-xs font-black leading-none">
         Đăng ký
       </span>
     </button>
   </div>
 </form>
+              )}
 
               <div className="mt-6 flex justify-end pr-7">
   <div className="origin-center -rotate-[6deg]">

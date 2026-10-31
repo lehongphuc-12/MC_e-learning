@@ -2861,8 +2861,17 @@ export const CourseLearningPage: React.FC = () => {
 
         {/* ── Right Sidebar Playlist ───────────────────────────────────── */}
 
+        {/* Mobile Backdrop when playlist sidebar is open */}
         {isSidebarOpen && (
-          <aside className="mseek-curriculum w-[310px] shrink-0 border-r border-violet-100 bg-white/90 flex flex-col h-full z-20 transition-all duration-300">
+          <div
+            className="fixed inset-0 z-30 bg-slate-950/50 backdrop-blur-xs lg:hidden"
+            onClick={() => setIsSidebarOpen(false)}
+            aria-hidden="true"
+          />
+        )}
+
+        {isSidebarOpen && (
+          <aside className="mseek-curriculum fixed inset-y-0 right-0 z-40 w-[85vw] max-w-[340px] lg:static lg:w-[310px] shrink-0 border-l lg:border-r border-violet-100 bg-white shadow-2xl lg:shadow-none flex flex-col h-full transition-all duration-300">
             <div className="p-4 border-b border-slate-200 bg-white flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
@@ -2876,6 +2885,16 @@ export const CourseLearningPage: React.FC = () => {
                   bài đã xem
                 </p>
               </div>
+
+              {/* Mobile Close Button */}
+              <button
+                type="button"
+                onClick={() => setIsSidebarOpen(false)}
+                className="flex lg:hidden p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors"
+                aria-label="Đóng danh sách bài học"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
 
             {/* Lesson List grouped by Modules */}

@@ -161,17 +161,17 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
                 <div className="flex items-center gap-1.5 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/20">
                   <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
                   <span className="font-bold text-amber-300 text-sm">{course.rating}</span>
-                  <span className="text-slate-400">({course.reviewsCount.toLocaleString()} ratings)</span>
+                  <span className="text-slate-400">({course.reviewsCount.toLocaleString()} đánh giá)</span>
                 </div>
 
                 <div className="flex items-center gap-1.5 text-slate-300">
                   <Users className="w-4 h-4 text-blue-400" />
-                  <span>{course.studentsCount.toLocaleString()} students enrolled</span>
+                  <span>{course.studentsCount.toLocaleString()} học viên đã đăng ký</span>
                 </div>
 
                 <div className="flex items-center gap-1.5 text-slate-300">
                   <Globe className="w-4 h-4 text-slate-400" />
-                  <span>{course.language} (Subtitles: {course.subtitles.slice(0, 2).join(', ')})</span>
+                  <span>{course.language} (Phụ đề: {course.subtitles.slice(0, 2).join(', ')})</span>
                 </div>
               </div>
 
@@ -182,7 +182,7 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
                   className="w-10 h-10 rounded-full object-cover ring-2 ring-blue-500"
                 />
                 <div className="text-xs">
-                  <div className="text-slate-400">Created by</div>
+                  <div className="text-slate-400">Giảng viên phụ trách</div>
                   <div className="font-bold text-white text-sm">{course.instructor.name}</div>
                 </div>
               </div>
@@ -198,7 +198,7 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
             <section id="what-you-will-learn" className="p-6 sm:p-8 bg-blue-50/50 rounded-2xl border border-blue-100 space-y-4">
               <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-blue-600" />
-                <span>What You Will Master in This Program</span>
+                <span>Bạn sẽ làm chủ những kỹ năng gì</span>
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                 {course.learningOutcomes.map((outcome, idx) => (
@@ -211,26 +211,26 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
             </section>
 
             <section id="course-description" className="space-y-4">
-              <h2 className="text-xl font-bold text-slate-900">Course Overview</h2>
+              <h2 className="text-xl font-bold text-slate-900">Tổng quan khóa học</h2>
               <p className="text-sm text-slate-600 leading-relaxed">
                 {course.description}
               </p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 bg-slate-50 rounded-xl border border-slate-200/80 text-xs">
                 <div className="space-y-0.5">
-                  <div className="text-slate-400 font-medium">Video Content</div>
-                  <div className="font-bold text-slate-900">{course.durationHours} Hours HD</div>
+                  <div className="text-slate-400 font-medium">Thời lượng video</div>
+                  <div className="font-bold text-slate-900">{course.durationHours} Giờ HD</div>
                 </div>
                 <div className="space-y-0.5">
-                  <div className="text-slate-400 font-medium">Lectures</div>
-                  <div className="font-bold text-slate-900">{course.lecturesCount} Lessons</div>
+                  <div className="text-slate-400 font-medium">Số bài học</div>
+                  <div className="font-bold text-slate-900">{course.lecturesCount} Bài học</div>
                 </div>
                 <div className="space-y-0.5">
-                  <div className="text-slate-400 font-medium">Skill Level</div>
+                  <div className="text-slate-400 font-medium">Cấp độ</div>
                   <div className="font-bold text-slate-900">{course.level}</div>
                 </div>
                 <div className="space-y-0.5">
-                  <div className="text-slate-400 font-medium">Access</div>
-                  <div className="font-bold text-slate-900">Full Lifetime</div>
+                  <div className="text-slate-400 font-medium">Thời hạn truy cập</div>
+                  <div className="font-bold text-slate-900">Trọn đời</div>
                 </div>
               </div>
             </section>
@@ -238,9 +238,9 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
             <section id="course-curriculum" className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-xl font-bold text-slate-900">Course Curriculum</h2>
+                  <h2 className="text-xl font-bold text-slate-900">Nội dung chương trình đào tạo</h2>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    {course.curriculum.length} sections • {course.lecturesCount} lectures • {course.durationHours} hours total
+                    {course.curriculum.length} chương • {course.lecturesCount} bài học • {course.durationHours} giờ học
                   </p>
                 </div>
                 <button
@@ -252,7 +252,7 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
                   }}
                   className="text-xs font-bold text-blue-600 hover:text-blue-700 cursor-pointer"
                 >
-                  Expand / Collapse All
+                  Mở rộng / Thu gọn tất cả
                 </button>
               </div>
 
@@ -312,7 +312,7 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
 
             <section className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-200">
               <div className="space-y-3">
-                <h3 className="text-sm font-bold text-slate-900">Requirements</h3>
+                <h3 className="text-sm font-bold text-slate-900">Yêu cầu tham gia khóa học</h3>
                 <ul className="space-y-2 text-xs text-slate-600">
                   {course.requirements.map((req, i) => (
                     <li key={i} className="flex items-start gap-2">
@@ -323,7 +323,7 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
                 </ul>
               </div>
               <div className="space-y-3">
-                <h3 className="text-sm font-bold text-slate-900">Who This Course is For</h3>
+                <h3 className="text-sm font-bold text-slate-900">Khóa học này dành cho ai</h3>
                 <ul className="space-y-2 text-xs text-slate-600">
                   {course.targetAudience.map((aud, i) => (
                     <li key={i} className="flex items-start gap-2">
@@ -336,7 +336,7 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
             </section>
 
             <section id="instructor-profile" className="p-6 bg-slate-900 text-white rounded-2xl space-y-4">
-              <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">Master Mentor</span>
+              <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">Giảng viên phụ trách</span>
               <div className="flex flex-col sm:flex-row items-start gap-4">
                 <img
                   src={course.instructor.avatar}
@@ -347,11 +347,11 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
                   <h3 className="text-lg font-bold text-white">{course.instructor.name}</h3>
                   <p className="text-xs text-blue-300 font-semibold">{course.instructor.title}</p>
                   <div className="flex items-center gap-4 text-xs text-slate-400 pt-1">
-                    <span className="font-bold text-amber-400">★ {course.instructor.rating} Rating</span>
+                    <span className="font-bold text-amber-400">★ {course.instructor.rating} Đánh giá</span>
                     <span>•</span>
-                    <span>{course.instructor.studentsCount.toLocaleString()} Students</span>
+                    <span>{course.instructor.studentsCount.toLocaleString()} Học viên</span>
                     <span>•</span>
-                    <span>{course.instructor.coursesCount} Masterclasses</span>
+                    <span>{course.instructor.coursesCount} Khóa đào tạo</span>
                   </div>
                 </div>
               </div>
@@ -362,10 +362,10 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
 
             <section id="student-reviews" className="space-y-6">
               <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold text-slate-900">Verified Student Feedback</h2>
+                <h2 className="text-xl font-bold text-slate-900">Đánh giá từ học viên thực tế</h2>
                 <div className="flex items-center gap-1.5 text-sm font-bold text-amber-500">
                   <Star className="w-4 h-4 fill-amber-400" />
-                  <span>{course.rating} Course Rating</span>
+                  <span>{course.rating} Điểm đánh giá khóa học</span>
                 </div>
               </div>
 
@@ -415,7 +415,7 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
                   <Play className="w-7 h-7 ml-1 fill-white" />
                 </button>
                 <div className="absolute bottom-2 left-3 px-2 py-0.5 bg-black/70 rounded text-[10px] text-white font-bold">
-                  Preview Sample Lesson
+                  Xem trước bài học mẫu
                 </div>
               </div>
 
@@ -434,7 +434,7 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
                       </>
                     )}
                   </div>
-                  <p className="text-xs text-rose-500 font-semibold">⚡ Limited time masterclass enrollment rate</p>
+                  <p className="text-xs text-rose-500 font-semibold">⚡ Ưu đãi học phí đặc quyền có hạn</p>
                 </div>
 
                 <div className="space-y-2.5">
@@ -507,51 +507,105 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
                       }`}
                     >
                       <Heart className={`w-3.5 h-3.5 ${isWishlisted ? 'fill-rose-500' : ''}`} />
-                      <span>{isWishlisted ? 'Saved' : 'Wishlist'}</span>
+                      <span>{isWishlisted ? 'Đã lưu' : 'Yêu thích'}</span>
                     </button>
                     <button
                       onClick={handleShare}
                       className="py-2 px-3 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       <Share2 className="w-3.5 h-3.5" />
-                      <span>Share</span>
+                      <span>Chia sẻ</span>
                     </button>
                   </div>
                 </div>
 
                 <div className="space-y-2.5 pt-4 border-t border-slate-100 text-xs text-slate-600">
-                  <div className="font-bold text-slate-900">This masterclass includes:</div>
+                  <div className="font-bold text-slate-900">Khóa đào tạo này bao gồm:</div>
                   <div className="flex items-center gap-2.5">
                     <Tv className="w-4 h-4 text-blue-600" />
-                    <span>{course.durationHours} hours on-demand 4K video</span>
+                    <span>{course.durationHours} giờ video bài giảng chất lượng cao</span>
                   </div>
                   <div className="flex items-center gap-2.5">
                     <FileText className="w-4 h-4 text-blue-600" />
-                    <span>18 downloadable scripts & timeline sheets</span>
+                    <span>Kịch bản MC và tài liệu thực hành độc quyền</span>
                   </div>
                   <div className="flex items-center gap-2.5">
                     <Smartphone className="w-4 h-4 text-blue-600" />
-                    <span>Access on mobile, tablet, and TV</span>
+                    <span>Học linh hoạt trên điện thoại, máy tính bảng & laptop</span>
                   </div>
                   <div className="flex items-center gap-2.5">
                     <InfinityIcon className="w-4 h-4 text-blue-600" />
-                    <span>Full lifetime access</span>
+                    <span>Truy cập bài học trọn đời không giới hạn</span>
                   </div>
                   <div className="flex items-center gap-2.5">
                     <Award className="w-4 h-4 text-blue-600" />
-                    <span>Verified MSEEK Certificate of Completion</span>
+                    <span>Cấp chứng chỉ tốt nghiệp MSEEK sau khóa học</span>
                   </div>
                 </div>
 
                 <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200/80 flex items-center gap-2 text-xs text-emerald-800 font-medium">
                   <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0" />
-                  <span>30-Day Money-Back Guarantee. No questions asked.</span>
+                  <span>Cam kết chất lượng đào tạo và hỗ trợ trực tiếp từ giảng viên</span>
                 </div>
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* MOBILE STICKY BOTTOM ACTION BAR */}
+      <div className="fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 p-3.5 flex items-center justify-between gap-3 lg:hidden shadow-[0_-8px_25px_rgba(0,0,0,0.08)]">
+        <div className="min-w-0">
+          <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider block">Học phí</span>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-lg font-black text-slate-900 whitespace-nowrap">
+              {course.price === 0 ? 'Miễn phí' : `${course.price.toLocaleString('vi-VN')} đ`}
+            </span>
+            {course.originalPrice && course.originalPrice > course.price && (
+              <span className="text-[10px] text-slate-400 line-through whitespace-nowrap">
+                {course.originalPrice.toLocaleString('vi-VN')} đ
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          {isEnrolled ? (
+            <button
+              onClick={() => navigate(`/courses/${course.id}/learn`)}
+              className="py-2.5 px-5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5"
+            >
+              <PlayCircle className="w-4 h-4" />
+              <span>Vào học</span>
+            </button>
+          ) : isPendingPayment ? (
+            <button
+              onClick={() => onEnroll(course)}
+              className="py-2.5 px-4 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl shadow-md transition-all"
+            >
+              Tiếp tục thanh toán
+            </button>
+          ) : (
+            <>
+              {!isInCart && (
+                <button
+                  onClick={() => onAddToCart(course)}
+                  className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all"
+                >
+                  Thêm giỏ
+                </button>
+              )}
+              <button
+                onClick={() => onEnroll(course)}
+                className="py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition-all"
+              >
+                Đăng ký ngay
+              </button>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 };
+

@@ -1380,11 +1380,23 @@ namespace MC_BE.Migrations
                         .HasDefaultValue("ACTIVE")
                         .HasColumnName("Status");
 
+                    b.Property<string>("SubtitleUrl")
+                        .HasColumnType("text")
+                        .HasColumnName("SubtitleUrl");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)")
                         .HasColumnName("Title");
+
+                    b.Property<string>("Transcript")
+                        .HasColumnType("text")
+                        .HasColumnName("Transcript");
+
+                    b.Property<int>("TranscriptStatus")
+                        .HasColumnType("integer")
+                        .HasColumnName("TranscriptStatus");
 
                     b.HasKey("LessonId");
 
@@ -2737,6 +2749,10 @@ namespace MC_BE.Migrations
                         .HasColumnType("character varying(150)")
                         .HasColumnName("Email");
 
+                    b.Property<int>("FailedLoginAttempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("FailedLoginAttempts");
+
                     b.Property<string>("FullName")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -2754,6 +2770,10 @@ namespace MC_BE.Migrations
                     b.Property<DateTime?>("LastSeenAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("LastSeenAt");
+
+                    b.Property<DateTime?>("LockoutUntil")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("LockoutUntil");
 
                     b.Property<string>("PasswordHash")
                         .HasMaxLength(255)

@@ -16,8 +16,14 @@ public class LessonDto
     public bool IsPreview { get; set; } = false;
     public LessonStatus Status { get; set; } = LessonStatus.ACTIVE;
     public string? VideoUrl { get; set; }
+<<<<<<< HEAD
     public bool IsLocked { get; set; }
     public string? LockReason { get; set; }
+=======
+    public string? Transcript { get; set; }
+    public string? SubtitleUrl { get; set; }
+    public TranscriptStatus TranscriptStatus { get; set; } = TranscriptStatus.NONE;
+>>>>>>> a801322ae83680327fb01645ba40c745676cc228
     public DateTime CreatedAt { get; set; }
 }
 

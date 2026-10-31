@@ -1,4 +1,4 @@
-import { ArrowRight, BarChart3, Check, Mic, Play, Star, Users, Volume2, WandSparkles } from 'lucide-react';
+import { ArrowRight, BarChart3, Check, Mic, Play, Sparkles, Star, Users, Volume2, WandSparkles } from 'lucide-react';
 import { Course, ScreenType } from '../../../types';
 import { mockInstructors, mockTestimonials } from '../../../data/mockData';
 import { useCoursesQuery } from '../hooks/useCoursesQuery';
@@ -13,12 +13,12 @@ interface HomeScreenProps {
   wishlistCourseIds: string[];
 }
 const IMAGES = {
-  hero: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQOo-rE69vVw9F6q3QWerXP5cPHYwzHCjroyNLH84aG6DYnQKIrr2RQEt8&s=10',
-  heroStage: 'https://images.openai.com/static-rsc-4/JEqZvkewVqi_GFOltyfLmsDWgQwC-RB3RWXDiJF2sQfoJMTfau0CSaJG6NGy1saWNiJEhgPBNmvy6Fl0bg17GWHqy6HQKz65xzRE68WTNE3UTzd8uIJGO2azBACTNa5i9nGEXcsx2ZvX3xo8CR-7umzKRFb2YYS3PuVj_9NVYybuSISrfB_v8YoS4JRglIJG?purpose=inline',
-  problem1: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcScTO-XR8ql20AyF-QGvZ0DCnayly8pMJtVXFnFbBoFoPbCM5wDT_i7ntUM&s=10',
-  problem2: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQR1R9h_hnxkzmpqBeBuLIoVbCi5ve-I7vf4h3LpZNruPaamCCQWtFI6_k&s=10',
-  problem3: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQqqljrCA2yx1DYBM0b3SbSqmhG1yayk47v57JopVm_t3DwN-uNe74t_eA&s=10',
-  result: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTJpd_eTzPOU_iDnrfKP1mKvzzGh2OxWfYLx8M8QAejq4w5HS-mUZ3_eiO-&s=10',
+  hero: 'https://images.unsplash.com/photo-1475721027785-f74eccf877e2?auto=format&fit=crop&w=1200&q=85',
+  heroStage: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=1800&q=85',
+  problem1: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=600&q=80',
+  problem2: 'https://images.unsplash.com/photo-1590602847861-f357a9332bbc?auto=format&fit=crop&w=600&q=80',
+  problem3: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=600&q=80',
+  result: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?auto=format&fit=crop&w=800&q=85',
   studio: 'https://hocvien6w.vn/upload/product/tai-xuong-1-8069.png',
   cta: 'https://images.unsplash.com/photo-1505373877841-8d25f7d46678?auto=format&fit=crop&w=1800&q=90',
 };
@@ -248,28 +248,10 @@ useEffect(() => {
   <div className="absolute inset-0 bg-gradient-to-r from-[#02143b]/75 via-[#06265f]/28 to-[#031b4d]/10" />
 
   <div className="pointer-events-none absolute inset-0 overflow-hidden">
-    <div className="absolute -top-[180px] left-[10%] h-[620px] w-[150px] rotate-[18deg] bg-gradient-to-b from-[#fff4c7]/50 via-[#ffd76a]/20 to-transparent blur-[28px]" />
-    <div className="absolute -top-[190px] left-[30%] h-[650px] w-[130px] rotate-[10deg] bg-gradient-to-b from-white/45 via-[#ffe39a]/18 to-transparent blur-[30px]" />
-    <div className="absolute -top-[170px] left-[49%] h-[680px] w-[155px] -rotate-[12deg] bg-gradient-to-b from-[#fffbe8]/60 via-[#ffd978]/24 to-transparent blur-[26px]" />
-    <div className="absolute -top-[190px] right-[18%] h-[650px] w-[140px] rotate-[16deg] bg-gradient-to-b from-[#fff4c7]/55 via-[#ffd66b]/22 to-transparent blur-[28px]" />
-
-    <div className="absolute left-[9%] top-[-30px] h-[105px] w-[105px] rounded-full bg-[#ffe69b]/50 blur-[35px]" />
-    <div className="absolute left-[29%] top-[-35px] h-[110px] w-[110px] rounded-full bg-white/40 blur-[38px]" />
-    <div className="absolute left-[48%] top-[-35px] h-[125px] w-[125px] rounded-full bg-[#fff0b0]/55 blur-[38px]" />
-    <div className="absolute right-[17%] top-[-35px] h-[115px] w-[115px] rounded-full bg-[#ffe5a0]/50 blur-[38px]" />
-
-    <div className="absolute left-[3%] top-[16%] h-5 w-5 rounded-full bg-[#ffd66b]/70 blur-[4px]" />
-    <div className="absolute left-[15%] top-[9%] h-8 w-8 rounded-full bg-[#ffe699]/60 blur-[7px]" />
-    <div className="absolute left-[25%] top-[25%] h-5 w-5 rounded-full bg-[#ffc928]/60 blur-[5px]" />
-    <div className="absolute left-[36%] top-[13%] h-7 w-7 rounded-full bg-[#ffe5a0]/55 blur-[7px]" />
-    <div className="absolute left-[42%] top-[42%] h-6 w-6 rounded-full bg-[#ffc928]/50 blur-[6px]" />
-    <div className="absolute left-[20%] bottom-[14%] h-9 w-9 rounded-full bg-[#ffd66b]/35 blur-[9px]" />
-    <div className="absolute left-[39%] bottom-[18%] h-7 w-7 rounded-full bg-[#ffe69b]/45 blur-[8px]" />
-    <div className="absolute right-[10%] top-[22%] h-7 w-7 rounded-full bg-[#ffe69b]/60 blur-[7px]" />
-    <div className="absolute right-[5%] bottom-[20%] h-10 w-10 rounded-full bg-[#ffc928]/55 blur-[9px]" />
-
-    <div className="absolute left-[40%] top-[5%] h-[500px] w-[500px] rounded-full bg-cyan-400/10 blur-[130px]" />
-    <div className="absolute bottom-[-170px] left-[22%] h-[330px] w-[650px] rounded-full bg-[#ffc928]/12 blur-[120px]" />
+    {/* Subtle professional stage spotlights */}
+    <div className="absolute -top-[140px] left-[15%] h-[580px] w-[260px] -rotate-12 bg-gradient-to-b from-amber-200/25 via-blue-400/10 to-transparent blur-[45px]" />
+    <div className="absolute -top-[140px] right-[20%] h-[580px] w-[260px] rotate-12 bg-gradient-to-b from-amber-100/20 via-blue-500/10 to-transparent blur-[45px]" />
+    <div className="absolute bottom-[-100px] left-1/2 -translate-x-1/2 h-[260px] w-[650px] rounded-full bg-[#ffc928]/10 blur-[90px]" />
   </div>
 
   <div className="absolute inset-y-0 right-0 hidden w-[56%] overflow-hidden lg:block">
@@ -1026,9 +1008,9 @@ useEffect(() => {
 
                         {/* POPULAR */}
                         {realIndex === 0 && (
-                          <div className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-xl bg-[#ffc928] px-3.5 py-2 text-[10px] font-black text-[#071d4c] shadow-[0_8px_25px_rgba(255,201,40,0.3)]">
-                            <span>🔥</span>
-                            Phổ biến
+                          <div className="absolute left-4 top-4 inline-flex items-center gap-1.5 rounded-xl bg-[#ffc928] px-3 py-1.5 text-[10px] font-black text-[#071d4c] shadow-[0_8px_25px_rgba(255,201,40,0.3)]">
+                            <Sparkles className="h-3.5 w-3.5 text-[#071d4c]" />
+                            <span>Nổi bật</span>
                           </div>
                         )}
 
