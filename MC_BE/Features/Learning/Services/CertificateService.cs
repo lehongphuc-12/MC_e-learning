@@ -17,6 +17,7 @@ public class CertificateService : ICertificateService
     private readonly IGenericRepository<LessonProgress> _progressRepository;
     private readonly IGenericRepository<User> _userRepository;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ILearningAccessService _access;
 
     public CertificateService(
         IGenericRepository<Certificate> certificateRepository,
@@ -24,7 +25,8 @@ public class CertificateService : ICertificateService
         IGenericRepository<Lesson> lessonRepository,
         IGenericRepository<LessonProgress> progressRepository,
         IGenericRepository<User> userRepository,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        ILearningAccessService access)
     {
         _certificateRepository = certificateRepository;
         _enrollmentRepository = enrollmentRepository;
@@ -32,6 +34,7 @@ public class CertificateService : ICertificateService
         _progressRepository = progressRepository;
         _userRepository = userRepository;
         _unitOfWork = unitOfWork;
+        _access = access;
     }
 
     public async Task<List<CertificateDto>> GetMyCertificatesAsync(int learnerId)
@@ -164,6 +167,9 @@ public class CertificateService : ICertificateService
         {
             throw new InvalidOperationException($"Cannot issue certificate. Course completion is only {completionPercentage}%.");
         }
+
+        var access = await _access.CheckCertificateAsync(learnerId, courseId);
+        if (!access.Allowed) throw new InvalidOperationException(access.Reason ?? "Course requirements are incomplete.");
 
         // Generate unique certificate code: CERT-YYYY-XXXXXX
         string code = GenerateUniqueCertificateCode();

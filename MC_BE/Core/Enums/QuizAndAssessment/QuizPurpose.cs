@@ -4,5 +4,6 @@ public enum QuizPurpose
 {
     PRACTICE = 1,
     CHAPTER_ASSESSMENT = 2,
-    FINAL_ASSESSMENT = 3
+    FINAL_ASSESSMENT = 3,
+    DAILY_PRACTICE = 4
 }

@@ -164,6 +164,10 @@ export const useSubmitQuiz = () => {
       queryClient.invalidateQueries({
         queryKey: ['quiz-result', variables.quizId],
       });
+      // A PASS can unlock the next lesson/chapter. Refresh the learner's course sidebar.
+      queryClient.invalidateQueries({ queryKey: ['course-lessons'] });
+      queryClient.invalidateQueries({ queryKey: ['course-progress'] });
+      queryClient.invalidateQueries({ queryKey: ['quizzes', 'course'] });
     },
   });
 };
@@ -222,6 +226,8 @@ export const useQuizzesByCourse = (
     },
 
     enabled: !!courseId,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
   });
 };
 

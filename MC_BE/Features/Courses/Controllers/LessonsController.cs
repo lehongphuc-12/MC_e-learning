@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+using MC_BE.Features.Learning.Services.Interfaces;
 using MC_BE.Core.DTOs;
 using MC_BE.Features.Courses.DTOs;
 using MC_BE.Features.Courses.Services.Interfaces;
@@ -12,10 +14,14 @@ namespace MC_BE.Features.Courses.Controllers;
 public class LessonsController : ControllerBase
 {
     private readonly ILessonService _lessonService;
+    private readonly ILearningAccessService _access;
+    private readonly MC_BE.Shared.Data.SmartMcDbContext _db;
 
-    public LessonsController(ILessonService lessonService)
+    public LessonsController(ILessonService lessonService, ILearningAccessService access, MC_BE.Shared.Data.SmartMcDbContext db)
     {
         _lessonService = lessonService;
+        _access = access;
+        _db = db;
     }
 
     private int? GetCurrentUserId()
@@ -29,7 +35,22 @@ public class LessonsController : ControllerBase
     [HttpGet("courses/{courseId:int}/lessons")]
     public async Task<ActionResult<ApiResponse<List<LessonDto>>>> GetLessons(int courseId)
     {
+        var userId = GetCurrentUserId();
+        if (!userId.HasValue) return Unauthorized();
         var lessons = await _lessonService.GetLessonsByCourseIdAsync(courseId);
+        var course = await _db.Courses.FindAsync(courseId);
+        if (course == null) return NotFound();
+        if (User.IsInRole("Admin") || (User.IsInRole("Instructor") && course.InstructorId == userId.Value))
+            return Ok(ApiResponse<List<LessonDto>>.SuccessResponse(lessons));
+        var enrolled = await _db.Enrollments.AnyAsync(e => e.CourseId == courseId && e.LearnerId == userId.Value && e.Status != "PENDING_PAYMENT");
+        if (!enrolled) return Forbid();
+        var locks = await _access.GetLessonLocksAsync(userId.Value, courseId);
+        foreach (var lesson in lessons)
+        {
+            lesson.IsLocked = !locks.TryGetValue(lesson.LessonId, out var reason) || reason != null;
+            lesson.LockReason = lesson.IsLocked ? reason ?? "Lesson unavailable." : null;
+            if (lesson.IsLocked) lesson.VideoUrl = null;
+        }
         return Ok(ApiResponse<List<LessonDto>>.SuccessResponse(lessons));
     }
 

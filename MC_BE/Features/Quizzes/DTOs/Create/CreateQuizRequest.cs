@@ -22,12 +22,17 @@ public class CreateQuizRequest
     [Range(0, 100)]
     public decimal PassingScore { get; set; } = 80.00m;
 
-    [Range(1, int.MaxValue)]
-    public int MaxAttempts { get; set; } = 1;
+    [Range(0, int.MaxValue)]
+    // 0 = không giới hạn số lượt làm.
+    public int MaxAttempts { get; set; } = 0;
 
     public QuizPurpose Purpose { get; set; } = QuizPurpose.PRACTICE;
 
     public int? ModuleId { get; set; }
+
+    public DateTime? AvailableFrom { get; set; }
+
+    public DateTime? AvailableUntil { get; set; }
 
     public QuizStatus Status { get; set; } = QuizStatus.DRAFT;
 

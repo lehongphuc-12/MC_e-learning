@@ -16,6 +16,8 @@ public class LessonDto
     public bool IsPreview { get; set; } = false;
     public LessonStatus Status { get; set; } = LessonStatus.ACTIVE;
     public string? VideoUrl { get; set; }
+    public bool IsLocked { get; set; }
+    public string? LockReason { get; set; }
     public DateTime CreatedAt { get; set; }
 }
 

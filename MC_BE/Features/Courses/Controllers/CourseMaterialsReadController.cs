@@ -1,3 +1,4 @@
+using MC_BE.Features.Learning.Services.Interfaces;
 using MC_BE.Shared.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -12,7 +13,8 @@ namespace MC_BE.Features.Courses.Controllers;
 public class CourseMaterialsReadController : ControllerBase
 {
     private readonly SmartMcDbContext _db;
-    public CourseMaterialsReadController(SmartMcDbContext db) => _db = db;
+    private readonly ILearningAccessService _access;
+    public CourseMaterialsReadController(SmartMcDbContext db, ILearningAccessService access) { _db = db; _access = access; }
 
     [HttpGet]
     public async Task<IActionResult> GetMaterials(int courseId, CancellationToken ct)
@@ -30,6 +32,12 @@ public class CourseMaterialsReadController : ControllerBase
             .OrderBy(m => m.MaterialId)
             .Select(m => new { materialId = m.MaterialId, lessonId = m.LessonId, title = m.Title, fileUrl = m.FileUrl, materialType = m.MaterialType == null ? null : m.MaterialType.ToString() })
             .ToListAsync(ct);
+        if (course.InstructorId != userId && !isStaff)
+        {
+            var locks = await _access.GetLessonLocksAsync(userId, courseId);
+            var permitted = items.Where(x => !x.lessonId.HasValue || (locks.TryGetValue(x.lessonId.Value, out var reason) && reason == null)).ToList();
+            return Ok(new { success = true, data = permitted });
+        }
         return Ok(new { success = true, data = items });
     }
 }

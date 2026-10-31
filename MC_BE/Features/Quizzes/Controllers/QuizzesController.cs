@@ -3,6 +3,7 @@ using MC_BE.Shared.Services.Interfaces;
 using MC_BE.Features.Quizzes.DTOs;
 using MC_BE.Features.Quizzes.Services.Interfaces;
 using MC_BE.Features.Quizzes.Sync;
+using MC_BE.Features.Learning.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -16,12 +17,14 @@ public class QuizzesController : ControllerBase
     private readonly QuizSheetExporter _sheetExporter;
     private readonly ILogger<QuizzesController> _logger;
     private readonly ICloudinaryService _cloudinaryService;
-    public QuizzesController(IQuizService quizService, QuizSheetExporter sheetExporter, ILogger<QuizzesController> logger, ICloudinaryService cloudinaryService)
+    private readonly ILearningAccessService _learningAccess;
+    public QuizzesController(IQuizService quizService, QuizSheetExporter sheetExporter, ILogger<QuizzesController> logger, ICloudinaryService cloudinaryService, ILearningAccessService learningAccess)
     {
         _quizService = quizService;
         _sheetExporter = sheetExporter;
         _logger = logger;
         _cloudinaryService = cloudinaryService;
+        _learningAccess = learningAccess;
     }
     private async Task TrySyncSheetAsync(int quizId)
     {
@@ -37,6 +40,7 @@ public class QuizzesController : ControllerBase
             : null;
     }
 [HttpGet("{id:int}")]
+[Authorize(Roles = "Instructor,Admin")]
 public async Task<ActionResult<ApiResponse<QuizDto>>> GetQuiz(int id)
 {
     var quiz = await _quizService.GetQuizByIdAsync(id);
@@ -46,6 +50,8 @@ public async Task<ActionResult<ApiResponse<QuizDto>>> GetQuiz(int id)
             ApiResponse<QuizDto>.FailureResponse(
                 $"Quiz with ID {id} not found."));
     }
+    if (User.IsInRole("Instructor") && quiz.CreatedById != GetCurrentUserId())
+        return Forbid();
     return Ok(
         ApiResponse<QuizDto>.SuccessResponse(
             quiz,
@@ -210,6 +216,12 @@ public async Task<ActionResult<ApiResponse<TakeQuizDto>>> TakeQuiz(
             ApiResponse<TakeQuizDto>.FailureResponse(
                 ex.Message));
     }
+    catch (InvalidOperationException ex)
+    {
+        return BadRequest(
+            ApiResponse<TakeQuizDto>.FailureResponse(
+                ex.Message));
+    }
 }
 [HttpPost("{quizId}/submit")]
 [Authorize(Roles = "Learner")]
@@ -349,6 +361,19 @@ public async Task<IActionResult> GetQuizzesByCourse(int courseId)
     try
     {
         var result = await _quizService.GetQuizzesByCourseAsync(courseId);
+        if (User.IsInRole("Learner"))
+        {
+            var learnerId = GetCurrentUserId();
+            if (!learnerId.HasValue) return Unauthorized();
+            foreach (var quiz in result.Where(q =>
+                q.Purpose == MC_BE.Core.Enums.QuizPurpose.CHAPTER_ASSESSMENT ||
+                q.Purpose == MC_BE.Core.Enums.QuizPurpose.FINAL_ASSESSMENT))
+            {
+                var access = await _learningAccess.CheckQuizAsync(learnerId.Value, quiz.QuizId);
+                quiz.IsLocked = !access.Allowed;
+                quiz.LockReason = quiz.IsLocked ? access.Reason : null;
+            }
+        }
         return Ok(new ApiResponse<List<QuizListItemDto>>
         {
             Success = true,

@@ -43,7 +43,7 @@ public class Quiz
     public int? ModuleId { get; set; }
 
     [Column("MaxAttempts")]
-    public int MaxAttempts { get; set; } = 1;
+    public int MaxAttempts { get; set; } = 0; // 0 = unlimited
 
     [Column("Status")]
     public QuizStatus Status { get; set; } = QuizStatus.ACTIVE;

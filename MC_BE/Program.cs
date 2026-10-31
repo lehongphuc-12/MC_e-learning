@@ -123,6 +123,7 @@ builder.Services.AddScoped<IAdminForumService, AdminForumService>();
 // ============================================================
 builder.Services.AddScoped<ICertificateService, CertificateService>();
 builder.Services.AddScoped<ILearningProgressService, LearningProgressService>();
+builder.Services.AddScoped<ILearningAccessService, LearningAccessService>();
 builder.Services.AddScoped<ISpeakingSubmissionRepository, SpeakingSubmissionRepository>();
 builder.Services.AddScoped<ISpeakingSubmissionService, SpeakingSubmissionService>();
 // ============================================================

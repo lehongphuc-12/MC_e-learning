@@ -1,3 +1,4 @@
+using MC_BE.Features.Learning.Services.Interfaces;
 using MC_BE.Core.Entities;
 using MC_BE.Core.Enums;
 using MC_BE.Features.Quizzes.DTOs;
@@ -27,8 +28,10 @@ public class QuizService : IQuizService
     private readonly IGenericRepository<QuizAnswerScenarioPath> _answerScenarioPathRepository;
     private readonly IGenericRepository<Course> _courseRepository;
     private readonly IGenericRepository<Lesson> _lessonRepository;
+    private readonly IGenericRepository<Module> _moduleRepository;
     private readonly IGenericRepository<User> _userRepository;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ILearningAccessService _access;
 
     public QuizService(
         IGenericRepository<Quiz> quizRepository,
@@ -50,8 +53,10 @@ public class QuizService : IQuizService
         IGenericRepository<QuizAnswerScenarioPath> answerScenarioPathRepository,
         IGenericRepository<Course> courseRepository,
         IGenericRepository<Lesson> lessonRepository,
+        IGenericRepository<Module> moduleRepository,
         IGenericRepository<User> userRepository,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        ILearningAccessService access)
     {
         _quizRepository = quizRepository;
         _questionRepository = questionRepository;
@@ -72,8 +77,10 @@ public class QuizService : IQuizService
         _answerScenarioPathRepository = answerScenarioPathRepository;
         _courseRepository = courseRepository;
         _lessonRepository = lessonRepository;
+        _moduleRepository = moduleRepository;
         _userRepository = userRepository;
         _unitOfWork = unitOfWork;
+        _access = access;
     }
 
     public async Task<QuizDto?> CreateQuizAsync(int instructorId, CreateQuizRequest request)
@@ -89,6 +96,53 @@ public class QuizService : IQuizService
             if (lesson.CourseId != request.CourseId) throw new ArgumentException("The selected lesson does not belong to the selected course.");
         }
 
+        if (!Enum.IsDefined(typeof(QuizPurpose), request.Purpose))
+            throw new ArgumentException("Quiz purpose không hợp lệ.");
+
+        if (request.ModuleId.HasValue)
+        {
+            var module = (await _moduleRepository.FindAsync(m => m.ModuleId == request.ModuleId.Value)).FirstOrDefault();
+            if (module is null) throw new ArgumentException($"Module with ID {request.ModuleId.Value} not found.");
+            if (module.CourseId != request.CourseId) throw new ArgumentException("Chương được chọn không thuộc khóa học này.");
+        }
+
+        if (request.Purpose == QuizPurpose.PRACTICE && !request.LessonId.HasValue)
+            throw new ArgumentException("Quiz luyện tập bắt buộc phải gắn với một bài học.");
+
+        if (request.Purpose == QuizPurpose.CHAPTER_ASSESSMENT && !request.ModuleId.HasValue)
+            throw new ArgumentException("Quiz theo chương bắt buộc phải chọn chương học.");
+
+        if (request.Purpose == QuizPurpose.CHAPTER_ASSESSMENT && request.LessonId.HasValue)
+            throw new ArgumentException("Quiz theo chương không được gắn đồng thời với một bài học.");
+
+        if (request.Purpose == QuizPurpose.FINAL_ASSESSMENT && (request.ModuleId.HasValue || request.LessonId.HasValue))
+            throw new ArgumentException("Quiz tổng kết phải gắn với toàn khóa học, không gắn riêng chương hoặc bài học.");
+
+        if (request.AvailableFrom.HasValue && request.AvailableUntil.HasValue &&
+            request.AvailableUntil.Value <= request.AvailableFrom.Value)
+            throw new ArgumentException("Thời gian kết thúc phải sau thời gian bắt đầu.");
+
+        if (request.Purpose == QuizPurpose.CHAPTER_ASSESSMENT)
+        {
+            var existingChapterQuiz = (await _quizRepository.FindAsync(q =>
+                q.CourseId == request.CourseId &&
+                q.ModuleId == request.ModuleId &&
+                q.Purpose == QuizPurpose.CHAPTER_ASSESSMENT)).Any();
+
+            if (existingChapterQuiz)
+                throw new ArgumentException("Chương này đã có Quiz đánh giá. Hãy chỉnh sửa Quiz hiện có thay vì tạo trùng.");
+        }
+
+        if (request.Purpose == QuizPurpose.FINAL_ASSESSMENT)
+        {
+            var existingFinalQuiz = (await _quizRepository.FindAsync(q =>
+                q.CourseId == request.CourseId &&
+                q.Purpose == QuizPurpose.FINAL_ASSESSMENT)).Any();
+
+            if (existingFinalQuiz)
+                throw new ArgumentException("Khóa học đã có Quiz tổng kết. Hãy chỉnh sửa Quiz hiện có thay vì tạo trùng.");
+        }
+
         if (request.Questions == null || request.Questions.Count == 0) throw new ArgumentException("At least one question is required.");
         foreach (var question in request.Questions) ValidateQuestion(question);
 
@@ -100,9 +154,12 @@ public class QuizService : IQuizService
             Title = request.Title.Trim(),
             Description = request.Description?.Trim(),
             TimeLimitMinutes = request.TimeLimitMinutes,
-            PassingScore = request.PassingScore,
+            PassingScore = 80.00m,
             MaxAttempts = request.MaxAttempts,
-            Purpose = request.Purpose, ModuleId = request.ModuleId,
+            Purpose = request.Purpose,
+            ModuleId = request.ModuleId,
+            AvailableFrom = request.AvailableFrom,
+            AvailableUntil = request.AvailableUntil,
             Status = request.Status,
             CreatedAt = DateTime.UtcNow
         };
@@ -193,9 +250,21 @@ public class QuizService : IQuizService
 
         return new QuizDto
         {
-            QuizId = quiz.QuizId, CourseId = quiz.CourseId, LessonId = quiz.LessonId, CreatedById = quiz.CreatedById,
-            Title = quiz.Title, Description = quiz.Description, TimeLimitMinutes = quiz.TimeLimitMinutes,
-            PassingScore = quiz.PassingScore, MaxAttempts = quiz.MaxAttempts, Status = quiz.Status, CreatedAt = quiz.CreatedAt,
+            QuizId = quiz.QuizId,
+            CourseId = quiz.CourseId,
+            LessonId = quiz.LessonId,
+            ModuleId = quiz.ModuleId,
+            Purpose = quiz.Purpose,
+            AvailableFrom = quiz.AvailableFrom,
+            AvailableUntil = quiz.AvailableUntil,
+            CreatedById = quiz.CreatedById,
+            Title = quiz.Title,
+            Description = quiz.Description,
+            TimeLimitMinutes = quiz.TimeLimitMinutes,
+            PassingScore = 80.00m,
+            MaxAttempts = quiz.MaxAttempts,
+            Status = quiz.Status,
+            CreatedAt = quiz.CreatedAt,
             Questions = questions.Select(q => new QuestionDto
             {
                 QuestionId = q.QuestionId, QuizId = q.QuizId, QuestionText = q.QuestionText, QuestionType = q.QuestionType,
@@ -225,9 +294,61 @@ public class QuizService : IQuizService
         foreach (var question in request.Questions) ValidateUpdateQuestion(question);
 
         var hasAttempts = (await _attemptRepository.FindAsync(a => a.QuizId == quizId)).Any();
-        quiz.Title = request.Title.Trim(); quiz.Description = request.Description?.Trim(); quiz.TimeLimitMinutes = request.TimeLimitMinutes;
-        quiz.PassingScore = request.PassingScore; quiz.MaxAttempts = request.MaxAttempts; quiz.Status = request.Status;
-        if (!hasAttempts) { quiz.Purpose = request.Purpose; quiz.ModuleId = request.ModuleId; }
+
+        if (request.AvailableFrom.HasValue && request.AvailableUntil.HasValue &&
+            request.AvailableUntil.Value <= request.AvailableFrom.Value)
+            throw new ArgumentException("Thời gian kết thúc phải sau thời gian bắt đầu.");
+
+        if (!hasAttempts)
+        {
+            if (!Enum.IsDefined(typeof(QuizPurpose), request.Purpose))
+                throw new ArgumentException("Quiz purpose không hợp lệ.");
+
+            if (request.ModuleId.HasValue)
+            {
+                var module = (await _moduleRepository.FindAsync(m => m.ModuleId == request.ModuleId.Value)).FirstOrDefault();
+                if (module is null || module.CourseId != quiz.CourseId)
+                    throw new ArgumentException("Chương được chọn không thuộc khóa học này.");
+            }
+
+            if (request.Purpose == QuizPurpose.PRACTICE && !quiz.LessonId.HasValue)
+                throw new ArgumentException("Quiz luyện tập bắt buộc phải gắn với một bài học.");
+
+            if (request.Purpose == QuizPurpose.CHAPTER_ASSESSMENT && !request.ModuleId.HasValue)
+                throw new ArgumentException("Quiz theo chương bắt buộc phải chọn chương học.");
+            if (request.Purpose == QuizPurpose.CHAPTER_ASSESSMENT && quiz.LessonId.HasValue)
+                throw new ArgumentException("Quiz theo chương không được gắn đồng thời với một bài học.");
+
+            if (request.Purpose == QuizPurpose.FINAL_ASSESSMENT && (request.ModuleId.HasValue || quiz.LessonId.HasValue))
+                throw new ArgumentException("Quiz tổng kết phải gắn với toàn khóa học, không gắn riêng chương hoặc bài học.");
+
+            if (request.Purpose == QuizPurpose.CHAPTER_ASSESSMENT)
+            {
+                var duplicate = (await _quizRepository.FindAsync(q =>
+                    q.QuizId != quizId && q.CourseId == quiz.CourseId &&
+                    q.ModuleId == request.ModuleId && q.Purpose == QuizPurpose.CHAPTER_ASSESSMENT)).Any();
+                if (duplicate) throw new ArgumentException("Chương này đã có Quiz đánh giá.");
+            }
+            if (request.Purpose == QuizPurpose.FINAL_ASSESSMENT)
+            {
+                var duplicate = (await _quizRepository.FindAsync(q =>
+                    q.QuizId != quizId && q.CourseId == quiz.CourseId &&
+                    q.Purpose == QuizPurpose.FINAL_ASSESSMENT)).Any();
+                if (duplicate) throw new ArgumentException("Khóa học đã có Quiz tổng kết.");
+            }
+
+            quiz.Purpose = request.Purpose;
+            quiz.ModuleId = request.ModuleId;
+        }
+
+        quiz.Title = request.Title.Trim();
+        quiz.Description = request.Description?.Trim();
+        quiz.TimeLimitMinutes = request.TimeLimitMinutes;
+        quiz.PassingScore = 80.00m;
+        quiz.MaxAttempts = request.MaxAttempts;
+        quiz.AvailableFrom = request.AvailableFrom;
+        quiz.AvailableUntil = request.AvailableUntil;
+        quiz.Status = request.Status;
         _quizRepository.Update(quiz);
 
         var existingQuestions = (quiz.Questions ?? new List<Question>()).ToList();
@@ -499,46 +620,104 @@ public class QuizService : IQuizService
     {
         var quiz = (await _quizRepository.FindAsync(q => q.QuizId == quizId, q => q.Questions)).FirstOrDefault();
         if (quiz is null) throw new ArgumentException($"Quiz with ID {quizId} not found.");
+
+        var now = DateTime.UtcNow;
+
+        // Apply scheduled transitions on demand as well, so an exact-time request
+        // does not have to wait for the background worker's next 30-second cycle.
+        if (quiz.Status == QuizStatus.ARCHIVED &&
+            quiz.AvailableFrom.HasValue &&
+            quiz.AvailableFrom.Value <= now)
+        {
+            quiz.Status = quiz.AvailableUntil.HasValue && quiz.AvailableUntil.Value <= now
+                ? QuizStatus.INACTIVE
+                : QuizStatus.ACTIVE;
+            _quizRepository.Update(quiz);
+            await _unitOfWork.SaveChangesAsync();
+        }
+
+        if (quiz.Status == QuizStatus.ACTIVE &&
+            quiz.AvailableUntil.HasValue &&
+            quiz.AvailableUntil.Value <= now)
+        {
+            quiz.Status = QuizStatus.INACTIVE;
+            _quizRepository.Update(quiz);
+            await _unitOfWork.SaveChangesAsync();
+        }
+
         if (quiz.Status != QuizStatus.ACTIVE) throw new ArgumentException("This quiz is not available.");
+        if (quiz.AvailableFrom.HasValue && now < quiz.AvailableFrom.Value)
+            throw new ArgumentException($"Bài tập chưa mở. Thời gian mở: {quiz.AvailableFrom.Value:O}.");
+        if (quiz.AvailableUntil.HasValue && now >= quiz.AvailableUntil.Value)
+            throw new ArgumentException("Bài tập đã hết thời gian thực hiện.");
+
+        var decision = await _access.CheckQuizAsync(learnerId, quizId);
+        if (!decision.Allowed) throw new InvalidOperationException(decision.Reason ?? "Quiz locked.");
 
         var attempts = (await _attemptRepository.FindAsync(a => a.QuizId == quizId && a.UserId == learnerId)).ToList();
+
+        // Close an abandoned attempt whose timer has expired. Otherwise the learner
+        // would be forced back into an expired attempt and could never start again.
+        var expiredAttempts = attempts.Where(a =>
+            !a.SubmittedAt.HasValue &&
+            quiz.TimeLimitMinutes > 0 &&
+            now > a.StartedAt.AddMinutes(quiz.TimeLimitMinutes)).ToList();
+        foreach (var expired in expiredAttempts)
+        {
+            expired.Score = 0m;
+            expired.ResultStatus = QuizAttemptStatus.FAILED;
+            expired.SubmittedAt = now;
+            _attemptRepository.Update(expired);
+        }
+        if (expiredAttempts.Count > 0)
+            await _unitOfWork.SaveChangesAsync();
+
         var attempt = attempts.FirstOrDefault(a => !a.SubmittedAt.HasValue);
         if (attempts.Any(a => a.ResultStatus == QuizAttemptStatus.PASSED)) throw new ArgumentException("You have already passed this quiz.");
         if (attempts.Any(a => a.ResultStatus == QuizAttemptStatus.PENDING_GRADING)) throw new ArgumentException("Your previous attempt is awaiting instructor grading.");
+        // MaxAttempts = 0 means unlimited. Only enforce a cap when the instructor explicitly sets one.
+        var submittedAttemptCount = attempts.Count(a => a.SubmittedAt.HasValue);
+        if (attempt is null && quiz.MaxAttempts > 0 && submittedAttemptCount >= quiz.MaxAttempts)
+            throw new InvalidOperationException($"Bạn đã sử dụng hết {quiz.MaxAttempts} lượt làm bài.");
         if (attempt is null)
         {
-            // PRACTICE: unlimited retakes. Assessments: three failed submissions per cycle.
-            // A pending manual grade never counts as a failure and is blocked above.
-            if (quiz.Purpose != QuizPurpose.PRACTICE)
+            // PRACTICE: không áp dụng cooldown.
+            // Assessment: 3 lần FAIL đầu tiên không phải chờ.
+            // Sau lần FAIL thứ 4 trở đi, mỗi lần FAIL đều tạo cooldown mới.
+            // Cooldown được tính từ lần FAIL gần nhất; Chapter = 1 giờ, Final = 6 giờ.
+            if (quiz.Purpose == QuizPurpose.CHAPTER_ASSESSMENT ||
+                quiz.Purpose == QuizPurpose.FINAL_ASSESSMENT)
             {
-                var cooldown = quiz.Purpose == QuizPurpose.CHAPTER_ASSESSMENT ? TimeSpan.FromHours(1) : TimeSpan.FromHours(6);
-                var failures = attempts.Where(a => a.ResultStatus == QuizAttemptStatus.FAILED && a.SubmittedAt.HasValue)
-                    .OrderBy(a => a.SubmittedAt!.Value).ToList();
-                // Find the current cycle by resetting after each completed cooldown.
-                var cycle = new List<QuizAttempt>();
-                foreach (var failed in failures)
+                var cooldown = quiz.Purpose == QuizPurpose.CHAPTER_ASSESSMENT
+                    ? TimeSpan.FromHours(1)
+                    : TimeSpan.FromHours(6);
+
+                var failures = attempts
+                    .Where(a => a.ResultStatus == QuizAttemptStatus.FAILED && a.SubmittedAt.HasValue)
+                    .OrderBy(a => a.SubmittedAt!.Value)
+                    .ToList();
+
+                if (failures.Count >= 4)
                 {
-                    if (cycle.Count == 3)
-                    {
-                        var unlockAt = cycle[2].SubmittedAt!.Value.Add(cooldown);
-                        if (failed.SubmittedAt!.Value < unlockAt) continue;
-                        cycle.Clear();
-                    }
-                    cycle.Add(failed);
-                }
-                if (cycle.Count >= 3)
-                {
-                    var unlockAt = cycle[2].SubmittedAt!.Value.Add(cooldown);
+                    var lastFailure = failures[^1];
+                    var unlockAt = lastFailure.SubmittedAt!.Value.Add(cooldown);
+
                     if (DateTime.UtcNow < unlockAt)
-                        throw new ArgumentException($"Quiz cooldown active until {unlockAt:O}");
+                    {
+                        throw new InvalidOperationException(
+                            $"Bạn cần chờ đến {unlockAt:O} mới được làm bài tiếp theo.");
+                    }
                 }
             }
-            attempt = new QuizAttempt { QuizId = quizId, UserId = learnerId, AttemptNumber = attempts.Count + 1, StartedAt = DateTime.UtcNow };
+            attempt = new QuizAttempt { QuizId = quizId, UserId = learnerId, AttemptNumber = attempts.Count == 0 ? 1 : attempts.Max(a => a.AttemptNumber) + 1, StartedAt = DateTime.UtcNow };
             await _attemptRepository.AddAsync(attempt);
             await _unitOfWork.SaveChangesAsync();
         }
 
-        var questions = (quiz.Questions ?? new List<Question>()).OrderBy(q => q.OrderIndex).ToList();
+        var questions = (quiz.Questions ?? new List<Question>())
+            .OrderBy(q => StableShuffleKey(attempt.AttemptId, q.QuestionId))
+            .ThenBy(q => q.QuestionId)
+            .ToList();
         var questionIds = questions.Select(q => q.QuestionId).ToList();
         var choices = await _choiceRepository.FindAsync(x => questionIds.Contains(x.QuestionId));
         var media = await _mediaRepository.FindAsync(x => questionIds.Contains(x.QuestionId));
@@ -550,14 +729,14 @@ public class QuizService : IQuizService
 
         return new TakeQuizDto
         {
-            QuizId = quiz.QuizId, Title = quiz.Title, Description = quiz.Description, TimeLimitMinutes = quiz.TimeLimitMinutes, PassingScore = quiz.PassingScore, MaxAttempts = quiz.MaxAttempts,
+            QuizId = quiz.QuizId, Title = quiz.Title, Description = quiz.Description, TimeLimitMinutes = quiz.TimeLimitMinutes, PassingScore = 80.00m, MaxAttempts = quiz.MaxAttempts,
             AttemptId = attempt.AttemptId, AttemptNumber = attempt.AttemptNumber, StartedAt = attempt.StartedAt,
             Questions = questions.Select(q => new TakeQuestionDto
             {
                 QuestionId = q.QuestionId, QuestionText = q.QuestionText, QuestionType = q.QuestionType, Instruction = q.Instruction, Points = q.Points, IsRequired = q.IsRequired, OrderIndex = q.OrderIndex,
-                Choices = (q.QuestionType == QuestionType.FILL_BLANK ? new List<Choice>() : choices.Where(x => x.QuestionId == q.QuestionId).ToList()).OrderBy(x => x.OrderIndex).Select(x => new TakeChoiceDto { ChoiceId = x.ChoiceId, ChoiceText = x.ChoiceText, OptionValue = x.OptionValue, OrderIndex = x.OrderIndex }).ToList(),
+                Choices = (q.QuestionType == QuestionType.FILL_BLANK ? new List<Choice>() : choices.Where(x => x.QuestionId == q.QuestionId).ToList()).OrderBy(x => StableShuffleKey(attempt.AttemptId, x.ChoiceId)).ThenBy(x => x.ChoiceId).Select(x => new TakeChoiceDto { ChoiceId = x.ChoiceId, ChoiceText = x.ChoiceText, OptionValue = x.OptionValue, OrderIndex = x.OrderIndex }).ToList(),
                 Media = media.Where(x => x.QuestionId == q.QuestionId).OrderBy(x => x.OrderIndex).Select(x => new TakeQuestionMediaDto { MediaId = x.MediaId, MediaType = x.MediaType, MediaUrl = x.MediaUrl, Label = x.Label, DurationSeconds = x.DurationSeconds, OrderIndex = x.OrderIndex }).ToList(),
-                ArrangeItems = arrangeItems.Where(x => x.QuestionId == q.QuestionId).OrderBy(x => x.ArrangeItemId).Select(x => new TakeArrangeItemDto { ArrangeItemId = x.ArrangeItemId, Content = x.Content }).ToList(),
+                ArrangeItems = arrangeItems.Where(x => x.QuestionId == q.QuestionId).OrderBy(x => StableShuffleKey(attempt.AttemptId, x.ArrangeItemId)).ThenBy(x => x.ArrangeItemId).Select(x => new TakeArrangeItemDto { ArrangeItemId = x.ArrangeItemId, Content = x.Content }).ToList(),
                 WritingConfig = writingConfigs.Where(x => x.QuestionId == q.QuestionId).Select(x => new TakeWritingConfigDto { EventType = x.EventType, Audience = x.Audience, Style = x.Style, MinWords = x.MinWords, MaxWords = x.MaxWords, RequiredElementsJson = x.RequiredElementsJson }).FirstOrDefault(),
                 ScenarioNodes = nodes.Where(x => x.QuestionId == q.QuestionId).OrderByDescending(x => x.IsStartNode).ThenBy(x => x.NodeId).Select(x => new TakeScenarioNodeDto
                 {
@@ -660,7 +839,7 @@ public class QuizService : IQuizService
             var totalMax = savedAnswers.Sum(x => x.MaxScore);
             var totalScore = savedAnswers.Sum(x => x.Score ?? 0);
             attempt.Score = totalMax <= 0 ? 0 : Math.Round(totalScore / totalMax * 100, 2);
-            attempt.ResultStatus = attempt.Score >= attempt.Quiz.PassingScore ? QuizAttemptStatus.PASSED : QuizAttemptStatus.FAILED;
+            attempt.ResultStatus = attempt.Score >= 80.00m ? QuizAttemptStatus.PASSED : QuizAttemptStatus.FAILED;
         }
         _attemptRepository.Update(attempt);
         await _unitOfWork.SaveChangesAsync();
@@ -840,7 +1019,7 @@ public class QuizService : IQuizService
             var totalMax = answers.Sum(x => x.MaxScore);
             var totalScore = answers.Sum(x => x.Score ?? 0);
             attempt.Score = totalMax <= 0 ? 0 : Math.Round(totalScore / totalMax * 100, 2);
-            attempt.ResultStatus = attempt.Score >= attempt.Quiz.PassingScore ? QuizAttemptStatus.PASSED : QuizAttemptStatus.FAILED;
+            attempt.ResultStatus = attempt.Score >= 80.00m ? QuizAttemptStatus.PASSED : QuizAttemptStatus.FAILED;
         }
 
         _attemptRepository.Update(attempt);
@@ -874,21 +1053,104 @@ public class QuizService : IQuizService
         {
             questions.TryGetValue(answer.QuestionId, out var question);
             var selectedDtos = selected.Where(x => x.QuizAnswerId == answer.QuizAnswerId && choiceMap.ContainsKey(x.ChoiceId)).Select(x => choiceMap[x.ChoiceId]).Select(MapChoiceResult).ToList();
-            var correctDtos = choices.Where(x => x.QuestionId == answer.QuestionId && x.IsCorrect).Select(MapChoiceResult).ToList();
+            var revealCorrectAnswers = attempt.ResultStatus == QuizAttemptStatus.PASSED;
+            var correctDtos = revealCorrectAnswers
+                ? choices.Where(x => x.QuestionId == answer.QuestionId && x.IsCorrect).Select(MapChoiceResult).ToList()
+                : new List<SelectedChoiceResultDto>();
+            var selectedResultDtos = selectedDtos.Select(x => new SelectedChoiceResultDto
+            {
+                ChoiceId = x.ChoiceId,
+                ChoiceText = x.ChoiceText,
+                OptionValue = x.OptionValue,
+                IsCorrect = revealCorrectAnswers && x.IsCorrect,
+                Explanation = revealCorrectAnswers ? x.Explanation : null
+            }).ToList();
             return new QuizAnswerResultDto
             {
                 QuizAnswerId = answer.QuizAnswerId, QuestionId = answer.QuestionId, QuestionText = question?.QuestionText ?? string.Empty, QuestionType = question?.QuestionType ?? QuestionType.SINGLE_CHOICE,
-                Score = answer.Score, MaxScore = answer.MaxScore, IsCorrect = answer.IsCorrect, TextAnswer = answer.TextAnswer, TeacherFeedback = answer.TeacherFeedback, GradedById = answer.GradedById, GradedAt = answer.GradedAt,
+                Score = answer.Score, MaxScore = answer.MaxScore, IsCorrect = answer.IsCorrect, QuestionExplanation = question?.Explanation, TextAnswer = answer.TextAnswer, TeacherFeedback = answer.TeacherFeedback, GradedById = answer.GradedById, GradedAt = answer.GradedAt,
                 SelectedChoiceId = selectedDtos.Count == 1 ? selectedDtos[0].ChoiceId : null, SelectedChoiceText = selectedDtos.Count == 1 ? selectedDtos[0].ChoiceText : null,
-                CorrectChoiceId = correctDtos.Count == 1 ? correctDtos[0].ChoiceId : null, CorrectChoiceText = correctDtos.Count == 1 ? correctDtos[0].ChoiceText : null,
-                SelectedChoices = selectedDtos, CorrectChoices = correctDtos,
-                ErrorRegions = answerRegions.Where(x => x.QuizAnswerId == answer.QuizAnswerId).Select(x => { regions.TryGetValue(x.MatchedErrorRegionId ?? 0, out var c); return new ErrorRegionResultDto { AnswerErrorRegionId = x.AnswerErrorRegionId, SelectedStartTimeMs = x.SelectedStartTimeMs, SelectedEndTimeMs = x.SelectedEndTimeMs, SelectedErrorCategory = x.SelectedErrorCategory, SelectedErrorCode = x.SelectedErrorCode, MatchedErrorRegionId = x.MatchedErrorRegionId, CorrectStartTimeMs = c?.StartTimeMs, CorrectEndTimeMs = c?.EndTimeMs, CorrectErrorCategory = c?.ErrorCategory, CorrectErrorCode = c?.ErrorCode, LocationScore = x.LocationScore, TypeScore = x.TypeScore }; }).ToList(),
-                Annotations = answerAnnotations.Where(x => x.QuizAnswerId == answer.QuizAnswerId).Select(x => { annotations.TryGetValue(x.MatchedAnnotationId ?? 0, out var c); return new AnnotationResultDto { AnswerAnnotationId = x.AnswerAnnotationId, AnnotationType = x.AnnotationType, StartIndex = x.StartIndex, EndIndex = x.EndIndex, AnnotationValue = x.AnnotationValue, MatchedAnnotationId = x.MatchedAnnotationId, CorrectStartIndex = c?.StartIndex, CorrectEndIndex = c?.EndIndex, CorrectAnnotationValue = c?.AnnotationValue, Score = x.Score }; }).ToList(),
-                ArrangeItems = arrangeItems.Values.Where(x => x.QuestionId == answer.QuestionId).Select(item => { var a = answerArrange.FirstOrDefault(x => x.QuizAnswerId == answer.QuizAnswerId && x.ArrangeItemId == item.ArrangeItemId); var ok = item.IsDistractor ? a == null || !a.IsIncluded : a != null && a.IsIncluded && a.SelectedOrder == item.CorrectOrder; return new ArrangeItemResultDto { ArrangeItemId = item.ArrangeItemId, Content = item.Content, SelectedOrder = a?.SelectedOrder, CorrectOrder = item.CorrectOrder, IsIncluded = a?.IsIncluded ?? false, IsDistractor = item.IsDistractor, IsCorrect = ok }; }).ToList(),
-                ScenarioPath = answerPaths.Where(x => x.QuizAnswerId == answer.QuizAnswerId).OrderBy(x => x.StepOrder).Select(x => { nodes.TryGetValue(x.NodeId, out var n); scenarioChoices.TryGetValue(x.ScenarioChoiceId, out var c); return new ScenarioPathResultDto { StepOrder = x.StepOrder, NodeId = x.NodeId, NodeContent = n?.Content ?? string.Empty, ScenarioChoiceId = x.ScenarioChoiceId, ChoiceText = c?.ChoiceText ?? string.Empty, Score = x.Score, Feedback = c?.Feedback }; }).ToList()
+                CorrectChoiceId = revealCorrectAnswers && correctDtos.Count == 1 ? correctDtos[0].ChoiceId : null, CorrectChoiceText = revealCorrectAnswers && correctDtos.Count == 1 ? correctDtos[0].ChoiceText : null,
+                SelectedChoices = selectedResultDtos, CorrectChoices = correctDtos,
+                ErrorRegions = answerRegions.Where(x => x.QuizAnswerId == answer.QuizAnswerId).Select(x => { regions.TryGetValue(x.MatchedErrorRegionId ?? 0, out var c); return new ErrorRegionResultDto { AnswerErrorRegionId = x.AnswerErrorRegionId, SelectedStartTimeMs = x.SelectedStartTimeMs, SelectedEndTimeMs = x.SelectedEndTimeMs, SelectedErrorCategory = x.SelectedErrorCategory, SelectedErrorCode = x.SelectedErrorCode, MatchedErrorRegionId = revealCorrectAnswers ? x.MatchedErrorRegionId : null, CorrectStartTimeMs = revealCorrectAnswers ? c?.StartTimeMs : null, CorrectEndTimeMs = revealCorrectAnswers ? c?.EndTimeMs : null, CorrectErrorCategory = revealCorrectAnswers ? c?.ErrorCategory : null, CorrectErrorCode = revealCorrectAnswers ? c?.ErrorCode : null, LocationScore = x.LocationScore, TypeScore = x.TypeScore }; }).ToList(),
+                Annotations = answerAnnotations.Where(x => x.QuizAnswerId == answer.QuizAnswerId).Select(x => { annotations.TryGetValue(x.MatchedAnnotationId ?? 0, out var c); return new AnnotationResultDto { AnswerAnnotationId = x.AnswerAnnotationId, AnnotationType = x.AnnotationType, StartIndex = x.StartIndex, EndIndex = x.EndIndex, AnnotationValue = x.AnnotationValue, MatchedAnnotationId = revealCorrectAnswers ? x.MatchedAnnotationId : null, CorrectStartIndex = revealCorrectAnswers ? c?.StartIndex : null, CorrectEndIndex = revealCorrectAnswers ? c?.EndIndex : null, CorrectAnnotationValue = revealCorrectAnswers ? c?.AnnotationValue : null, Score = x.Score }; }).ToList(),
+                ArrangeItems = arrangeItems.Values.Where(x => x.QuestionId == answer.QuestionId).Select(item => { var a = answerArrange.FirstOrDefault(x => x.QuizAnswerId == answer.QuizAnswerId && x.ArrangeItemId == item.ArrangeItemId); var ok = item.IsDistractor ? a == null || !a.IsIncluded : a != null && a.IsIncluded && a.SelectedOrder == item.CorrectOrder; return new ArrangeItemResultDto { ArrangeItemId = item.ArrangeItemId, Content = item.Content, SelectedOrder = a?.SelectedOrder, CorrectOrder = revealCorrectAnswers ? item.CorrectOrder : null, IsIncluded = a?.IsIncluded ?? false, IsDistractor = revealCorrectAnswers && item.IsDistractor, IsCorrect = revealCorrectAnswers && ok }; }).ToList(),
+                ScenarioPath = answerPaths.Where(x => x.QuizAnswerId == answer.QuizAnswerId).OrderBy(x => x.StepOrder).Select(x => { nodes.TryGetValue(x.NodeId, out var n); scenarioChoices.TryGetValue(x.ScenarioChoiceId, out var c); return new ScenarioPathResultDto { StepOrder = x.StepOrder, NodeId = x.NodeId, NodeContent = n?.Content ?? string.Empty, ScenarioChoiceId = x.ScenarioChoiceId, ChoiceText = c?.ChoiceText ?? string.Empty, Score = revealCorrectAnswers ? x.Score : 0m, Feedback = revealCorrectAnswers ? c?.Feedback : null }; }).ToList()
             };
         }).ToList();
-        return new QuizResultDto { AttemptId = attempt.AttemptId, QuizId = attempt.QuizId, QuizTitle = attempt.Quiz.Title, AttemptNumber = attempt.AttemptNumber, Score = attempt.Score, PassingScore = attempt.Quiz.PassingScore, ResultStatus = attempt.ResultStatus ?? QuizAttemptStatus.IN_PROGRESS, IsPassed = attempt.ResultStatus == QuizAttemptStatus.PASSED ? true : attempt.ResultStatus == QuizAttemptStatus.FAILED ? false : null, StartedAt = attempt.StartedAt, SubmittedAt = attempt.SubmittedAt, RequiresManualGrading = attempt.ResultStatus == QuizAttemptStatus.PENDING_GRADING, Answers = resultAnswers };
+        var quiz = attempt.Quiz;
+        var courseId = quiz.CourseId;
+        if (!courseId.HasValue && quiz.LessonId.HasValue)
+            courseId = (await _lessonRepository.FindAsync(x => x.LessonId == quiz.LessonId.Value)).FirstOrDefault()?.CourseId;
+        if (!courseId.HasValue && quiz.ModuleId.HasValue)
+            courseId = (await _moduleRepository.FindAsync(x => x.ModuleId == quiz.ModuleId.Value)).FirstOrDefault()?.CourseId;
+
+        var recommendedLessons = new List<RecommendedLessonDto>();
+        if (courseId.HasValue)
+        {
+            var lessonQuery = await _lessonRepository.FindAsync(x =>
+                x.CourseId == courseId.Value && x.Status == LessonStatus.ACTIVE);
+            IEnumerable<Lesson> recommendations = lessonQuery;
+            if (quiz.Purpose == QuizPurpose.PRACTICE || quiz.Purpose == QuizPurpose.DAILY_PRACTICE)
+                recommendations = lessonQuery.Where(x => quiz.LessonId.HasValue && x.LessonId == quiz.LessonId.Value);
+            else if (quiz.Purpose == QuizPurpose.CHAPTER_ASSESSMENT)
+                recommendations = lessonQuery.Where(x => quiz.ModuleId.HasValue && x.ModuleId == quiz.ModuleId.Value);
+
+            recommendedLessons = recommendations
+                .OrderBy(x => x.OrderIndex).ThenBy(x => x.LessonId)
+                .Select(x => new RecommendedLessonDto { LessonId = x.LessonId, Title = x.Title, OrderIndex = x.OrderIndex })
+                .ToList();
+        }
+
+        DateTime? retryAvailableAt = null;
+        if (attempt.ResultStatus == QuizAttemptStatus.FAILED &&
+            (quiz.Purpose == QuizPurpose.CHAPTER_ASSESSMENT || quiz.Purpose == QuizPurpose.FINAL_ASSESSMENT))
+        {
+            var cooldown = quiz.Purpose == QuizPurpose.CHAPTER_ASSESSMENT
+                ? TimeSpan.FromHours(1)
+                : TimeSpan.FromHours(6);
+            var failedAttempts = (await _attemptRepository.FindAsync(x =>
+                x.QuizId == quizId && x.UserId == learnerId &&
+                x.ResultStatus == QuizAttemptStatus.FAILED && x.SubmittedAt.HasValue))
+                .OrderBy(x => x.SubmittedAt).ToList();
+            if (failedAttempts.Count >= 4)
+                retryAvailableAt = failedAttempts[^1].SubmittedAt!.Value.Add(cooldown);
+        }
+
+        return new QuizResultDto
+        {
+            AttemptId = attempt.AttemptId,
+            QuizId = attempt.QuizId,
+            QuizTitle = quiz.Title,
+            RecommendedLessonId = quiz.LessonId ?? recommendedLessons.FirstOrDefault()?.LessonId,
+            RecommendedLessons = recommendedLessons,
+            RetryAvailableAt = retryAvailableAt,
+            AttemptNumber = attempt.AttemptNumber,
+            Score = attempt.Score,
+            PassingScore = 80.00m,
+            ResultStatus = attempt.ResultStatus ?? QuizAttemptStatus.IN_PROGRESS,
+            IsPassed = attempt.ResultStatus == QuizAttemptStatus.PASSED ? true : attempt.ResultStatus == QuizAttemptStatus.FAILED ? false : null,
+            StartedAt = attempt.StartedAt,
+            SubmittedAt = attempt.SubmittedAt,
+            RequiresManualGrading = attempt.ResultStatus == QuizAttemptStatus.PENDING_GRADING,
+            Answers = resultAnswers
+        };
+    }
+
+    // Deterministic pseudo-random ordering: stable for the same attempt (including refresh),
+    // but different between attempts. This is for presentation, not cryptographic security.
+    private static int StableShuffleKey(int attemptId, int itemId)
+    {
+        unchecked
+        {
+            var hash = 17;
+            hash = (hash * 31) + attemptId;
+            hash = (hash * 31) + itemId;
+            hash ^= hash >> 16;
+            hash *= 0x45d9f3b;
+            hash ^= hash >> 16;
+            return hash;
+        }
     }
 
     private static SelectedChoiceResultDto MapChoiceResult(Choice x) => new() { ChoiceId = x.ChoiceId, ChoiceText = x.ChoiceText, OptionValue = x.OptionValue, IsCorrect = x.IsCorrect, Explanation = x.Explanation };
@@ -908,11 +1170,15 @@ public async Task<List<QuizListItemDto>> GetQuizzesByCourseAsync(
             QuizId = q.QuizId,
             CourseId = q.CourseId,
             LessonId = q.LessonId,
+            ModuleId = q.ModuleId,
+            Purpose = q.Purpose,
+            AvailableFrom = q.AvailableFrom,
+            AvailableUntil = q.AvailableUntil,
             LessonTitle = q.Lesson != null ? q.Lesson.Title : null,
             Title = q.Title,
             Description = q.Description,
             TimeLimitMinutes =q.TimeLimitMinutes,
-            PassingScore =q.PassingScore,
+            PassingScore =80.00m,
             MaxAttempts =q.MaxAttempts,
             Status =q.Status,
             CreatedAt =q.CreatedAt,

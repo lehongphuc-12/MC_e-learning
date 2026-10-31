@@ -10,6 +10,8 @@ export interface Lesson {
   isPreview: boolean;
   status: 'ACTIVE' | 'INACTIVE';
   videoUrl?: string;
+  isLocked?: boolean;
+  lockReason?: string | null;
   createdAt: string;
 }
 

@@ -17,12 +17,17 @@ public class UpdateQuizRequest
     [Range(0, 100)]
     public decimal PassingScore { get; set; }
 
-    [Range(1, int.MaxValue)]
+    [Range(0, int.MaxValue)]
+    // 0 = unlimited attempts.
     public int MaxAttempts { get; set; }
 
     public QuizPurpose Purpose { get; set; } = QuizPurpose.PRACTICE;
 
     public int? ModuleId { get; set; }
+
+    public DateTime? AvailableFrom { get; set; }
+
+    public DateTime? AvailableUntil { get; set; }
 
     public QuizStatus Status { get; set; }
 
