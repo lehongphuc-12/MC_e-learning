@@ -340,7 +340,7 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
               <button
                 type="button"
                 onClick={() => setIsCreateModalOpen(true)}
-                className="px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold border border-purple-400/30 flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-purple-600/30"
+                className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold border border-blue-400/30 flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-lg shadow-blue-600/25"
               >
                 <Plus className="w-4 h-4" />
                 <span>+ Tạo Bài tập nói mới</span>
@@ -349,7 +349,7 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
               <button
                 onClick={() => loadSubmissions(true)}
                 disabled={isRefreshing}
-                className="px-4 py-2.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700 flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                className="px-4 py-2.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700 flex items-center justify-center gap-2 transition-colors cursor-pointer disabled:opacity-50"
               >
                 <RefreshCw className={`w-4 h-4 text-blue-400 ${isRefreshing ? 'animate-spin' : ''}`} />
                 <span>Làm mới</span>
@@ -397,10 +397,10 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
       {/* ── Main Content Area ── */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
         {/* ── Section 1: Created Speaking Assignments List ── */}
-        <div className="bg-white rounded-3xl p-6 border border-purple-200/80 shadow-sm mb-6">
+        <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm mb-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 mb-4 border-b border-slate-100">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold">
+              <div className="w-10 h-10 rounded-2xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold">
                 <Mic2 className="w-5 h-5" />
               </div>
               <div>
@@ -415,7 +415,7 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
 
             <button
               onClick={() => setIsCreateModalOpen(true)}
-              className="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm shadow-purple-500/20 self-start sm:self-auto"
+              className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm shadow-blue-500/20 self-start sm:self-auto"
             >
               <Plus className="w-4 h-4" />
               <span>+ Tạo Bài tập nói mới</span>
@@ -423,12 +423,12 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
           </div>
 
           {isLoadingAssignments ? (
-            <div className="py-8 text-center text-xs font-semibold text-purple-600 animate-pulse">
+            <div className="py-8 text-center text-xs font-semibold text-blue-600">
               Đang tải danh sách bài tập nói...
             </div>
           ) : filteredAssignments.length === 0 ? (
-            <div className="p-8 text-center bg-purple-50/50 rounded-2xl border border-purple-100">
-              <Mic2 className="w-8 h-8 text-purple-400 mx-auto mb-2" />
+            <div className="p-8 text-center bg-slate-50/50 rounded-2xl border border-slate-200">
+              <Mic2 className="w-8 h-8 text-blue-500 mx-auto mb-2" />
               <h3 className="text-sm font-bold text-slate-800">Chưa có Bài tập nói nào</h3>
               <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
                 Bạn chưa khởi tạo Bài tập nói tổng khóa nào. Bấm nút "+ Tạo Bài tập nói mới" ở trên để khởi tạo bài tập thu âm cho học viên.
@@ -439,12 +439,12 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
               {filteredAssignments.map((assignment) => (
                 <div
                   key={assignment.lessonId}
-                  className="p-5 rounded-2xl border border-purple-100 bg-gradient-to-br from-purple-50/30 via-white to-slate-50 flex flex-col justify-between space-y-3 hover:shadow-md transition-all"
+                  className="p-5 rounded-2xl border border-slate-200 bg-white flex flex-col justify-between space-y-3 hover:shadow-md transition-shadow"
                 >
                   <div>
                     <div className="flex items-center justify-between gap-2 mb-2">
-                      <span className="px-2.5 py-0.5 rounded-md bg-purple-100 text-purple-700 font-extrabold text-[11px] flex items-center gap-1">
-                        <BookOpen className="w-3 h-3 text-purple-600" />
+                      <span className="px-2.5 py-0.5 rounded-md bg-blue-50 text-blue-700 font-extrabold text-[11px] flex items-center gap-1">
+                        <BookOpen className="w-3 h-3 text-blue-600" />
                         {assignment.courseTitle}
                       </span>
                       <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1">
@@ -888,14 +888,14 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
           <div className="bg-white rounded-3xl max-w-xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-purple-900 via-indigo-950 to-slate-900 text-white p-6 flex items-center justify-between">
+            <div className="bg-slate-900 border-b border-slate-800 text-white p-6 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-purple-600/30 border border-purple-400/40 text-purple-300 flex items-center justify-center font-black">
+                <div className="w-10 h-10 rounded-xl bg-blue-600/30 border border-blue-400/40 text-blue-300 flex items-center justify-center font-black">
                   <Mic2 className="w-5 h-5" />
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-white leading-tight">Tạo Bài tập nói (Speaking Assignment)</h3>
-                  <p className="text-xs text-purple-200 mt-0.5">Tạo đề bài luyện nói / bài thu âm cuối khóa cho học viên</p>
+                  <p className="text-xs text-slate-300 mt-0.5">Tạo đề bài luyện nói / bài thu âm cuối khóa cho học viên</p>
                 </div>
               </div>
 
@@ -923,7 +923,7 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
                       const val = e.target.value;
                       setCreateCourseId(val === '' ? '' : Number(val));
                     }}
-                    className="w-full pl-9 pr-8 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-purple-500 focus:bg-white transition-all cursor-pointer"
+                    className="w-full pl-9 pr-8 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:bg-white transition-colors cursor-pointer"
                   >
                     <option value="">-- Chọn khóa học để tạo bài tập nói tổng khóa --</option>
                     {courses.map((c) => (
@@ -948,7 +948,7 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
                     placeholder="VD: Bài tập nói Cuối khóa - Lời dẫn Đám Cưới"
                     value={createTitle}
                     onChange={(e) => setCreateTitle(e.target.value)}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-purple-500 focus:bg-white transition-all"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:bg-white transition-colors"
                   />
                 </div>
 
@@ -962,7 +962,7 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
                     max={180}
                     value={createDuration}
                     onChange={(e) => setCreateDuration(Number(e.target.value))}
-                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-center text-slate-900 focus:ring-2 focus:ring-purple-500 focus:bg-white transition-all"
+                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-center text-slate-900 focus:ring-2 focus:ring-blue-500 focus:bg-white transition-colors"
                   />
                 </div>
               </div>
@@ -977,7 +977,7 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
                   placeholder="Nhập hướng dẫn chi tiết cho học viên: Yêu cầu đọc bài dẫn, thời lượng tối đa, tiêu chí chấm điểm..."
                   value={createDescription}
                   onChange={(e) => setCreateDescription(e.target.value)}
-                  className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:ring-2 focus:ring-purple-500 focus:bg-white transition-all"
+                  className="w-full p-3 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:ring-2 focus:ring-blue-500 focus:bg-white transition-colors"
                 />
               </div>
 
@@ -986,14 +986,14 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
                 <button
                   type="button"
                   onClick={() => setIsCreateModalOpen(false)}
-                  className="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 text-xs font-bold hover:bg-slate-100 transition-all cursor-pointer"
+                  className="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 text-xs font-bold hover:bg-slate-100 transition-colors cursor-pointer"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
                   disabled={isCreatingAssignment || !createCourseId}
-                  className="px-6 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-md shadow-purple-600/30 flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                  className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-600/25 flex items-center gap-2 transition-colors cursor-pointer disabled:opacity-50"
                 >
                   {isCreatingAssignment ? (
                     <>

@@ -295,13 +295,13 @@ export const Header: React.FC<HeaderProps> = ({
                     id="nav-admin-btn"
                     type="button"
                     onClick={() => onNavigate('admin')}
-                    className={`group flex items-center gap-1.5 rounded-[13px] px-3 py-2.5 text-[11px] font-black transition-all duration-300 ${
+                    className={`group flex items-center gap-1.5 rounded-[13px] px-3 py-2.5 text-[11px] font-black transition-colors duration-200 ${
                       currentScreen === 'admin'
-                        ? 'bg-purple-100 text-purple-700'
-                        : 'text-purple-600 hover:bg-purple-50'
+                        ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                        : 'text-amber-800 hover:bg-amber-50'
                     }`}
                   >
-                    <Shield className="h-3.5 w-3.5" />
+                    <Shield className="h-3.5 w-3.5 text-amber-600" />
                     Admin
                   </button>
                 )}
@@ -490,9 +490,9 @@ export const Header: React.FC<HeaderProps> = ({
                               onNavigate('admin');
                               setIsUserMenuOpen(false);
                             }}
-                            className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-[10px] font-black text-purple-700 transition-colors hover:bg-purple-50"
+                            className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-[10px] font-black text-amber-900 transition-colors hover:bg-amber-50"
                           >
-                            <Shield className="h-4 w-4" />
+                            <Shield className="h-4 w-4 text-amber-600" />
                             Bảng quản trị Admin
                           </button>
                         )}
@@ -747,9 +747,9 @@ export const Header: React.FC<HeaderProps> = ({
                     onNavigate('admin');
                     closeMobileMenu();
                   }}
-                  className="flex items-center gap-2 rounded-[13px] bg-purple-50 px-4 py-3 text-left text-[11px] font-black text-purple-700"
+                  className="flex items-center gap-2 rounded-[13px] bg-amber-50 border border-amber-200 px-4 py-3 text-left text-[11px] font-black text-amber-900"
                 >
-                  <Shield className="h-4 w-4" />
+                  <Shield className="h-4 w-4 text-amber-600" />
                   Bảng quản trị Admin
                 </button>
               )}

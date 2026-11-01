@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { X, Play, Pause, Volume2, VolumeX, Maximize, Star } from 'lucide-react';
 import { Course } from '../../types';
 
@@ -30,33 +31,47 @@ export const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  if (!isOpen || !course) return null;
+  const shouldReduceMotion = useReducedMotion();
 
-  const formattedPrice =
-    course.price === 0 ? 'Miễn phí' : `${course.price.toLocaleString('vi-VN')} đ`;
+  const formattedPrice = course
+    ? course.price === 0
+      ? 'Miễn phí'
+      : `${course.price.toLocaleString('vi-VN')} đ`
+    : '';
 
-  const formattedOriginalPrice = course.originalPrice
+  const formattedOriginalPrice = course?.originalPrice
     ? `${course.originalPrice.toLocaleString('vi-VN')} đ`
     : null;
 
   return (
-    <div
-      id="video-preview-modal-backdrop"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) {
-          onClose();
-        }
-      }}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="preview-modal-title"
-    >
-      <div 
-        id="video-preview-modal-card"
-        className="relative w-full max-w-4xl overflow-hidden bg-slate-900 text-white rounded-2xl shadow-2xl border border-slate-800 flex flex-col max-h-[92vh]"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <AnimatePresence>
+      {isOpen && course && (
+        <div
+          id="video-preview-modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="preview-modal-title"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        >
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: shouldReduceMotion ? 0 : 0.2 }}
+            onClick={onClose}
+            className="fixed inset-0 bg-slate-950/80 backdrop-blur-md"
+          />
+
+          <motion.div 
+            id="video-preview-modal-card"
+            initial={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.94, y: 16 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={shouldReduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.95, y: 10 }}
+            transition={{ type: 'spring', damping: 28, stiffness: 350 }}
+            className="relative z-10 w-full max-w-4xl overflow-hidden bg-slate-900 text-white rounded-2xl shadow-2xl border border-slate-800 flex flex-col max-h-[92vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
         {/* Header */}
         <div className="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-slate-800 bg-slate-900/90">
           <div>
@@ -91,7 +106,7 @@ export const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({
 
           {/* Live Speaker Badge */}
           <div className="absolute top-4 left-4 z-10 flex items-center gap-2 px-3 py-1.5 bg-slate-950/80 backdrop-blur-md rounded-full border border-slate-700/60 text-xs font-medium">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+            <span className="w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-emerald-500/20" />
             <span>Bài học mẫu: Khơi mở sự tự tin & Làm chủ giọng nói</span>
           </div>
 
@@ -101,7 +116,7 @@ export const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({
             type="button"
             onClick={() => setIsPlaying(!isPlaying)}
             aria-label={isPlaying ? "Tạm dừng video" : "Tiếp tục phát video"}
-            className="z-10 w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center rounded-full bg-blue-600/90 hover:bg-blue-600 text-white shadow-xl shadow-blue-900/50 hover:scale-105 transition-all duration-200"
+            className="z-10 w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center rounded-full bg-blue-600/90 hover:bg-blue-600 text-white shadow-xl shadow-blue-900/50 hover:scale-105 transition-[transform,background-color] duration-200"
           >
             {isPlaying ? <Pause className="w-7 h-7 sm:w-8 sm:h-8" /> : <Play className="w-7 h-7 sm:w-8 sm:h-8 ml-1" />}
           </button>
@@ -165,14 +180,16 @@ export const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({
                 onClose();
                 onEnroll(course);
               }}
-              className="flex-1 sm:flex-none px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-blue-600/30 hover:shadow-blue-600/50 transition-all flex items-center justify-center gap-2"
+              className="flex-1 sm:flex-none px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-blue-600/30 hover:shadow-blue-600/50 transition-colors flex items-center justify-center gap-2"
             >
               <span>Đăng ký khóa học ngay</span>
               <span className="sm:hidden font-bold">({formattedPrice})</span>
             </button>
           </div>
         </div>
-      </div>
-    </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
   );
 };
