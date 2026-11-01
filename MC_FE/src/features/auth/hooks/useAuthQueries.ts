@@ -1,15 +1,18 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { authApi } from '../api/authApi';
+import { useAuthStore } from '../../../store/useAuthStore';
 
 export const AUTH_QUERY_KEYS = {
   me: ['auth', 'me'] as const,
 };
 
 export const useUserQuery = (enabled: boolean = true) => {
+  const token = useAuthStore((state) => state.token);
+
   return useQuery({
     queryKey: AUTH_QUERY_KEYS.me,
     queryFn: () => authApi.getMe(),
-    enabled: enabled && !!localStorage.getItem('token'),
+    enabled: enabled && !!token,
     retry: false,
     staleTime: 1000 * 60 * 10, // 10 mins cache
   });

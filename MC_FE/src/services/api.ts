@@ -76,9 +76,10 @@ function createHeaders(
     );
   }
 
+  const authHeader = headers.get("Authorization");
   if (
     token &&
-    !headers.has("Authorization")
+    (!authHeader || authHeader === "Bearer null" || authHeader === "Bearer undefined")
   ) {
     headers.set(
       "Authorization",

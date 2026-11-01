@@ -30,6 +30,8 @@ import {
   Flame,
   Zap,
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { AnimatedCounter } from '../../../components/ui/animated-counter';
 import { Course, ScreenType, User } from '../../../types';
 
 interface AiVoiceCoachPageProps {
@@ -261,9 +263,9 @@ export const AiVoiceCoachPage: React.FC<AiVoiceCoachPageProps> = ({
           <div className="absolute bottom-[-100px] left-[35%] h-[320px] w-[500px] rounded-full bg-cyan-500/15 blur-[130px]" />
 
           {/* Micro dots / stars */}
-          <span className="absolute left-[12%] top-[25%] h-2 w-2 rounded-full bg-[#ffc928]/60 blur-[1px] animate-pulse" />
+          <span className="absolute left-[12%] top-[25%] h-2 w-2 rounded-full bg-[#ffc928]/60 blur-[1px]" />
           <span className="absolute left-[38%] top-[18%] h-1.5 w-1.5 rounded-full bg-white/70 blur-[1px]" />
-          <span className="absolute right-[14%] top-[30%] h-2.5 w-2.5 rounded-full bg-[#ffc928]/50 blur-[2px] animate-ping" />
+          <span className="absolute right-[14%] top-[30%] h-2.5 w-2.5 rounded-full bg-[#ffc928]/60 blur-[1px]" />
           <span className="absolute right-[28%] bottom-[25%] h-2 w-2 rounded-full bg-cyan-300/60 blur-[1px]" />
         </div>
 
@@ -272,7 +274,7 @@ export const AiVoiceCoachPage: React.FC<AiVoiceCoachPageProps> = ({
           <div className="mx-auto max-w-3xl text-center">
             {/* Pill Badge */}
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-amber-300/30 bg-gradient-to-r from-amber-500/15 via-[#ffc928]/20 to-blue-500/15 px-4 py-2 text-[11px] font-black uppercase tracking-[0.2em] text-[#ffd95e] shadow-lg backdrop-blur-md">
-              <Sparkles className="h-4 w-4 text-[#ffc928] animate-spin" style={{ animationDuration: '6s' }} />
+              <Sparkles className="h-4 w-4 text-[#ffc928]" />
               <span>ĐỘT PHÁ CÔNG NGHỆ MC 4.0 • MSEEK AI VOICE COACH</span>
             </div>
 
@@ -360,20 +362,32 @@ export const AiVoiceCoachPage: React.FC<AiVoiceCoachPageProps> = ({
 
                 {/* Sample Selector Pills */}
                 <div className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-black/25 p-1 text-xs">
-                  {DEMO_SAMPLES.map((sample) => (
-                    <button
-                      key={sample.id}
-                      type="button"
-                      onClick={() => handleSelectSample(sample.id)}
-                      className={`rounded-lg px-3 py-1.5 font-bold transition-all ${
-                        activeSampleId === sample.id
-                          ? 'bg-[#ffc928] text-[#071d4c] shadow-md'
-                          : 'text-blue-100/70 hover:text-white'
-                      }`}
-                    >
-                      {sample.id === 'sample-1' ? 'Mẫu 1: MC Gala' : 'Mẫu 2: Bản tin thời sự'}
-                    </button>
-                  ))}
+                  {DEMO_SAMPLES.map((sample) => {
+                    const isActive = activeSampleId === sample.id;
+                    return (
+                      <button
+                        key={sample.id}
+                        type="button"
+                        onClick={() => handleSelectSample(sample.id)}
+                        className={`relative rounded-lg px-3 py-1.5 font-bold transition-colors select-none ${
+                          isActive
+                            ? 'text-[#071d4c]'
+                            : 'text-blue-100/70 hover:text-white'
+                        }`}
+                      >
+                        {isActive && (
+                          <motion.div
+                            layoutId="ai-sample-pill-indicator"
+                            transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                            className="absolute inset-0 rounded-lg bg-[#ffc928] shadow-md"
+                          />
+                        )}
+                        <span className="relative z-10">
+                          {sample.id === 'sample-1' ? 'Mẫu 1: MC Gala' : 'Mẫu 2: Bản tin thời sự'}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -512,7 +526,7 @@ export const AiVoiceCoachPage: React.FC<AiVoiceCoachPageProps> = ({
                   </div>
                   <div className="mt-2 flex items-baseline gap-1.5">
                     <span className="text-2xl font-black text-white sm:text-3xl">
-                      {activeSample.score}
+                      <AnimatedCounter value={activeSample.score} duration={800} />
                     </span>
                     <span className="text-xs font-semibold text-blue-200/60">/100</span>
                   </div>
@@ -531,7 +545,7 @@ export const AiVoiceCoachPage: React.FC<AiVoiceCoachPageProps> = ({
                   </div>
                   <div className="mt-2 flex items-baseline gap-1.5">
                     <span className="text-2xl font-black text-white sm:text-3xl">
-                      {activeSample.wpm}
+                      <AnimatedCounter value={activeSample.wpm} duration={800} />
                     </span>
                     <span className="text-xs font-semibold text-blue-200/60">wpm</span>
                   </div>
@@ -550,7 +564,7 @@ export const AiVoiceCoachPage: React.FC<AiVoiceCoachPageProps> = ({
                   </div>
                   <div className="mt-2 flex items-baseline gap-1.5">
                     <span className="text-2xl font-black text-white sm:text-3xl">
-                      {activeSample.fillersCount}
+                      <AnimatedCounter value={activeSample.fillersCount} duration={600} />
                     </span>
                     <span className="text-xs font-semibold text-blue-200/60">từ</span>
                   </div>
@@ -571,7 +585,7 @@ export const AiVoiceCoachPage: React.FC<AiVoiceCoachPageProps> = ({
                   </div>
                   <div className="mt-2 flex items-baseline gap-1.5">
                     <span className="text-2xl font-black text-white sm:text-3xl">
-                      {activeSample.pausesCount}
+                      <AnimatedCounter value={activeSample.pausesCount} duration={600} />
                     </span>
                     <span className="text-xs font-semibold text-blue-200/60">đoạn</span>
                   </div>

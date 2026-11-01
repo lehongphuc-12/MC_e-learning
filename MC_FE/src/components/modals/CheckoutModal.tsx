@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'motion/react';
 
 import {
   X,
@@ -74,6 +75,17 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [isComplete, setIsComplete] = useState(false);
   const [isAlreadyEnrolled, setIsAlreadyEnrolled] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !isProcessing) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, isProcessing, onClose]);
 
   if (!isOpen || !course) {
     return null;
@@ -304,7 +316,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     >
       <div
         id="checkout-modal-card"
-        className="relative w-full max-w-2xl bg-gradient-to-b from-[#0B132B] via-[#070B19] to-[#040711] text-white rounded-3xl shadow-2xl border border-blue-500/25 overflow-hidden"
+        className="relative w-full max-w-2xl bg-gradient-to-b from-[#0B132B] via-[#070B19] to-[#040711] text-white rounded-3xl shadow-2xl border border-blue-500/25 overflow-hidden max-h-[92vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Spotlight Stage Glow Background */}
@@ -321,11 +333,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-base font-black tracking-tight text-white">
-                  MSEEK Secure Checkout
+                  Thanh toán an toàn MSEEK
                 </h3>
 
                 <span className="px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400 border border-blue-500/30 text-[10px] font-bold uppercase tracking-wider">
-                  Course #{realCourseId}
+                  Khóa học #{realCourseId}
                 </span>
               </div>
 
@@ -348,9 +360,14 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         {/* Thông báo đã ghi danh thành công */}
         {isComplete ? (
           <div className="p-10 text-center flex flex-col items-center justify-center space-y-4 relative z-10 animate-fadeIn">
-            <div className="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center shadow-lg shadow-emerald-500/20 animate-bounce">
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: 'spring', stiffness: 450, damping: 25 }}
+              className="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center shadow-lg shadow-emerald-500/20"
+            >
               <CheckCircle2 className="w-10 h-10" />
-            </div>
+            </motion.div>
 
             <h4 className="text-2xl font-black text-white">
               Ghi Danh Thành Công!
@@ -367,7 +384,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         ) : (
           <form
             onSubmit={handleProcessPayment}
-            className="p-6 sm:p-8 space-y-6 relative z-10"
+            className="p-5 sm:p-8 space-y-6 relative z-10 overflow-y-auto flex-1 scrollbar-thin scrollbar-thumb-slate-700"
           >
             {/* Lỗi cảnh báo */}
             {errorMessage && (

@@ -36,6 +36,8 @@ import {
   FileAudio,
   Download,
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { WaveformVisualizer } from '@/components/ui/waveform-visualizer';
 
 import { useCourseDetail } from '../hooks/useInstructorCourses';
 import { useCourseLessons } from '../hooks/useLessonQueries';
@@ -346,7 +348,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
       {/* ── Top Header ────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center justify-between gap-4 pb-6 border-b border-slate-200">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-violet-500/10 border border-violet-500/30 text-violet-400 text-xs font-bold mb-2">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-600 text-xs font-bold mb-2">
             <Mic className="w-3.5 h-3.5" />
             <span>BÀI KIỂM TRA NÓI CUỐI KHÓA</span>
           </div>
@@ -357,7 +359,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
 
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs font-medium text-slate-500">
-            <Clock className="w-4 h-4 text-violet-400" />
+            <Clock className="w-4 h-4 text-blue-600" />
             <span>Thời lượng: {lesson.durationMinutes || 15} phút</span>
           </div>
         </div>
@@ -368,7 +370,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
         {/* Left / Prompt Area (5 cols) */}
         <div className="lg:col-span-5 flex flex-col gap-5">
           <div className="rounded-2xl border border-slate-200/80 bg-white/80 p-5 backdrop-blur-sm shadow-lg">
-            <h3 className="text-sm font-bold text-violet-300 uppercase tracking-wider flex items-center gap-2 mb-3">
+            <h3 className="text-sm font-bold text-blue-700 uppercase tracking-wider flex items-center gap-2 mb-3">
               <FileText className="w-4 h-4" />
               <span>Đề Bài & Yêu Cầu</span>
             </h3>
@@ -550,11 +552,11 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                   <div className="mb-5 bg-[#f4f7fa]/80 p-3.5 rounded-xl border border-slate-200">
                     <div className="flex items-center justify-between mb-2">
                       <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                        <Sliders className="w-3.5 h-3.5 text-violet-600" />
+                        <Sliders className="w-3.5 h-3.5 text-blue-600" />
                         <span>Chọn thiết bị Micrô ghi âm:</span>
                       </label>
                       {audioDevices.length > 0 && (
-                        <span className="text-[10px] text-violet-700 bg-violet-100 px-2 py-0.5 rounded-full font-bold border border-violet-200">
+                        <span className="text-[10px] text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full font-bold border border-blue-200">
                           {audioDevices.length} thiết bị
                         </span>
                       )}
@@ -565,7 +567,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                         value={selectedDeviceId}
                         onChange={(e) => setSelectedDeviceId(e.target.value)}
                         disabled={isRecording || isSubmitting}
-                        className="w-full pl-9 pr-8 py-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500 disabled:opacity-50 transition-all cursor-pointer"
+                        className="w-full pl-9 pr-8 py-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 transition-colors cursor-pointer"
                       >
                         {audioDevices.length === 0 ? (
                           <option value="">(Micrô mặc định của thiết bị)</option>
@@ -580,19 +582,22 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                           ))
                         )}
                       </select>
-                      <Mic className="w-4 h-4 text-violet-600 absolute left-3 top-2.5 pointer-events-none" />
+                      <Mic className="w-4 h-4 text-blue-600 absolute left-3 top-2.5 pointer-events-none" />
                     </div>
                   </div>
 
                   {/* Record State 1: IDLE (Not Recording, No Audio Blob) */}
                   {!isRecording && !audioBlob && (
                     <div className="flex flex-col items-center justify-center p-8 bg-[#f4f7fa]/70 rounded-2xl border border-slate-200/80 text-center">
-                      <button
+                      <motion.button
+                        whileHover={{ scale: 1.06 }}
+                        whileTap={{ scale: 0.94 }}
+                        transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                         onClick={handleStartRecording}
-                        className="w-20 h-20 rounded-full bg-gradient-to-tr from-violet-600 to-violet-600 hover:from-violet-500 hover:to-violet-500 text-white flex items-center justify-center shadow-lg shadow-violet-500/30 hover:scale-105 active:scale-95 transition-all cursor-pointer mb-4 group"
+                        className="w-20 h-20 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-white flex items-center justify-center shadow-lg shadow-blue-500/25 transition-shadow mb-4 cursor-pointer group"
                       >
                         <Mic className="w-9 h-9 group-hover:scale-110 transition-transform" />
-                      </button>
+                      </motion.button>
 
                       <h4 className="text-base font-bold text-slate-900">Bắt đầu Ghi âm giọng nói</h4>
                       <p className="text-xs text-slate-500 max-w-xs mt-1">
@@ -613,27 +618,24 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                         {formatTime(recordingTime)}
                       </div>
 
-                      {/* Sound Wave Animation */}
-                      <div className="flex items-center gap-1.5 h-8 mb-6">
-                        {[40, 70, 30, 90, 60, 100, 50, 80, 40, 70].map((h, i) => (
-                          <div
-                            key={i}
-                            className="w-1.5 rounded-full bg-violet-600 animate-pulse"
-                            style={{
-                              height: `${h}%`,
-                              animationDelay: `${i * 100}ms`,
-                            }}
-                          />
-                        ))}
-                      </div>
+                      {/* Smooth Audio Waveform Animation */}
+                      <WaveformVisualizer
+                        isPlaying={true}
+                        barCount={22}
+                        barColor="bg-blue-600"
+                        size="md"
+                        className="mb-6"
+                      />
 
-                      <button
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.96 }}
                         onClick={handleStopRecording}
-                        className="px-6 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all shadow-lg shadow-rose-600/30 flex items-center gap-2 cursor-pointer active:scale-95"
+                        className="px-6 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all shadow-lg shadow-rose-600/30 flex items-center gap-2 cursor-pointer"
                       >
                         <Square className="w-4 h-4 fill-white" />
                         <span>Dừng & Kiểm Tra Bài Ghi Âm</span>
-                      </button>
+                      </motion.button>
                     </div>
                   )}
 
@@ -2720,8 +2722,17 @@ export const CourseLearningPage: React.FC = () => {
 
         {/* ── Right Sidebar Playlist ───────────────────────────────────── */}
 
+        {/* Mobile Backdrop when playlist sidebar is open */}
         {isSidebarOpen && (
-          <aside className="mseek-curriculum w-[310px] shrink-0 border-r border-violet-100 bg-white/90 flex flex-col h-full z-20 transition-all duration-300">
+          <div
+            className="fixed inset-0 z-30 bg-slate-950/50 backdrop-blur-xs lg:hidden"
+            onClick={() => setIsSidebarOpen(false)}
+            aria-hidden="true"
+          />
+        )}
+
+        {isSidebarOpen && (
+          <aside className="mseek-curriculum fixed inset-y-0 right-0 z-40 w-[85vw] max-w-[340px] lg:static lg:w-[310px] shrink-0 border-l lg:border-r border-violet-100 bg-white shadow-2xl lg:shadow-none flex flex-col h-full transition-all duration-300">
             <div className="p-4 border-b border-slate-200 bg-white flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
@@ -2735,6 +2746,16 @@ export const CourseLearningPage: React.FC = () => {
                   bài đã xem
                 </p>
               </div>
+
+              {/* Mobile Close Button */}
+              <button
+                type="button"
+                onClick={() => setIsSidebarOpen(false)}
+                className="flex lg:hidden p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors"
+                aria-label="Đóng danh sách bài học"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
 
             {/* Lesson List grouped by Modules */}

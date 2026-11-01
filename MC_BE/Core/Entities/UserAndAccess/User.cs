@@ -62,6 +62,18 @@ public class User
     public DateTime? LastSeenAt { get; set; }
 
     // ============================================================
+    // ACCOUNT LOCKOUT
+    // ============================================================
+
+    /// <summary>Number of consecutive failed login attempts. Resets to 0 on successful login.</summary>
+    [Column("FailedLoginAttempts")]
+    public int FailedLoginAttempts { get; set; } = 0;
+
+    /// <summary>Account is locked until this UTC timestamp. Null means not locked.</summary>
+    [Column("LockoutUntil")]
+    public DateTime? LockoutUntil { get; set; }
+
+    // ============================================================
     // AUTH / USER
     // ============================================================
 

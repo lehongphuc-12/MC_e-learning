@@ -43,6 +43,15 @@ public class Lesson
     [Column("Status")]
     public LessonStatus Status { get; set; } = LessonStatus.ACTIVE;
 
+    [Column("Transcript")]
+    public string? Transcript { get; set; }
+
+    [Column("SubtitleUrl")]
+    public string? SubtitleUrl { get; set; }
+
+    [Column("TranscriptStatus")]
+    public TranscriptStatus TranscriptStatus { get; set; } = TranscriptStatus.NONE;
+
     [Column("CreatedAt")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

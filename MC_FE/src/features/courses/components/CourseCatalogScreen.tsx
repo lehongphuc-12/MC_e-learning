@@ -50,6 +50,7 @@ export const CourseCatalogScreen: React.FC<CourseCatalogScreenProps> = ({
   const [priceFilter, setPriceFilter] = useState<'all' | 'free' | 'paid'>('all');
   const [sortBy, setSortBy] = useState<'popular' | 'rating' | 'price-low' | 'price-high' | 'newest'>('popular');
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const [isMobileFilterOpen, setIsMobileFilterOpen] = useState<boolean>(false);
   const itemsPerPage = 6;
 
   const navigate = useNavigate();

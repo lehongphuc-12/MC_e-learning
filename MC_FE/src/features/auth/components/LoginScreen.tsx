@@ -173,7 +173,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   return (
     <div
       id="login-screen"
-      className="mseek-login relative h-[100dvh] min-h-0 overflow-hidden bg-[#020d23] text-white"
+      className="mseek-login relative min-h-[100dvh] w-full overflow-y-auto bg-[#020d23] text-white"
     >
       {/* ============================================================
           BACKGROUND
@@ -225,7 +225,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           PAGE CONTENT
       ============================================================ */}
 
-      <div className="relative z-20 mx-auto flex h-full min-h-0 w-full max-w-[1600px] flex-col px-5 py-2 sm:px-8 lg:px-12 xl:px-16">
+      <div className="relative z-20 mx-auto flex min-h-[100dvh] w-full max-w-[1600px] flex-col px-5 py-4 sm:px-8 lg:px-12 xl:px-16">
         {/* ==========================================================
             HEADER
         ========================================================== */}
@@ -268,7 +268,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
             MAIN
         ========================================================== */}
 
-        <main className="grid min-h-0 flex-1 items-center gap-8 overflow-hidden py-1 lg:grid-cols-[1.1fr_0.9fr] xl:gap-12">
+        <main className="grid min-h-0 flex-1 items-center gap-8 py-4 lg:grid-cols-[1.1fr_0.9fr] xl:gap-12">
           {/* ========================================================
               LEFT CONTENT
           ======================================================== */}

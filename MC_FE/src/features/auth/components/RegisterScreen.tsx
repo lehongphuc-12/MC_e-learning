@@ -152,7 +152,7 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
   return (
     <div
       id="register-screen"
-      className="register-page relative h-[100dvh] min-h-[600px] w-full overflow-hidden bg-[#020d24] text-white"
+      className="register-page relative min-h-[100dvh] w-full overflow-y-auto bg-[#020d24] text-white py-12 lg:py-0"
     >
       {/* ========================================================
           BACKGROUND
@@ -230,7 +230,7 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({
           MAIN LAYOUT
       ======================================================== */}
 
-      <main className="relative z-20 mx-auto grid h-full w-full max-w-[1540px] grid-cols-1 items-center px-[5%] pt-[2.5%] lg:grid-cols-[1.2fr_0.8fr] lg:gap-[5%]">
+      <main className="relative z-20 mx-auto grid min-h-[100dvh] w-full max-w-[1540px] grid-cols-1 items-center px-[5%] py-8 lg:grid-cols-[1.2fr_0.8fr] lg:gap-[5%]">
         {/* ======================================================
             LEFT SIDE
         ====================================================== */}

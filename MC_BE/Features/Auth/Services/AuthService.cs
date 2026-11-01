@@ -236,14 +236,20 @@ public class AuthService : IAuthService
         return ApiResponse<UserDto>.SuccessResponse(userDto, "Registration successful.");
     }
 
+    // Maximum consecutive failed login attempts before account lockout
+    private const int MaxFailedAttempts = 5;
+    // Lockout duration in minutes after exceeding MaxFailedAttempts
+    private const int LockoutDurationMinutes = 15;
+
     public async Task<ApiResponse<LoginResponse>> LoginAsync(LoginRequest request, HttpResponse httpResponse)
     {
         var emailNormalized = request.Email.Trim().ToLower();
 
-        // 1. Fetch user including role using the updated generic repository with Include support
+        // 1. Fetch user including role
         var usersFoundWithRole = await _userRepository.FindAsync(u => u.Email.ToLower() == emailNormalized, u => u.Role);
         var user = usersFoundWithRole.FirstOrDefault();
 
+        // Return generic message to prevent email enumeration
         if (user == null)
         {
             return ApiResponse<LoginResponse>.FailureResponse("Invalid email or password.");
@@ -255,23 +261,48 @@ public class AuthService : IAuthService
             return ApiResponse<LoginResponse>.FailureResponse("This account has been deactivated.");
         }
 
-        // 3. Verify password
+        // 3. Check account lockout
+        if (user.LockoutUntil.HasValue && user.LockoutUntil.Value > DateTime.UtcNow)
+        {
+            var remaining = (int)Math.Ceiling((user.LockoutUntil.Value - DateTime.UtcNow).TotalMinutes);
+            return ApiResponse<LoginResponse>.FailureResponse(
+                $"Account is temporarily locked. Please try again in {remaining} minute(s).");
+        }
+
+        // 4. Verify password — Google-only accounts cannot use email/password login
         if (string.IsNullOrEmpty(user.PasswordHash) || user.IsGoogleLogin)
         {
-            return ApiResponse<LoginResponse>.FailureResponse("Tài khoản này được đăng ký bằng Google. Vui lòng đăng nhập bằng Google.");
+            return ApiResponse<LoginResponse>.FailureResponse("Tai khoan nay duoc dang ky bang Google. Vui long dang nhap bang Google.");
         }
 
         var isPasswordValid = _passwordHasher.VerifyPassword(request.Password, user.PasswordHash);
         if (!isPasswordValid)
         {
+            // Increment failed attempt counter
+            user.FailedLoginAttempts += 1;
+
+            if (user.FailedLoginAttempts >= MaxFailedAttempts)
+            {
+                user.LockoutUntil = DateTime.UtcNow.AddMinutes(LockoutDurationMinutes);
+                user.FailedLoginAttempts = 0;
+                _userRepository.Update(user);
+                await _unitOfWork.SaveChangesAsync();
+                return ApiResponse<LoginResponse>.FailureResponse(
+                    $"Too many failed attempts. Account locked for {LockoutDurationMinutes} minutes.");
+            }
+
+            _userRepository.Update(user);
+            await _unitOfWork.SaveChangesAsync();
             return ApiResponse<LoginResponse>.FailureResponse("Invalid email or password.");
         }
 
-        // 4. Update last login time
+        // 5. Successful login — reset lockout counters
+        user.FailedLoginAttempts = 0;
+        user.LockoutUntil = null;
         user.LastLoginAt = DateTime.UtcNow;
         _userRepository.Update(user);
 
-        // 5. Generate Access Token & Refresh Token
+        // 6. Generate Access Token & Refresh Token
         var (token, expiresAt) = _tokenService.GenerateJwtToken(user);
         var refreshToken = _tokenService.GenerateRefreshToken(user.UserId);
         await _refreshTokenRepository.AddAsync(refreshToken);

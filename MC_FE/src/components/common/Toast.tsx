@@ -60,7 +60,7 @@ export const Toast: React.FC<ToastProps> = ({ toast, onClose }) => {
   return (
     <div
       id="global-toast-notification"
-      className={`fixed bottom-6 right-6 z-50 flex items-start gap-3.5 p-4 bg-slate-950/95 text-white rounded-2xl shadow-2xl border backdrop-blur-md max-w-sm w-full transition-all duration-300 animate-in fade-in slide-in-from-bottom-4 ${config.borderColor}`}
+      className={`fixed bottom-6 right-6 z-50 flex items-start gap-3.5 p-4 bg-slate-950/95 text-white rounded-2xl shadow-2xl border backdrop-blur-md max-w-sm w-full transition-[transform,opacity] duration-300 animate-in fade-in slide-in-from-bottom-4 ${config.borderColor}`}
     >
       <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${config.iconBg}`}>
         <Icon className={`w-5 h-5 ${config.iconColor}`} />
