@@ -111,6 +111,7 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
             if (!cancelled) setVideoUrl((current) => current || playback.url);
           })
           .catch(() => {});
+      }
     } else {
       setTitle('');
       setDescription('');
@@ -132,7 +133,6 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
       cancelled = true;
     };
   }, [existingLesson, isOpen, defaultModuleId, defaultLessonType, modules]);
-
   // ─── Duration calculation & auto-detection ───────────────────────────
 
   // Auto-calculate reading duration from description text content

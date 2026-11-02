@@ -5,6 +5,7 @@ import { HomeScreen } from './components/HomeScreen';
 import { CourseCatalogScreen } from './components/CourseCatalogScreen';
 import { CourseDetailScreen } from './components/CourseDetailScreen';
 import { CourseLearningPage } from './components/CourseLearningPage';
+import { CourseLearningAccessGate } from './components/CourseLearningAccessGate';
 import { CertificateScreen } from './components/CertificateScreen';
 import { CertificateVerifyScreen } from './components/CertificateVerifyScreen';
 import { MyCoursesScreen } from './components/MyCoursesScreen';
@@ -128,7 +129,16 @@ export const renderCourseRoutes = ({
     />
   )}
 />
-      <Route path="/courses/:id/learn" element={<CourseLearningPage />} />
+      <Route
+        path="/courses/:id/learn"
+        element={
+          <ProtectedRoute user={user}>
+            <CourseLearningAccessGate user={user}>
+              <CourseLearningPage />
+            </CourseLearningAccessGate>
+          </ProtectedRoute>
+        }
+      />
       <Route path="/my-courses" element={withMainLayout(<MyCoursesScreen onNavigate={onNavigate} />)} />
       <Route path="/certificates/:certificateId" element={<CertificateScreen />} />
       <Route path="/verify-certificate" element={<CertificateVerifyScreen />} />
@@ -190,7 +200,16 @@ export const renderCourseRoutes = ({
           </ProtectedRoute>
         }
       />
-      <Route path="/instructor/courses/:id/learn" element={<CourseLearningPage />} />
+      <Route
+        path="/instructor/courses/:id/learn"
+        element={
+          <ProtectedRoute user={user} allowedRoles={['instructor', 'admin']}>
+            <CourseLearningAccessGate user={user}>
+              <CourseLearningPage />
+            </CourseLearningAccessGate>
+          </ProtectedRoute>
+        }
+      />
       <Route
         path="/instructor/speaking-submissions"
         element={

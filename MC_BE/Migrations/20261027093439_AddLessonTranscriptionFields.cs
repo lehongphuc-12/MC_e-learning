@@ -10,40 +10,14 @@ namespace MC_BE.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<string>(
-                name: "SubtitleUrl",
-                table: "lessons",
-                type: "text",
-                nullable: true);
-
-            migrationBuilder.AddColumn<string>(
-                name: "Transcript",
-                table: "lessons",
-                type: "text",
-                nullable: true);
-
-            migrationBuilder.AddColumn<int>(
-                name: "TranscriptStatus",
-                table: "lessons",
-                type: "integer",
-                nullable: false,
-                defaultValue: 0);
+            migrationBuilder.Sql("ALTER TABLE lessons ADD COLUMN IF NOT EXISTS \"SubtitleUrl\" text;");
+            migrationBuilder.Sql("ALTER TABLE lessons ADD COLUMN IF NOT EXISTS \"Transcript\" text;");
+            migrationBuilder.Sql("ALTER TABLE lessons ADD COLUMN IF NOT EXISTS \"TranscriptStatus\" integer NOT NULL DEFAULT 0;");
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropColumn(
-                name: "SubtitleUrl",
-                table: "lessons");
-
-            migrationBuilder.DropColumn(
-                name: "Transcript",
-                table: "lessons");
-
-            migrationBuilder.DropColumn(
-                name: "TranscriptStatus",
-                table: "lessons");
         }
     }
 }

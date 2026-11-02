@@ -105,6 +105,11 @@ public class LessonService : ILessonService
         {
             if (!string.IsNullOrWhiteSpace(storedUrl) && _r2.ExtractKeyFromUrl(storedUrl) is null)
             {
+                // SECURITY HARDENING — enable after learner videos have been migrated to private R2.
+                // Public third-party sources can be copied out of the provider's embedded player.
+                // if (!isInstructor && !isAdmin)
+                //     return null;
+
                 return new LessonPlaybackDto { LessonId = lessonId, Url = storedUrl, ExpiresAt = DateTime.UtcNow.AddHours(24) };
             }
             return null;

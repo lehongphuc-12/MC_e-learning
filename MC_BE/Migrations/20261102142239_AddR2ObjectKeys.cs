@@ -10,29 +10,15 @@ namespace MC_BE.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<string>(
-                name: "SubtitleObjectKey",
-                table: "lessons",
-                type: "text",
-                nullable: true);
-
-            migrationBuilder.AddColumn<string>(
-                name: "ObjectKey",
-                table: "course_materials",
-                type: "text",
-                nullable: true);
+            // Some environments may already have these columns from a manual schema
+            // update while their EF migration history is still behind.
+            migrationBuilder.Sql("ALTER TABLE lessons ADD COLUMN IF NOT EXISTS \"SubtitleObjectKey\" text;");
+            migrationBuilder.Sql("ALTER TABLE course_materials ADD COLUMN IF NOT EXISTS \"ObjectKey\" text;");
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropColumn(
-                name: "SubtitleObjectKey",
-                table: "lessons");
-
-            migrationBuilder.DropColumn(
-                name: "ObjectKey",
-                table: "course_materials");
         }
     }
 }

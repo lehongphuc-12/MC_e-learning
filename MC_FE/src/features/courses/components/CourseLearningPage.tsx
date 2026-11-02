@@ -1341,6 +1341,9 @@ export const CourseLearningPage: React.FC = () => {
     activeLessonRef.current = activeLesson;
   }, [activeLesson]);
 
+  // SECURITY HARDENING — switch to playbackUrl only after all learner video sources are private R2 objects.
+  // const effectiveVideoUrl = playbackUrl;
+  // Current behavior: retain the URL from the lesson DTO for Drive/YouTube/Vimeo sources.
   const effectiveVideoUrl = playbackUrl ?? activeLesson?.videoUrl;
   const embedUrl = getEmbedVideoUrl(effectiveVideoUrl);
 
@@ -1931,6 +1934,9 @@ export const CourseLearningPage: React.FC = () => {
     pendingVideoPositionRef.current = null;
     shouldResumeVideoRef.current = false;
 
+    // SECURITY HARDENING — use this when all videos must pass through the authorized playback API:
+    // if (!activeLesson?.hasVideo) return;
+    // Current behavior: only fetch a signed URL for lessons whose media is stored in R2.
     if (!activeLesson?.requiresPlaybackUrl) return;
 
     let cancelled = false;
@@ -2644,19 +2650,16 @@ export const CourseLearningPage: React.FC = () => {
                   </h2>
                 </div>
 
+                {/* SECURITY HARDENING — remove this source link when replacing public video embeds with private R2 playback. */}
                 {effectiveVideoUrl && (
                   <a
-                    href={
-                      effectiveVideoUrl
-                    }
+                    href={effectiveVideoUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 text-xs font-bold text-violet-600 hover:text-violet-700 transition-colors"
                   >
                     <ExternalLink className="h-3.5 w-3.5" />
-                    <span>
-                      Mở link gốc Video
-                    </span>
+                    <span>Mở link gốc Video</span>
                   </a>
                 )}
               </div>
