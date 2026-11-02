@@ -52,6 +52,7 @@ import {
 } from '../hooks/useCertificateQueries';
 import { CertificateModal } from './CertificateModal';
 import { useAuthStore } from '../../../store/useAuthStore';
+import { lessonApi } from '../api/lessonApi';
 
 import type { Lesson } from '../types/lessonTypes';
 import type { Certificate } from '../types/learningTypes';
@@ -1065,6 +1066,10 @@ export const CourseLearningPage: React.FC = () => {
 
   const [activeLesson, setActiveLesson] =
     useState<Lesson | null>(null);
+  const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
+  const pendingVideoPositionRef = useRef<number | null>(null);
+  const shouldResumeVideoRef = useRef(false);
+  const retriedPlaybackLessonRef = useRef<number | null>(null);
 
   const lessonMaterials = courseMaterials.filter(m => m.lessonId == null || m.lessonId === activeLesson?.lessonId);
 
@@ -1336,9 +1341,8 @@ export const CourseLearningPage: React.FC = () => {
     activeLessonRef.current = activeLesson;
   }, [activeLesson]);
 
-  const embedUrl = getEmbedVideoUrl(
-    activeLesson?.videoUrl,
-  );
+  const effectiveVideoUrl = playbackUrl ?? activeLesson?.videoUrl;
+  const embedUrl = getEmbedVideoUrl(effectiveVideoUrl);
 
   // ===========================================================================
   // Quiz logic
@@ -1921,6 +1925,40 @@ export const CourseLearningPage: React.FC = () => {
   const [autoNextSeconds, setAutoNextSeconds] = useState(5);
   const [autoNextCancelled, setAutoNextCancelled] = useState(false);
   const videoElementRef = useRef<HTMLVideoElement | null>(null);
+
+  useEffect(() => {
+    setPlaybackUrl(null);
+    pendingVideoPositionRef.current = null;
+    shouldResumeVideoRef.current = false;
+
+    if (!activeLesson?.requiresPlaybackUrl) return;
+
+    let cancelled = false;
+    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const issueUrl = async () => {
+      const video = videoElementRef.current;
+      if (video?.dataset.lessonId === String(activeLesson.lessonId) && Number.isFinite(video.currentTime) && video.currentTime > 0) {
+        pendingVideoPositionRef.current = video.currentTime;
+        shouldResumeVideoRef.current = !video.paused;
+      }
+
+      const playback = await lessonApi.getPlaybackUrl(activeLesson.lessonId);
+      if (cancelled) return;
+
+      setPlaybackUrl(playback.url);
+      const expiresIn = Date.parse(playback.expiresAt) - Date.now();
+      refreshTimer = setTimeout(() => {
+        void issueUrl().catch(() => {});
+      }, Math.max(30_000, expiresIn - 60_000));
+    };
+
+    void issueUrl().catch(() => setPlaybackUrl(null));
+    return () => {
+      cancelled = true;
+      if (refreshTimer) clearTimeout(refreshTimer);
+    };
+  }, [activeLesson?.lessonId, activeLesson?.requiresPlaybackUrl]);
   useEffect(() => {
     if (isVideoEnded) { setAutoNextSeconds(5); setAutoNextCancelled(false); }
   }, [isVideoEnded]);
@@ -1928,7 +1966,7 @@ export const CourseLearningPage: React.FC = () => {
     setAutoNextCancelled(true);
     setIsVideoEnded(false);
     const iframe = document.getElementById('video-player-iframe') as HTMLIFrameElement | null;
-    const url = activeLesson?.videoUrl || '';
+    const url = effectiveVideoUrl || '';
     if (url.includes('youtube.com') || url.includes('youtu.be')) {
       try { ytPlayerRef.current?.seekTo?.(0, true); ytPlayerRef.current?.playVideo?.(); } catch (_) { setReplayKey(k => k + 1); }
     } else if (url.includes('vimeo.com') && iframe?.contentWindow) {
@@ -1945,7 +1983,7 @@ export const CourseLearningPage: React.FC = () => {
   }, [activeLesson?.lessonId]);
   useEffect(() => {
     if (!isVideoEnded || !nextLesson || autoNextCancelled ||
-        !activeLesson?.videoUrl?.trim() ||
+        !effectiveVideoUrl?.trim() ||
         activeLesson?.lessonType?.toUpperCase() === 'ASSIGNMENT' ||
         quizzes.some(q => q.lessonId === activeLesson?.lessonId && q.status === 'ACTIVE')) return;
     if (autoNextSeconds <= 0) { handleSelectLesson(nextLesson); return; }
@@ -2307,7 +2345,7 @@ export const CourseLearningPage: React.FC = () => {
             <div
               className={`relative w-full overflow-hidden rounded-2xl border border-slate-200/80 shadow-2xl group ${
                 activeLesson?.lessonType?.toUpperCase() === 'ASSIGNMENT' ||
-                (!activeLesson?.videoUrl && activeLesson !== null)
+                (!effectiveVideoUrl && activeLesson !== null && !activeLesson.hasVideo)
                   ? 'min-h-[550px] bg-[#f4f7fa]'
                   : 'aspect-video bg-black'
               }`}
@@ -2389,17 +2427,37 @@ export const CourseLearningPage: React.FC = () => {
                     ) : (
                       <video
                         ref={videoElementRef}
+                        data-lesson-id={activeLesson?.lessonId}
                         key={`${activeLesson?.lessonId}-${replayKey}`}
                         src={embedUrl}
                         controls
                         autoPlay
                         onLoadedMetadata={(e) => {
+                          retriedPlaybackLessonRef.current = null;
+                          if (pendingVideoPositionRef.current !== null) {
+                            const shouldResume = shouldResumeVideoRef.current;
+                            e.currentTarget.currentTime = pendingVideoPositionRef.current;
+                            pendingVideoPositionRef.current = null;
+                            shouldResumeVideoRef.current = false;
+                            if (shouldResume) void e.currentTarget.play().catch(() => {});
+                            else e.currentTarget.pause();
+                          }
                           if (activeLesson && e.currentTarget.duration) {
                             handleSaveLessonDuration(
                               activeLesson.lessonId,
                               e.currentTarget.duration,
                             );
                           }
+                        }}
+                        onError={(e) => {
+                          if (!activeLesson?.requiresPlaybackUrl || retriedPlaybackLessonRef.current === activeLesson.lessonId) return;
+                          retriedPlaybackLessonRef.current = activeLesson.lessonId;
+                          const video = e.currentTarget;
+                          pendingVideoPositionRef.current = video.currentTime;
+                          shouldResumeVideoRef.current = !video.paused;
+                          void lessonApi.getPlaybackUrl(activeLesson.lessonId)
+                            .then((playback) => setPlaybackUrl(playback.url))
+                            .catch(() => {});
                         }}
                         onTimeUpdate={(e) => {
                           const v = e.currentTarget;
@@ -2440,7 +2498,9 @@ export const CourseLearningPage: React.FC = () => {
 
                       <p className="mt-1 text-xs text-slate-400 max-w-sm">
                         {activeLesson
-                          ? 'Bài học này chưa được cập nhật liên kết Video. Vui lòng chọn bài học khác.'
+                          ? activeLesson.hasVideo
+                            ? 'Không thể lấy quyền phát video. Hãy kiểm tra quyền truy cập khóa học hoặc thử tải lại bài học.'
+                            : 'Bài học này chưa được cập nhật liên kết Video. Vui lòng chọn bài học khác.'
                           : 'Vui lòng chọn bài học từ danh sách bên phải để bắt đầu xem video.'}
                       </p>
                     </div>
@@ -2476,7 +2536,7 @@ export const CourseLearningPage: React.FC = () => {
               </button>
 
               {activeLesson?.lessonType?.toUpperCase() === 'ASSIGNMENT' ||
-              (!activeLesson?.videoUrl && activeLesson !== null) ? (
+              (!effectiveVideoUrl && activeLesson !== null && !activeLesson.hasVideo) ? (
                 <div
                   className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold border transition-all ${
                     activeLesson && completedLessonIds.includes(activeLesson.lessonId)
@@ -2499,11 +2559,11 @@ export const CourseLearningPage: React.FC = () => {
               ) : (
                 <button
                   onClick={() =>
-                    activeLesson && !activeLesson.videoUrl?.trim() &&
+                    activeLesson && !effectiveVideoUrl?.trim() && !activeLesson.hasVideo &&
                     toggleComplete(activeLesson.lessonId)
                   }
-                  disabled={!!activeLesson?.videoUrl?.trim()}
-                  title={activeLesson?.videoUrl?.trim() ? 'Bài video được tự động hoàn thành khi xem đủ 95%' : 'Đánh dấu đã đọc xong bài lý thuyết'}
+                  disabled={!!effectiveVideoUrl?.trim() || !!activeLesson?.hasVideo}
+                  title={effectiveVideoUrl?.trim() || activeLesson?.hasVideo ? 'Bài video được tự động hoàn thành khi xem đủ 95%' : 'Đánh dấu đã đọc xong bài lý thuyết'}
                   className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all cursor-pointer shadow-2xs border ${
                     activeLesson &&
                     completedLessonIds.includes(
@@ -2521,7 +2581,7 @@ export const CourseLearningPage: React.FC = () => {
                       activeLesson.lessonId,
                     )
                       ? 'Đã hoàn thành'
-                      : activeLesson?.videoUrl?.trim() ? 'Tự hoàn thành khi xem 95%' : 'Đã đọc xong – Đánh dấu hoàn thành'}
+                      : effectiveVideoUrl?.trim() || activeLesson?.hasVideo ? 'Tự hoàn thành khi xem 95%' : 'Đã đọc xong – Đánh dấu hoàn thành'}
                   </span>
                 </button>
               )}
@@ -2584,10 +2644,10 @@ export const CourseLearningPage: React.FC = () => {
                   </h2>
                 </div>
 
-                {activeLesson?.videoUrl && (
+                {effectiveVideoUrl && (
                   <a
                     href={
-                      activeLesson.videoUrl
+                      effectiveVideoUrl
                     }
                     target="_blank"
                     rel="noopener noreferrer"

@@ -93,11 +93,11 @@ public class TranscriptionWorker : BackgroundService
                 job.LessonId, result.Text.Length, result.Duration);
 
             // 3. Upload WebVTT subtitle file to Cloudflare R2
-            string? subtitleUrl = null;
+            string? subtitleObjectKey = null;
             if (!string.IsNullOrWhiteSpace(result.WebVtt))
             {
                 using var vttStream = new MemoryStream(Encoding.UTF8.GetBytes(result.WebVtt));
-                subtitleUrl = await r2.UploadAsync(
+                subtitleObjectKey = await r2.UploadObjectAsync(
                     vttStream, 
                     $"subtitle_{job.LessonId}.vtt", 
                     "text/vtt", 
@@ -106,7 +106,8 @@ public class TranscriptionWorker : BackgroundService
 
             // 4. Update Lesson record in Database
             lesson.Transcript = result.Text;
-            lesson.SubtitleUrl = subtitleUrl;
+            lesson.SubtitleObjectKey = subtitleObjectKey;
+            lesson.SubtitleUrl = null;
             lesson.TranscriptStatus = TranscriptStatus.COMPLETED;
             await db.SaveChangesAsync(cancellationToken);
 

@@ -16,10 +16,19 @@ public class LessonDto
     public bool IsPreview { get; set; } = false;
     public LessonStatus Status { get; set; } = LessonStatus.ACTIVE;
     public string? VideoUrl { get; set; }
+    public bool HasVideo { get; set; }
+    public bool RequiresPlaybackUrl { get; set; }
     public string? Transcript { get; set; }
     public string? SubtitleUrl { get; set; }
     public TranscriptStatus TranscriptStatus { get; set; } = TranscriptStatus.NONE;
     public DateTime CreatedAt { get; set; }
+}
+
+public class LessonPlaybackDto
+{
+    public int LessonId { get; set; }
+    public string Url { get; set; } = string.Empty;
+    public DateTime ExpiresAt { get; set; }
 }
 
 public class CreateLessonRequest

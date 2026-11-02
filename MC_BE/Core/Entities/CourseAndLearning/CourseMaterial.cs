@@ -34,6 +34,9 @@ public class CourseMaterial
     [Column("FileUrl")]
     public string FileUrl { get; set; } = string.Empty;
 
+    [Column("ObjectKey")]
+    public string? ObjectKey { get; set; }
+
     [Column("Description")]
     public string? Description { get; set; }
 

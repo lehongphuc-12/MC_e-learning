@@ -137,6 +137,20 @@ public class LessonsController : ControllerBase
         return Ok(ApiResponse<LessonDto>.SuccessResponse(updated, "Video uploaded successfully."));
     }
 
+    [HttpGet("lessons/{id:int}/playback")]
+    public async Task<ActionResult<ApiResponse<LessonPlaybackDto>>> GetPlayback(int id)
+    {
+        var userId = GetCurrentUserId();
+        if (userId is null)
+            return Unauthorized(ApiResponse<LessonPlaybackDto>.FailureResponse("Unauthorized."));
+
+        var playback = await _lessonService.GetPlaybackAsync(id, userId.Value, User.IsInRole("Admin"));
+        if (playback is null)
+            return NotFound(ApiResponse<LessonPlaybackDto>.FailureResponse("Lesson or playback access not found."));
+
+        return Ok(ApiResponse<LessonPlaybackDto>.SuccessResponse(playback, "Playback URL issued."));
+    }
+
     // DELETE /api/lessons/{id}/video  — remove video from R2 + DB
     [HttpDelete("lessons/{id:int}/video")]
     [Authorize(Roles = "Instructor")]

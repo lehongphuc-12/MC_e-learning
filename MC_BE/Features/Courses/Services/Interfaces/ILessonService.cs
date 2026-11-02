@@ -6,6 +6,7 @@ public interface ILessonService
 {
     Task<List<LessonDto>> GetLessonsByCourseIdAsync(int courseId);
     Task<LessonDto?> GetLessonByIdAsync(int lessonId);
+    Task<LessonPlaybackDto?> GetPlaybackAsync(int lessonId, int userId, bool isAdmin);
     Task<LessonDto?> CreateLessonAsync(int courseId, int instructorId, CreateLessonRequest request);
     Task<List<LessonDto>> CreateLessonsBulkAsync(int courseId, int instructorId, List<CreateLessonRequest> requests);
     Task<LessonDto?> UpdateLessonAsync(int lessonId, int instructorId, UpdateLessonRequest request);
