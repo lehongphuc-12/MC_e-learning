@@ -12,10 +12,12 @@ namespace MC_BE.Features.Courses.Controllers;
 public class LessonsController : ControllerBase
 {
     private readonly ILessonService _lessonService;
+    private readonly ICourseLearningAccessService _courseAccess;
 
-    public LessonsController(ILessonService lessonService)
+    public LessonsController(ILessonService lessonService, ICourseLearningAccessService courseAccess)
     {
         _lessonService = lessonService;
+        _courseAccess = courseAccess;
     }
 
     private int? GetCurrentUserId()
@@ -29,7 +31,23 @@ public class LessonsController : ControllerBase
     [HttpGet("courses/{courseId:int}/lessons")]
     public async Task<ActionResult<ApiResponse<List<LessonDto>>>> GetLessons(int courseId)
     {
+        var userId = GetCurrentUserId();
+        if (userId is null)
+            return Unauthorized(ApiResponse<List<LessonDto>>.FailureResponse("Unauthorized."));
+
+        if (!await _courseAccess.CanAccessCourseAsync(courseId, userId.Value, User.IsInRole("Admin")))
+            return Forbid();
+
         var lessons = await _lessonService.GetLessonsByCourseIdAsync(courseId);
+
+        // SECURITY HARDENING — enable after learner videos have been migrated to private R2.
+        // This prevents public Drive/YouTube URLs from being returned in the lesson list.
+        // if (!User.IsInRole("Instructor") && !User.IsInRole("Admin"))
+        // {
+        //     foreach (var lesson in lessons)
+        //         lesson.VideoUrl = null;
+        // }
+
         return Ok(ApiResponse<List<LessonDto>>.SuccessResponse(lessons));
     }
 
@@ -135,6 +153,20 @@ public class LessonsController : ControllerBase
             return NotFound(ApiResponse<LessonDto>.FailureResponse("Lesson not found or you are not the owner."));
 
         return Ok(ApiResponse<LessonDto>.SuccessResponse(updated, "Video uploaded successfully."));
+    }
+
+    [HttpGet("lessons/{id:int}/playback")]
+    public async Task<ActionResult<ApiResponse<LessonPlaybackDto>>> GetPlayback(int id)
+    {
+        var userId = GetCurrentUserId();
+        if (userId is null)
+            return Unauthorized(ApiResponse<LessonPlaybackDto>.FailureResponse("Unauthorized."));
+
+        var playback = await _lessonService.GetPlaybackAsync(id, userId.Value, User.IsInRole("Admin"));
+        if (playback is null)
+            return NotFound(ApiResponse<LessonPlaybackDto>.FailureResponse("Lesson or playback access not found."));
+
+        return Ok(ApiResponse<LessonPlaybackDto>.SuccessResponse(playback, "Playback URL issued."));
     }
 
     // DELETE /api/lessons/{id}/video  — remove video from R2 + DB

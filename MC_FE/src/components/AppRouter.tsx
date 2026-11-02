@@ -14,6 +14,7 @@ import { CourseManagementPage } from '../features/courses/components/management/
 import { CourseFormPage } from '../features/courses/components/management/CourseFormPage';
 import { CourseLessonsPage } from '../features/courses/components/management/CourseLessonsPage';
 import { CourseLearningPage } from '../features/courses/components/CourseLearningPage';
+import { CourseLearningAccessGate } from '../features/courses/components/CourseLearningAccessGate';
 import { InstructorDashboard } from '../features/courses/components/InstructorDashboard';
 import { CertificateScreen } from '../features/courses/components/CertificateScreen';
 import { CertificateVerifyScreen } from '../features/courses/components/CertificateVerifyScreen';
@@ -301,11 +302,23 @@ export const AppRouter: React.FC<AppRouterProps> = ({
       />
       <Route
         path="/courses/:id/learn"
-        element={<CourseLearningPage />}
+        element={
+          <ProtectedRoute user={user}>
+            <CourseLearningAccessGate user={user}>
+              <CourseLearningPage />
+            </CourseLearningAccessGate>
+          </ProtectedRoute>
+        }
       />
       <Route
         path="/instructor/courses/:id/learn"
-        element={<CourseLearningPage />}
+        element={
+          <ProtectedRoute user={user} allowedRoles={['instructor', 'admin']}>
+            <CourseLearningAccessGate user={user}>
+              <CourseLearningPage />
+            </CourseLearningAccessGate>
+          </ProtectedRoute>
+        }
       />
       <Route
         path="/certificates/:certificateId"

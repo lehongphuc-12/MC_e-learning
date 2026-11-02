@@ -2,6 +2,7 @@ using MC_BE.Core.Entities;
 using MC_BE.Features.Courses.DTOs;
 using MC_BE.Features.Courses.Services.Interfaces;
 using MC_BE.Shared.Repositories.Interfaces;
+using MC_BE.Shared.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
 namespace MC_BE.Features.Courses.Services;
@@ -13,22 +14,25 @@ public class ModuleService : IModuleService
     private readonly IGenericRepository<Lesson> _lessonRepository;
     private readonly IGenericRepository<CourseMaterial> _materialRepository;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IR2StorageService _r2;
 
     public ModuleService(
         IGenericRepository<Module> moduleRepository,
         IGenericRepository<Course> courseRepository,
         IGenericRepository<Lesson> lessonRepository,
         IGenericRepository<CourseMaterial> materialRepository,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IR2StorageService r2)
     {
         _moduleRepository = moduleRepository;
         _courseRepository = courseRepository;
         _lessonRepository = lessonRepository;
         _materialRepository = materialRepository;
         _unitOfWork = unitOfWork;
+        _r2 = r2;
     }
 
-    private static ModuleDto MapToDto(Module module)
+    private ModuleDto MapToDto(Module module)
     {
         var lessons = (module.Lessons ?? Enumerable.Empty<Lesson>())
             .OrderBy(l => l.OrderIndex)
@@ -45,7 +49,10 @@ public class ModuleService : IModuleService
                 IsPreview = l.IsPreview,
                 Status = l.Status,
                 CreatedAt = l.CreatedAt,
-                VideoUrl = l.CourseMaterials?.FirstOrDefault(cm => cm.MaterialType == Core.Enums.MaterialType.OTHER || cm.MaterialType == Core.Enums.MaterialType.DOCUMENT || cm.FileUrl.Contains("youtube.com") || cm.FileUrl.Contains("youtu.be"))?.FileUrl
+                VideoUrl = GetExternalVideoUrl(l.CourseMaterials),
+                HasVideo = l.CourseMaterials.Any(m => m.MaterialType == MC_BE.Core.Enums.MaterialType.VIDEO &&
+                    (!string.IsNullOrWhiteSpace(m.ObjectKey) || !string.IsNullOrWhiteSpace(m.FileUrl))),
+                RequiresPlaybackUrl = RequiresPlaybackUrl(l.CourseMaterials)
             })
             .ToList();
 
@@ -62,6 +69,19 @@ public class ModuleService : IModuleService
             TotalDurationMinutes = lessons.Sum(l => l.DurationMinutes),
             Lessons = lessons
         };
+    }
+
+    private string? GetExternalVideoUrl(IEnumerable<CourseMaterial> materials)
+    {
+        var url = LessonVideoUrlResolver.Resolve(materials);
+        return url is not null && _r2.ExtractKeyFromUrl(url) is null ? url : null;
+    }
+
+    private bool RequiresPlaybackUrl(IEnumerable<CourseMaterial> materials)
+    {
+        var material = materials.FirstOrDefault(m => m.MaterialType == MC_BE.Core.Enums.MaterialType.VIDEO);
+        return !string.IsNullOrWhiteSpace(material?.ObjectKey) ||
+            (!string.IsNullOrWhiteSpace(material?.FileUrl) && _r2.ExtractKeyFromUrl(material.FileUrl) is not null);
     }
 
     public async Task<List<ModuleDto>> GetModulesByCourseIdAsync(int courseId)
@@ -195,14 +215,17 @@ public class ModuleService : IModuleService
 
                     if (!string.IsNullOrWhiteSpace(lesReq.VideoUrl))
                     {
+                        var normalizedUrl = LessonVideoUrlResolver.NormalizeStoredUrl(lesReq.VideoUrl);
+                        var objectKey = _r2.ExtractKeyFromUrl(normalizedUrl);
                         var material = new CourseMaterial
                         {
                             CourseId = courseId,
                             LessonId = lesson.LessonId,
                             UploaderId = instructorId,
                             Title = $"{lesReq.Title.Trim()} - Video",
-                            MaterialType = Core.Enums.MaterialType.OTHER,
-                            FileUrl = lesReq.VideoUrl.Trim(),
+                            MaterialType = Core.Enums.MaterialType.VIDEO,
+                            FileUrl = objectKey is null ? normalizedUrl : string.Empty,
+                            ObjectKey = objectKey,
                             CreatedAt = DateTime.UtcNow
                         };
                         await _materialRepository.AddAsync(material);

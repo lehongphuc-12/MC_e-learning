@@ -862,6 +862,10 @@ namespace MC_BE.Migrations
                         .HasColumnType("text")
                         .HasColumnName("MaterialType");
 
+                    b.Property<string>("ObjectKey")
+                        .HasColumnType("text")
+                        .HasColumnName("ObjectKey");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -1379,6 +1383,10 @@ namespace MC_BE.Migrations
                         .HasColumnType("text")
                         .HasDefaultValue("ACTIVE")
                         .HasColumnName("Status");
+
+                    b.Property<string>("SubtitleObjectKey")
+                        .HasColumnType("text")
+                        .HasColumnName("SubtitleObjectKey");
 
                     b.Property<string>("SubtitleUrl")
                         .HasColumnType("text")

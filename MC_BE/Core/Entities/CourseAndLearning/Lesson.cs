@@ -49,6 +49,9 @@ public class Lesson
     [Column("SubtitleUrl")]
     public string? SubtitleUrl { get; set; }
 
+    [Column("SubtitleObjectKey")]
+    public string? SubtitleObjectKey { get; set; }
+
     [Column("TranscriptStatus")]
     public TranscriptStatus TranscriptStatus { get; set; } = TranscriptStatus.NONE;
 

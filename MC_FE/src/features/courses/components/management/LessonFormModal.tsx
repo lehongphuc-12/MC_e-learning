@@ -80,6 +80,7 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
   // ─── Reset when modal opens / lesson changes ───────────────────────────
 
   useEffect(() => {
+    let cancelled = false;
     if (existingLesson) {
       setTitle(existingLesson.title);
       setDescription(existingLesson.description ?? '');
@@ -96,7 +97,7 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
           if (!isNaN(sec) && sec > 0) {
             computedMins = Math.max(1, Math.round(sec / 60));
           }
-        } else if (!existingLesson.videoUrl && (computedMins > 20 || computedMins === 0)) {
+        } else if (!existingLesson.videoUrl && !existingLesson.hasVideo && (computedMins > 20 || computedMins === 0)) {
           computedMins = calculateDurationFromContent(existingLesson.description ?? '');
         }
       } catch (_) {}
@@ -104,6 +105,13 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
       setDurationMinutes(computedMins);
       setOrderIndex(existingLesson.orderIndex);
       setIsPreview(existingLesson.isPreview);
+      if (isOpen && existingLesson.requiresPlaybackUrl) {
+        void lessonApi.getPlaybackUrl(existingLesson.lessonId)
+          .then((playback) => {
+            if (!cancelled) setVideoUrl((current) => current || playback.url);
+          })
+          .catch(() => {});
+      }
     } else {
       setTitle('');
       setDescription('');
@@ -121,8 +129,10 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
     setUploadSuccess(false);
     setUploadError(null);
     setVideoInputMode('url');
+    return () => {
+      cancelled = true;
+    };
   }, [existingLesson, isOpen, defaultModuleId, defaultLessonType, modules]);
-
   // ─── Duration calculation & auto-detection ───────────────────────────
 
   // Auto-calculate reading duration from description text content
