@@ -23,6 +23,7 @@ public class LearningProgressService : ILearningProgressService
     private readonly IGenericRepository<SpeakingSubmission> _submissionRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICertificateService _certificateService;
+    private readonly ILearningAccessService _access;
 
     public LearningProgressService(
         IGenericRepository<Enrollment> enrollmentRepository,
@@ -34,7 +35,8 @@ public class LearningProgressService : ILearningProgressService
         IGenericRepository<ForumReaction> forumReactionRepository,
         IGenericRepository<SpeakingSubmission> submissionRepository,
         IUnitOfWork unitOfWork,
-        ICertificateService certificateService)
+        ICertificateService certificateService,
+        ILearningAccessService access)
     {
         _enrollmentRepository = enrollmentRepository;
         _lessonRepository = lessonRepository;
@@ -46,6 +48,7 @@ public class LearningProgressService : ILearningProgressService
         _submissionRepository = submissionRepository;
         _unitOfWork = unitOfWork;
         _certificateService = certificateService;
+        _access = access;
     }
 
     public async Task<CourseLearningProgressDto?> GetCourseProgressAsync(int learnerId, int courseId)
@@ -147,6 +150,8 @@ public class LearningProgressService : ILearningProgressService
         var enrollment = enrollments.FirstOrDefault();
 
         if (enrollment == null) return null;
+        var decision = await _access.CheckLessonAsync(learnerId, lessonId);
+        if (!decision.Allowed) throw new InvalidOperationException(decision.Reason ?? "Lesson locked.");
 
         var existingProgresses = await _progressRepository.FindAsync(
             lp => lp.EnrollmentId == enrollment.EnrollmentId && lp.LessonId == lessonId);

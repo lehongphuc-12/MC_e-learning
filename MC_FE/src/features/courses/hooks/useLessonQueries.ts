@@ -11,6 +11,8 @@ export function useCourseLessons(courseId: number) {
     queryKey: lessonQueryKeys.courseLessons(courseId),
     queryFn: () => lessonApi.getLessonsByCourseId(courseId),
     enabled: courseId > 0,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
   });
 }
 
