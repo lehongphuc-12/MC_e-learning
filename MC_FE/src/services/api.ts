@@ -2,7 +2,7 @@ import { useAuthStore } from "../store/useAuthStore";
 
 export const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ||
-  "http://localhost:5239/api";
+  "https://localhost:7187/api";
 
 let isRefreshing = false;
 
@@ -76,9 +76,10 @@ function createHeaders(
     );
   }
 
+  const authHeader = headers.get("Authorization");
   if (
     token &&
-    !headers.has("Authorization")
+    (!authHeader || authHeader === "Bearer null" || authHeader === "Bearer undefined")
   ) {
     headers.set(
       "Authorization",

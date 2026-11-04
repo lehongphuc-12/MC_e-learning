@@ -157,7 +157,7 @@ export const ModuleFormModal: React.FC<ModuleFormModalProps> = ({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 px-5 py-2 text-xs font-semibold text-white shadow-md shadow-indigo-500/20 hover:from-indigo-700 hover:to-purple-700 active:scale-95 disabled:opacity-50 transition-all cursor-pointer"
+              className="flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2 text-xs font-semibold text-white shadow-md shadow-blue-600/25 hover:bg-blue-700 active:scale-95 disabled:opacity-50 transition-colors cursor-pointer"
             >
               {isSubmitting ? (
                 <>

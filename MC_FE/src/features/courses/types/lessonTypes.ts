@@ -1,3 +1,4 @@
+
 export interface Lesson {
   lessonId: number;
   courseId: number;
@@ -12,8 +13,14 @@ export interface Lesson {
   videoUrl?: string;
   isLocked?: boolean;
   lockReason?: string | null;
+  hasVideo?: boolean;
+  requiresPlaybackUrl?: boolean;
+  transcript?: string | null;
+  subtitleUrl?: string | null;
+  transcriptStatus?: string;
   createdAt: string;
 }
+
 
 export interface CreateLessonDto {
   moduleId?: number;

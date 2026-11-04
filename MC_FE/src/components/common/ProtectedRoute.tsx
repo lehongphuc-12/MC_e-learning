@@ -1,5 +1,5 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { ScreenType, User } from '../../types';
 import { ToastType } from './Toast';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -30,11 +30,12 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   allowedRoles,
   children,
 }) => {
+  const location = useLocation();
   const storedToken = useAuthStore.getState().token;
   const isAuthenticated = !!user && !!storedToken;
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
   // Determine the effective allowed roles list

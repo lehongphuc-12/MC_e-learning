@@ -1,5 +1,5 @@
 import React from 'react';
-import { Route, useNavigate } from 'react-router-dom';
+import { Route, useLocation, useNavigate } from 'react-router-dom';
 import { ScreenType } from '../../types';
 import { LoginScreen } from './components/LoginScreen';
 import { RegisterScreen } from './components/RegisterScreen';
@@ -21,6 +21,7 @@ export const renderAuthRoutes = ({
   onToast,
 }: AuthRoutesProps) => {
   const navigate = useNavigate();
+  const location = useLocation();
 
   return (
     <>
@@ -31,7 +32,10 @@ export const renderAuthRoutes = ({
             onNavigate={onNavigate}
             onLoginSuccess={(userObj, token) => {
               onLoginSuccess(userObj, token);
-              if (userObj.roleName === 'Admin' || userObj.role === 'admin') {
+              const returnTo = (location.state as { from?: { pathname?: string; search?: string; hash?: string } } | null)?.from;
+              if (returnTo?.pathname) {
+                navigate({ pathname: returnTo.pathname, search: returnTo.search, hash: returnTo.hash }, { replace: true });
+              } else if (userObj.roleName === 'Admin' || userObj.role === 'admin') {
                 navigate('/admin');
               } else if (userObj.roleName === 'Instructor' || userObj.role === 'instructor') {
                 navigate('/instructor');

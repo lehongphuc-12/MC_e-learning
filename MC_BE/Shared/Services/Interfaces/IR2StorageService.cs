@@ -16,6 +16,8 @@ public interface IR2StorageService
     /// <returns>Public URL of the uploaded object.</returns>
     Task<string> UploadAsync(Stream stream, string fileName, string contentType, string? folder = null);
 
+    Task<string> UploadObjectAsync(Stream stream, string fileName, string contentType, string? folder = null);
+
     /// <summary>
     /// Deletes an object from R2 by its object key.
     /// </summary>
@@ -37,4 +39,6 @@ public interface IR2StorageService
     /// Generates a signed temporary URL for reading an R2 object.
     /// </summary>
     string GetPresignedUrl(string objectKey, double expiresHours = 24);
+
+    Task<bool> ObjectExistsAsync(string objectKey);
 }

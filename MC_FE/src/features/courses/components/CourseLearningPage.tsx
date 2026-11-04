@@ -39,6 +39,8 @@ import {
   Download,
   LockKeyhole,
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { WaveformVisualizer } from '@/components/ui/waveform-visualizer';
 
 import { useCourseDetail } from '../hooks/useInstructorCourses';
 import { useCourseLessons } from '../hooks/useLessonQueries';
@@ -53,6 +55,7 @@ import {
 } from '../hooks/useCertificateQueries';
 import { CertificateModal } from './CertificateModal';
 import { useAuthStore } from '../../../store/useAuthStore';
+import { lessonApi } from '../api/lessonApi';
 
 import type { Lesson } from '../types/lessonTypes';
 import type { Certificate } from '../types/learningTypes';
@@ -349,7 +352,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
       {/* ── Top Header ────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-center justify-between gap-4 pb-6 border-b border-slate-200">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-violet-500/10 border border-violet-500/30 text-violet-400 text-xs font-bold mb-2">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-600 text-xs font-bold mb-2">
             <Mic className="w-3.5 h-3.5" />
             <span>BÀI KIỂM TRA NÓI CUỐI KHÓA</span>
           </div>
@@ -360,7 +363,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
 
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs font-medium text-slate-500">
-            <Clock className="w-4 h-4 text-violet-400" />
+            <Clock className="w-4 h-4 text-blue-600" />
             <span>Thời lượng: {lesson.durationMinutes || 15} phút</span>
           </div>
         </div>
@@ -371,7 +374,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
         {/* Left / Prompt Area (5 cols) */}
         <div className="lg:col-span-5 flex flex-col gap-5">
           <div className="rounded-2xl border border-slate-200/80 bg-white/80 p-5 backdrop-blur-sm shadow-lg">
-            <h3 className="text-sm font-bold text-violet-300 uppercase tracking-wider flex items-center gap-2 mb-3">
+            <h3 className="text-sm font-bold text-blue-700 uppercase tracking-wider flex items-center gap-2 mb-3">
               <FileText className="w-4 h-4" />
               <span>Đề Bài & Yêu Cầu</span>
             </h3>
@@ -553,11 +556,11 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                   <div className="mb-5 bg-[#f4f7fa]/80 p-3.5 rounded-xl border border-slate-200">
                     <div className="flex items-center justify-between mb-2">
                       <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                        <Sliders className="w-3.5 h-3.5 text-violet-600" />
+                        <Sliders className="w-3.5 h-3.5 text-blue-600" />
                         <span>Chọn thiết bị Micrô ghi âm:</span>
                       </label>
                       {audioDevices.length > 0 && (
-                        <span className="text-[10px] text-violet-700 bg-violet-100 px-2 py-0.5 rounded-full font-bold border border-violet-200">
+                        <span className="text-[10px] text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full font-bold border border-blue-200">
                           {audioDevices.length} thiết bị
                         </span>
                       )}
@@ -568,7 +571,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                         value={selectedDeviceId}
                         onChange={(e) => setSelectedDeviceId(e.target.value)}
                         disabled={isRecording || isSubmitting}
-                        className="w-full pl-9 pr-8 py-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-violet-500 disabled:opacity-50 transition-all cursor-pointer"
+                        className="w-full pl-9 pr-8 py-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 transition-colors cursor-pointer"
                       >
                         {audioDevices.length === 0 ? (
                           <option value="">(Micrô mặc định của thiết bị)</option>
@@ -583,19 +586,22 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                           ))
                         )}
                       </select>
-                      <Mic className="w-4 h-4 text-violet-600 absolute left-3 top-2.5 pointer-events-none" />
+                      <Mic className="w-4 h-4 text-blue-600 absolute left-3 top-2.5 pointer-events-none" />
                     </div>
                   </div>
 
                   {/* Record State 1: IDLE (Not Recording, No Audio Blob) */}
                   {!isRecording && !audioBlob && (
                     <div className="flex flex-col items-center justify-center p-8 bg-[#f4f7fa]/70 rounded-2xl border border-slate-200/80 text-center">
-                      <button
+                      <motion.button
+                        whileHover={{ scale: 1.06 }}
+                        whileTap={{ scale: 0.94 }}
+                        transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                         onClick={handleStartRecording}
-                        className="w-20 h-20 rounded-full bg-gradient-to-tr from-violet-600 to-violet-600 hover:from-violet-500 hover:to-violet-500 text-white flex items-center justify-center shadow-lg shadow-violet-500/30 hover:scale-105 active:scale-95 transition-all cursor-pointer mb-4 group"
+                        className="w-20 h-20 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-white flex items-center justify-center shadow-lg shadow-blue-500/25 transition-shadow mb-4 cursor-pointer group"
                       >
                         <Mic className="w-9 h-9 group-hover:scale-110 transition-transform" />
-                      </button>
+                      </motion.button>
 
                       <h4 className="text-base font-bold text-slate-900">Bắt đầu Ghi âm giọng nói</h4>
                       <p className="text-xs text-slate-500 max-w-xs mt-1">
@@ -616,27 +622,24 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                         {formatTime(recordingTime)}
                       </div>
 
-                      {/* Sound Wave Animation */}
-                      <div className="flex items-center gap-1.5 h-8 mb-6">
-                        {[40, 70, 30, 90, 60, 100, 50, 80, 40, 70].map((h, i) => (
-                          <div
-                            key={i}
-                            className="w-1.5 rounded-full bg-violet-600 animate-pulse"
-                            style={{
-                              height: `${h}%`,
-                              animationDelay: `${i * 100}ms`,
-                            }}
-                          />
-                        ))}
-                      </div>
+                      {/* Smooth Audio Waveform Animation */}
+                      <WaveformVisualizer
+                        isPlaying={true}
+                        barCount={22}
+                        barColor="bg-blue-600"
+                        size="md"
+                        className="mb-6"
+                      />
 
-                      <button
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.96 }}
                         onClick={handleStopRecording}
-                        className="px-6 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all shadow-lg shadow-rose-600/30 flex items-center gap-2 cursor-pointer active:scale-95"
+                        className="px-6 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all shadow-lg shadow-rose-600/30 flex items-center gap-2 cursor-pointer"
                       >
                         <Square className="w-4 h-4 fill-white" />
                         <span>Dừng & Kiểm Tra Bài Ghi Âm</span>
-                      </button>
+                      </motion.button>
                     </div>
                   )}
 
@@ -1069,6 +1072,10 @@ export const CourseLearningPage: React.FC = () => {
 
   const [activeLesson, setActiveLesson] =
     useState<Lesson | null>(null);
+  const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
+  const pendingVideoPositionRef = useRef<number | null>(null);
+  const shouldResumeVideoRef = useRef(false);
+  const retriedPlaybackLessonRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!activeLesson) return;
@@ -1350,9 +1357,11 @@ export const CourseLearningPage: React.FC = () => {
     activeLessonRef.current = activeLesson;
   }, [activeLesson]);
 
-  const embedUrl = getEmbedVideoUrl(
-    activeLesson?.videoUrl,
-  );
+  // SECURITY HARDENING — switch to playbackUrl only after all learner video sources are private R2 objects.
+  // const effectiveVideoUrl = playbackUrl;
+  // Current behavior: retain the URL from the lesson DTO for Drive/YouTube/Vimeo sources.
+  const effectiveVideoUrl = playbackUrl ?? activeLesson?.videoUrl;
+  const embedUrl = getEmbedVideoUrl(effectiveVideoUrl);
 
   // ===========================================================================
   // Quiz logic
@@ -2002,6 +2011,43 @@ export const CourseLearningPage: React.FC = () => {
   const [autoNextSeconds, setAutoNextSeconds] = useState(5);
   const [autoNextCancelled, setAutoNextCancelled] = useState(false);
   const videoElementRef = useRef<HTMLVideoElement | null>(null);
+
+  useEffect(() => {
+    setPlaybackUrl(null);
+    pendingVideoPositionRef.current = null;
+    shouldResumeVideoRef.current = false;
+
+    // SECURITY HARDENING — use this when all videos must pass through the authorized playback API:
+    // if (!activeLesson?.hasVideo) return;
+    // Current behavior: only fetch a signed URL for lessons whose media is stored in R2.
+    if (!activeLesson?.requiresPlaybackUrl) return;
+
+    let cancelled = false;
+    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const issueUrl = async () => {
+      const video = videoElementRef.current;
+      if (video?.dataset.lessonId === String(activeLesson.lessonId) && Number.isFinite(video.currentTime) && video.currentTime > 0) {
+        pendingVideoPositionRef.current = video.currentTime;
+        shouldResumeVideoRef.current = !video.paused;
+      }
+
+      const playback = await lessonApi.getPlaybackUrl(activeLesson.lessonId);
+      if (cancelled) return;
+
+      setPlaybackUrl(playback.url);
+      const expiresIn = Date.parse(playback.expiresAt) - Date.now();
+      refreshTimer = setTimeout(() => {
+        void issueUrl().catch(() => {});
+      }, Math.max(30_000, expiresIn - 60_000));
+    };
+
+    void issueUrl().catch(() => setPlaybackUrl(null));
+    return () => {
+      cancelled = true;
+      if (refreshTimer) clearTimeout(refreshTimer);
+    };
+  }, [activeLesson?.lessonId, activeLesson?.requiresPlaybackUrl]);
   useEffect(() => {
     if (isVideoEnded) { setAutoNextSeconds(5); setAutoNextCancelled(false); }
   }, [isVideoEnded]);
@@ -2009,7 +2055,7 @@ export const CourseLearningPage: React.FC = () => {
     setAutoNextCancelled(true);
     setIsVideoEnded(false);
     const iframe = document.getElementById('video-player-iframe') as HTMLIFrameElement | null;
-    const url = activeLesson?.videoUrl || '';
+    const url = effectiveVideoUrl || '';
     if (url.includes('youtube.com') || url.includes('youtu.be')) {
       try { ytPlayerRef.current?.seekTo?.(0, true); ytPlayerRef.current?.playVideo?.(); } catch (_) { setReplayKey(k => k + 1); }
     } else if (url.includes('vimeo.com') && iframe?.contentWindow) {
@@ -2029,17 +2075,22 @@ export const CourseLearningPage: React.FC = () => {
   // Không chặn chỉ vì bài hiện tại có quiz ACTIVE: DAILY_PRACTICE có thể là bài bổ trợ,
   // còn quiz/bài tập bắt buộc phải được backend phản ánh bằng nextLesson.isLocked.
   useEffect(() => {
-    const latestNextLesson = currentIndex >= 0
-      ? orderedLessons[currentIndex + 1] ?? null
-      : null;
+    // Lấy bài kế tiếp trực tiếp từ danh sách mới nhất để tránh dùng dữ liệu cũ.
+    const latestNextLesson =
+      currentIndex >= 0
+        ? orderedLessons[currentIndex + 1] ?? null
+        : null;
 
+    // Chỉ tự chuyển khi video đã kết thúc và bài kế tiếp đã được backend mở khóa.
+    // Không chặn chỉ vì bài hiện tại có quiz ACTIVE: một số DAILY_PRACTICE là bài bổ trợ;
+    // các bài tập/quiz bắt buộc phải được backend phản ánh qua trạng thái isLocked.
     if (
       !isVideoEnded ||
       !latestNextLesson ||
       latestNextLesson.isLocked ||
       autoNextCancelled ||
-      !activeLesson?.videoUrl?.trim() ||
-      activeLesson.lessonType?.toUpperCase() === 'ASSIGNMENT'
+      !effectiveVideoUrl?.trim() ||
+      activeLesson?.lessonType?.toUpperCase() === 'ASSIGNMENT'
     ) {
       return;
     }
@@ -2064,6 +2115,7 @@ export const CourseLearningPage: React.FC = () => {
     activeLesson?.lessonId,
     activeLesson?.videoUrl,
     activeLesson?.lessonType,
+    effectiveVideoUrl,
   ]);
 
   // ===========================================================================
@@ -2420,7 +2472,7 @@ export const CourseLearningPage: React.FC = () => {
             <div
               className={`relative w-full overflow-hidden rounded-2xl border border-slate-200/80 shadow-2xl group ${
                 activeLesson?.lessonType?.toUpperCase() === 'ASSIGNMENT' ||
-                (!activeLesson?.videoUrl && activeLesson !== null)
+                (!effectiveVideoUrl && activeLesson !== null && !activeLesson.hasVideo)
                   ? 'min-h-[550px] bg-[#f4f7fa]'
                   : 'aspect-video bg-black'
               }`}
@@ -2506,17 +2558,37 @@ export const CourseLearningPage: React.FC = () => {
                     ) : (
                       <video
                         ref={videoElementRef}
+                        data-lesson-id={activeLesson?.lessonId}
                         key={`${activeLesson?.lessonId}-${replayKey}`}
                         src={embedUrl}
                         controls
                         autoPlay
                         onLoadedMetadata={(e) => {
+                          retriedPlaybackLessonRef.current = null;
+                          if (pendingVideoPositionRef.current !== null) {
+                            const shouldResume = shouldResumeVideoRef.current;
+                            e.currentTarget.currentTime = pendingVideoPositionRef.current;
+                            pendingVideoPositionRef.current = null;
+                            shouldResumeVideoRef.current = false;
+                            if (shouldResume) void e.currentTarget.play().catch(() => {});
+                            else e.currentTarget.pause();
+                          }
                           if (activeLesson && e.currentTarget.duration) {
                             handleSaveLessonDuration(
                               activeLesson.lessonId,
                               e.currentTarget.duration,
                             );
                           }
+                        }}
+                        onError={(e) => {
+                          if (!activeLesson?.requiresPlaybackUrl || retriedPlaybackLessonRef.current === activeLesson.lessonId) return;
+                          retriedPlaybackLessonRef.current = activeLesson.lessonId;
+                          const video = e.currentTarget;
+                          pendingVideoPositionRef.current = video.currentTime;
+                          shouldResumeVideoRef.current = !video.paused;
+                          void lessonApi.getPlaybackUrl(activeLesson.lessonId)
+                            .then((playback) => setPlaybackUrl(playback.url))
+                            .catch(() => {});
                         }}
                         onTimeUpdate={(e) => {
                           const v = e.currentTarget;
@@ -2579,7 +2651,9 @@ export const CourseLearningPage: React.FC = () => {
 
                       <p className="mt-1 text-xs text-slate-400 max-w-sm">
                         {activeLesson
-                          ? 'Bài học này chưa được cập nhật liên kết Video. Vui lòng chọn bài học khác.'
+                          ? activeLesson.hasVideo
+                            ? 'Không thể lấy quyền phát video. Hãy kiểm tra quyền truy cập khóa học hoặc thử tải lại bài học.'
+                            : 'Bài học này chưa được cập nhật liên kết Video. Vui lòng chọn bài học khác.'
                           : 'Vui lòng chọn bài học từ danh sách bên phải để bắt đầu xem video.'}
                       </p>
                     </div>
@@ -2615,7 +2689,7 @@ export const CourseLearningPage: React.FC = () => {
               </button>
 
               {activeLesson?.lessonType?.toUpperCase() === 'ASSIGNMENT' ||
-              (!activeLesson?.videoUrl && activeLesson !== null) ? (
+              (!effectiveVideoUrl && activeLesson !== null && !activeLesson.hasVideo) ? (
                 <div
                   className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold border transition-all ${
                     activeLesson && completedLessonIds.includes(activeLesson.lessonId)
@@ -2638,11 +2712,11 @@ export const CourseLearningPage: React.FC = () => {
               ) : (
                 <button
                   onClick={() =>
-                    activeLesson && !activeLesson.videoUrl?.trim() &&
+                    activeLesson && !effectiveVideoUrl?.trim() && !activeLesson.hasVideo &&
                     toggleComplete(activeLesson.lessonId)
                   }
-                  disabled={!!activeLesson?.videoUrl?.trim()}
-                  title={activeLesson?.videoUrl?.trim() ? 'Bài video được tự động hoàn thành khi xem đủ 95%' : 'Đánh dấu đã đọc xong bài lý thuyết'}
+                  disabled={!!effectiveVideoUrl?.trim() || !!activeLesson?.hasVideo}
+                  title={effectiveVideoUrl?.trim() || activeLesson?.hasVideo ? 'Bài video được tự động hoàn thành khi xem đủ 95%' : 'Đánh dấu đã đọc xong bài lý thuyết'}
                   className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all cursor-pointer shadow-2xs border ${
                     activeLesson &&
                     completedLessonIds.includes(
@@ -2660,7 +2734,7 @@ export const CourseLearningPage: React.FC = () => {
                       activeLesson.lessonId,
                     )
                       ? 'Đã hoàn thành'
-                      : activeLesson?.videoUrl?.trim() ? 'Tự hoàn thành khi xem 95%' : 'Đã đọc xong – Đánh dấu hoàn thành'}
+                      : effectiveVideoUrl?.trim() || activeLesson?.hasVideo ? 'Tự hoàn thành khi xem 95%' : 'Đã đọc xong – Đánh dấu hoàn thành'}
                   </span>
                 </button>
               )}
@@ -2723,19 +2797,16 @@ export const CourseLearningPage: React.FC = () => {
                   </h2>
                 </div>
 
-                {activeLesson?.videoUrl && (
+                {/* SECURITY HARDENING — remove this source link when replacing public video embeds with private R2 playback. */}
+                {effectiveVideoUrl && (
                   <a
-                    href={
-                      activeLesson.videoUrl
-                    }
+                    href={effectiveVideoUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1.5 text-xs font-bold text-violet-600 hover:text-violet-700 transition-colors"
                   >
                     <ExternalLink className="h-3.5 w-3.5" />
-                    <span>
-                      Mở link gốc Video
-                    </span>
+                    <span>Mở link gốc Video</span>
                   </a>
                 )}
               </div>
@@ -2861,8 +2932,17 @@ export const CourseLearningPage: React.FC = () => {
 
         {/* ── Right Sidebar Playlist ───────────────────────────────────── */}
 
+        {/* Mobile Backdrop when playlist sidebar is open */}
         {isSidebarOpen && (
-          <aside className="mseek-curriculum w-[310px] shrink-0 border-r border-violet-100 bg-white/90 flex flex-col h-full z-20 transition-all duration-300">
+          <div
+            className="fixed inset-0 z-30 bg-slate-950/50 backdrop-blur-xs lg:hidden"
+            onClick={() => setIsSidebarOpen(false)}
+            aria-hidden="true"
+          />
+        )}
+
+        {isSidebarOpen && (
+          <aside className="mseek-curriculum fixed inset-y-0 right-0 z-40 w-[85vw] max-w-[340px] lg:static lg:w-[310px] shrink-0 border-l lg:border-r border-violet-100 bg-white shadow-2xl lg:shadow-none flex flex-col h-full transition-all duration-300">
             <div className="p-4 border-b border-slate-200 bg-white flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
@@ -2876,6 +2956,16 @@ export const CourseLearningPage: React.FC = () => {
                   bài đã xem
                 </p>
               </div>
+
+              {/* Mobile Close Button */}
+              <button
+                type="button"
+                onClick={() => setIsSidebarOpen(false)}
+                className="flex lg:hidden p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition-colors"
+                aria-label="Đóng danh sách bài học"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
 
             {/* Lesson List grouped by Modules */}

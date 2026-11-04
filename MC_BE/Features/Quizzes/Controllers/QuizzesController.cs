@@ -3,7 +3,9 @@ using MC_BE.Shared.Services.Interfaces;
 using MC_BE.Features.Quizzes.DTOs;
 using MC_BE.Features.Quizzes.Services.Interfaces;
 using MC_BE.Features.Quizzes.Sync;
+
 using MC_BE.Features.Learning.Services.Interfaces;
+using MC_BE.Features.Courses.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -14,13 +16,15 @@ namespace MC_BE.Features.Quizzes.Controllers;
 public class QuizzesController : ControllerBase
 {
     private readonly IQuizService _quizService;
+    private readonly ICourseLearningAccessService _courseAccess;
     private readonly QuizSheetExporter _sheetExporter;
     private readonly ILogger<QuizzesController> _logger;
     private readonly ICloudinaryService _cloudinaryService;
     private readonly ILearningAccessService _learningAccess;
-    public QuizzesController(IQuizService quizService, QuizSheetExporter sheetExporter, ILogger<QuizzesController> logger, ICloudinaryService cloudinaryService, ILearningAccessService learningAccess)
+    public QuizzesController(IQuizService quizService, QuizSheetExporter sheetExporter, ILogger<QuizzesController> logger, ICloudinaryService cloudinaryService, ILearningAccessService learningAccess, ICourseLearningAccessService courseAccess)
     {
         _quizService = quizService;
+        _courseAccess = courseAccess;
         _sheetExporter = sheetExporter;
         _logger = logger;
         _cloudinaryService = cloudinaryService;
@@ -50,8 +54,10 @@ public async Task<ActionResult<ApiResponse<QuizDto>>> GetQuiz(int id)
             ApiResponse<QuizDto>.FailureResponse(
                 $"Quiz with ID {id} not found."));
     }
+
     if (User.IsInRole("Instructor") && quiz.CreatedById != GetCurrentUserId())
         return Forbid();
+
     return Ok(
         ApiResponse<QuizDto>.SuccessResponse(
             quiz,
@@ -196,6 +202,12 @@ public async Task<ActionResult<ApiResponse<TakeQuizDto>>> TakeQuiz(
     }
     try
     {
+        var quiz = await _quizService.GetQuizByIdAsync(quizId);
+        if (quiz is null) return NotFound(ApiResponse<TakeQuizDto>.FailureResponse("Quiz not found."));
+        if (quiz.CourseId.HasValue &&
+            !await _courseAccess.CanAccessCourseAsync(quiz.CourseId.Value, learnerId.Value, isAdmin: false))
+            return Forbid();
+
         var result = await _quizService.TakeQuizAsync(
             learnerId.Value,
             quizId);
@@ -360,6 +372,11 @@ public async Task<IActionResult> GetQuizzesByCourse(int courseId)
 {
     try
     {
+        var userId = GetCurrentUserId();
+        if (userId is null) return Unauthorized();
+        if (!await _courseAccess.CanAccessCourseAsync(courseId, userId.Value, User.IsInRole("Admin")))
+            return Forbid();
+
         var result = await _quizService.GetQuizzesByCourseAsync(courseId);
         if (User.IsInRole("Learner"))
         {

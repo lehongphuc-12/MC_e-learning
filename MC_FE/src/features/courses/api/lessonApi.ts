@@ -8,7 +8,17 @@ interface ApiEnvelope<T> {
   message?: string;
 }
 
+export interface LessonPlayback {
+  lessonId: number;
+  url: string;
+  expiresAt: string;
+}
+
 export const lessonApi = {
+  async getPlaybackUrl(lessonId: number): Promise<LessonPlayback> {
+    const envelope = await request<ApiEnvelope<LessonPlayback>>(`/lessons/${lessonId}/playback`);
+    return envelope.data;
+  },
   async getLessonsByCourseId(courseId: number): Promise<Lesson[]> {
     const envelope = await request<ApiEnvelope<Lesson[]>>(`/courses/${courseId}/lessons`);
     return envelope.data;

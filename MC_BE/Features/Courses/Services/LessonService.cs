@@ -13,36 +13,42 @@ public class LessonService : ILessonService
     private readonly IGenericRepository<Lesson> _lessonRepository;
     private readonly IGenericRepository<Course> _courseRepository;
     private readonly IGenericRepository<CourseMaterial> _materialRepository;
+    private readonly IGenericRepository<Enrollment> _enrollmentRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IR2StorageService _r2;
+    private readonly ITranscriptionQueue _transcriptionQueue;
 
     public LessonService(
         IGenericRepository<Lesson> lessonRepository,
         IGenericRepository<Course> courseRepository,
         IGenericRepository<CourseMaterial> materialRepository,
+        IGenericRepository<Enrollment> enrollmentRepository,
         IUnitOfWork unitOfWork,
-        IR2StorageService r2)
+        IR2StorageService r2,
+        ITranscriptionQueue transcriptionQueue)
     {
         _lessonRepository = lessonRepository;
         _courseRepository = courseRepository;
         _materialRepository = materialRepository;
+        _enrollmentRepository = enrollmentRepository;
         _unitOfWork = unitOfWork;
         _r2 = r2;
+        _transcriptionQueue = transcriptionQueue;
     }
 
     private LessonDto MapToDto(Lesson lesson)
     {
-        var material = lesson.CourseMaterials?.FirstOrDefault(m => m.MaterialType == MaterialType.VIDEO);
-        var videoUrl = material?.FileUrl;
+        var storedVideoUrl = LessonVideoUrlResolver.Resolve(lesson.CourseMaterials);
+        var videoMaterial = lesson.CourseMaterials.FirstOrDefault(m => m.MaterialType == MaterialType.VIDEO);
+        var videoUrl = storedVideoUrl is not null && _r2.ExtractKeyFromUrl(storedVideoUrl) is null
+            ? storedVideoUrl
+            : null;
+        var requiresPlaybackUrl = !string.IsNullOrWhiteSpace(videoMaterial?.ObjectKey) ||
+            (storedVideoUrl is not null && _r2.ExtractKeyFromUrl(storedVideoUrl) is not null);
 
-        if (!string.IsNullOrWhiteSpace(videoUrl))
-        {
-            var key = _r2.ExtractKeyFromUrl(videoUrl);
-            if (key != null && videoUrl.Contains(".r2.cloudflarestorage.com") && !videoUrl.Contains("X-Amz-Signature"))
-            {
-                videoUrl = _r2.GetPresignedUrl(key);
-            }
-        }
+        var subtitleUrl = lesson.SubtitleUrl is not null && _r2.ExtractKeyFromUrl(lesson.SubtitleUrl) is null
+            ? lesson.SubtitleUrl
+            : null;
 
         return new LessonDto
         {
@@ -57,7 +63,64 @@ public class LessonService : ILessonService
             IsPreview = lesson.IsPreview,
             Status = lesson.Status,
             VideoUrl = videoUrl,
+            HasVideo = lesson.CourseMaterials.Any(m => m.MaterialType == MaterialType.VIDEO &&
+                (!string.IsNullOrWhiteSpace(m.ObjectKey) || !string.IsNullOrWhiteSpace(m.FileUrl))),
+            RequiresPlaybackUrl = requiresPlaybackUrl,
+            Transcript = lesson.Transcript,
+            SubtitleUrl = subtitleUrl,
+            TranscriptStatus = lesson.TranscriptStatus,
             CreatedAt = lesson.CreatedAt,
+        };
+    }
+
+    public async Task<LessonPlaybackDto?> GetPlaybackAsync(int lessonId, int userId, bool isAdmin)
+    {
+        var lesson = await _lessonRepository.GetQueryable()
+            .Include(l => l.Course)
+            .Include(l => l.CourseMaterials)
+            .FirstOrDefaultAsync(l => l.LessonId == lessonId);
+
+        if (lesson?.Course is null || lesson.Status != LessonStatus.ACTIVE)
+            return null;
+
+        var isInstructor = lesson.Course.InstructorId == userId;
+        if (!isAdmin && !isInstructor && !lesson.IsPreview)
+        {
+            var now = DateTime.UtcNow;
+            var hasValidEnrollment = await _enrollmentRepository.GetQueryable().AnyAsync(e =>
+                e.CourseId == lesson.CourseId && e.LearnerId == userId &&
+                (e.Status == "ACTIVE" || e.Status == "COMPLETED") &&
+                (!e.ExpiresAt.HasValue || e.ExpiresAt.Value > now));
+            if (!hasValidEnrollment)
+                return null;
+        }
+
+        var videoMaterial = lesson.CourseMaterials.FirstOrDefault(m => m.MaterialType == MaterialType.VIDEO);
+        var storedUrl = videoMaterial?.FileUrl;
+        var objectKey = videoMaterial?.ObjectKey;
+        if (string.IsNullOrWhiteSpace(objectKey) && !string.IsNullOrWhiteSpace(storedUrl))
+            objectKey = _r2.ExtractKeyFromUrl(storedUrl);
+
+        if (string.IsNullOrWhiteSpace(objectKey))
+        {
+            if (!string.IsNullOrWhiteSpace(storedUrl) && _r2.ExtractKeyFromUrl(storedUrl) is null)
+            {
+                // SECURITY HARDENING — enable after learner videos have been migrated to private R2.
+                // Public third-party sources can be copied out of the provider's embedded player.
+                // if (!isInstructor && !isAdmin)
+                //     return null;
+
+                return new LessonPlaybackDto { LessonId = lessonId, Url = storedUrl, ExpiresAt = DateTime.UtcNow.AddHours(24) };
+            }
+            return null;
+        }
+
+        const double expiresHours = 6;
+        return new LessonPlaybackDto
+        {
+            LessonId = lessonId,
+            Url = _r2.GetPresignedUrl(objectKey, expiresHours),
+            ExpiresAt = DateTime.UtcNow.AddHours(expiresHours)
         };
     }
 
@@ -109,6 +172,8 @@ public class LessonService : ILessonService
         // Save VideoUrl if provided
         if (!string.IsNullOrWhiteSpace(request.VideoUrl))
         {
+            var normalizedUrl = LessonVideoUrlResolver.NormalizeStoredUrl(request.VideoUrl);
+            var objectKey = _r2.ExtractKeyFromUrl(normalizedUrl);
             var material = new CourseMaterial
             {
                 CourseId = courseId,
@@ -116,7 +181,8 @@ public class LessonService : ILessonService
                 UploaderId = instructorId,
                 Title = $"{request.Title} - Video",
                 MaterialType = MaterialType.VIDEO,
-                FileUrl = request.VideoUrl.Trim(),
+                FileUrl = objectKey is null ? normalizedUrl : string.Empty,
+                ObjectKey = objectKey,
                 CreatedAt = DateTime.UtcNow,
             };
             await _materialRepository.AddAsync(material);
@@ -164,11 +230,15 @@ public class LessonService : ILessonService
             var existingMaterial = lesson.CourseMaterials?.FirstOrDefault(m => m.MaterialType == MaterialType.VIDEO);
             if (existingMaterial != null)
             {
-                existingMaterial.FileUrl = request.VideoUrl;
+                var normalizedUrl = LessonVideoUrlResolver.NormalizeStoredUrl(request.VideoUrl);
+                existingMaterial.ObjectKey = _r2.ExtractKeyFromUrl(normalizedUrl);
+                existingMaterial.FileUrl = existingMaterial.ObjectKey is null ? normalizedUrl : string.Empty;
                 _materialRepository.Update(existingMaterial);
             }
             else if (!string.IsNullOrWhiteSpace(request.VideoUrl))
             {
+                var normalizedUrl = LessonVideoUrlResolver.NormalizeStoredUrl(request.VideoUrl);
+                var objectKey = _r2.ExtractKeyFromUrl(normalizedUrl);
                 await _materialRepository.AddAsync(new CourseMaterial
                 {
                     CourseId = lesson.CourseId,
@@ -176,7 +246,8 @@ public class LessonService : ILessonService
                     UploaderId = instructorId,
                     Title = $"{lesson.Title} - Video",
                     MaterialType = MaterialType.VIDEO,
-                    FileUrl = request.VideoUrl.Trim(),
+                    FileUrl = objectKey is null ? normalizedUrl : string.Empty,
+                    ObjectKey = objectKey,
                     CreatedAt = DateTime.UtcNow,
                 });
             }
@@ -218,32 +289,34 @@ public class LessonService : ILessonService
         // Determine a folder path inside R2 — keeps bucket tidy
         var folder = $"lessons/{lessonId}";
 
-        // If there is an existing video material, delete the old R2 object first
         var existingMaterial = lesson.CourseMaterials
             ?.FirstOrDefault(m => m.MaterialType == MaterialType.VIDEO);
+        var oldKey = existingMaterial?.ObjectKey ??
+            (existingMaterial is null ? null : _r2.ExtractKeyFromUrl(existingMaterial.FileUrl));
 
-        if (existingMaterial != null && !string.IsNullOrWhiteSpace(existingMaterial.FileUrl))
+        // Save uploaded video temporarily to disk for background transcription
+        var tempVideoPath = Path.Combine(Path.GetTempPath(), $"mseek_upload_{lessonId}_{Guid.NewGuid():N}{Path.GetExtension(file.FileName)}");
+        await using (var tempFs = new FileStream(tempVideoPath, FileMode.Create, FileAccess.Write, FileShare.None))
         {
-            var oldKey = _r2.ExtractKeyFromUrl(existingMaterial.FileUrl);
-            if (oldKey != null)
-            {
-                try { await _r2.DeleteAsync(oldKey); }
-                catch { /* log and continue — don't fail the upload */ }
-            }
+            await file.CopyToAsync(tempFs);
         }
 
-        // Upload new file to R2
-        await using var stream = file.OpenReadStream();
-        var publicUrl = await _r2.UploadAsync(
-            stream,
-            file.FileName,
-            file.ContentType ?? "video/mp4",
-            folder);
+        // Upload new file to R2 from local file stream
+        string objectKey;
+        await using (var uploadStream = File.OpenRead(tempVideoPath))
+        {
+            objectKey = await _r2.UploadObjectAsync(
+                uploadStream,
+                file.FileName,
+                file.ContentType ?? "video/mp4",
+                folder);
+        }
 
         if (existingMaterial != null)
         {
             // Update existing material record
-            existingMaterial.FileUrl = publicUrl;
+            existingMaterial.ObjectKey = objectKey;
+            existingMaterial.FileUrl = string.Empty;
             _materialRepository.Update(existingMaterial);
         }
         else
@@ -259,12 +332,35 @@ public class LessonService : ILessonService
                 UploaderId = instructorId,
                 Title = materialTitle,
                 MaterialType = MaterialType.VIDEO,
-                FileUrl = publicUrl,
+                FileUrl = string.Empty,
+                ObjectKey = objectKey,
                 CreatedAt = DateTime.UtcNow,
             });
         }
 
+        // Mark transcription as PROCESSING and reset previous transcript/subtitles
+        lesson.TranscriptStatus = TranscriptStatus.PROCESSING;
+        lesson.Transcript = null;
+        lesson.SubtitleUrl = null;
+        lesson.SubtitleObjectKey = null;
+        _lessonRepository.Update(lesson);
+
         await _unitOfWork.SaveChangesAsync();
+
+        if (!string.IsNullOrWhiteSpace(oldKey) && !string.Equals(oldKey, objectKey, StringComparison.Ordinal))
+        {
+            try { await _r2.DeleteAsync(oldKey); }
+            catch { /* Keep the database pointing at the new upload if cleanup fails. */ }
+        }
+
+        // Enqueue background transcription job
+        await _transcriptionQueue.EnqueueAsync(new TranscriptionJob
+        {
+            LessonId = lesson.LessonId,
+            VideoTempFilePath = tempVideoPath,
+            OriginalFileName = file.FileName
+        });
+
         return await GetLessonByIdAsync(lessonId);
     }
 
@@ -283,12 +379,28 @@ public class LessonService : ILessonService
 
         if (material == null) return false;
 
-        // Remove from R2
-        var key = _r2.ExtractKeyFromUrl(material.FileUrl ?? string.Empty);
+        // Remove video from R2
+        var key = material.ObjectKey ?? _r2.ExtractKeyFromUrl(material.FileUrl ?? string.Empty);
         if (key != null)
         {
             try { await _r2.DeleteAsync(key); }
             catch { /* log and continue */ }
+        }
+
+        // Remove subtitle from R2 if present
+        if (!string.IsNullOrWhiteSpace(lesson.SubtitleObjectKey) || !string.IsNullOrWhiteSpace(lesson.SubtitleUrl))
+        {
+            var subKey = lesson.SubtitleObjectKey ?? _r2.ExtractKeyFromUrl(lesson.SubtitleUrl!);
+            if (subKey != null)
+            {
+                try { await _r2.DeleteAsync(subKey); }
+                catch { /* log and continue */ }
+            }
+            lesson.SubtitleUrl = null;
+            lesson.SubtitleObjectKey = null;
+            lesson.Transcript = null;
+            lesson.TranscriptStatus = TranscriptStatus.NONE;
+            _lessonRepository.Update(lesson);
         }
 
         // Remove the DB record
