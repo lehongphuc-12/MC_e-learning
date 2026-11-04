@@ -22,7 +22,6 @@ import {
   FileText,
   MessageSquare,
   Sparkles,
-  ExternalLink,
   RotateCcw,
   Layers,
   ChevronDown,
@@ -2797,18 +2796,6 @@ export const CourseLearningPage: React.FC = () => {
                   </h2>
                 </div>
 
-                {/* SECURITY HARDENING — remove this source link when replacing public video embeds with private R2 playback. */}
-                {effectiveVideoUrl && (
-                  <a
-                    href={effectiveVideoUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-xs font-bold text-violet-600 hover:text-violet-700 transition-colors"
-                  >
-                    <ExternalLink className="h-3.5 w-3.5" />
-                    <span>Mở link gốc Video</span>
-                  </a>
-                )}
               </div>
 
               {/* Tabs */}
