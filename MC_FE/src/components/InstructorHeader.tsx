@@ -56,7 +56,7 @@ export const InstructorHeader: React.FC<InstructorHeaderProps> = ({ user, onLogo
               onClick={() => navigate('/instructor')}
               className="flex items-center gap-3 group cursor-pointer text-left"
             >
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-600/30 group-hover:scale-105 transition-transform">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-blue-700 flex items-center justify-center text-white shadow-md shadow-blue-600/30 group-hover:scale-105 transition-transform">
                 <Mic2 className="w-5 h-5" />
               </div>
               <div>
@@ -191,7 +191,7 @@ export const InstructorHeader: React.FC<InstructorHeaderProps> = ({ user, onLogo
                       }}
                       className="w-full text-left px-4 py-2.5 text-xs font-semibold text-slate-300 hover:bg-slate-800 hover:text-white flex items-center gap-2.5 cursor-pointer"
                     >
-                      <UserCircle className="w-4 h-4 text-indigo-400" />
+                      <UserCircle className="w-4 h-4 text-blue-400" />
                       <span>Hồ sơ cá nhân</span>
                     </button>
 

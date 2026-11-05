@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import {
   X,
   Trash2,
@@ -37,7 +38,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
+  const shouldReduceMotion = useReducedMotion();
 
   const subtotal = cartItems.reduce(
     (acc, item) => acc + Number(item.price || 0),
@@ -48,30 +49,41 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     new Intl.NumberFormat('vi-VN').format(price);
 
   return (
-    <div
-      id="cart-drawer-backdrop"
-      className="fixed inset-0 z-50 overflow-hidden bg-slate-950/60 backdrop-blur-xs transition-opacity"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) {
-          onClose();
-        }
-      }}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="cart-drawer-title"
-    >
-      <div 
-        className="absolute inset-y-0 right-0 flex max-w-full pl-6 sm:pl-10"
-        onClick={(e) => {
-          if (e.target === e.currentTarget) {
-            onClose();
-          }
-        }}
-      >
+    <AnimatePresence>
+      {isOpen && (
         <div
-          id="cart-drawer-panel"
-          className="flex w-screen max-w-md flex-col bg-white shadow-2xl transition-transform"
+          id="cart-drawer-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="cart-drawer-title"
+          className="fixed inset-0 z-50 overflow-hidden"
         >
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: shouldReduceMotion ? 0 : 0.2 }}
+            onClick={onClose}
+            className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs"
+          />
+
+          <div 
+            className="absolute inset-y-0 right-0 flex max-w-full pl-6 sm:pl-10"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                onClose();
+              }
+            }}
+          >
+            <motion.div
+              id="cart-drawer-panel"
+              initial={shouldReduceMotion ? { opacity: 0 } : { x: '100%' }}
+              animate={shouldReduceMotion ? { opacity: 1 } : { x: 0 }}
+              exit={shouldReduceMotion ? { opacity: 0 } : { x: '100%' }}
+              transition={{ type: 'spring', damping: 30, stiffness: 350 }}
+              className="flex w-screen max-w-md flex-col bg-white shadow-2xl"
+            >
           {/* Header */}
           <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-6 sm:py-5">
             <div className="flex items-center gap-2">
@@ -187,7 +199,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   onClose();
                   onCheckoutAll(cartItems);
                 }}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3.5 text-sm font-black text-white shadow-lg shadow-blue-600/25 transition-all hover:bg-blue-700 active:scale-[0.99]"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3.5 text-sm font-black text-white shadow-lg shadow-blue-600/25 transition-[background-color,transform] hover:bg-blue-700 active:scale-[0.99]"
               >
                 <span>
                   Thanh toán tất cả ({cartItems.length})
@@ -201,8 +213,10 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               </div>
             </div>
           )}
+            </motion.div>
+          </div>
         </div>
-      </div>
-    </div>
+      )}
+    </AnimatePresence>
   );
 };

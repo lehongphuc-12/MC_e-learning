@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'motion/react';
 
 import {
   X,
@@ -359,9 +360,14 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         {/* Thông báo đã ghi danh thành công */}
         {isComplete ? (
           <div className="p-10 text-center flex flex-col items-center justify-center space-y-4 relative z-10 animate-fadeIn">
-            <div className="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center shadow-lg shadow-emerald-500/20 animate-bounce">
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: 'spring', stiffness: 450, damping: 25 }}
+              className="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center justify-center shadow-lg shadow-emerald-500/20"
+            >
               <CheckCircle2 className="w-10 h-10" />
-            </div>
+            </motion.div>
 
             <h4 className="text-2xl font-black text-white">
               Ghi Danh Thành Công!

@@ -21,6 +21,8 @@ import {
   Infinity as InfinityIcon,
   Sparkles
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { AnimatedTabs, TabItem } from '@/components/ui/animated-tabs';
 import { Course, ScreenType } from '../../../types';
 import { mockCourses } from '../../../data/mockData';
 import { useCourseDetailQuery, useLearnedCoursesQuery } from '../hooks/useCoursesQuery';
@@ -193,9 +195,28 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
 
       {/* MAIN CONTENT + STICKY SIDEBAR */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Navigation Tabs Bar */}
+        <div className="sticky top-20 z-20 mb-8 py-3 bg-white/90 backdrop-blur-md border-b border-slate-200 flex items-center justify-between">
+          <AnimatedTabs
+            tabs={[
+              { id: 'overview', label: 'Tổng quan' },
+              { id: 'curriculum', label: 'Giáo trình', badge: course.curriculum?.length },
+              { id: 'requirements', label: 'Yêu cầu' },
+              { id: 'instructor', label: 'Giảng viên' },
+            ]}
+            activeTab="overview"
+            onChange={(id) => {
+              const el = document.getElementById(`section-${id}`);
+              if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }}
+            layoutId="course-detail-tabs"
+            size="sm"
+          />
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           <div className="lg:col-span-8 space-y-10">
-            <section id="what-you-will-learn" className="p-6 sm:p-8 bg-blue-50/50 rounded-2xl border border-blue-100 space-y-4">
+            <section id="section-overview" className="p-6 sm:p-8 bg-blue-50/50 rounded-2xl border border-blue-100 space-y-4">
               <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-blue-600" />
                 <span>Bạn sẽ làm chủ những kỹ năng gì</span>
@@ -235,7 +256,7 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
               </div>
             </section>
 
-            <section id="course-curriculum" className="space-y-4">
+            <section id="section-curriculum" className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-bold text-slate-900">Nội dung chương trình đào tạo</h2>
@@ -279,38 +300,48 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
                       </div>
                     </button>
 
-                    {openSections[section.id] && (
-                      <div className="divide-y divide-slate-100 px-2 py-1">
-                        {section.lectures.map((lec) => (
-                          <div
-                            key={lec.id}
-                            className="px-4 py-3 flex items-center justify-between text-xs hover:bg-slate-50/80 rounded-lg transition-colors"
-                          >
-                            <div className="flex items-center gap-3">
-                              <Play className="w-3.5 h-3.5 text-blue-600 fill-blue-600" />
-                              <span className="font-medium text-slate-800">{lec.title}</span>
-                            </div>
-                            <div className="flex items-center gap-3 shrink-0">
-                              {lec.previewAvailable && (
-                                <button
-                                  onClick={() => onPreviewVideo(course)}
-                                  className="text-blue-600 hover:text-blue-800 font-bold text-[11px] underline cursor-pointer"
-                                >
-                                  Preview Video
-                                </button>
-                              )}
-                              <span className="text-slate-400 font-mono text-[11px]">{lec.duration}</span>
-                            </div>
+                    <AnimatePresence initial={false}>
+                      {openSections[section.id] && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.25, ease: 'easeInOut' }}
+                          className="overflow-hidden"
+                        >
+                          <div className="divide-y divide-slate-100 px-2 py-1">
+                            {section.lectures.map((lec) => (
+                              <div
+                                key={lec.id}
+                                className="px-4 py-3 flex items-center justify-between text-xs hover:bg-slate-50/80 rounded-lg transition-colors"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <Play className="w-3.5 h-3.5 text-blue-600 fill-blue-600" />
+                                  <span className="font-medium text-slate-800">{lec.title}</span>
+                                </div>
+                                <div className="flex items-center gap-3 shrink-0">
+                                  {lec.previewAvailable && (
+                                    <button
+                                      onClick={() => onPreviewVideo(course)}
+                                      className="text-blue-600 hover:text-blue-800 font-bold text-[11px] underline cursor-pointer"
+                                    >
+                                      Preview Video
+                                    </button>
+                                  )}
+                                  <span className="text-slate-400 font-mono text-[11px]">{lec.duration}</span>
+                                </div>
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
-                    )}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
                 ))}
               </div>
             </section>
 
-            <section className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-200">
+            <section id="section-requirements" className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-200">
               <div className="space-y-3">
                 <h3 className="text-sm font-bold text-slate-900">Yêu cầu tham gia khóa học</h3>
                 <ul className="space-y-2 text-xs text-slate-600">
@@ -335,7 +366,7 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
               </div>
             </section>
 
-            <section id="instructor-profile" className="p-6 bg-slate-900 text-white rounded-2xl space-y-4">
+            <section id="section-instructor" className="p-6 bg-slate-900 text-white rounded-2xl space-y-4">
               <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">Giảng viên phụ trách</span>
               <div className="flex flex-col sm:flex-row items-start gap-4">
                 <img

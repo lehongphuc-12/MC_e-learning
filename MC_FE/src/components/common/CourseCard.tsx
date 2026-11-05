@@ -11,6 +11,7 @@ import {
   UserRound,
 } from 'lucide-react';
 import React from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Course } from '../../types';
 
 interface CourseCardProps {
@@ -59,7 +60,7 @@ export const CourseCard: React.FC<CourseCardProps> = ({
     if (!showCartButton) return null;
 
     const baseClass =
-      'h-8 px-2.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 whitespace-nowrap transition-all duration-200 shrink-0';
+      'h-8 px-2.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 whitespace-nowrap transition-colors duration-200 shrink-0';
 
     if (isEnrolled) {
       return (
@@ -121,7 +122,7 @@ export const CourseCard: React.FC<CourseCardProps> = ({
   return (
     <article
       id={`${idPrefix}-${course.id}`}
-      className="group flex h-full w-full min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-blue-200 hover:shadow-xl"
+      className="group flex h-full w-full min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-[transform,border-color,box-shadow] duration-300 hover:-translate-y-1 hover:border-blue-200 hover:shadow-xl"
     >
       {/* IMAGE */}
       <div className="relative aspect-video overflow-hidden bg-slate-900">
@@ -151,34 +152,47 @@ export const CourseCard: React.FC<CourseCardProps> = ({
         )}
 
         {/* WISHLIST */}
-        <button
+        <motion.button
           type="button"
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.88 }}
           onClick={(e) => {
             e.stopPropagation();
             onToggleWishlist(course.id);
           }}
-          className="absolute right-3 top-3 z-20 flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-slate-950/60 text-white shadow-md backdrop-blur-md transition-all hover:scale-105 hover:bg-slate-950/80"
-          title="Yêu thích" aria-label={isWishlisted ? "Bỏ yêu thích khóa học" : "Thêm vào yêu thích"}
+          className="absolute right-3 top-3 z-20 flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-slate-950/60 text-white shadow-md backdrop-blur-md transition-colors hover:bg-slate-950/80"
+          title="Yêu thích"
+          aria-label={isWishlisted ? "Bỏ yêu thích khóa học" : "Thêm vào yêu thích"}
         >
-          <Heart
-            className={`h-4 w-4 transition-colors ${
-              isWishlisted ? 'fill-rose-500 text-rose-500' : 'text-white'
-            }`}
-          />
-        </button>
+          <motion.div
+            key={isWishlisted ? 'liked' : 'unliked'}
+            initial={{ scale: 0.7 }}
+            animate={{ scale: 1 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 20 }}
+          >
+            <Heart
+              className={`h-4 w-4 transition-colors ${
+                isWishlisted ? 'fill-rose-500 text-rose-500' : 'text-white'
+              }`}
+            />
+          </motion.div>
+        </motion.button>
 
         {/* PREVIEW */}
-        <button
+        <motion.button
           type="button"
+          whileHover={{ scale: 1.03 }}
+          whileTap={{ scale: 0.95 }}
           onClick={() => onPreview(course)}
-          className="absolute bottom-3 right-3 z-20 flex h-8 items-center gap-1.5 rounded-lg bg-slate-950/75 px-2.5 text-[11px] font-bold text-white opacity-0 shadow-md backdrop-blur-md transition-all duration-200 group-hover:opacity-100 hover:bg-slate-950/90"
-          title="Xem trước khóa học" aria-label="Xem trước khóa học"
+          className="absolute bottom-3 right-3 z-20 flex h-8 items-center gap-1.5 rounded-lg bg-slate-950/75 px-2.5 text-[11px] font-bold text-white opacity-0 shadow-md backdrop-blur-md transition-[opacity,background-color] duration-200 group-hover:opacity-100 hover:bg-slate-950/90"
+          title="Xem trước khóa học"
+          aria-label="Xem trước khóa học"
         >
           <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white">
             <Play className="h-2 w-2 translate-x-[0.5px] fill-slate-950 text-slate-950" />
           </span>
           <span>Xem trước</span>
-        </button>
+        </motion.button>
       </div>
 
       {/* CONTENT */}
@@ -281,7 +295,7 @@ export const CourseCard: React.FC<CourseCardProps> = ({
               <button
                 type="button"
                 onClick={() => onSelect(course)}
-                className="flex h-8 shrink-0 items-center justify-center whitespace-nowrap rounded-lg border border-blue-100 bg-blue-50 px-2.5 text-[10px] font-bold text-blue-700 shadow-sm transition-all duration-200 hover:border-blue-200 hover:bg-blue-100"
+                className="flex h-8 shrink-0 items-center justify-center whitespace-nowrap rounded-lg border border-blue-100 bg-blue-50 px-2.5 text-[10px] font-bold text-blue-700 shadow-sm transition-colors duration-200 hover:border-blue-200 hover:bg-blue-100"
               >
                 Chi tiết
               </button>
