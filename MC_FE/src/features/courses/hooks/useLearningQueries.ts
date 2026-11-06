@@ -51,6 +51,14 @@ export function useUpdateLessonProgress(courseId: number) {
           queryKey: learningQueryKeys.courseProgress(courseId, userId),
         });
       }
+      // Tiến độ video thay đổi có thể mở khóa bài học/chương tiếp theo.
+      // Tải lại danh sách bài học và trạng thái khóa ngay, không chờ chu kỳ 30 giây.
+      queryClient.invalidateQueries({
+        queryKey: ['course-lessons', courseId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['quizzes', 'course', courseId],
+      });
       queryClient.invalidateQueries({
         queryKey: ['courses', 'learned'],
       });

@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query';
 import React, { useState } from 'react';
 import { ArrowLeft, ArrowRight, BookOpen, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronUp, Clock3, ClipboardList, Eye, FileText, ListChecks, MessageSquareText, RotateCcw, Sparkles, Trophy, XCircle } from 'lucide-react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
@@ -9,9 +10,26 @@ const statusIs = (status: unknown, name: string, code: number) => status === nam
 const formatDate = (value?: string | null) => { if (!value) return 'Chưa có dữ liệu'; const d = new Date(value); return Number.isNaN(d.getTime()) ? 'Chưa có dữ liệu' : d.toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }); };
 const formatDuration = (start?: string | null, end?: string | null) => { if (!start || !end) return 'Đang chờ'; const seconds = Math.max(0, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 1000)); return Number.isFinite(seconds) ? `${Math.floor(seconds / 60)} phút ${seconds % 60} giây` : 'Chưa có dữ liệu'; };
 const statusText = (status: unknown) => statusIs(status, 'PASSED', 3) ? 'Đạt yêu cầu' : statusIs(status, 'FAILED', 4) ? 'Chưa đạt' : statusIs(status, 'PENDING_GRADING', 2) ? 'Chờ chấm' : statusIs(status, 'IN_PROGRESS', 1) ? 'Đang làm' : 'Đã nộp';
+const skillLabel = (type: string) => ({
+  SINGLE_CHOICE: 'Kiến thức lý thuyết',
+  MULTIPLE_CHOICE: 'Hiểu và vận dụng kiến thức',
+  TRUE_FALSE: 'Nhận biết kiến thức đúng / sai',
+  FILL_BLANK: 'Ghi nhớ thuật ngữ và kiến thức',
+  LISTEN_IDENTIFY_ERROR: 'Nhận diện lỗi trong giọng đọc',
+  LISTEN_LOCATE_ERROR: 'Xác định vị trí lỗi theo timeline',
+  AUDIO_COMPARISON: 'So sánh cách thể hiện / delivery',
+  LISTEN_CLASSIFY: 'Phân loại đặc điểm giọng nói',
+  SCRIPT_ANNOTATION: 'Pause, breath và emphasis',
+  SCRIPT_WRITING: 'Sáng tạo nội dung lời dẫn MC',
+  ARRANGE_SCRIPT: 'Logic và mạch dẫn chương trình',
+  ERROR_CORRECTION_LAB: 'Phân tích và sửa lỗi',
+  SCENARIO_DECISION_TREE: 'Ra quyết định trong tình huống MC',
+  ESSAY: 'Tư duy và trình bày nội dung',
+} as Record<string, string>)[type] || 'Kiến thức và kỹ năng tổng hợp';
 
 export const QuizResultPage: React.FC = () => {
   const navigate = useNavigate();
+  const learningQueryClient = useQueryClient();
   const location = useLocation();
   const { quizId, attemptId } = useParams<{ quizId: string; attemptId: string }>();
   const qid = quizId && Number(quizId) > 0 ? Number(quizId) : null;
@@ -22,7 +40,16 @@ export const QuizResultPage: React.FC = () => {
   const [tab, setTab] = useState<ResultTab>('questions');
   const [expanded, setExpanded] = useState<number[]>([]);
   const [showHistory, setShowHistory] = useState(false);
-  const back = () => navigate(returnTo || '/my-courses');
+  const back = () => {
+    void learningQueryClient.invalidateQueries({ queryKey: ['course-lessons'] });
+    void learningQueryClient.invalidateQueries({ queryKey: ['course-progress'] });
+    void learningQueryClient.invalidateQueries({ queryKey: ['quizzes', 'course'] });
+    navigate(returnTo || '/my-courses', {
+      state: {
+        autoAdvanceAfterQuiz: statusIs(result?.resultStatus, 'PASSED', 3),
+      },
+    });
+  };
   const toggle = (index: number) => setExpanded(previous => previous.includes(index) ? previous.filter(x => x !== index) : [...previous, index]);
 
   if (isLoading) return <div className="flex min-h-[70vh] items-center justify-center bg-[#f4f8ff]"><div className="h-11 w-11 animate-spin rounded-full border-4 border-blue-100 border-t-blue-600" /></div>;
@@ -42,6 +69,16 @@ export const QuizResultPage: React.FC = () => {
   const scoreNumber = score == null ? null : Number(score);
   const scoreDisplay = scoreNumber == null || !Number.isFinite(scoreNumber) ? '—' : scoreNumber.toFixed(1);
   const scoreProgress = scoreNumber == null ? 0 : Math.max(0, Math.min(100, scoreNumber));
+  const retryAt = result.retryAvailableAt ? new Date(result.retryAvailableAt) : null;
+  const retryBlocked = !!retryAt && retryAt.getTime() > Date.now();
+  const reviewLesson = (lessonId: number) => {
+    const base = returnTo?.split('?')[0];
+    if (base) {
+      void learningQueryClient.invalidateQueries({ queryKey: ['course-lessons'] });
+      void learningQueryClient.invalidateQueries({ queryKey: ['course-progress'] });
+      navigate(`${base}?lessonId=${lessonId}`);
+    }
+  };
   const feedbackAnswers = answers.filter(a => !!a.teacherFeedback?.trim());
   const attemptNumber = attempts.find(a => a.attemptId === aid)?.attemptNumber ?? result.attemptNumber;
   const scrollToDetails = () => { setTab('questions'); document.getElementById('quiz-result-details')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
@@ -90,20 +127,36 @@ export const QuizResultPage: React.FC = () => {
         </div>
 
         <section id="quiz-result-details" className="scroll-mt-5 rounded-[22px] border border-[#e2eaf6] bg-white p-4 shadow-[0_8px_25px_rgba(23,61,120,.04)] sm:p-5">
-          <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-4">
+          {failed && <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <h2 className="text-sm font-extrabold text-amber-900">Bạn cần cải thiện những nội dung sau</h2>
+            <p className="mt-1 text-xs leading-5 text-amber-800">Hệ thống chỉ hiển thị câu trả lời của bạn, kỹ năng cần ôn và phần giải thích; không tiết lộ đáp án chuẩn khi bạn chưa PASS.</p>
+            <div className="mt-3 space-y-2">{answers.map((a, index) => a.isCorrect === false ? <div key={a.quizAnswerId || a.questionId} className="rounded-lg bg-white p-3">
+              <p className="text-xs font-bold text-amber-950">Câu {index + 1}: {a.questionText}</p>
+              <p className="mt-1 text-[11px] text-amber-800">Kỹ năng cần cải thiện: {skillLabel(a.questionType)}</p>
+              {a.questionExplanation ? <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-700"><b>Kiến thức cần ôn:</b> {a.questionExplanation}</p> : <p className="mt-2 text-xs text-slate-500">Giảng viên chưa cấu hình phần giải thích cho câu hỏi này.</p>}
+              {a.teacherFeedback && <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-blue-800"><b>Gợi ý của giảng viên:</b> {a.teacherFeedback}</p>}
+            </div> : null)}</div>
+            {!!result.recommendedLessons?.length && <div className="mt-4 border-t border-amber-200 pt-3">
+              <p className="text-xs font-extrabold text-amber-950">Bài học nên ôn tập</p>
+              <div className="mt-2 flex flex-wrap gap-2">{result.recommendedLessons.map(lesson => <button key={lesson.lessonId} type="button" onClick={() => reviewLesson(lesson.lessonId)} disabled={!returnTo} className="rounded-lg border border-amber-300 bg-white px-3 py-2 text-left text-[11px] font-semibold text-amber-900 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60">Ôn bài {lesson.orderIndex}: {lesson.title}</button>)}</div>
+            </div>}
+            {retryBlocked && retryAt && <p className="mt-3 rounded-lg bg-white p-3 text-xs font-semibold text-amber-900">Bạn có thể làm lại từ: {formatDate(retryAt.toISOString())}. Thời gian chờ áp dụng cho bài đánh giá chương / tổng kết.</p>}
+          </div>}
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-4">
             <button type="button" onClick={() => setTab('questions')} className={`inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-xs font-bold transition ${tab === 'questions' ? 'bg-blue-600 text-white shadow-md shadow-blue-100' : 'bg-[#f5f8fd] text-[#4c638a] hover:bg-blue-50'}`}><ListChecks size={15} /> Chi tiết câu hỏi ({answers.length})</button>
             <button type="button" onClick={() => setTab('statistics')} className={`inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-xs font-bold transition ${tab === 'statistics' ? 'bg-blue-600 text-white' : 'bg-[#f5f8fd] text-[#4c638a] hover:bg-blue-50'}`}><Trophy size={15} /> Thống kê</button>
             <button type="button" onClick={() => setTab('feedback')} className={`inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-xs font-bold transition ${tab === 'feedback' ? 'bg-blue-600 text-white' : 'bg-[#f5f8fd] text-[#4c638a] hover:bg-blue-50'}`}><MessageSquareText size={15} /> Nhận xét ({feedbackAnswers.length})</button>
           </div>
           {tab === 'questions' && <><div className="my-4 flex flex-wrap items-center justify-between gap-2"><h2 className="text-sm font-extrabold">{result.quizTitle}</h2><div className="flex gap-3 text-[11px] font-semibold"><span className="text-emerald-600">● Đúng ({correct})</span><span className="text-rose-500">● Sai ({wrong})</span><span className="text-amber-500">● Chờ ({pending})</span></div></div>
             <div className="space-y-2">{answers.map((a, index) => { const isPending = a.score == null; const isRight = a.isCorrect === true; const isWrong = a.isCorrect === false; const open = expanded.includes(index); return <article key={a.quizAnswerId || `${a.questionId}-${index}`} className="overflow-hidden rounded-xl border border-[#e7edf6] bg-white transition hover:border-blue-200">
-              <button type="button" onClick={() => toggle(index)} aria-expanded={open} className="flex w-full items-center gap-3 p-3 text-left"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#edf3fb] text-xs font-extrabold">{index + 1}</span><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600"><FileText size={18} /></span><span className="min-w-0 flex-1"><span className="block truncate text-xs font-bold">{a.questionText}</span><span className="mt-1 block truncate text-[11px] text-[#8495b1]">{a.questionType}</span></span><span className="hidden whitespace-nowrap text-[11px] font-semibold sm:block">{isPending ? 'Chờ chấm' : `${a.score}/${a.maxScore ?? 1} điểm`}</span><span className={`min-w-[68px] rounded-lg px-2 py-1 text-center text-[11px] font-bold ${isPending ? 'bg-amber-50 text-amber-700' : isRight ? 'bg-emerald-50 text-emerald-700' : isWrong ? 'bg-rose-50 text-rose-600' : 'bg-blue-50 text-blue-700'}`}>{isPending ? 'Chờ chấm' : isRight ? 'Đúng' : isWrong ? 'Sai' : 'Đã chấm'}</span>{open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</button>
+              <button type="button" onClick={() => toggle(index)} aria-expanded={open} className="flex w-full items-center gap-3 p-3 text-left"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#edf3fb] text-xs font-extrabold">{index + 1}</span><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600"><FileText size={18} /></span><span className="min-w-0 flex-1"><span className="block truncate text-xs font-bold">{a.questionText}</span><span className="mt-1 block truncate text-[11px] text-[#8495b1]">{skillLabel(a.questionType)}</span></span><span className="hidden whitespace-nowrap text-[11px] font-semibold sm:block">{isPending ? 'Chờ chấm' : `${a.score}/${a.maxScore ?? 1} điểm`}</span><span className={`min-w-[68px] rounded-lg px-2 py-1 text-center text-[11px] font-bold ${isPending ? 'bg-amber-50 text-amber-700' : isRight ? 'bg-emerald-50 text-emerald-700' : isWrong ? 'bg-rose-50 text-rose-600' : 'bg-blue-50 text-blue-700'}`}>{isPending ? 'Chờ chấm' : isRight ? 'Đúng' : isWrong ? 'Sai' : 'Đã chấm'}</span>{open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</button>
               {open && <div className="space-y-3 border-t border-[#edf1f8] bg-[#fbfdff] p-4 text-xs"><p className="font-bold text-[#7186a7]">Câu trả lời của bạn</p>
                 {(a.selectedChoices?.length || a.selectedChoiceText) ? <div className="space-y-1 rounded-lg bg-white p-3">{(a.selectedChoices?.length ? a.selectedChoices : [{ choiceId: a.selectedChoiceId ?? 0, choiceText: a.selectedChoiceText ?? '' }]).map((c, i) => <p key={`${c.choiceId}-${i}`} className="font-semibold">• {c.choiceText || `Phương án #${i + 1}`}</p>)}</div> : null}
                 {a.textAnswer && <p className="whitespace-pre-wrap rounded-lg bg-white p-3 leading-6">{a.textAnswer}</p>}
-                {!!a.arrangeItems?.length && <div className="space-y-1">{[...a.arrangeItems].sort((x, y) => (x.selectedOrder ?? 999) - (y.selectedOrder ?? 999)).map(item => <p key={item.arrangeItemId} className="rounded-lg bg-white p-3"><b className="mr-2 text-blue-600">{item.selectedOrder ?? '—'}.</b>{item.content}<span className="ml-2 text-[#7186a7]">(Đúng: {item.correctOrder ?? '—'})</span></p>)}</div>}
+                {!!a.arrangeItems?.length && <div className="space-y-1">{[...a.arrangeItems].sort((x, y) => (x.selectedOrder ?? 999) - (y.selectedOrder ?? 999)).map(item => <p key={item.arrangeItemId} className="rounded-lg bg-white p-3"><b className="mr-2 text-blue-600">{item.selectedOrder ?? '—'}.</b>{item.content}{passed && <span className="ml-2 text-[#7186a7]">(Đúng: {item.correctOrder ?? '—'})</span>}</p>)}</div>}
                 {!!a.scenarioPath?.length && <div className="space-y-1">{a.scenarioPath.map(p => <div key={`${p.nodeId}-${p.stepOrder}`} className="rounded-lg bg-white p-3"><b className="text-blue-700">Bước {p.stepOrder}:</b> {p.choiceText}{p.feedback && <p className="mt-1 text-[#7084a3]">{p.feedback}</p>}</div>)}</div>}
-                {!!a.correctChoices?.length && a.isCorrect === false && <div className="rounded-lg bg-emerald-50 p-3"><b className="text-emerald-700">Đáp án đúng:</b> {a.correctChoices.map(c => c.choiceText).join(', ')}</div>}
+                
+                {failed && isWrong && a.questionExplanation && <div className="rounded-lg border border-amber-100 bg-amber-50 p-3"><p className="font-bold text-amber-800">Kiến thức cần ôn tập</p><p className="mt-1 whitespace-pre-wrap leading-6 text-amber-900">{a.questionExplanation}</p></div>}
                 {a.teacherFeedback && <div className="rounded-lg border border-blue-100 bg-blue-50 p-3"><p className="flex items-center gap-1.5 font-bold text-blue-700"><Sparkles size={14} /> Nhận xét của giáo viên</p><p className="mt-1 whitespace-pre-wrap leading-6">{a.teacherFeedback}</p></div>}
                 {!a.selectedChoices?.length && !a.selectedChoiceText && !a.textAnswer && !a.arrangeItems?.length && !a.scenarioPath?.length && <p className="text-[#7b8eaa]">API chưa cung cấp nội dung câu trả lời cho câu hỏi này.</p>}
               </div>}
@@ -115,7 +168,7 @@ export const QuizResultPage: React.FC = () => {
       </div>
       <div className="mt-5 flex flex-wrap justify-center gap-3">
         <button type="button" onClick={scrollToDetails} className="inline-flex items-center gap-2 rounded-xl border border-[#d7e4f6] bg-white px-5 py-3 text-xs font-bold text-blue-700 transition hover:bg-blue-50"><Eye size={17} /> Xem lại bài làm</button>
-        {failed && !hasPassed && !hasPending && <button type="button" onClick={() => qid && navigate(`/quizzes/${qid}/take`, { state: { returnTo } })} className="inline-flex items-center gap-2 rounded-xl border border-[#d7e4f6] bg-white px-5 py-3 text-xs font-bold text-blue-700 transition hover:bg-blue-50"><RotateCcw size={17} /> Làm lại bài này</button>}
+        {failed && !hasPassed && !hasPending && !retryBlocked && <button type="button" onClick={() => qid && navigate(`/quizzes/${qid}/take`, { state: { returnTo } })} className="inline-flex items-center gap-2 rounded-xl border border-[#d7e4f6] bg-white px-5 py-3 text-xs font-bold text-blue-700 transition hover:bg-blue-50"><RotateCcw size={17} /> Làm lại bài này</button>}
         <button type="button" onClick={back} className="inline-flex items-center gap-2 rounded-xl border border-[#d7e4f6] bg-white px-5 py-3 text-xs font-bold text-blue-700 transition hover:bg-blue-50"><BookOpen size={17} /> Quay về khóa học</button>
         <button type="button" onClick={scrollToDetails} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-xs font-bold text-white shadow-lg shadow-blue-100 transition hover:bg-blue-700">Xem chi tiết đầy đủ <ArrowRight size={17} /></button>
       </div>
