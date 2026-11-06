@@ -238,17 +238,46 @@ public class CoursesController : ControllerBase
     // -------------------------------------------------------------------------
     [HttpDelete("{id:int}")]
     [Authorize(Roles = "Instructor")]
-    public async Task<ActionResult<ApiResponse<string>>> DeleteCourse(int id)
+    public async Task<ActionResult<ApiResponse<CourseDeletionActionDto>>> DeleteCourse(int id)
     {
         var instructorId = GetCurrentUserId();
         if (instructorId is null)
-            return Unauthorized(ApiResponse<string>.FailureResponse("Unauthorized."));
+            return Unauthorized(ApiResponse<CourseDeletionActionDto>.FailureResponse("Unauthorized."));
 
-        var deleted = await _courseService.DeleteCourseAsync(id, instructorId.Value);
-        if (!deleted)
-            return NotFound(ApiResponse<string>.FailureResponse("Course not found or you are not the owner."));
+        try
+        {
+            var result = await _courseService.DeleteCourseAsync(id, instructorId.Value);
+            if (result is null)
+                return NotFound(ApiResponse<CourseDeletionActionDto>.FailureResponse("Course not found or you are not the owner."));
+            return Ok(ApiResponse<CourseDeletionActionDto>.SuccessResponse(result, result.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(ApiResponse<CourseDeletionActionDto>.FailureResponse(ex.Message));
+        }
+    }
 
-        return Ok(ApiResponse<string>.SuccessResponse("Deleted", "Course deleted successfully."));
+    [HttpPost("{id:int}/deletion-request")]
+    [Authorize(Roles = "Instructor")]
+    public async Task<ActionResult<ApiResponse<CourseDeletionActionDto>>> RequestCourseDeletion(
+        int id, [FromBody] RequestCourseDeletionRequest request)
+    {
+        var instructorId = GetCurrentUserId();
+        if (instructorId is null)
+            return Unauthorized(ApiResponse<CourseDeletionActionDto>.FailureResponse("Unauthorized."));
+
+        try
+        {
+            var result = await _courseService.RequestCourseDeletionAsync(id, instructorId.Value, request.Reason);
+            if (result is null)
+                return NotFound(ApiResponse<CourseDeletionActionDto>.FailureResponse("Course not found or you are not the owner."));
+            return Ok(ApiResponse<CourseDeletionActionDto>.SuccessResponse(result, result.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<CourseDeletionActionDto>.FailureResponse(ex.Message));
+        }
+
     }
 
     // -------------------------------------------------------------------------

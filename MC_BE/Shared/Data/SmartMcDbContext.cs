@@ -46,6 +46,8 @@ public class SmartMcDbContext : DbContext
     public DbSet<Certificate> Certificates { get; set; } = null!;
     public DbSet<SpeakingSubmission> SpeakingSubmissions { get; set; } = null!;
     public DbSet<VideoUploadSession> VideoUploadSessions { get; set; } = null!;
+    public DbSet<R2ObjectDeletionJob> R2ObjectDeletionJobs { get; set; } = null!;
+    public DbSet<CourseDeletionRequest> CourseDeletionRequests { get; set; } = null!;
 
     // ============================================================
     // Section 3: Payment
@@ -335,6 +337,31 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             entity.HasOne<Lesson>().WithMany().HasForeignKey(e => e.LessonId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne<Course>().WithMany().HasForeignKey(e => e.CourseId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<R2ObjectDeletionJob>(entity =>
+        {
+            entity.ToTable("r2_object_deletion_jobs");
+            entity.HasKey(job => job.JobId);
+            entity.HasIndex(job => new { job.Status, job.NextAttemptAt });
+            entity.HasIndex(job => new { job.SourceCourseId, job.ObjectKey }).IsUnique();
+            entity.Property(job => job.Status).HasDefaultValue("PENDING");
+            entity.Property(job => job.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(job => job.NextAttemptAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            // No Course FK: deletion records must survive the course's cascading database delete.
+        });
+
+        modelBuilder.Entity<CourseDeletionRequest>(entity =>
+        {
+            entity.ToTable("course_deletion_requests");
+            entity.HasKey(request => request.RequestId);
+            entity.HasIndex(request => new { request.Status, request.RequestedAt });
+            entity.HasIndex(request => request.CourseId)
+                .IsUnique()
+                .HasFilter("\"Status\" = 'PENDING'");
+            entity.Property(request => request.Status).HasDefaultValue("PENDING");
+            entity.Property(request => request.RequestedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            // No FK to courses: retain the request as an audit record after an approved deletion.
         });
 
         // ============================================================

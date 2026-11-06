@@ -2,7 +2,7 @@
 // ImportModuleModal.tsx  —  Bulk Import Modules & Lessons via CSV Dialog
 // =============================================================================
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Download, FileSpreadsheet, Upload, X, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import type { BulkImportModuleItem } from '../../types/moduleTypes';
 import { useBulkCreateModules } from '../../hooks/useModuleQueries';
@@ -120,6 +120,7 @@ export const ImportModuleModal: React.FC<ImportModuleModalProps> = ({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const { mutate: bulkCreate, isPending: isSubmitting } = useBulkCreateModules(courseId);
+  const submitLockRef = useRef(false);
 
   if (!isOpen) return null;
 
@@ -256,15 +257,19 @@ export const ImportModuleModal: React.FC<ImportModuleModalProps> = ({
   };
 
   const handleSubmit = () => {
+    if (submitLockRef.current || isSubmitting) return;
     const payload = buildPayload();
     if (payload.length === 0) return;
 
+    submitLockRef.current = true;
     bulkCreate(payload, {
       onSuccess: () => {
+        submitLockRef.current = false;
         onSuccess?.();
         onClose();
       },
       onError: (err: any) => {
+        submitLockRef.current = false;
         setErrorMsg(err?.message || 'Có lỗi xảy ra khi nhập dữ liệu.');
       },
     });
@@ -273,7 +278,7 @@ export const ImportModuleModal: React.FC<ImportModuleModalProps> = ({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fadeIn"
-      onClick={onClose}
+      onClick={isSubmitting ? undefined : onClose}
     >
       <div
         className="w-full max-w-4xl rounded-3xl bg-white p-6 shadow-2xl border border-slate-200/80 max-h-[90vh] flex flex-col"
@@ -296,6 +301,7 @@ export const ImportModuleModal: React.FC<ImportModuleModalProps> = ({
           </div>
           <button
             onClick={onClose}
+            disabled={isSubmitting}
             className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all cursor-pointer"
           >
             <X className="h-5 w-5" />

@@ -439,17 +439,17 @@ export const CourseForm: React.FC<CourseFormProps> = ({
             <button
               id="course-form-save-draft-btn"
               type="submit"
-              disabled={isSubmitting}
-              className="flex items-center gap-2 rounded-xl border border-slate-300 bg-slate-100 px-5 py-2.5 text-xs sm:text-sm font-bold text-slate-800 hover:bg-slate-200 active:scale-95 disabled:opacity-50 transition-all cursor-pointer"
+              disabled={isSubmitting || isUploadingThumbnail}
+              className="flex items-center gap-2 rounded-xl border border-slate-300 bg-slate-100 px-5 py-2.5 text-xs sm:text-sm font-bold text-slate-800 hover:bg-slate-200 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 transition-all cursor-pointer"
             >
-              <Save className="h-4 w-4 text-slate-600" />
-              {isEditMode ? 'Lưu thay đổi' : 'Lưu bản nháp'}
+              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 text-slate-600" />}
+              {isSubmitting ? 'Đang lưu khóa học...' : isEditMode ? 'Lưu thay đổi' : 'Lưu bản nháp'}
             </button>
 
             <button
               id="course-form-submit-approval-btn"
               type="button"
-              disabled={isSubmitting}
+              disabled={isSubmitting || isUploadingThumbnail}
               onClick={handleSubmit((data) => {
                 onSubmit({
                   ...data,

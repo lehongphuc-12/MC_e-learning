@@ -3,6 +3,7 @@ import {
   AdminStats,
   AdminUser,
   AdminCourse,
+  CourseDeletionRequest,
   AdminCategory,
   PayoutRequest,
   SystemLog,
@@ -15,6 +16,21 @@ import {
 } from '../types/adminTypes';
 
 export const adminApi = {
+  async getPendingCourseDeletionRequests(): Promise<CourseDeletionRequest[]> {
+    const response = await request<{ success: boolean; data: { items: CourseDeletionRequest[] } }>(
+      '/admin/courses/deletion-requests?page=1&pageSize=100'
+    );
+    return response.data?.items ?? [];
+  },
+
+  async reviewCourseDeletionRequest(requestId: number, approve: boolean, adminNote: string): Promise<string> {
+    const response = await request<{ success: boolean; message?: string; data: { message?: string } }>(
+      `/admin/courses/deletion-requests/${requestId}/${approve ? 'approve' : 'reject'}`,
+      { method: 'POST', body: JSON.stringify({ adminNote }) }
+    );
+    return response.data?.message ?? response.message ?? (approve ? 'Đã xử lý yêu cầu xóa.' : 'Đã từ chối yêu cầu.');
+  },
+
   // Stats
   async getDashboardStats(): Promise<AdminStats> {
     try {

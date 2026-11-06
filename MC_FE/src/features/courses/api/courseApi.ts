@@ -150,10 +150,19 @@ export const courseApi = {
   // -------------------------------------------------------------------------
   // DELETE — DELETE /courses/:id
   // -------------------------------------------------------------------------
-  async deleteCourse(courseId: number): Promise<void> {
-    await request<ApiEnvelope<null>>(`/courses/${courseId}`, {
+  async deleteCourse(courseId: number): Promise<{ courseId: number; action: string; message: string }> {
+    const envelope = await request<ApiEnvelope<{ courseId: number; action: string; message: string }>>(`/courses/${courseId}`, {
       method: 'DELETE',
     });
+    return envelope.data;
+  },
+
+  async requestCourseDeletion(courseId: number, reason: string): Promise<{ courseId: number; action: string; message: string }> {
+    const envelope = await request<ApiEnvelope<{ courseId: number; action: string; message: string }>>(`/courses/${courseId}/deletion-request`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+    return envelope.data;
   },
 
   // -------------------------------------------------------------------------
@@ -161,7 +170,7 @@ export const courseApi = {
   // -------------------------------------------------------------------------
   async toggleCourseStatus(
     courseId: number,
-    newStatus: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED'
+    newStatus: 'DRAFT' | 'ARCHIVED'
   ): Promise<Course> {
     const envelope = await request<ApiEnvelope<Course>>(
       `/courses/${courseId}/status`,

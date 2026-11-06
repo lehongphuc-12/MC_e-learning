@@ -1,12 +1,12 @@
 // =============================================================================
 // LessonFormModal.tsx  —  Create / Edit Single Lesson Dialog
-// Supports: enter a video URL  OR  upload a file directly to Cloudflare R2
+// Video lessons use file uploads only; legacy document links remain supported for DOCUMENT lessons.
 // =============================================================================
 
 import React, { useEffect, useRef, useState } from 'react';
 import {
   X, Save, Loader2, Video, Mic2, FileText, ClipboardList,
-  Upload, Link2, CheckCircle2, Trash2, CloudUpload, Sparkles, Clock,
+  Upload, CheckCircle2, Trash2, CloudUpload, Sparkles, Clock,
 } from 'lucide-react';
 import type { Lesson, CreateLessonDto } from '../../types/lessonTypes';
 import type { CourseModule } from '../../types/moduleTypes';
@@ -22,10 +22,8 @@ interface LessonFormModalProps {
   defaultLessonType?: 'VIDEO' | 'DOCUMENT' | 'QUIZ' | 'ASSIGNMENT';
   isSubmitting: boolean;
   onClose: () => void;
-  /** Called with the metadata DTO (title, description, etc.) and optional attached file to upload. */
-  onSubmit: (dto: CreateLessonDto, file?: File | null) => void;
-  /** Optional: notify parent when a video has been uploaded to R2 directly (edit-mode only). */
-  onVideoUploaded?: (updatedLesson: Lesson) => void;
+  /** Called only after form validation. The parent saves metadata and uploads the optional file. */
+  onSubmit: (dto: CreateLessonDto, file?: File | null, onUploadProgress?: (percent: number) => void) => Promise<void> | void;
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -53,7 +51,6 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
   isSubmitting,
   onClose,
   onSubmit,
-  onVideoUploaded,
 }) => {
   const isEditMode = !!existingLesson;
 
@@ -69,13 +66,25 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Video upload state
-  const [videoInputMode, setVideoInputMode] = useState<'url' | 'file'>('url');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedVideoPreviewUrl, setSelectedVideoPreviewUrl] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadSuccess, setUploadSuccess] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const submitLockRef = useRef(false);
+
+  // Preview the selected local file without uploading it or exposing the saved source URL.
+  useEffect(() => {
+    if (!selectedFile) {
+      setSelectedVideoPreviewUrl(null);
+      return;
+    }
+
+    const localUrl = URL.createObjectURL(selectedFile);
+    setSelectedVideoPreviewUrl(localUrl);
+    return () => URL.revokeObjectURL(localUrl);
+  }, [selectedFile]);
 
   // ─── Reset when modal opens / lesson changes ───────────────────────────
 
@@ -126,9 +135,7 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
     setSelectedFile(null);
     setUploadProgress(0);
     setIsUploading(false);
-    setUploadSuccess(false);
     setUploadError(null);
-    setVideoInputMode('url');
     return () => {
       cancelled = true;
     };
@@ -169,27 +176,6 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
       } catch (_) {}
     }
   }, [videoUrl]);
-
-  // Listen to YouTube postMessage from preview player to capture duration
-  useEffect(() => {
-    const handleMsg = (e: MessageEvent) => {
-      try {
-        let data = e.data;
-        if (typeof data === 'string' && data.startsWith('{')) {
-          data = JSON.parse(data);
-        }
-        const info = data?.info || data;
-        const dur = info?.duration ?? data?.duration;
-        if (typeof dur === 'number' && dur > 0 && !isNaN(dur)) {
-          const mins = Math.max(1, Math.round(dur / 60));
-          setDurationMinutes(mins);
-        }
-      } catch (_) {}
-    };
-
-    window.addEventListener('message', handleMsg);
-    return () => window.removeEventListener('message', handleMsg);
-  }, []);
 
   const handleAutoCalculateDuration = () => {
     if (selectedFile) {
@@ -237,16 +223,18 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setSelectedFile(null);
     setUploadError(null);
-    setUploadSuccess(false);
     setUploadProgress(0);
 
     if (!ALLOWED_VIDEO_TYPES.includes(file.type)) {
       setUploadError('Định dạng không hỗ trợ. Vui lòng chọn file video (mp4, webm, mov, avi, mkv).');
+      e.target.value = '';
       return;
     }
     if (file.size > MAX_FILE_SIZE_BYTES) {
       setUploadError(`File quá lớn (${formatBytes(file.size)}). Giới hạn tối đa là 500 MB.`);
+      e.target.value = '';
       return;
     }
 
@@ -270,59 +258,68 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
 
   // ─── Direct upload to R2 (edit mode only) ─────────────────────────────
 
-  const handleUploadToR2 = async () => {
-    if (!selectedFile || !existingLesson) return;
-    setIsUploading(true);
-    setUploadError(null);
-    setUploadProgress(0);
+  // ─── Save form and upload any selected file only after validation ─────
 
-    try {
-      const updated = await lessonApi.uploadVideo(
-        existingLesson.lessonId,
-        selectedFile,
-        (pct) => setUploadProgress(pct),
-      );
-      setUploadProgress(100);
-      setUploadSuccess(true);
-      setVideoUrl(updated.videoUrl ?? '');
-      onVideoUploaded?.(updated);
-    } catch (err: any) {
-      setUploadError(err?.message ?? 'Upload thất bại, vui lòng thử lại.');
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  // ─── Form submit (metadata only) ──────────────────────────────────────
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitLockRef.current || isSubmitting || isUploading) return;
+    setErrorMsg(null);
+    if (uploadError && !selectedFile) {
+      setErrorMsg(uploadError);
+      return;
+    }
+    setUploadError(null);
     if (!title.trim()) {
       setErrorMsg('Tên bài học / bài tập không được để trống.');
       return;
     }
+    if (lessonType !== 'ASSIGNMENT' && modules.length > 0 && !moduleId) {
+      setErrorMsg('Vui lòng chọn chương học cho bài học.');
+      return;
+    }
+    if (!Number.isInteger(Number(durationMinutes)) || Number(durationMinutes) < 1) {
+      setErrorMsg('Thời lượng phải là số nguyên từ 1 phút trở lên.');
+      return;
+    }
+    if (lessonType !== 'ASSIGNMENT' && (!Number.isInteger(Number(orderIndex)) || Number(orderIndex) < 1)) {
+      setErrorMsg('Thứ tự bài học phải là số nguyên từ 1 trở lên.');
+      return;
+    }
 
-    onSubmit({
-      title: title.trim(),
-      description: description.trim() || undefined,
-      videoUrl: videoUrl.trim() || undefined,
-      moduleId: lessonType === 'ASSIGNMENT' ? undefined : (moduleId ?? undefined),
-      lessonType,
-      durationMinutes: Number(durationMinutes) || 0,
-      orderIndex: Number(orderIndex) || 1,
-      isPreview,
-      status: 'ACTIVE',
-    }, selectedFile);
+    submitLockRef.current = true;
+    setIsUploading(Boolean(selectedFile));
+    setUploadProgress(0);
+    try {
+      await onSubmit({
+        title: title.trim(),
+        description: description.trim() || undefined,
+        videoUrl: videoUrl.trim() || undefined,
+        moduleId: lessonType === 'ASSIGNMENT' ? undefined : (moduleId ?? undefined),
+        lessonType,
+        durationMinutes: Number(durationMinutes),
+        orderIndex: Number(orderIndex) || 1,
+        isPreview,
+        status: 'ACTIVE',
+      }, selectedFile, (percent) => setUploadProgress(percent));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Không thể lưu bài học. Vui lòng thử lại.';
+      if (selectedFile && isEditMode) setUploadError(message);
+      else setErrorMsg(message);
+    } finally {
+      setIsUploading(false);
+      submitLockRef.current = false;
+    }
   };
 
   // ─── Render ───────────────────────────────────────────────────────────
 
   const isVideoLesson = lessonType === 'VIDEO' || lessonType === 'ASSIGNMENT';
+  const previewVideoUrl = selectedVideoPreviewUrl;
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fadeIn"
-      onClick={onClose}
+      onClick={isSubmitting || isUploading ? undefined : onClose}
     >
       <div
         className="w-full max-w-2xl rounded-3xl bg-white shadow-2xl border border-slate-200/80 max-h-[90vh] overflow-y-auto"
@@ -352,6 +349,7 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
           </div>
           <button
             onClick={onClose}
+            disabled={isSubmitting || isUploading}
             className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all"
           >
             <X className="h-5 w-5" />
@@ -373,10 +371,11 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
               {modules.length > 0 && (
                 <div>
                   <label htmlFor="lesson-module" className="block text-xs font-bold text-slate-700 mb-1">
-                    Chương học (Module)
+                    Chương học (Module) <span className="text-red-500">*</span>
                   </label>
                   <select
                     id="lesson-module"
+                    required
                     value={moduleId ?? ''}
                     onChange={(e) => setModuleId(e.target.value ? Number(e.target.value) : null)}
                     className="w-full rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-2.5 text-sm text-slate-800 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-50/80 transition-all"
@@ -399,7 +398,17 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
                 <select
                   id="lesson-type"
                   value={lessonType}
-                  onChange={(e) => setLessonType(e.target.value as any)}
+                  onChange={(e) => {
+                    const nextType = e.target.value as 'VIDEO' | 'DOCUMENT' | 'QUIZ' | 'ASSIGNMENT';
+                    setLessonType(nextType);
+                    if (nextType !== 'VIDEO' && nextType !== 'ASSIGNMENT') {
+                      setSelectedFile(null);
+                      setUploadError(null);
+                      setUploadProgress(0);
+                      if (fileInputRef.current) fileInputRef.current.value = '';
+                    }
+                    if (nextType !== 'DOCUMENT') setVideoUrl('');
+                  }}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-2.5 text-sm text-slate-800 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-50/80 transition-all font-semibold"
                 >
                   <option value="VIDEO">📹 Video bài giảng</option>
@@ -418,6 +427,7 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
             <input
               id="lesson-title"
               type="text"
+              required
               placeholder={
                 lessonType === 'ASSIGNMENT'
                   ? 'Ví dụ: Bài tập nói cuối khóa: Biên soạn & Dẫn trực tiếp tiệc cưới'
@@ -441,62 +451,14 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
                 </span>
               </div>
 
-              {/* Tab switcher: URL vs File upload */}
-              <div className="flex rounded-xl overflow-hidden border border-slate-200 bg-white w-fit">
-                <button
-                  type="button"
-                  onClick={() => setVideoInputMode('url')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-all ${videoInputMode === 'url'
-                    ? 'bg-blue-600 text-white'
-                    : 'text-slate-600 hover:bg-slate-50'
-                    }`}
-                >
-                  <Link2 className="h-3.5 w-3.5" />
-                  Nhập URL
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setVideoInputMode('file')}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-all ${videoInputMode === 'file'
-                    ? 'bg-blue-600 text-white'
-                    : 'text-slate-600 hover:bg-slate-50'
-                    }`}
-                >
-                  <CloudUpload className="h-3.5 w-3.5" />
-                  Upload lên R2
-                </button>
-              </div>
-
-              {/* URL input */}
-              {videoInputMode === 'url' && (
-                <div>
-                  <input
-                    id="lesson-videourl"
-                    type="url"
-                    placeholder={
-                      lessonType === 'ASSIGNMENT'
-                        ? 'https://res.cloudinary.com/.../audio_mau.mp3'
-                        : 'https://www.youtube.com/watch?v=... hoặc link video mp4'
-                    }
-                    value={videoUrl}
-                    onChange={(e) => setVideoUrl(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-50/80 transition-all"
-                  />
-                  {videoUrl && (
-                    <p className="mt-1.5 text-xs text-slate-500 truncate">
-                      🔗 <span className="font-mono">{videoUrl}</span>
-                    </p>
-                  )}
-                </div>
-              )}
-
               {/* File upload input */}
-              {videoInputMode === 'file' && (
-                <div className="space-y-3">
+              <div className="space-y-3">
                   {/* Drag-and-drop / click zone */}
                   <div
-                    onClick={() => fileInputRef.current?.click()}
-                    className={`relative flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-6 cursor-pointer transition-all ${selectedFile
+                    onClick={() => {
+                      if (!isSubmitting && !isUploading) fileInputRef.current?.click();
+                    }}
+                    className={`relative flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-6 transition-all ${isSubmitting || isUploading ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'} ${selectedFile
                       ? 'border-blue-300 bg-blue-50'
                       : 'border-slate-300 bg-white hover:border-blue-400 hover:bg-blue-50/40'
                       }`}
@@ -506,6 +468,7 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
                       type="file"
                       accept="video/mp4,video/webm,video/ogg,video/quicktime,video/x-msvideo,video/x-matroska,video/mpeg"
                       className="hidden"
+                      disabled={isSubmitting || isUploading}
                       onChange={handleFileChange}
                     />
 
@@ -532,10 +495,10 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
                         </div>
                         <button
                           type="button"
+                          disabled={isSubmitting || isUploading}
                           onClick={(e) => {
                             e.stopPropagation();
                             setSelectedFile(null);
-                            setUploadSuccess(false);
                             setUploadError(null);
                             setUploadProgress(0);
                             if (fileInputRef.current) fileInputRef.current.value = '';
@@ -571,92 +534,39 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
                     </div>
                   )}
 
-                  {/* Upload success */}
-                  {uploadSuccess && (
-                    <div className="flex items-center gap-2 rounded-xl border border-green-200 bg-green-50 px-3 py-2">
-                      <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-green-700">Upload thành công!</p>
-                        {videoUrl && (
-                          <a
-                            href={videoUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-green-600 underline truncate block"
-                          >
-                            {videoUrl}
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Upload button (edit mode only — in create mode video is uploaded after lesson is created) */}
                   {isEditMode ? (
-                    <button
-                      type="button"
-                      disabled={!selectedFile || isUploading || uploadSuccess}
-                      onClick={handleUploadToR2}
-                      className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-md hover:from-indigo-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 transition-all"
-                    >
-                      {isUploading ? (
-                        <><Loader2 className="h-4 w-4 animate-spin" /> Đang upload ({uploadProgress}%)…</>
-                      ) : uploadSuccess ? (
-                        <><CheckCircle2 className="h-4 w-4" /> Đã upload xong</>
-                      ) : (
-                        <><CloudUpload className="h-4 w-4" /> Upload video lên Cloudflare R2</>
-                      )}
-                    </button>
+                    <div className="rounded-xl border border-blue-200 bg-blue-50 px-3.5 py-2.5 text-xs text-blue-800 flex items-center gap-2">
+                      <CloudUpload className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                      <span>Video chỉ được tải lên R2 khi bạn nhấn <strong>Lưu thay đổi</strong>. Có thể hủy trước khi lưu mà không tạo file trên R2.</span>
+                    </div>
                   ) : (
                     <div className="rounded-xl border border-blue-200 bg-blue-50 px-3.5 py-2.5 text-xs text-blue-800 flex items-center gap-2">
                       <CheckCircle2 className="h-4 w-4 text-blue-600 flex-shrink-0" />
-                      <span>✨ File video đã sẵn sàng. Hệ thống sẽ <strong>tự động upload lên Cloudflare R2</strong> ngay khi bạn bấm nút <strong>"Tạo bài học"</strong> bên dưới.</span>
+                      <span>File chỉ được tải lên R2 sau khi bạn nhấn <strong>Tạo bài học</strong>. Có thể hủy trước đó mà không tạo file trên R2.</span>
                     </div>
                   )}
-                </div>
-              )}
+              </div>
 
               {/* Video Live Preview Player */}
-              {videoUrl && (
+              {previewVideoUrl && (
                 <div className="mt-3 rounded-xl border border-slate-200 bg-slate-900 p-2.5 shadow-inner space-y-1.5">
                   <div className="flex items-center justify-between text-xs text-slate-300 font-semibold px-1">
                     <span className="flex items-center gap-1.5 text-blue-300">
                       <Video className="h-3.5 w-3.5" />
-                      Xem trực tiếp Video bài học ({videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be') ? 'Link YouTube' : 'File MP4 từ R2'})
+                      Xem trước video đã chọn (chưa tải lên)
                     </span>
-                    <a
-                      href={videoUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-indigo-400 hover:text-indigo-300 underline"
-                    >
-                      Mở link ↗
-                    </a>
                   </div>
-                  {videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be') ? (
-                    <iframe
-                      src={
-                        (() => {
-                          const m = videoUrl.match(/(?:youtu\.be\/|v\/|u\/\w+\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/);
-                          return (m && m[1]) ? `https://www.youtube.com/embed/${m[1]}?enablejsapi=1` : videoUrl;
-                        })()
+                  <video
+                    src={previewVideoUrl}
+                    controls
+                    onLoadedMetadata={(e) => {
+                      const dur = e.currentTarget.duration;
+                      if (dur && dur > 0) {
+                        setDurationMinutes(Math.max(1, Math.round(dur / 60)));
                       }
-                      className="w-full aspect-video rounded-lg max-h-56 border border-slate-800 shadow-md"
-                      allowFullScreen
-                    />
-                  ) : (
-                    <video
-                      src={videoUrl}
-                      controls
-                      onLoadedMetadata={(e) => {
-                        const dur = e.currentTarget.duration;
-                        if (dur && dur > 0) {
-                          setDurationMinutes(Math.max(1, Math.round(dur / 60)));
-                        }
-                      }}
-                      className="w-full max-h-56 rounded-lg bg-black border border-slate-800 shadow-md"
-                    />
-                  )}
+                    }}
+                    className="w-full max-h-56 rounded-lg bg-black border border-slate-800 shadow-md"
+                  />
                 </div>
               )}
             </div>
@@ -735,7 +645,7 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label htmlFor="lesson-duration" className="block text-xs font-bold text-slate-700">
-                  Thời lượng (Phút)
+                  Thời lượng (Phút) <span className="text-red-500">*</span>
                 </label>
                 <button
                   type="button"
@@ -750,7 +660,8 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
               <input
                 id="lesson-duration"
                 type="number"
-                min="0"
+                min="1"
+                required
                 value={durationMinutes}
                 onChange={(e) => setDurationMinutes(Number(e.target.value))}
                 className="w-full rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-2.5 text-sm text-slate-800 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-50/80 transition-all"
@@ -768,12 +679,13 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
             {lessonType !== 'ASSIGNMENT' && (
               <div>
                 <label htmlFor="lesson-order" className="block text-xs font-bold text-slate-700 mb-1">
-                  Thứ tự bài học (#)
+                  Thứ tự bài học (#) <span className="text-red-500">*</span>
                 </label>
                 <input
                   id="lesson-order"
                   type="number"
                   min="1"
+                  required
                   value={orderIndex}
                   onChange={(e) => setOrderIndex(Number(e.target.value))}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-2.5 text-sm text-slate-800 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-blue-50/80 transition-all"
@@ -819,7 +731,7 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
               {isSubmitting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Đang lưu...
+                  {isUploading && selectedFile ? `Đang lưu và tải video lên R2 (${uploadProgress}%)…` : 'Đang lưu...'}
                 </>
               ) : (
                 <>

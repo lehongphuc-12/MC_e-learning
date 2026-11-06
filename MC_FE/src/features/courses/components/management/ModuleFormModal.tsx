@@ -2,7 +2,7 @@
 // ModuleFormModal.tsx  —  Create / Edit Single Course Module Dialog
 // =============================================================================
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { X, Save, Loader2, FolderPlus, Layers } from 'lucide-react';
 import type { CourseModule, CreateModuleDto } from '../../types/moduleTypes';
 
@@ -12,7 +12,7 @@ interface ModuleFormModalProps {
   defaultOrderIndex?: number;
   isSubmitting: boolean;
   onClose: () => void;
-  onSubmit: (dto: CreateModuleDto) => void;
+  onSubmit: (dto: CreateModuleDto) => Promise<void> | void;
 }
 
 export const ModuleFormModal: React.FC<ModuleFormModalProps> = ({
@@ -29,6 +29,7 @@ export const ModuleFormModal: React.FC<ModuleFormModalProps> = ({
   const [description, setDescription] = useState('');
   const [orderIndex, setOrderIndex] = useState<number>(1);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const submitLockRef = useRef(false);
 
   useEffect(() => {
     if (existingModule) {
@@ -45,24 +46,32 @@ export const ModuleFormModal: React.FC<ModuleFormModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitLockRef.current || isSubmitting) return;
     if (!title.trim()) {
       setErrorMsg('Tên chương học không được để trống.');
       return;
     }
 
-    onSubmit({
-      title: title.trim(),
-      description: description.trim() || undefined,
-      orderIndex: Number(orderIndex) || 1,
-    });
+    submitLockRef.current = true;
+    try {
+      await onSubmit({
+        title: title.trim(),
+        description: description.trim() || undefined,
+        orderIndex: Number(orderIndex) || 1,
+      });
+    } catch (error) {
+      setErrorMsg(error instanceof Error ? error.message : 'Không thể lưu chương học. Vui lòng thử lại.');
+    } finally {
+      submitLockRef.current = false;
+    }
   };
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fadeIn"
-      onClick={onClose}
+      onClick={isSubmitting ? undefined : onClose}
     >
       <div
         className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl border border-slate-200/80"
@@ -85,6 +94,7 @@ export const ModuleFormModal: React.FC<ModuleFormModalProps> = ({
           </div>
           <button
             onClick={onClose}
+            disabled={isSubmitting}
             className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all cursor-pointer"
           >
             <X className="h-5 w-5" />

@@ -17,6 +17,7 @@ import {
   AdminTabType,
   AdminUser,
   AdminCourse,
+  CourseDeletionRequest,
   AdminCategory,
   AdminStats,
   RevenueDataPoint,
@@ -58,6 +59,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   const [chartData, setChartData] = useState<RevenueDataPoint[]>([]);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [courses, setCourses] = useState<AdminCourse[]>([]);
+  const [courseDeletionRequests, setCourseDeletionRequests] = useState<CourseDeletionRequest[]>([]);
   const [categories, setCategories] = useState<AdminCategory[]>([]);
   const [payouts, setPayouts] = useState<PayoutRequest[]>([]);
   const [logs, setLogs] = useState<SystemLog[]>([]);
@@ -79,10 +81,25 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   // Fetch data on activeTab change or polling
   const refreshCoursesData = async () => {
     try {
-      const coursesRes = await adminApi.getCourses();
+      const [coursesRes, deletionRequests] = await Promise.all([
+        adminApi.getCourses(),
+        adminApi.getPendingCourseDeletionRequests(),
+      ]);
       setCourses(coursesRes);
+      setCourseDeletionRequests(deletionRequests);
     } catch (err) {
       console.error('Lỗi tự động tải danh sách khóa học:', err);
+    }
+  };
+
+  const handleReviewCourseDeletion = async (requestId: number, approve: boolean, note: string) => {
+    try {
+      const message = await adminApi.reviewCourseDeletionRequest(requestId, approve, note);
+      onToast?.(approve ? 'Đã duyệt yêu cầu xóa' : 'Đã từ chối yêu cầu', message, 'success');
+      await refreshCoursesData();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Không thể xử lý yêu cầu xóa.';
+      onToast?.('Không thể xử lý yêu cầu', message, 'error');
     }
   };
 
@@ -444,6 +461,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
           {activeTab === 'courses' && (
             <AdminCoursesTab
               courses={courses}
+              deletionRequests={courseDeletionRequests}
+              onReviewDeletionRequest={handleReviewCourseDeletion}
               onReviewCourse={handleReviewCourse}
               onApproveCourse={handleApproveCourse}
               onRejectCourse={handleRejectCourse}

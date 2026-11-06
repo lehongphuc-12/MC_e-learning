@@ -1941,6 +1941,11 @@ export const CourseLearningPage: React.FC = () => {
       const playback = await lessonApi.getPlaybackUrl(activeLesson.lessonId);
       if (cancelled) return;
 
+      // Defense in depth: even if an older API instance still returns a provider URL,
+      // never render it as a YouTube/Drive/Vimeo iframe in the learner player.
+      if (getEmbedVideoUrl(playback.url))
+        throw new Error('Third-party video sources are disabled for course playback.');
+
       setPlaybackUrl(playback.url);
       const expiresIn = Date.parse(playback.expiresAt) - Date.now();
       refreshTimer = setTimeout(() => {
@@ -2450,7 +2455,9 @@ export const CourseLearningPage: React.FC = () => {
                           pendingVideoPositionRef.current = video.currentTime;
                           shouldResumeVideoRef.current = !video.paused;
                           void lessonApi.getPlaybackUrl(activeLesson.lessonId)
-                            .then((playback) => setPlaybackUrl(playback.url))
+                            .then((playback) => {
+                              if (!getEmbedVideoUrl(playback.url)) setPlaybackUrl(playback.url);
+                            })
                             .catch(() => {});
                         }}
                         onTimeUpdate={(e) => {
@@ -2493,7 +2500,7 @@ export const CourseLearningPage: React.FC = () => {
                       <p className="mt-1 text-xs text-slate-400 max-w-sm">
                         {activeLesson
                           ? activeLesson.hasVideo
-                            ? 'Video này chưa có bản upload riêng trên MSEEK hoặc bạn chưa được cấp quyền phát. Hãy liên hệ giảng viên.'
+                            ? 'Bài học chưa có video upload lên kho riêng của MSEEK hoặc bạn chưa được cấp quyền phát. Hãy liên hệ giảng viên.'
                             : 'Bài học này chưa được cập nhật liên kết Video. Vui lòng chọn bài học khác.'
                           : 'Vui lòng chọn bài học từ danh sách bên phải để bắt đầu xem video.'}
                       </p>

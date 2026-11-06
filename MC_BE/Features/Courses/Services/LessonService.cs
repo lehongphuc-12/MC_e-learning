@@ -116,18 +116,7 @@ public class LessonService : ILessonService
             objectKey = _r2.ExtractKeyFromUrl(storedUrl);
 
         if (string.IsNullOrWhiteSpace(objectKey))
-        {
-            if (!string.IsNullOrWhiteSpace(storedUrl) && _r2.ExtractKeyFromUrl(storedUrl) is null)
-            {
-                // Existing third-party sources remain usable for instructor/admin review only.
-                // Learners must have a private R2 object, issued through the access-checked playback path.
-                if (!isInstructor && !isAdmin)
-                    return null;
-
-                return new LessonPlaybackDto { LessonId = lessonId, Url = storedUrl, ExpiresAt = DateTime.UtcNow.AddHours(24) };
-            }
             return null;
-        }
 
         const double expiresHours = 6;
         return new LessonPlaybackDto

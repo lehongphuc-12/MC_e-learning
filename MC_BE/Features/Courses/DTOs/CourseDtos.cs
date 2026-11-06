@@ -1,4 +1,5 @@
 using MC_BE.Core.Enums;
+using System.ComponentModel.DataAnnotations;
 
 namespace MC_BE.Features.Courses.DTOs;
 
@@ -128,6 +129,50 @@ public class RejectCourseRequest
 {
     [System.ComponentModel.DataAnnotations.Required]
     public string Reason { get; set; } = string.Empty;
+}
+
+public sealed class RequestCourseDeletionRequest
+{
+    [Required, MaxLength(1000)]
+    public string Reason { get; set; } = string.Empty;
+}
+
+public sealed class ReviewCourseDeletionRequest
+{
+    [Required, MaxLength(1000)]
+    public string AdminNote { get; set; } = string.Empty;
+}
+
+public sealed class CourseDeletionActionDto
+{
+    public int CourseId { get; set; }
+    public string Action { get; set; } = string.Empty;
+    public long? RequestId { get; set; }
+    public string Message { get; set; } = string.Empty;
+}
+
+public sealed class CourseDeletionRequestDto
+{
+    public long RequestId { get; set; }
+    public int CourseId { get; set; }
+    public string CourseTitle { get; set; } = string.Empty;
+    public int InstructorId { get; set; }
+    public string InstructorName { get; set; } = string.Empty;
+    public string Reason { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public DateTime RequestedAt { get; set; }
+    public int EnrollmentCount { get; set; }
+    public int PaymentItemCount { get; set; }
+    public int SpeakingSubmissionCount { get; set; }
+    public int QuizAttemptCount { get; set; }
+}
+
+public sealed class CourseDeletionRequestListDto
+{
+    public List<CourseDeletionRequestDto> Items { get; set; } = [];
+    public int TotalCount { get; set; }
+    public int Page { get; set; }
+    public int PageSize { get; set; }
 }
 
 // ---------------------------------------------------------------------------

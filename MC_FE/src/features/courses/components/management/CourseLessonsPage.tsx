@@ -134,6 +134,7 @@ export const CourseLessonsPage: React.FC = () => {
   // ===========================================================================
 
   const [isLessonModalOpen, setIsLessonModalOpen] = useState(false);
+  const [isSavingLesson, setIsSavingLesson] = useState(false);
 
   const [isLessonImportModalOpen, setIsLessonImportModalOpen] =
     useState(false);
@@ -220,10 +221,10 @@ export const CourseLessonsPage: React.FC = () => {
   const { mutate: deleteLesson, isPending: isDeletingLesson } =
     useDeleteLesson(courseId);
 
-  const { mutate: createModule, isPending: isCreatingModule } =
+  const { mutateAsync: createModuleAsync, isPending: isCreatingModule } =
     useCreateModule(courseId);
 
-  const { mutate: updateModule, isPending: isUpdatingModule } =
+  const { mutateAsync: updateModuleAsync, isPending: isUpdatingModule } =
     useUpdateModule(courseId);
 
   const { mutate: deleteModule, isPending: isDeletingModule } =
@@ -598,7 +599,12 @@ export const CourseLessonsPage: React.FC = () => {
     setIsLessonModalOpen(true);
   };
 
-  const handleLessonFormSubmit = async (dto: CreateLessonDto, file?: File | null) => {
+  const handleLessonFormSubmit = async (
+    dto: CreateLessonDto,
+    file?: File | null,
+    onUploadProgress?: (percent: number) => void,
+  ) => {
+    setIsSavingLesson(true);
     try {
       if (editingLesson) {
         await updateLessonAsync({
@@ -606,28 +612,8 @@ export const CourseLessonsPage: React.FC = () => {
           dto,
         });
 
-        if (file && editingLesson.lessonId) {
-          try {
-            await lessonApi.uploadVideo(editingLesson.lessonId, file);
-          } catch (uploadErr: any) {
-            console.error('File upload error:', uploadErr);
-            const reason = uploadErr?.response?.data?.message || uploadErr?.message || String(uploadErr);
-            setIsLessonModalOpen(false);
-            setEditingLesson(null);
-            setStatusModal({
-              isOpen: true,
-              type: 'error',
-              title: 'Cập nhật bài học thành công nhưng tải video thất bại',
-              message: `Bài học "${dto.title}" đã được lưu thông tin, nhưng quá trình tải file video lên Cloudflare R2 gặp sự cố.`,
-              reason: reason,
-            });
-            await queryClient.invalidateQueries({
-              queryKey: lessonQueryKeys.courseLessons(courseId),
-            });
-            refetchLessons?.();
-            return;
-          }
-        }
+        if (file && editingLesson.lessonId)
+          await lessonApi.uploadVideo(editingLesson.lessonId, file, onUploadProgress);
 
         setIsLessonModalOpen(false);
         setEditingLesson(null);
@@ -644,7 +630,7 @@ export const CourseLessonsPage: React.FC = () => {
 
         if (file && createdLesson?.lessonId) {
           try {
-            await lessonApi.uploadVideo(createdLesson.lessonId, file);
+            await lessonApi.uploadVideo(createdLesson.lessonId, file, onUploadProgress);
           } catch (uploadErr: any) {
             console.error('File upload error:', uploadErr);
             const reason = uploadErr?.response?.data?.message || uploadErr?.message || String(uploadErr);
@@ -682,6 +668,15 @@ export const CourseLessonsPage: React.FC = () => {
       });
       refetchLessons?.();
     } catch (err: any) {
+      // In edit mode, keep the form open when upload fails so the instructor can retry.
+      // Metadata has already been saved, but the selected file has not been attached.
+      if (editingLesson && file) {
+        await queryClient.invalidateQueries({
+          queryKey: lessonQueryKeys.courseLessons(courseId),
+        });
+        refetchLessons?.();
+        throw err;
+      }
       console.error('Lesson submit error:', err);
       const reason = err?.response?.data?.message || err?.message || String(err);
       setIsLessonModalOpen(false);
@@ -692,6 +687,8 @@ export const CourseLessonsPage: React.FC = () => {
         message: `Đã xảy ra lỗi trong quá trình lưu thông tin bài học "${dto.title}" vào hệ thống.`,
         reason: reason,
       });
+    } finally {
+      setIsSavingLesson(false);
     }
   };
 
@@ -719,27 +716,14 @@ export const CourseLessonsPage: React.FC = () => {
     setIsModuleModalOpen(true);
   };
 
-  const handleModuleFormSubmit = (dto: CreateModuleDto) => {
+  const handleModuleFormSubmit = async (dto: CreateModuleDto) => {
     if (editingModule) {
-      updateModule(
-        {
-          moduleId: editingModule.moduleId,
-          dto,
-        },
-        {
-          onSuccess: () => {
-            setIsModuleModalOpen(false);
-            setEditingModule(null);
-          },
-        }
-      );
+      await updateModuleAsync({ moduleId: editingModule.moduleId, dto });
+      setEditingModule(null);
     } else {
-      createModule(dto, {
-        onSuccess: () => {
-          setIsModuleModalOpen(false);
-        },
-      });
+      await createModuleAsync(dto);
     }
+    setIsModuleModalOpen(false);
   };
 
   const handleDeleteModuleConfirm = () => {
@@ -1272,19 +1256,13 @@ export const CourseLessonsPage: React.FC = () => {
         modules={modules}
         defaultModuleId={targetModuleId}
         defaultLessonType={targetLessonType}
-        isSubmitting={isCreatingLesson || isUpdatingLesson}
+        isSubmitting={isSavingLesson || isCreatingLesson || isUpdatingLesson}
         onClose={() => {
           setIsLessonModalOpen(false);
           setEditingLesson(null);
           setTargetLessonType('VIDEO');
         }}
         onSubmit={handleLessonFormSubmit}
-        onVideoUploaded={(updatedLesson) => {
-          // Update local editingLesson state with new videoUrl so re-render retains R2 URL
-          setEditingLesson(updatedLesson);
-          // Refresh lesson list so main table updates immediately
-          refetchLessons?.();
-        }}
       />
 
       <ModuleFormModal

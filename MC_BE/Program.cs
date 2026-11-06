@@ -186,6 +186,7 @@ builder.Services.AddSingleton<IAudioExtractorService, AudioExtractorService>();
 builder.Services.AddSingleton<ITranscriptionQueue, TranscriptionQueue>();
 builder.Services.AddHostedService<TranscriptionWorker>();
 builder.Services.AddHostedService<VideoUploadSessionCleanupWorker>();
+builder.Services.AddHostedService<R2ObjectDeletionWorker>();
 
 // ============================================================
 // ENROLLMENT / PAYMENT

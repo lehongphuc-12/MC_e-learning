@@ -6,7 +6,7 @@
 //   - EDIT mode   (/instructor/courses/:id/edit): fetches course, pre-fills form
 // =============================================================================
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AlertCircle, ArrowLeft, BookPlus, Edit3, X, ClipboardCheck } from 'lucide-react';
 import { CourseForm, type CourseFormData } from './CourseForm';
@@ -33,6 +33,8 @@ export const CourseFormPage: React.FC = () => {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitErrors, setSubmitErrors] = useState<string[]>([]);
   const [approvalDialogMessage, setApprovalDialogMessage] = useState<string | null>(null);
+  const [isSubmittingCourse, setIsSubmittingCourse] = useState(false);
+  const submitLockRef = useRef(false);
 
   // ── Data fetching ──────────────────────────────────────────────────────────
   const { data: existingCourse, isLoading: isCourseLoading } =
@@ -47,6 +49,8 @@ export const CourseFormPage: React.FC = () => {
 
   // ── Error handler — extracts message from ApiError and sets state ──────────
   const handleApiError = (err: unknown) => {
+    submitLockRef.current = false;
+    setIsSubmittingCourse(false);
     const apiErr = err as ApiError;
     setSubmitError(apiErr?.message ?? 'An unexpected error occurred. Please try again.');
     setSubmitErrors(apiErr?.errors ?? []);
@@ -55,12 +59,15 @@ export const CourseFormPage: React.FC = () => {
   };
 
   const handleApprovalError = (err: unknown) => {
+    submitLockRef.current = false;
+    setIsSubmittingCourse(false);
     const apiErr = err as ApiError;
     setApprovalDialogMessage(apiErr?.message ?? 'Không thể gửi khóa học duyệt. Vui lòng kiểm tra lại thông tin và video của từng bài học.');
   };
 
   // ── Submit handler ─────────────────────────────────────────────────────────
   const handleSubmit = async (formData: CourseFormData & { submitForApproval?: boolean; submissionNote?: string }) => {
+    if (submitLockRef.current || isCreating || isUpdating) return;
     // Clear previous error on each new attempt
     setSubmitError(null);
     setSubmitErrors([]);
@@ -69,6 +76,10 @@ export const CourseFormPage: React.FC = () => {
       setApprovalDialogMessage('Bạn mới đang tạo khóa học. Hãy lưu bản nháp trước, sau đó thêm chương, bài học và video cho từng bài rồi mới gửi Admin duyệt.');
       return;
     }
+
+    // Lock synchronously so two clicks in the same render cannot create duplicate courses.
+    submitLockRef.current = true;
+    setIsSubmittingCourse(true);
 
     const dto = {
       title: formData.title,
@@ -87,13 +98,21 @@ export const CourseFormPage: React.FC = () => {
       updateCourse(
         { courseId, dto },
         {
-          onSuccess: () => navigate('/instructor/courses'),
+          onSuccess: () => {
+            submitLockRef.current = false;
+            setIsSubmittingCourse(false);
+            navigate('/instructor/courses');
+          },
           onError: formData.submitForApproval ? handleApprovalError : handleApiError,
         }
       );
     } else {
       createCourse(dto, {
-        onSuccess: () => navigate('/instructor/courses'),
+        onSuccess: () => {
+          submitLockRef.current = false;
+          setIsSubmittingCourse(false);
+          navigate('/instructor/courses');
+        },
         onError: handleApiError,
       });
     }
@@ -116,6 +135,7 @@ export const CourseFormPage: React.FC = () => {
           <button
             id="course-form-back-btn"
             onClick={() => navigate('/instructor/courses')}
+            disabled={isSubmittingCourse || isCreating || isUpdating}
             title="Quay lại danh sách"
             className="rounded-2xl border border-slate-200/80 bg-white p-3 text-slate-600 hover:bg-slate-100 hover:text-slate-900 active:scale-95 transition-all shadow-xs"
           >
@@ -184,7 +204,7 @@ export const CourseFormPage: React.FC = () => {
           <CourseForm
             existingCourse={existingCourse}
             categories={categories}
-            isSubmitting={isCreating || isUpdating}
+            isSubmitting={isSubmittingCourse || isCreating || isUpdating}
             onSubmit={handleSubmit}
             onCancel={() => navigate('/instructor/courses')}
           />
