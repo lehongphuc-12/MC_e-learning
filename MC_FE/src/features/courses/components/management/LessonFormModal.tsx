@@ -10,7 +10,6 @@ import {
 } from 'lucide-react';
 import type { Lesson, CreateLessonDto } from '../../types/lessonTypes';
 import type { CourseModule } from '../../types/moduleTypes';
-import { lessonApi } from '../../api/lessonApi';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -89,11 +88,12 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
   // ─── Reset when modal opens / lesson changes ───────────────────────────
 
   useEffect(() => {
-    let cancelled = false;
     if (existingLesson) {
       setTitle(existingLesson.title);
       setDescription(existingLesson.description ?? '');
-      setVideoUrl(existingLesson.videoUrl ?? '');
+      // videoUrl is a legacy field used only for DOCUMENT links. Never put an
+      // R2 playback URL in form state: it is temporary and must not be saved as metadata.
+      setVideoUrl(existingLesson.lessonType === 'DOCUMENT' ? (existingLesson.videoUrl ?? '') : '');
       setModuleId(existingLesson.moduleId ?? null);
       setLessonType(existingLesson.lessonType || 'VIDEO');
 
@@ -114,13 +114,6 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
       setDurationMinutes(computedMins);
       setOrderIndex(existingLesson.orderIndex);
       setIsPreview(existingLesson.isPreview);
-      if (isOpen && existingLesson.requiresPlaybackUrl) {
-        void lessonApi.getPlaybackUrl(existingLesson.lessonId)
-          .then((playback) => {
-            if (!cancelled) setVideoUrl((current) => current || playback.url);
-          })
-          .catch(() => {});
-      }
     } else {
       setTitle('');
       setDescription('');
@@ -136,9 +129,6 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
     setUploadProgress(0);
     setIsUploading(false);
     setUploadError(null);
-    return () => {
-      cancelled = true;
-    };
   }, [existingLesson, isOpen, defaultModuleId, defaultLessonType, modules]);
   // ─── Duration calculation & auto-detection ───────────────────────────
 
@@ -273,6 +263,16 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
       setErrorMsg('Tên bài học / bài tập không được để trống.');
       return;
     }
+    if (
+      isEditMode &&
+      lessonType === 'VIDEO' &&
+      existingLesson?.videoUrl &&
+      !existingLesson.requiresPlaybackUrl &&
+      !selectedFile
+    ) {
+      setErrorMsg('Bài học này vẫn đang dùng link video cũ. Hãy chọn file video từ thiết bị để chuyển video lên R2 trước khi lưu.');
+      return;
+    }
     if (lessonType !== 'ASSIGNMENT' && modules.length > 0 && !moduleId) {
       setErrorMsg('Vui lòng chọn chương học cho bài học.');
       return;
@@ -293,7 +293,9 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
       await onSubmit({
         title: title.trim(),
         description: description.trim() || undefined,
-        videoUrl: videoUrl.trim() || undefined,
+        // Video lessons are changed only by selecting a file and uploading it.
+        // Preserve document links, but never persist a temporary playback URL.
+        videoUrl: lessonType === 'DOCUMENT' ? (videoUrl.trim() || undefined) : undefined,
         moduleId: lessonType === 'ASSIGNMENT' ? undefined : (moduleId ?? undefined),
         lessonType,
         durationMinutes: Number(durationMinutes),
@@ -543,6 +545,11 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
                     <div className="rounded-xl border border-blue-200 bg-blue-50 px-3.5 py-2.5 text-xs text-blue-800 flex items-center gap-2">
                       <CheckCircle2 className="h-4 w-4 text-blue-600 flex-shrink-0" />
                       <span>File chỉ được tải lên R2 sau khi bạn nhấn <strong>Tạo bài học</strong>. Có thể hủy trước đó mà không tạo file trên R2.</span>
+                    </div>
+                  )}
+                  {isEditMode && lessonType === 'VIDEO' && existingLesson?.videoUrl && !existingLesson.requiresPlaybackUrl && !selectedFile && (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-800">
+                      Bài học đang tham chiếu video ngoài (Drive/YouTube). Link này không phát trong khu vực học viên; chọn file video mới để chuyển bài học sang R2.
                     </div>
                   )}
               </div>

@@ -200,6 +200,7 @@ export const CourseLessonsPage: React.FC = () => {
     title: string;
     message: string;
     reason?: string | null;
+    lessonId?: number;
   }>({
     isOpen: false,
     type: 'success',
@@ -612,8 +613,12 @@ export const CourseLessonsPage: React.FC = () => {
           dto,
         });
 
-        if (file && editingLesson.lessonId)
-          await lessonApi.uploadVideo(editingLesson.lessonId, file, onUploadProgress);
+        if (file && editingLesson.lessonId) {
+          const uploadedLesson = await lessonApi.uploadVideo(editingLesson.lessonId, file, onUploadProgress);
+          if (!uploadedLesson.hasVideo || !uploadedLesson.requiresPlaybackUrl) {
+            throw new Error('Máy chủ nhận file nhưng chưa xác nhận video đã được gắn vào bài học. Vui lòng tải lại danh sách và kiểm tra trước khi thử lại.');
+          }
+        }
 
         setIsLessonModalOpen(false);
         setEditingLesson(null);
@@ -622,8 +627,9 @@ export const CourseLessonsPage: React.FC = () => {
           isOpen: true,
           type: 'success',
           title: 'Cập nhật bài học thành công!',
-          message: `Bài học "${dto.title}" đã được cập nhật thông tin thành công${file ? ' và video đã tải lên.' : '.'}`,
+          message: `Bài học "${dto.title}" đã được cập nhật thông tin thành công${file ? ' và video đã được tải lên, gắn vào bài học trên R2.' : ' Video hiện tại được giữ nguyên.'}`,
           reason: null,
+          lessonId: editingLesson.lessonId,
         });
       } else {
         const createdLesson = await createLessonAsync(dto);
@@ -660,6 +666,7 @@ export const CourseLessonsPage: React.FC = () => {
           title: 'Tạo bài học thành công!',
           message: `Bài học "${dto.title}" đã được tạo thành công${file ? ' cùng với video đi kèm.' : '.'}`,
           reason: null,
+          lessonId: createdLesson?.lessonId,
         });
       }
 
@@ -1291,7 +1298,7 @@ export const CourseLessonsPage: React.FC = () => {
         lessons={lessons}
         isOpen={isBulkVideoUploadOpen}
         onClose={() => setIsBulkVideoUploadOpen(false)}
-        onComplete={() => queryClient.invalidateQueries({ queryKey: lessonQueryKeys.byCourse(courseId) })}
+        onComplete={() => queryClient.invalidateQueries({ queryKey: lessonQueryKeys.courseLessons(courseId) })}
       />
 
       {/* COURSE / LESSON MATERIAL MODAL */}
@@ -1436,6 +1443,10 @@ export const CourseLessonsPage: React.FC = () => {
         message={statusModal.message}
         reason={statusModal.reason}
         onClose={() => setStatusModal((prev) => ({ ...prev, isOpen: false }))}
+        onViewLesson={statusModal.lessonId ? () => {
+          setStatusModal((prev) => ({ ...prev, isOpen: false }));
+          navigate(`/instructor/courses/${courseId}/learn?lessonId=${statusModal.lessonId}`);
+        } : undefined}
       />
     </div>
   );

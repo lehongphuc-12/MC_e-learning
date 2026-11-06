@@ -53,12 +53,11 @@ public class LessonService : ILessonService
     private LessonDto MapToDto(Lesson lesson)
     {
         var storedVideoUrl = LessonVideoUrlResolver.Resolve(lesson.CourseMaterials);
-        var videoMaterial = lesson.CourseMaterials.FirstOrDefault(m => m.MaterialType == MaterialType.VIDEO);
-        var videoUrl = storedVideoUrl is not null && _r2.ExtractKeyFromUrl(storedVideoUrl) is null
+        var r2ObjectKey = FindR2VideoObjectKey(lesson.CourseMaterials);
+        var videoUrl = r2ObjectKey is null && storedVideoUrl is not null && _r2.ExtractKeyFromUrl(storedVideoUrl) is null
             ? storedVideoUrl
             : null;
-        var requiresPlaybackUrl = !string.IsNullOrWhiteSpace(videoMaterial?.ObjectKey) ||
-            (storedVideoUrl is not null && _r2.ExtractKeyFromUrl(storedVideoUrl) is not null);
+        var requiresPlaybackUrl = r2ObjectKey is not null;
 
         var subtitleUrl = lesson.SubtitleUrl is not null && _r2.ExtractKeyFromUrl(lesson.SubtitleUrl) is null
             ? lesson.SubtitleUrl
@@ -77,8 +76,9 @@ public class LessonService : ILessonService
             IsPreview = lesson.IsPreview,
             Status = lesson.Status,
             VideoUrl = videoUrl,
-            HasVideo = lesson.CourseMaterials.Any(m => m.MaterialType == MaterialType.VIDEO &&
-                (!string.IsNullOrWhiteSpace(m.ObjectKey) || !string.IsNullOrWhiteSpace(m.FileUrl))),
+            // For playback in the paid-course player, a legacy external URL is not a usable video.
+            // Treat only R2-backed material as playable so instructors are prompted to migrate it.
+            HasVideo = requiresPlaybackUrl,
             RequiresPlaybackUrl = requiresPlaybackUrl,
             Transcript = lesson.Transcript,
             SubtitleUrl = subtitleUrl,
@@ -109,12 +109,9 @@ public class LessonService : ILessonService
                 return null;
         }
 
-        var videoMaterial = lesson.CourseMaterials.FirstOrDefault(m => m.MaterialType == MaterialType.VIDEO);
-        var storedUrl = videoMaterial?.FileUrl;
-        var objectKey = videoMaterial?.ObjectKey;
-        if (string.IsNullOrWhiteSpace(objectKey) && !string.IsNullOrWhiteSpace(storedUrl))
-            objectKey = _r2.ExtractKeyFromUrl(storedUrl);
-
+        // A lesson may still contain legacy Drive rows alongside its new R2 material.
+        // Select a playable R2 object across all video materials instead of trusting row order.
+        var objectKey = FindR2VideoObjectKey(lesson.CourseMaterials);
         if (string.IsNullOrWhiteSpace(objectKey))
             return null;
 
@@ -125,6 +122,24 @@ public class LessonService : ILessonService
             Url = _r2.GetPresignedUrl(objectKey, expiresHours),
             ExpiresAt = DateTime.UtcNow.AddHours(expiresHours)
         };
+    }
+
+    private string? FindR2VideoObjectKey(IEnumerable<CourseMaterial> materials)
+    {
+        foreach (var material in materials.Where(item => item.MaterialType == MaterialType.VIDEO))
+        {
+            if (!string.IsNullOrWhiteSpace(material.ObjectKey))
+                return material.ObjectKey;
+
+            if (!string.IsNullOrWhiteSpace(material.FileUrl))
+            {
+                var key = _r2.ExtractKeyFromUrl(material.FileUrl);
+                if (!string.IsNullOrWhiteSpace(key))
+                    return key;
+            }
+        }
+
+        return null;
     }
 
     public async Task<List<LessonDto>> GetLessonsByCourseIdAsync(int courseId)

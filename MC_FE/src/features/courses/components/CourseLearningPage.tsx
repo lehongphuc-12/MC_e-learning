@@ -904,6 +904,21 @@ export function getEmbedVideoUrl(url?: string): string | null {
   return url;
 }
 
+/** Only these provider hosts are embeds; signed R2 URLs are direct video sources. */
+function isThirdPartyVideoUrl(url?: string): boolean {
+  if (!url) return false;
+
+  try {
+    const hostname = new URL(url).hostname.toLowerCase();
+    return hostname === 'youtu.be' ||
+      hostname === 'youtube.com' || hostname.endsWith('.youtube.com') ||
+      hostname === 'vimeo.com' || hostname.endsWith('.vimeo.com') ||
+      hostname === 'drive.google.com' || hostname === 'docs.google.com';
+  } catch {
+    return false;
+  }
+}
+
 export const CourseLearningPage: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id?: string }>();
@@ -1941,9 +1956,9 @@ export const CourseLearningPage: React.FC = () => {
       const playback = await lessonApi.getPlaybackUrl(activeLesson.lessonId);
       if (cancelled) return;
 
-      // Defense in depth: even if an older API instance still returns a provider URL,
-      // never render it as a YouTube/Drive/Vimeo iframe in the learner player.
-      if (getEmbedVideoUrl(playback.url))
+      // Direct R2 URLs are truthy too, so identify external providers by host
+      // instead of using getEmbedVideoUrl as a boolean test.
+      if (isThirdPartyVideoUrl(playback.url))
         throw new Error('Third-party video sources are disabled for course playback.');
 
       setPlaybackUrl(playback.url);
@@ -2342,6 +2357,7 @@ export const CourseLearningPage: React.FC = () => {
             {/* Main Workspace Container (Video or Speaking Assignment) */}
 
             <div
+              onContextMenu={(event) => event.preventDefault()}
               className={`relative w-full overflow-hidden rounded-2xl border border-slate-200/80 shadow-2xl group ${
                 activeLesson?.lessonType?.toUpperCase() === 'ASSIGNMENT' ||
                 (!effectiveVideoUrl && activeLesson !== null && !activeLesson.hasVideo)
@@ -2430,6 +2446,11 @@ export const CourseLearningPage: React.FC = () => {
                         key={`${activeLesson?.lessonId}-${replayKey}`}
                         src={embedUrl}
                         controls
+                        controlsList="nodownload noremoteplayback"
+                        disablePictureInPicture
+                        disableRemotePlayback
+                        draggable={false}
+                        onContextMenu={(event) => event.preventDefault()}
                         autoPlay
                         onLoadedMetadata={(e) => {
                           retriedPlaybackLessonRef.current = null;
@@ -2456,7 +2477,7 @@ export const CourseLearningPage: React.FC = () => {
                           shouldResumeVideoRef.current = !video.paused;
                           void lessonApi.getPlaybackUrl(activeLesson.lessonId)
                             .then((playback) => {
-                              if (!getEmbedVideoUrl(playback.url)) setPlaybackUrl(playback.url);
+                              if (!isThirdPartyVideoUrl(playback.url)) setPlaybackUrl(playback.url);
                             })
                             .catch(() => {});
                         }}

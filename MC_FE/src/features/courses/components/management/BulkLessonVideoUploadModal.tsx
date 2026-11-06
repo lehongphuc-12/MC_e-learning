@@ -93,28 +93,42 @@ export const BulkLessonVideoUploadModal: React.FC<Props> = ({ courseId, lessons,
           const session = sessions[cursor++];
           const file = selected.find((item) => item.lessonId === session.lessonId)?.file;
           if (!file) continue;
+          let failureStage = 'Tải file trực tiếp lên R2';
           try {
             await lessonApi.uploadVideoDirect(session.uploadUrl, session.contentType, file, (progress) => {
               setStates((current) => ({ ...current, [session.lessonId]: { status: 'uploading', progress } }));
             });
+            failureStage = 'Xác nhận video trên R2 và gắn vào bài học';
             await lessonApi.completeVideoUploadSession(courseId, session.sessionId);
             successCount++;
             setStates((current) => ({ ...current, [session.lessonId]: { status: 'done', progress: 100 } }));
           } catch (error) {
-            const message = error instanceof Error ? error.message : 'Không thể tải video.';
+            const detail = error instanceof Error ? error.message : 'Không thể tải video.';
+            const message = `${failureStage}: ${detail}`;
             failures.push(message);
-            setStates((current) => ({ ...current, [session.lessonId]: { status: 'error', progress: 0, error: message } }));
+            setStates((current) => ({ ...current, [session.lessonId]: { status: 'error', progress: current[session.lessonId]?.progress ?? 0, error: message } }));
           }
         }
       };
       await Promise.all(Array.from({ length: Math.min(2, sessions.length) }, worker));
-      if (successCount) await onComplete();
+      if (successCount) {
+        try {
+          await onComplete();
+        } catch (error) {
+          // Refreshing the lesson list is separate from transferring/attaching files.
+          // A cache refresh failure must never relabel successful uploads as failed.
+          const detail = error instanceof Error ? error.message : 'Không thể làm mới danh sách bài học.';
+          setNotice(`Đã tải và gắn thành công ${successCount}/${selected.length} video, nhưng không làm mới được danh sách: ${detail}`);
+          return;
+        }
+      }
       setNotice(failures.length
         ? `Đã tải ${successCount}/${selected.length} video. Video lỗi có thể chọn lại rồi tải tiếp.`
         : `Đã tải và gắn thành công ${successCount} video.`);
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'Không thể khởi tạo phiên tải video.');
-      setStates((current) => Object.fromEntries(selected.map(({ lessonId }) => [lessonId, { status: 'error', progress: 0, error: 'Phiên tải không được tạo.' }])) as Record<number, UploadState>);
+      const message = error instanceof Error ? error.message : 'Không thể khởi tạo phiên tải video.';
+      setNotice(message);
+      setStates((current) => Object.fromEntries(selected.map(({ lessonId }) => [lessonId, { status: 'error', progress: 0, error: `Tạo phiên upload: ${message}` }])) as Record<number, UploadState>);
     } finally {
       setIsUploading(false);
     }
@@ -154,7 +168,7 @@ export const BulkLessonVideoUploadModal: React.FC<Props> = ({ courseId, lessons,
                     const selected = availableFiles.find((candidate) => `${candidate.name}:${candidate.size}:${candidate.lastModified}` === event.target.value);
                     setFile(lesson.lessonId, selected);
                   }} className="w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs text-slate-700"><option value="">Chọn tệp…</option>{availableFiles.map((candidate) => <option key={`${candidate.name}:${candidate.size}:${candidate.lastModified}`} value={`${candidate.name}:${candidate.size}:${candidate.lastModified}`}>{candidate.name}</option>)}</select>
-                  <div className="text-xs">{state?.status === 'done' ? <span className="flex items-center gap-1 text-emerald-600"><CheckCircle2 size={14}/> Xong</span> : state?.status === 'uploading' ? <span className="flex items-center gap-1 text-blue-600"><Loader2 className="animate-spin" size={14}/>{state.progress}%</span> : state?.status === 'error' ? <span title={state.error} className="text-red-600">Lỗi</span> : <span className="text-slate-400">—</span>}</div>
+                  <div className="min-w-0 text-xs">{state?.status === 'done' ? <span className="flex items-center gap-1 text-emerald-600"><CheckCircle2 size={14}/> Xong</span> : state?.status === 'uploading' ? <span className="flex items-center gap-1 text-blue-600"><Loader2 className="animate-spin" size={14}/>{state.progress}%</span> : state?.status === 'error' ? <div><span className="text-red-600">Lỗi · {state.progress}% đã gửi</span><p title={state.error} className="mt-1 break-words text-[10px] leading-4 text-red-500">{state.error}</p></div> : <span className="text-slate-400">—</span>}</div>
                 </div>;
               })}
               {videoLessons.length === 0 && <p className="p-6 text-center text-sm text-slate-500">Khóa học chưa có bài học phù hợp để gắn video.</p>}
