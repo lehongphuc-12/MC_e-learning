@@ -1,4 +1,5 @@
 using MC_BE.Core.Enums;
+using System.ComponentModel.DataAnnotations;
 
 namespace MC_BE.Features.Courses.DTOs;
 
@@ -18,6 +19,7 @@ public class CourseDto
     public string? Description { get; set; }
     public string? ThumbnailUrl { get; set; }
     public decimal Price { get; set; }
+    public bool IsFree { get; set; }
     public CourseLevel? Level { get; set; }
     public CourseStatus Status { get; set; }
     public DateTime CreatedAt { get; set; }
@@ -66,6 +68,10 @@ public class CreateCourseRequest
     [System.ComponentModel.DataAnnotations.Range(0, double.MaxValue, ErrorMessage = "Price must be 0 or greater")]
     public decimal Price { get; set; } = 0;
 
+    // Nullable for backward compatibility with existing bulk-import clients;
+    // omitted values are inferred from whether Price is zero.
+    public bool? IsFree { get; set; }
+
     public CourseLevel? Level { get; set; }
 
     public CourseStatus Status { get; set; } = CourseStatus.DRAFT;
@@ -91,6 +97,8 @@ public class UpdateCourseRequest
 
     [System.ComponentModel.DataAnnotations.Range(0, double.MaxValue)]
     public decimal? Price { get; set; }
+
+    public bool? IsFree { get; set; }
 
     public CourseLevel? Level { get; set; }
 
@@ -121,6 +129,50 @@ public class RejectCourseRequest
 {
     [System.ComponentModel.DataAnnotations.Required]
     public string Reason { get; set; } = string.Empty;
+}
+
+public sealed class RequestCourseDeletionRequest
+{
+    [Required, MaxLength(1000)]
+    public string Reason { get; set; } = string.Empty;
+}
+
+public sealed class ReviewCourseDeletionRequest
+{
+    [Required, MaxLength(1000)]
+    public string AdminNote { get; set; } = string.Empty;
+}
+
+public sealed class CourseDeletionActionDto
+{
+    public int CourseId { get; set; }
+    public string Action { get; set; } = string.Empty;
+    public long? RequestId { get; set; }
+    public string Message { get; set; } = string.Empty;
+}
+
+public sealed class CourseDeletionRequestDto
+{
+    public long RequestId { get; set; }
+    public int CourseId { get; set; }
+    public string CourseTitle { get; set; } = string.Empty;
+    public int InstructorId { get; set; }
+    public string InstructorName { get; set; } = string.Empty;
+    public string Reason { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public DateTime RequestedAt { get; set; }
+    public int EnrollmentCount { get; set; }
+    public int PaymentItemCount { get; set; }
+    public int SpeakingSubmissionCount { get; set; }
+    public int QuizAttemptCount { get; set; }
+}
+
+public sealed class CourseDeletionRequestListDto
+{
+    public List<CourseDeletionRequestDto> Items { get; set; } = [];
+    public int TotalCount { get; set; }
+    public int Page { get; set; }
+    public int PageSize { get; set; }
 }
 
 // ---------------------------------------------------------------------------

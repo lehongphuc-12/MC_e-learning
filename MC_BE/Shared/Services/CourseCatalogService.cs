@@ -30,6 +30,7 @@ public class CourseCatalogService : ICourseCatalogService
                 Description = c.Description,
                 ThumbnailUrl = c.ThumbnailUrl,
                 Price = c.Price,
+                IsFree = c.IsFree,
                 Status = c.Status.ToString()
             })
             .ToListAsync();
@@ -52,6 +53,7 @@ public class CourseCatalogService : ICourseCatalogService
             Description = course.Description,
             ThumbnailUrl = course.ThumbnailUrl,
             Price = course.Price,
+            IsFree = course.IsFree,
             Status = course.Status.ToString()
         };
     }

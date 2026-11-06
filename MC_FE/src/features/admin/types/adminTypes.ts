@@ -44,6 +44,21 @@ export interface AdminCourse {
   lecturesCount?: number;
 }
 
+export interface CourseDeletionRequest {
+  requestId: number;
+  courseId: number;
+  courseTitle: string;
+  instructorId: number;
+  instructorName: string;
+  reason: string;
+  status: string;
+  requestedAt: string;
+  enrollmentCount: number;
+  paymentItemCount: number;
+  speakingSubmissionCount: number;
+  quizAttemptCount: number;
+}
+
 export interface AdminCategory {
   id: string;
   name: string;

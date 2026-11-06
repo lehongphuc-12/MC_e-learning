@@ -89,55 +89,14 @@ public class CourseMaterialsReadController : ControllerBase
         // Xử lý đường dẫn tài liệu, bao gồm đường dẫn R2.
         var items = materials.Select(m =>
         {
-            var key = m.ObjectKey
-                      ?? _r2.ExtractKeyFromUrl(m.FileUrl);
-
-            // Video lưu trên R2 sử dụng đường dẫn truy cập tạm thời.
-            // Các nguồn video khác tiếp tục sử dụng đường dẫn ban đầu.
-            var url =
-                m.MaterialType == MC_BE.Core.Enums.MaterialType.VIDEO &&
-                !string.IsNullOrWhiteSpace(key)
-                    ? _r2.GetPresignedUrl(key, 6)
-                    : m.FileUrl;
-
-            return new
-            {
-                materialId = m.MaterialId,
-                lessonId = m.LessonId,
-                title = m.Title,
-                fileUrl = url,
-                materialType = m.MaterialType?.ToString()
-            };
-        }).ToList();
-
-        // Giảng viên và Admin được xem toàn bộ tài liệu.
-        if (isInstructor || isStaff)
-        {
-            return Ok(new
-            {
-                success = true,
-                data = items
-            });
-        }
-
-        // Học viên chỉ được xem tài liệu của bài học đã mở khóa.
-        var locks = await _access.GetLessonLocksAsync(
-            userId,
-            courseId);
-
-        var permitted = items
-            .Where(x =>
-                !x.lessonId.HasValue ||
-                (locks.TryGetValue(
-                    x.lessonId.Value,
-                    out var reason) &&
-                 reason == null))
-            .ToList();
-
-        return Ok(new
-        {
-            success = true,
-            data = permitted
+            var key = m.ObjectKey ?? _r2.ExtractKeyFromUrl(m.FileUrl);
+            // Video materials are only exposed through a short-lived R2 URL when an object key exists.
+            // Legacy Drive/YouTube links are intentionally withheld now that lesson videos use private uploads.
+            var isVideo = m.MaterialType == MaterialType.VIDEO;
+            var url = isVideo
+                ? (string.IsNullOrWhiteSpace(key) ? null : _r2.GetPresignedUrl(key, 6))
+                : m.FileUrl;
+            return new { materialId = m.MaterialId, lessonId = m.LessonId, title = m.Title, fileUrl = url, materialType = m.MaterialType?.ToString() };
         });
     }
 }

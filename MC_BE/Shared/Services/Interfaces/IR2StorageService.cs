@@ -40,5 +40,10 @@ public interface IR2StorageService
     /// </summary>
     string GetPresignedUrl(string objectKey, double expiresHours = 24);
 
+    /// <summary>Creates a short-lived, object-scoped URL for a browser PUT upload.</summary>
+    string GetPresignedPutUrl(string objectKey, string contentType, double expiresMinutes = 15);
+
     Task<bool> ObjectExistsAsync(string objectKey);
+
+    Task<(long ContentLength, string ContentType)?> GetObjectMetadataAsync(string objectKey);
 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Mic,
@@ -80,6 +80,7 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
   const [createDescription, setCreateDescription] = useState<string>('');
   const [createDuration, setCreateDuration] = useState<number>(15);
   const [isCreatingAssignment, setIsCreatingAssignment] = useState<boolean>(false);
+  const createAssignmentLockRef = useRef(false);
 
   // Created Speaking Assignments state
   const [speakingAssignments, setSpeakingAssignments] = useState<SpeakingAssignmentItem[]>([]);
@@ -131,6 +132,7 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
 
   const handleCreateAssignment = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (createAssignmentLockRef.current || isCreatingAssignment) return;
     if (!createCourseId) {
       if (onToast) onToast('Vui lòng chọn khóa học', 'Khóa học là bắt buộc.', 'error');
       return;
@@ -140,6 +142,7 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
       return;
     }
 
+    createAssignmentLockRef.current = true;
     setIsCreatingAssignment(true);
     try {
       await lessonApi.createLesson(Number(createCourseId), {
@@ -166,6 +169,7 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
       if (onToast)
         onToast('Thất bại', err.message || 'Có lỗi xảy ra khi tạo bài tập nói.', 'error');
     } finally {
+      createAssignmentLockRef.current = false;
       setIsCreatingAssignment(false);
     }
   };

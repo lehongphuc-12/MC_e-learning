@@ -53,7 +53,7 @@ public class PaymentService : IPaymentService
         if (!string.Equals(course.Status, "PUBLISHED", StringComparison.OrdinalIgnoreCase))
             return ApiResponse<CreatePaymentResponseDto>.FailureResponse("Khóa học hiện không mở thanh toán.");
 
-        if (course.Price <= 0)
+        if (course.IsFree || course.Price <= 0)
             return ApiResponse<CreatePaymentResponseDto>.FailureResponse("Giá khóa học không hợp lệ.");
 
         if (course.Price != decimal.Truncate(course.Price))
@@ -147,7 +147,7 @@ public class PaymentService : IPaymentService
             if (!string.Equals(course.Status, "PUBLISHED", StringComparison.OrdinalIgnoreCase))
                 return ApiResponse<CreatePaymentResponseDto>.FailureResponse($"Khóa học \"{course.Title}\" hiện không mở thanh toán.");
 
-            if (course.Price <= 0)
+            if (course.IsFree || course.Price <= 0)
                 return ApiResponse<CreatePaymentResponseDto>.FailureResponse($"Giá khóa học \"{course.Title}\" không hợp lệ.");
 
             if (course.Price != decimal.Truncate(course.Price))

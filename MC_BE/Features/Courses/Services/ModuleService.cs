@@ -50,9 +50,8 @@ public class ModuleService : IModuleService
                 Status = l.Status,
                 CreatedAt = l.CreatedAt,
                 VideoUrl = GetExternalVideoUrl(l.CourseMaterials),
-                HasVideo = l.CourseMaterials.Any(m => m.MaterialType == MC_BE.Core.Enums.MaterialType.VIDEO &&
-                    (!string.IsNullOrWhiteSpace(m.ObjectKey) || !string.IsNullOrWhiteSpace(m.FileUrl))),
-                RequiresPlaybackUrl = RequiresPlaybackUrl(l.CourseMaterials)
+                HasVideo = FindR2VideoObjectKey(l.CourseMaterials) is not null,
+                RequiresPlaybackUrl = FindR2VideoObjectKey(l.CourseMaterials) is not null
             })
             .ToList();
 
@@ -73,15 +72,29 @@ public class ModuleService : IModuleService
 
     private string? GetExternalVideoUrl(IEnumerable<CourseMaterial> materials)
     {
+        if (FindR2VideoObjectKey(materials) is not null)
+            return null;
+
         var url = LessonVideoUrlResolver.Resolve(materials);
         return url is not null && _r2.ExtractKeyFromUrl(url) is null ? url : null;
     }
 
-    private bool RequiresPlaybackUrl(IEnumerable<CourseMaterial> materials)
+    private string? FindR2VideoObjectKey(IEnumerable<CourseMaterial> materials)
     {
-        var material = materials.FirstOrDefault(m => m.MaterialType == MC_BE.Core.Enums.MaterialType.VIDEO);
-        return !string.IsNullOrWhiteSpace(material?.ObjectKey) ||
-            (!string.IsNullOrWhiteSpace(material?.FileUrl) && _r2.ExtractKeyFromUrl(material.FileUrl) is not null);
+        foreach (var material in materials.Where(item => item.MaterialType == MC_BE.Core.Enums.MaterialType.VIDEO))
+        {
+            if (!string.IsNullOrWhiteSpace(material.ObjectKey))
+                return material.ObjectKey;
+
+            if (!string.IsNullOrWhiteSpace(material.FileUrl))
+            {
+                var key = _r2.ExtractKeyFromUrl(material.FileUrl);
+                if (!string.IsNullOrWhiteSpace(key))
+                    return key;
+            }
+        }
+
+        return null;
     }
 
     public async Task<List<ModuleDto>> GetModulesByCourseIdAsync(int courseId)

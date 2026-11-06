@@ -907,6 +907,21 @@ export function getEmbedVideoUrl(url?: string): string | null {
   return url;
 }
 
+/** Only these provider hosts are embeds; signed R2 URLs are direct video sources. */
+function isThirdPartyVideoUrl(url?: string): boolean {
+  if (!url) return false;
+
+  try {
+    const hostname = new URL(url).hostname.toLowerCase();
+    return hostname === 'youtu.be' ||
+      hostname === 'youtube.com' || hostname.endsWith('.youtube.com') ||
+      hostname === 'vimeo.com' || hostname.endsWith('.vimeo.com') ||
+      hostname === 'drive.google.com' || hostname === 'docs.google.com';
+  } catch {
+    return false;
+  }
+}
+
 export const CourseLearningPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -1145,16 +1160,11 @@ export const CourseLearningPage: React.FC = () => {
   // Pre-load durations for direct video files in the playlist in background
   useEffect(() => {
     orderedLessons.forEach((l) => {
-      if (l.videoUrl && l.videoUrl.trim() !== '') {
+      if (l.hasVideo) {
         if (detectedDurations[l.lessonId]) return;
 
-        const isEmbed =
-          l.videoUrl.includes('youtube.com') ||
-          l.videoUrl.includes('youtu.be') ||
-          l.videoUrl.includes('vimeo.com') ||
-          l.videoUrl.includes('drive.google.com');
-
-        if (!isEmbed) {
+        // Learner DTOs no longer expose source URLs; signed playback URLs are requested per active lesson.
+        if (l.videoUrl && !getEmbedVideoUrl(l.videoUrl)) {
           const v = document.createElement('video');
           v.preload = 'metadata';
           v.src = l.videoUrl;
@@ -1172,8 +1182,7 @@ export const CourseLearningPage: React.FC = () => {
   const getLessonDuration = (lesson?: Lesson | null): string => {
     if (!lesson) return '10 phút';
     const hasVideo = !!(
-      lesson.videoUrl &&
-      lesson.videoUrl.trim() !== '' &&
+      lesson.hasVideo &&
       lesson.lessonType?.toUpperCase() !== 'ASSIGNMENT'
     );
     if (!hasVideo) {
@@ -1356,10 +1365,8 @@ export const CourseLearningPage: React.FC = () => {
     activeLessonRef.current = activeLesson;
   }, [activeLesson]);
 
-  // SECURITY HARDENING — switch to playbackUrl only after all learner video sources are private R2 objects.
-  // const effectiveVideoUrl = playbackUrl;
-  // Current behavior: retain the URL from the lesson DTO for Drive/YouTube/Vimeo sources.
-  const effectiveVideoUrl = playbackUrl ?? activeLesson?.videoUrl;
+  // All learner playback uses the backend-issued, enrollment-checked R2 URL.
+  const effectiveVideoUrl = playbackUrl;
   const embedUrl = getEmbedVideoUrl(effectiveVideoUrl);
 
   // ===========================================================================
@@ -2016,10 +2023,8 @@ export const CourseLearningPage: React.FC = () => {
     pendingVideoPositionRef.current = null;
     shouldResumeVideoRef.current = false;
 
-    // SECURITY HARDENING — use this when all videos must pass through the authorized playback API:
-    // if (!activeLesson?.hasVideo) return;
-    // Current behavior: only fetch a signed URL for lessons whose media is stored in R2.
-    if (!activeLesson?.requiresPlaybackUrl) return;
+    // Request playback for every lesson marked as having video. The backend rejects legacy sources for learners.
+    if (!activeLesson?.hasVideo) return;
 
     let cancelled = false;
     let refreshTimer: ReturnType<typeof setTimeout> | undefined;
@@ -2034,6 +2039,11 @@ export const CourseLearningPage: React.FC = () => {
       const playback = await lessonApi.getPlaybackUrl(activeLesson.lessonId);
       if (cancelled) return;
 
+      // Direct R2 URLs are truthy too, so identify external providers by host
+      // instead of using getEmbedVideoUrl as a boolean test.
+      if (isThirdPartyVideoUrl(playback.url))
+        throw new Error('Third-party video sources are disabled for course playback.');
+
       setPlaybackUrl(playback.url);
       const expiresIn = Date.parse(playback.expiresAt) - Date.now();
       refreshTimer = setTimeout(() => {
@@ -2046,7 +2056,7 @@ export const CourseLearningPage: React.FC = () => {
       cancelled = true;
       if (refreshTimer) clearTimeout(refreshTimer);
     };
-  }, [activeLesson?.lessonId, activeLesson?.requiresPlaybackUrl]);
+  }, [activeLesson?.lessonId, activeLesson?.hasVideo]);
   useEffect(() => {
     if (isVideoEnded) { setAutoNextSeconds(5); setAutoNextCancelled(false); }
   }, [isVideoEnded]);
@@ -2123,8 +2133,7 @@ export const CourseLearningPage: React.FC = () => {
 
   const totalDuration = orderedLessons.reduce((sum, l) => {
     const hasVideo = !!(
-      l.videoUrl &&
-      l.videoUrl.trim() !== '' &&
+      l.hasVideo &&
       l.lessonType?.toUpperCase() !== 'ASSIGNMENT'
     );
     if (hasVideo) {
@@ -2469,6 +2478,7 @@ export const CourseLearningPage: React.FC = () => {
             {/* Main Workspace Container (Video or Speaking Assignment) */}
 
             <div
+              onContextMenu={(event) => event.preventDefault()}
               className={`relative w-full overflow-hidden rounded-2xl border border-slate-200/80 shadow-2xl group ${
                 activeLesson?.lessonType?.toUpperCase() === 'ASSIGNMENT' ||
                 (!effectiveVideoUrl && activeLesson !== null && !activeLesson.hasVideo)
@@ -2561,6 +2571,11 @@ export const CourseLearningPage: React.FC = () => {
                         key={`${activeLesson?.lessonId}-${replayKey}`}
                         src={embedUrl}
                         controls
+                        controlsList="nodownload noremoteplayback"
+                        disablePictureInPicture
+                        disableRemotePlayback
+                        draggable={false}
+                        onContextMenu={(event) => event.preventDefault()}
                         autoPlay
                         onLoadedMetadata={(e) => {
                           retriedPlaybackLessonRef.current = null;
@@ -2580,13 +2595,15 @@ export const CourseLearningPage: React.FC = () => {
                           }
                         }}
                         onError={(e) => {
-                          if (!activeLesson?.requiresPlaybackUrl || retriedPlaybackLessonRef.current === activeLesson.lessonId) return;
+                          if (!activeLesson?.hasVideo || retriedPlaybackLessonRef.current === activeLesson.lessonId) return;
                           retriedPlaybackLessonRef.current = activeLesson.lessonId;
                           const video = e.currentTarget;
                           pendingVideoPositionRef.current = video.currentTime;
                           shouldResumeVideoRef.current = !video.paused;
                           void lessonApi.getPlaybackUrl(activeLesson.lessonId)
-                            .then((playback) => setPlaybackUrl(playback.url))
+                            .then((playback) => {
+                              if (!isThirdPartyVideoUrl(playback.url)) setPlaybackUrl(playback.url);
+                            })
                             .catch(() => {});
                         }}
                         onTimeUpdate={(e) => {
@@ -2651,7 +2668,7 @@ export const CourseLearningPage: React.FC = () => {
                       <p className="mt-1 text-xs text-slate-400 max-w-sm">
                         {activeLesson
                           ? activeLesson.hasVideo
-                            ? 'Không thể lấy quyền phát video. Hãy kiểm tra quyền truy cập khóa học hoặc thử tải lại bài học.'
+                            ? 'Bài học chưa có video upload lên kho riêng của MSEEK hoặc bạn chưa được cấp quyền phát. Hãy liên hệ giảng viên.'
                             : 'Bài học này chưa được cập nhật liên kết Video. Vui lòng chọn bài học khác.'
                           : 'Vui lòng chọn bài học từ danh sách bên phải để bắt đầu xem video.'}
                       </p>
