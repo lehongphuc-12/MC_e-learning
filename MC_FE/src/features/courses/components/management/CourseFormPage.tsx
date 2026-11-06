@@ -8,13 +8,11 @@
 
 import React, { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { AlertCircle, ArrowLeft, BookPlus, Edit3, X } from 'lucide-react';
+import { AlertCircle, ArrowLeft, BookPlus, Edit3, X, ClipboardCheck } from 'lucide-react';
 import { CourseForm, type CourseFormData } from './CourseForm';
 import { useCourseDetail, useCategoriesQuery } from '../../hooks/useInstructorCourses';
 import { useCreateCourse, useUpdateCourse } from '../../hooks/useCourseMutations';
 
-import { moduleApi } from '../../api/moduleApi';
-import { lessonApi } from '../../api/lessonApi';
 import type { CourseStatus } from '../../types/courseTypes';
 
 // Shape of the error thrown by request<T>() in services/api.ts
@@ -34,6 +32,7 @@ export const CourseFormPage: React.FC = () => {
   // ── Error state — shown in the red banner above the form ──────────────────
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitErrors, setSubmitErrors] = useState<string[]>([]);
+  const [approvalDialogMessage, setApprovalDialogMessage] = useState<string | null>(null);
 
   // ── Data fetching ──────────────────────────────────────────────────────────
   const { data: existingCourse, isLoading: isCourseLoading } =
@@ -55,39 +54,20 @@ export const CourseFormPage: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleApprovalError = (err: unknown) => {
+    const apiErr = err as ApiError;
+    setApprovalDialogMessage(apiErr?.message ?? 'Không thể gửi khóa học duyệt. Vui lòng kiểm tra lại thông tin và video của từng bài học.');
+  };
+
   // ── Submit handler ─────────────────────────────────────────────────────────
   const handleSubmit = async (formData: CourseFormData & { submitForApproval?: boolean; submissionNote?: string }) => {
     // Clear previous error on each new attempt
     setSubmitError(null);
     setSubmitErrors([]);
 
-    if (formData.submitForApproval) {
-      if (!isEditMode) {
-        setSubmitError('Chưa thể gửi Admin duyệt: Khóa học mới tạo chưa có Chương học và Bài học. Hãy bấm "Lưu bản nháp" trước, sau đó thêm Bài học rồi mới gửi duyệt!');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-        return;
-      }
-
-      // Check modules and lessons count for edit mode
-      try {
-        const [modules, lessons] = await Promise.all([
-          moduleApi.getModulesByCourseId(courseId),
-          lessonApi.getLessonsByCourseId(courseId),
-        ]);
-
-        const missing: string[] = [];
-        if (!modules || modules.length === 0) missing.push('Chưa tạo Chương học (Module) nào');
-        if (!lessons || lessons.length === 0) missing.push('Chưa tạo Bài học (Lesson) nào');
-
-        if (missing.length > 0) {
-          setSubmitError(`Chưa thể gửi Admin duyệt. Khóa học còn thiếu: ${missing.join(', ')}.`);
-          setSubmitErrors(missing);
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-          return;
-        }
-      } catch {
-        // Fallthrough if API fails
-      }
+    if (formData.submitForApproval && !isEditMode) {
+      setApprovalDialogMessage('Bạn mới đang tạo khóa học. Hãy lưu bản nháp trước, sau đó thêm chương, bài học và video cho từng bài rồi mới gửi Admin duyệt.');
+      return;
     }
 
     const dto = {
@@ -96,6 +76,7 @@ export const CourseFormPage: React.FC = () => {
       categoryId: formData.categoryId,
       thumbnailUrl: formData.thumbnailUrl || undefined,
       price: formData.price,
+      isFree: formData.isFree,
       level: formData.level || undefined,
       status: (formData.submitForApproval ? 'PENDING_APPROVAL' : 'DRAFT') as CourseStatus,
       submissionNote: formData.submissionNote,
@@ -107,7 +88,7 @@ export const CourseFormPage: React.FC = () => {
         { courseId, dto },
         {
           onSuccess: () => navigate('/instructor/courses'),
-          onError: handleApiError,
+          onError: formData.submitForApproval ? handleApprovalError : handleApiError,
         }
       );
     } else {
@@ -209,6 +190,20 @@ export const CourseFormPage: React.FC = () => {
           />
         )}
       </div>
+
+      {approvalDialogMessage && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setApprovalDialogMessage(null); }}>
+          <section className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="approval-dialog-title">
+            <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-amber-100 text-amber-700"><ClipboardCheck className="h-5 w-5" /></div>
+            <h2 id="approval-dialog-title" className="text-lg font-extrabold text-slate-900">Chưa thể gửi Admin duyệt</h2>
+            <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">{approvalDialogMessage}</p>
+            <p className="mt-3 rounded-xl bg-blue-50 p-3 text-xs font-medium leading-5 text-blue-800">Hãy lưu khóa học thành bản nháp, bổ sung các nội dung còn thiếu và đảm bảo mỗi bài học đều có video.</p>
+            <div className="mt-5 flex justify-end">
+              <button type="button" autoFocus onClick={() => setApprovalDialogMessage(null)} className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-700">Đã hiểu</button>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 };

@@ -40,13 +40,13 @@ public class LessonsController : ControllerBase
 
         var lessons = await _lessonService.GetLessonsByCourseIdAsync(courseId);
 
-        // SECURITY HARDENING — enable after learner videos have been migrated to private R2.
-        // This prevents public Drive/YouTube URLs from being returned in the lesson list.
-        // if (!User.IsInRole("Instructor") && !User.IsInRole("Admin"))
-        // {
-        //     foreach (var lesson in lessons)
-        //         lesson.VideoUrl = null;
-        // }
+        // Learners receive playback access only from the authorized R2 playback endpoint.
+        // Keep legacy source URLs available to teaching staff only while old lessons are retired.
+        if (!User.IsInRole("Instructor") && !User.IsInRole("Admin"))
+        {
+            foreach (var lesson in lessons)
+                lesson.VideoUrl = null;
+        }
 
         return Ok(ApiResponse<List<LessonDto>>.SuccessResponse(lessons));
     }
@@ -122,6 +122,54 @@ public class LessonsController : ControllerBase
     }
 
     // POST /api/lessons/{id}/upload-video  — multipart/form-data
+    // POST /api/courses/{courseId}/video-upload-sessions — presigned R2 upload setup
+    [HttpPost("courses/{courseId:int}/video-upload-sessions")]
+    [Authorize(Roles = "Instructor")]
+    public async Task<ActionResult<ApiResponse<List<VideoUploadSessionDto>>>> CreateVideoUploadSessions(
+        int courseId,
+        [FromBody] CreateVideoUploadSessionsRequest request)
+    {
+        var instructorId = GetCurrentUserId();
+        if (instructorId is null)
+            return Unauthorized(ApiResponse<List<VideoUploadSessionDto>>.FailureResponse("Unauthorized."));
+        if (request.Files is null || request.Files.Count == 0 || request.Files.Count > 30)
+            return BadRequest(ApiResponse<List<VideoUploadSessionDto>>.FailureResponse("Chọn từ 1 đến 30 video cho mỗi đợt tải."));
+
+        try
+        {
+            var sessions = await _lessonService.CreateVideoUploadSessionsAsync(courseId, instructorId.Value, request);
+            return Ok(ApiResponse<List<VideoUploadSessionDto>>.SuccessResponse(sessions, "Upload sessions created."));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<List<VideoUploadSessionDto>>.FailureResponse(ex.Message));
+        }
+    }
+
+    [HttpPost("courses/{courseId:int}/video-upload-sessions/{sessionId:guid}/complete")]
+    [Authorize(Roles = "Instructor")]
+    public async Task<ActionResult<ApiResponse<LessonDto>>> CompleteVideoUploadSession(
+        int courseId,
+        Guid sessionId)
+    {
+        var instructorId = GetCurrentUserId();
+        if (instructorId is null)
+            return Unauthorized(ApiResponse<LessonDto>.FailureResponse("Unauthorized."));
+
+        try
+        {
+            var lesson = await _lessonService.CompleteVideoUploadSessionAsync(courseId, sessionId, instructorId.Value);
+            if (lesson is null)
+                return NotFound(ApiResponse<LessonDto>.FailureResponse("Upload session not found or no longer valid."));
+            return Ok(ApiResponse<LessonDto>.SuccessResponse(lesson, "Video uploaded and attached to the lesson."));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<LessonDto>.FailureResponse(ex.Message));
+        }
+    }
+
+    // POST /api/lessons/{id}/upload-video  — legacy multipart/form-data upload
     [HttpPost("lessons/{id:int}/upload-video")]
     [Authorize(Roles = "Instructor")]
     [RequestSizeLimit(500 * 1024 * 1024)]          // 500 MB

@@ -18,6 +18,7 @@ public class CourseDto
     public string? Description { get; set; }
     public string? ThumbnailUrl { get; set; }
     public decimal Price { get; set; }
+    public bool IsFree { get; set; }
     public CourseLevel? Level { get; set; }
     public CourseStatus Status { get; set; }
     public DateTime CreatedAt { get; set; }
@@ -66,6 +67,10 @@ public class CreateCourseRequest
     [System.ComponentModel.DataAnnotations.Range(0, double.MaxValue, ErrorMessage = "Price must be 0 or greater")]
     public decimal Price { get; set; } = 0;
 
+    // Nullable for backward compatibility with existing bulk-import clients;
+    // omitted values are inferred from whether Price is zero.
+    public bool? IsFree { get; set; }
+
     public CourseLevel? Level { get; set; }
 
     public CourseStatus Status { get; set; } = CourseStatus.DRAFT;
@@ -91,6 +96,8 @@ public class UpdateCourseRequest
 
     [System.ComponentModel.DataAnnotations.Range(0, double.MaxValue)]
     public decimal? Price { get; set; }
+
+    public bool? IsFree { get; set; }
 
     public CourseLevel? Level { get; set; }
 

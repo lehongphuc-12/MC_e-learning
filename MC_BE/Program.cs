@@ -185,6 +185,7 @@ builder.Services.AddHttpClient<IGroqWhisperService, GroqWhisperService>();
 builder.Services.AddSingleton<IAudioExtractorService, AudioExtractorService>();
 builder.Services.AddSingleton<ITranscriptionQueue, TranscriptionQueue>();
 builder.Services.AddHostedService<TranscriptionWorker>();
+builder.Services.AddHostedService<VideoUploadSessionCleanupWorker>();
 
 // ============================================================
 // ENROLLMENT / PAYMENT

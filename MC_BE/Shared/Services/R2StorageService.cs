@@ -172,6 +172,27 @@ public class R2StorageService : IR2StorageService
         return _s3.GetPreSignedURL(request);
     }
 
+    public string GetPresignedPutUrl(string objectKey, string contentType, double expiresMinutes = 15)
+    {
+        if (string.IsNullOrWhiteSpace(objectKey))
+            throw new ArgumentException("Object key is required.", nameof(objectKey));
+        if (string.IsNullOrWhiteSpace(contentType))
+            throw new ArgumentException("Content type is required.", nameof(contentType));
+        if (expiresMinutes <= 0 || expiresMinutes > 60)
+            throw new ArgumentOutOfRangeException(nameof(expiresMinutes), "Upload URL expiry must be between 0 and 60 minutes.");
+
+        var request = new GetPreSignedUrlRequest
+        {
+            BucketName = _settings.BucketName,
+            Key = objectKey,
+            Verb = HttpVerb.PUT,
+            Expires = DateTime.UtcNow.AddMinutes(expiresMinutes),
+            ContentType = contentType,
+        };
+
+        return _s3.GetPreSignedURL(request);
+    }
+
     public async Task<bool> ObjectExistsAsync(string objectKey)
     {
         try
@@ -182,6 +203,19 @@ public class R2StorageService : IR2StorageService
         catch (AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
             return false;
+        }
+    }
+
+    public async Task<(long ContentLength, string ContentType)?> GetObjectMetadataAsync(string objectKey)
+    {
+        try
+        {
+            var metadata = await _s3.GetObjectMetadataAsync(_settings.BucketName, objectKey);
+            return (metadata.ContentLength, metadata.Headers.ContentType ?? "application/octet-stream");
+        }
+        catch (AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            return null;
         }
     }
 

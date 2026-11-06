@@ -19,6 +19,13 @@ public interface ILessonService
     /// </summary>
     Task<LessonDto?> UploadVideoAsync(int lessonId, int instructorId, IFormFile file);
 
+    Task<List<VideoUploadSessionDto>> CreateVideoUploadSessionsAsync(
+        int courseId,
+        int instructorId,
+        CreateVideoUploadSessionsRequest request);
+
+    Task<LessonDto?> CompleteVideoUploadSessionAsync(int courseId, Guid sessionId, int instructorId);
+
     /// <summary>
     /// Removes the video from R2 and clears the VideoUrl on the lesson.
     /// Returns false if not found / not owned by instructor.

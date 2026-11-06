@@ -18,6 +18,7 @@ public class CourseService : ICourseService
     private readonly IGenericRepository<Category> _categoryRepository;
     private readonly IGenericRepository<Enrollment> _enrollmentRepository;
     private readonly IGenericRepository<Lesson> _lessonRepository;
+    private readonly IGenericRepository<CourseMaterial> _materialRepository;
     private readonly IGenericRepository<LessonProgress> _lessonProgressRepository;
     private readonly IGenericRepository<Certificate> _certificateRepository;
     private readonly IGenericRepository<Module> _moduleRepository;
@@ -28,6 +29,7 @@ public class CourseService : ICourseService
         IGenericRepository<Category> categoryRepository,
         IGenericRepository<Enrollment> enrollmentRepository,
         IGenericRepository<Lesson> lessonRepository,
+        IGenericRepository<CourseMaterial> materialRepository,
         IGenericRepository<LessonProgress> lessonProgressRepository,
         IGenericRepository<Certificate> certificateRepository,
         IGenericRepository<Module> moduleRepository,
@@ -37,6 +39,7 @@ public class CourseService : ICourseService
         _categoryRepository = categoryRepository;
         _enrollmentRepository = enrollmentRepository;
         _lessonRepository = lessonRepository;
+        _materialRepository = materialRepository;
         _lessonProgressRepository = lessonProgressRepository;
         _certificateRepository = certificateRepository;
         _moduleRepository = moduleRepository;
@@ -78,6 +81,7 @@ public class CourseService : ICourseService
         Description = course.Description,
         ThumbnailUrl = course.ThumbnailUrl,
         Price = course.Price,
+        IsFree = course.IsFree,
         Level = course.Level,
         Status = course.Status,
         CreatedAt = course.CreatedAt,
@@ -215,6 +219,8 @@ public class CourseService : ICourseService
     {
         var missingRequirements = new List<string>();
 
+        ValidatePricing(course.IsFree, course.Price);
+
         if (string.IsNullOrWhiteSpace(course.Title))
             missingRequirements.Add("Tên khóa học");
 
@@ -223,6 +229,33 @@ public class CourseService : ICourseService
 
         if (string.IsNullOrWhiteSpace(course.Description))
             missingRequirements.Add("Mô tả khóa học");
+
+        var lessons = await _lessonRepository.GetQueryable()
+            .Where(lesson => lesson.CourseId == courseId)
+            .Select(lesson => new { lesson.LessonId, lesson.Title })
+            .ToListAsync();
+
+        if (lessons.Count > 0)
+        {
+            var lessonIds = lessons.Select(lesson => lesson.LessonId).ToList();
+            var lessonsWithVideo = await _materialRepository.GetQueryable()
+                .Where(material => material.LessonId.HasValue
+                    && lessonIds.Contains(material.LessonId.Value)
+                    && material.MaterialType == MaterialType.VIDEO
+                    && ((material.ObjectKey != null && material.ObjectKey.Trim() != "")
+                        || (material.FileUrl != null && material.FileUrl.Trim() != "")))
+                .Select(material => material.LessonId!.Value)
+                .Distinct()
+                .ToListAsync();
+
+            var missingVideos = lessons
+                .Where(lesson => !lessonsWithVideo.Contains(lesson.LessonId))
+                .Select(lesson => lesson.Title)
+                .ToList();
+
+            if (missingVideos.Count > 0)
+                missingRequirements.Add($"Video cho bài học: {string.Join(", ", missingVideos)}");
+        }
 
         var hasModules = await _moduleRepository.AnyAsync(m => m.CourseId == courseId);
         if (!hasModules)
@@ -244,6 +277,13 @@ public class CourseService : ICourseService
 
     public async Task<CourseDto?> CreateCourseAsync(int instructorId, CreateCourseRequest request)
     {
+        if (string.IsNullOrWhiteSpace(request.Title) || request.Title.Trim().Length < 3)
+            throw new InvalidOperationException("Tên khóa học phải có ít nhất 3 ký tự.");
+
+        var isFree = request.IsFree ?? request.Price <= 0;
+        var price = isFree ? 0 : request.Price;
+        ValidatePricing(isFree, price);
+
         // Validate the CategoryId FK if provided. If not exists, set to null instead of failing completely.
         if (request.CategoryId.HasValue)
         {
@@ -270,7 +310,8 @@ public class CourseService : ICourseService
             Slug = GenerateSlug(request.Title),
             Description = request.Description,
             ThumbnailUrl = request.ThumbnailUrl,
-            Price = request.Price,
+            Price = price,
+            IsFree = isFree,
             Level = request.Level,
             Status = status,
             SubmissionNote = request.SubmissionNote,
@@ -300,6 +341,9 @@ public class CourseService : ICourseService
         // Apply only the fields that the client explicitly sent
         if (request.Title is not null)
         {
+            if (string.IsNullOrWhiteSpace(request.Title) || request.Title.Trim().Length < 3)
+                throw new InvalidOperationException("Tên khóa học phải có ít nhất 3 ký tự.");
+
             course.Title = request.Title;
             course.Slug = GenerateSlug(request.Title); // Re-generate slug when title changes
         }
@@ -307,6 +351,10 @@ public class CourseService : ICourseService
         if (request.CategoryId.HasValue) course.CategoryId = request.CategoryId;
         if (request.ThumbnailUrl is not null) course.ThumbnailUrl = request.ThumbnailUrl;
         if (request.Price.HasValue) course.Price = request.Price.Value;
+        if (request.IsFree.HasValue) course.IsFree = request.IsFree.Value;
+        if (course.IsFree)
+            course.Price = 0;
+        ValidatePricing(course.IsFree, course.Price);
         if (request.Level.HasValue) course.Level = request.Level;
         if (request.Status.HasValue)
         {
@@ -328,6 +376,18 @@ public class CourseService : ICourseService
         _courseRepository.Update(course);
         await _unitOfWork.SaveChangesAsync();
         return await GetCourseByIdAsync(courseId);
+    }
+
+    private static void ValidatePricing(bool isFree, decimal price)
+    {
+        if (isFree && price != 0)
+            throw new InvalidOperationException("Khóa miễn phí phải có học phí bằng 0 VNĐ.");
+
+        if (!isFree && price <= 0)
+            throw new InvalidOperationException("Khóa trả phí bắt buộc có học phí lớn hơn 0 VNĐ.");
+
+        if (price != decimal.Truncate(price))
+            throw new InvalidOperationException("Học phí VND phải là số nguyên.");
     }
 
     // -------------------------------------------------------------------------

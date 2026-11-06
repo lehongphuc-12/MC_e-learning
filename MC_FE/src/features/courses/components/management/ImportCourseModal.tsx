@@ -173,6 +173,7 @@ export const ImportCourseModal: React.FC<ImportCourseModalProps> = ({
               description: description.trim() || undefined,
               categoryId: categoryIdRaw ? parseInt(categoryIdRaw, 10) : undefined,
               price: isPriceValid ? price : 0,
+              isFree: isPriceValid && price === 0,
               level,
               status: 'DRAFT', // FORCED: All imported courses are DRAFT until Admin approves
               thumbnailUrl: thumbnailUrl.trim() || undefined,

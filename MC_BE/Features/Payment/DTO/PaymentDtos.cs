@@ -11,6 +11,7 @@ public class CoursePaymentDto
     public string Description { get; set; } = string.Empty;
     public string ThumbnailUrl { get; set; } = string.Empty;
     public decimal Price { get; set; }
+    public bool IsFree { get; set; }
     public string Status { get; set; } = string.Empty;
 }
 

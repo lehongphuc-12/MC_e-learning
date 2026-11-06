@@ -41,16 +41,11 @@ public class CourseMaterialsReadController : ControllerBase
         var items = materials.Select(m =>
         {
             var key = m.ObjectKey ?? _r2.ExtractKeyFromUrl(m.FileUrl);
-            // SECURITY HARDENING — enable after learner videos have been migrated to private R2.
-            // This withholds any video that does not have an R2 object key.
-            // var isVideo = m.MaterialType == MaterialType.VIDEO;
-            // var url = isVideo
-            //     ? (string.IsNullOrWhiteSpace(key) ? null : _r2.GetPresignedUrl(key, 6))
-            //     : m.FileUrl;
-
-            // Current behavior: continue supporting existing Drive/YouTube/public video sources.
-            var url = m.MaterialType == MaterialType.VIDEO && !string.IsNullOrWhiteSpace(key)
-                ? _r2.GetPresignedUrl(key, 6)
+            // Video materials are only exposed through a short-lived R2 URL when an object key exists.
+            // Legacy Drive/YouTube links are intentionally withheld now that lesson videos use private uploads.
+            var isVideo = m.MaterialType == MaterialType.VIDEO;
+            var url = isVideo
+                ? (string.IsNullOrWhiteSpace(key) ? null : _r2.GetPresignedUrl(key, 6))
                 : m.FileUrl;
             return new { materialId = m.MaterialId, lessonId = m.LessonId, title = m.Title, fileUrl = url, materialType = m.MaterialType?.ToString() };
         });

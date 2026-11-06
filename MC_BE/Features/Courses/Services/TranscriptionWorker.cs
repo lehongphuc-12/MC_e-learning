@@ -67,19 +67,33 @@ public class TranscriptionWorker : BackgroundService
         if (lesson == null)
         {
             _logger.LogWarning("Lesson {LessonId} not found, skipping transcription job.", job.LessonId);
-            CleanupFile(job.VideoTempFilePath);
             return;
         }
 
         lesson.TranscriptStatus = TranscriptStatus.PROCESSING;
         await db.SaveChangesAsync(cancellationToken);
 
+        string? videoTempPath = null;
         string? mp3TempPath = null;
         try
         {
+            // Upload requests can now finish without keeping a local copy of the source video.
+            // Download it here only when transcription needs a seekable file for FFmpeg.
+            var sourceVideo = await r2.GetObjectStreamAsync(job.VideoObjectKey);
+            if (sourceVideo is null)
+                throw new FileNotFoundException($"Video object '{job.VideoObjectKey}' was not found in R2.");
+
+            var extension = Path.GetExtension(Path.GetFileName(job.OriginalFileName));
+            videoTempPath = Path.Combine(Path.GetTempPath(), $"mseek_source_{job.LessonId}_{Guid.NewGuid():N}{extension}");
+            await using (var sourceStream = sourceVideo.Value.Stream)
+            await using (var videoFile = new FileStream(videoTempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                await sourceStream.CopyToAsync(videoFile, cancellationToken);
+            }
+
             // 1. Extract audio from video to temp MP3 (64kbps, mono)
             mp3TempPath = Path.Combine(Path.GetTempPath(), $"mseek_audio_{job.LessonId}_{Guid.NewGuid():N}.mp3");
-            await audioExtractor.ExtractAudioToMp3Async(job.VideoTempFilePath, mp3TempPath, cancellationToken);
+            await audioExtractor.ExtractAudioToMp3Async(videoTempPath, mp3TempPath, cancellationToken);
 
             // 2. Send MP3 stream to Groq Whisper Cloud API
             await using var mp3Stream = File.OpenRead(mp3TempPath);
@@ -128,7 +142,8 @@ public class TranscriptionWorker : BackgroundService
         }
         finally
         {
-            CleanupFile(job.VideoTempFilePath);
+            if (!string.IsNullOrEmpty(videoTempPath))
+                CleanupFile(videoTempPath);
             if (!string.IsNullOrEmpty(mp3TempPath))
             {
                 CleanupFile(mp3TempPath);

@@ -760,6 +760,12 @@ namespace MC_BE.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("InstructorID");
 
+                    b.Property<bool>("IsFree")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsFree");
+
                     b.Property<string>("Level")
                         .HasColumnType("text")
                         .HasColumnName("Level");
@@ -823,7 +829,10 @@ namespace MC_BE.Migrations
                     b.HasIndex("Slug")
                         .IsUnique();
 
-                    b.ToTable("courses", (string)null);
+                    b.ToTable("courses", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_courses_FreePriceConsistency", "(\"IsFree\" = TRUE AND \"Price\" = 0) OR (\"IsFree\" = FALSE AND \"Price\" > 0)");
+                        });
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.CourseMaterial", b =>
@@ -2864,6 +2873,83 @@ namespace MC_BE.Migrations
                     b.ToTable("user_profiles", (string)null);
                 });
 
+            modelBuilder.Entity("MC_BE.Core.Entities.VideoUploadSession", b =>
+                {
+                    b.Property<Guid>("SessionId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("SessionID");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("CompletedAt");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("ContentType");
+
+                    b.Property<int>("CourseId")
+                        .HasColumnType("integer")
+                        .HasColumnName("CourseID");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("CreatedAt")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<long>("ExpectedSize")
+                        .HasColumnType("bigint")
+                        .HasColumnName("ExpectedSize");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ExpiresAt");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("FileName");
+
+                    b.Property<int>("InstructorId")
+                        .HasColumnType("integer")
+                        .HasColumnName("InstructorID");
+
+                    b.Property<int>("LessonId")
+                        .HasColumnType("integer")
+                        .HasColumnName("LessonID");
+
+                    b.Property<string>("ObjectKey")
+                        .IsRequired()
+                        .HasMaxLength(700)
+                        .HasColumnType("character varying(700)")
+                        .HasColumnName("ObjectKey");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("PENDING")
+                        .HasColumnName("Status");
+
+                    b.HasKey("SessionId");
+
+                    b.HasIndex("CourseId");
+
+                    b.HasIndex("LessonId");
+
+                    b.HasIndex("ObjectKey")
+                        .IsUnique();
+
+                    b.HasIndex("Status", "ExpiresAt");
+
+                    b.ToTable("video_upload_sessions", (string)null);
+                });
+
             modelBuilder.Entity("MC_BE.Core.Entities.Certificate", b =>
                 {
                     b.HasOne("MC_BE.Core.Entities.Enrollment", "Enrollment")
@@ -3637,6 +3723,21 @@ namespace MC_BE.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.VideoUploadSession", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.Course", null)
+                        .WithMany()
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MC_BE.Core.Entities.Lesson", null)
+                        .WithMany()
+                        .HasForeignKey("LessonId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.Category", b =>

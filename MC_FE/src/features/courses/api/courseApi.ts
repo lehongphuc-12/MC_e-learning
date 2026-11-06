@@ -74,6 +74,16 @@ function buildQuery(params?: Record<string, string | number | undefined>): strin
 }
 
 export const courseApi = {
+  async uploadCourseThumbnail(file: File): Promise<string> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const envelope = await request<ApiEnvelope<string>>('/courses/upload-thumbnail', {
+      method: 'POST',
+      body: formData,
+    });
+    return envelope.data;
+  },
+
   // -------------------------------------------------------------------------
   // READ — Public courses catalog
   // GET /courses

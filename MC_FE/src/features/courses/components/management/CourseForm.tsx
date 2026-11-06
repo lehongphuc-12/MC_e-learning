@@ -5,7 +5,7 @@
 // Includes real-time live course card preview and instructor guidance tips.
 // =============================================================================
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -23,8 +23,11 @@ import {
   BookOpen,
   Tag,
   BarChart,
+  Upload,
+  Link as LinkIcon,
 } from 'lucide-react';
 import type { Category, Course } from '../../types/courseTypes';
+import { courseApi } from '../../api/courseApi';
 
 // ---------------------------------------------------------------------------
 // Zod Schema  — Vietnamese validation messages
@@ -52,9 +55,14 @@ export const courseSchema = z.object({
     .string()
     .min(1, 'Vui lòng nhập học phí')
     .refine((val) => !isNaN(Number(val)) && Number(val) >= 0, {
-      message: 'Học phí phải lớn hơn hoặc bằng 0',
+      message: 'Học phí không hợp lệ',
+    })
+    .refine((val) => Number.isInteger(Number(val)), {
+      message: 'Học phí VND phải là số nguyên',
     })
     .transform(Number),
+
+  isFree: z.boolean(),
 
   level: z
     .enum(['BEGINNER', 'INTERMEDIATE', 'ADVANCED', 'ALL_LEVELS', ''])
@@ -62,6 +70,13 @@ export const courseSchema = z.object({
 
   status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']),
   submissionNote: z.string().optional(),
+}).superRefine((value, context) => {
+  if (value.isFree && value.price !== 0) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['price'], message: 'Khóa miễn phí phải có học phí bằng 0 VNĐ.' });
+  }
+  if (!value.isFree && value.price <= 0) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['price'], message: 'Khóa trả phí phải có học phí lớn hơn 0 VNĐ.' });
+  }
 });
 
 export type CourseFormInput = z.input<typeof courseSchema>;
@@ -111,12 +126,17 @@ export const CourseForm: React.FC<CourseFormProps> = ({
   onCancel,
 }) => {
   const isEditMode = !!existingCourse;
+  const [thumbnailMode, setThumbnailMode] = useState<'url' | 'upload'>('url');
+  const [isUploadingThumbnail, setIsUploadingThumbnail] = useState(false);
+  const [thumbnailUploadError, setThumbnailUploadError] = useState<string | null>(null);
+  const [approvalFormError, setApprovalFormError] = useState<string | null>(null);
 
   const {
     register,
     handleSubmit,
     reset,
     watch,
+    setValue,
     formState: { errors, isDirty },
   } = useForm<CourseFormInput>({
     resolver: zodResolver(courseSchema) as any,
@@ -125,6 +145,7 @@ export const CourseForm: React.FC<CourseFormProps> = ({
       description: '',
       categoryId: '',
       thumbnailUrl: '',
+      isFree: false,
       price: '0',
       level: '',
       status: 'DRAFT',
@@ -138,6 +159,7 @@ export const CourseForm: React.FC<CourseFormProps> = ({
         description: existingCourse.description ?? '',
         categoryId: existingCourse.categoryId?.toString() ?? '',
         thumbnailUrl: existingCourse.thumbnailUrl ?? '',
+        isFree: existingCourse.isFree ?? existingCourse.price <= 0,
         price: existingCourse.price.toString(),
         level: existingCourse.level ?? '',
         status: existingCourse.status === 'ARCHIVED' ? 'ARCHIVED' : 'DRAFT',
@@ -152,6 +174,7 @@ export const CourseForm: React.FC<CourseFormProps> = ({
     watchedValues.thumbnailUrl?.trim() ||
     'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=600&auto=format&fit=crop';
   const previewPrice = Number(watchedValues.price) || 0;
+  const isFreeCourse = !!watchedValues.isFree;
   const previewStatus = watchedValues.status || 'DRAFT';
   const previewLevel = watchedValues.level;
 
@@ -163,6 +186,32 @@ export const CourseForm: React.FC<CourseFormProps> = ({
   const formatVND = (num: number) => {
     if (!num || num === 0) return 'Miễn phí';
     return `${num.toLocaleString('vi-VN')} ₫`;
+  };
+
+  const handleThumbnailFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type)) {
+      setThumbnailUploadError('Chỉ chấp nhận ảnh JPG, PNG, WEBP hoặc GIF.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setThumbnailUploadError('Ảnh không được vượt quá 5 MB.');
+      return;
+    }
+
+    setThumbnailUploadError(null);
+    setIsUploadingThumbnail(true);
+    try {
+      const url = await courseApi.uploadCourseThumbnail(file);
+      setValue('thumbnailUrl', url, { shouldDirty: true, shouldValidate: true });
+    } catch (error) {
+      setThumbnailUploadError(error instanceof Error ? error.message : 'Không thể tải ảnh lên. Vui lòng thử lại.');
+    } finally {
+      setIsUploadingThumbnail(false);
+    }
   };
 
   const levelLabels: Record<string, string> = {
@@ -261,27 +310,50 @@ export const CourseForm: React.FC<CourseFormProps> = ({
           {/* Price & Status */}
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <FormField
+              id="isFree"
+              label="Khóa học miễn phí"
+              icon={<Tag className="h-4 w-4 text-cyan-600" />}
+              error={errors.isFree?.message}
+            >
+              <label className="flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm font-semibold text-slate-700">
+                <input
+                  id="isFree"
+                  type="checkbox"
+                  className="h-4 w-4 accent-blue-600"
+                  {...register('isFree', {
+                    onChange: (event) => {
+                      if (event.target.checked) setValue('price', '0', { shouldDirty: true, shouldValidate: true });
+                    },
+                  })}
+                />
+                Đây là khóa học miễn phí
+              </label>
+            </FormField>
+
+            <FormField
               id="price"
               label="Học phí (VNĐ)"
               icon={<DollarSign className="h-4 w-4 text-emerald-600" />}
-              required
+              required={!isFreeCourse}
               error={errors.price?.message}
             >
               <div className="relative">
                 <input
                   id="price"
                   type="number"
-                  min="0"
+                  min={isFreeCourse ? '0' : '1'}
                   step="1000"
                   placeholder="Ví dụ: 199000"
                   aria-invalid={!!errors.price}
-                  className={`${inputClass} pr-14 font-bold text-slate-900`}
+                  readOnly={isFreeCourse}
+                  className={`${inputClass} pr-14 font-bold text-slate-900 ${isFreeCourse ? 'cursor-not-allowed bg-slate-100 text-slate-500' : ''}`}
                   {...register('price')}
                 />
                 <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
                   VNĐ
                 </span>
               </div>
+              {isFreeCourse && <p className="text-xs text-emerald-700">Học phí được tự động đặt bằng 0 VNĐ.</p>}
             </FormField>
 
             <FormField
@@ -298,21 +370,41 @@ export const CourseForm: React.FC<CourseFormProps> = ({
             </FormField>
           </div>
 
-          {/* Thumbnail URL */}
+          {/* Course image can be provided as a URL or uploaded to the configured Cloudinary account. */}
           <FormField
             id="thumbnailUrl"
-            label="Đường dẫn ảnh đại diện (Thumbnail URL)"
+            label="Ảnh đại diện khóa học"
             icon={<ImageIcon className="h-4 w-4 text-cyan-600" />}
             error={errors.thumbnailUrl?.message}
           >
-            <input
-              id="thumbnailUrl"
-              type="url"
-              placeholder="https://images.unsplash.com/photo-1516321318423-f06f85e504b3"
-              aria-invalid={!!errors.thumbnailUrl}
-              className={inputClass}
-              {...register('thumbnailUrl')}
-            />
+            <div className="mb-3 inline-flex rounded-xl bg-slate-100 p-1" role="tablist" aria-label="Cách thêm ảnh khóa học">
+              <button type="button" role="tab" aria-selected={thumbnailMode === 'url'} onClick={() => setThumbnailMode('url')} className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold transition ${thumbnailMode === 'url' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500'}`}>
+                <LinkIcon className="h-3.5 w-3.5" /> Dán liên kết
+              </button>
+              <button type="button" role="tab" aria-selected={thumbnailMode === 'upload'} onClick={() => setThumbnailMode('upload')} className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold transition ${thumbnailMode === 'upload' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500'}`}>
+                <Upload className="h-3.5 w-3.5" /> Tải ảnh từ thiết bị
+              </button>
+            </div>
+            {thumbnailMode === 'url' ? (
+              <input
+                id="thumbnailUrl"
+                type="url"
+                placeholder="https://..."
+                aria-invalid={!!errors.thumbnailUrl}
+                className={inputClass}
+                {...register('thumbnailUrl')}
+              />
+            ) : (
+              <div className="space-y-2">
+                <label htmlFor="thumbnailFile" className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm font-semibold text-slate-600 hover:border-blue-400 hover:bg-blue-50 ${isUploadingThumbnail ? 'pointer-events-none opacity-60' : ''}`}>
+                  {isUploadingThumbnail ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4 text-blue-600" />}
+                  {isUploadingThumbnail ? 'Đang tải ảnh lên Cloudinary…' : 'Chọn ảnh JPG, PNG, WEBP hoặc GIF (tối đa 5 MB)'}
+                </label>
+                <input id="thumbnailFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="sr-only" disabled={isUploadingThumbnail || isSubmitting} onChange={handleThumbnailFile} />
+                {watchedValues.thumbnailUrl && <p className="truncate text-xs text-emerald-700">Ảnh đã chọn: {watchedValues.thumbnailUrl}</p>}
+                {thumbnailUploadError && <p role="alert" className="text-xs font-semibold text-rose-600">{thumbnailUploadError}</p>}
+              </div>
+            )}
           </FormField>
 
           {/* Submission Note for Admin */}
@@ -363,6 +455,12 @@ export const CourseForm: React.FC<CourseFormProps> = ({
                   ...data,
                   submitForApproval: true,
                 } as any);
+              }, () => {
+                const missing: string[] = [];
+                if ((watchedValues.title ?? '').trim().length < 3) missing.push('Nhập tên khóa học (ít nhất 3 ký tự).');
+                if (!watchedValues.isFree && Number(watchedValues.price) <= 0) missing.push('Chọn khóa miễn phí hoặc nhập học phí lớn hơn 0 VNĐ.');
+                if (errors.thumbnailUrl) missing.push('Kiểm tra lại đường dẫn ảnh đại diện.');
+                setApprovalFormError(`Hãy hoàn tất thông tin bắt buộc trước khi gửi duyệt. ${missing.join(' ')}`);
               })}
               className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 px-6 py-2.5 text-xs sm:text-sm font-bold text-white shadow-lg shadow-amber-500/25 hover:from-amber-600 hover:to-orange-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
             >
@@ -437,7 +535,7 @@ export const CourseForm: React.FC<CourseFormProps> = ({
                     </span>
                   )}
                   <span className="text-base font-black text-blue-600 ml-auto">
-                    {formatVND(previewPrice)}
+                  {isFreeCourse ? 'Miễn phí' : formatVND(previewPrice)}
                   </span>
                 </div>
               </div>
@@ -474,6 +572,16 @@ export const CourseForm: React.FC<CourseFormProps> = ({
           </div>
         </div>
       </div>
+
+      {approvalFormError && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/50 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setApprovalFormError(null); }}>
+          <section className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl" role="alertdialog" aria-modal="true" aria-labelledby="approval-form-error-title">
+            <h2 id="approval-form-error-title" className="text-lg font-extrabold text-slate-900">Chưa đủ thông tin khóa học</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">{approvalFormError}</p>
+            <div className="mt-5 flex justify-end"><button type="button" autoFocus onClick={() => setApprovalFormError(null)} className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-700">Đã hiểu</button></div>
+          </section>
+        </div>
+      )}
     </form>
   );
 };

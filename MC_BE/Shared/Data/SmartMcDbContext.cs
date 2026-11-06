@@ -45,6 +45,7 @@ public class SmartMcDbContext : DbContext
     public DbSet<LessonProgress> LessonProgresses { get; set; } = null!;
     public DbSet<Certificate> Certificates { get; set; } = null!;
     public DbSet<SpeakingSubmission> SpeakingSubmissions { get; set; } = null!;
+    public DbSet<VideoUploadSession> VideoUploadSessions { get; set; } = null!;
 
     // ============================================================
     // Section 3: Payment
@@ -200,7 +201,9 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
 
         modelBuilder.Entity<Course>(entity =>
         {
-            entity.ToTable("courses");
+            entity.ToTable("courses", table => table.HasCheckConstraint(
+                "CK_courses_FreePriceConsistency",
+                "(\"IsFree\" = TRUE AND \"Price\" = 0) OR (\"IsFree\" = FALSE AND \"Price\" > 0)"));
 
             entity.HasKey(e => e.CourseId);
 
@@ -209,6 +212,9 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
 
             entity.Property(e => e.Price)
                 .HasDefaultValue(0.00m);
+
+            entity.Property(e => e.IsFree)
+                .HasDefaultValue(false);
 
             entity.Property(e => e.Level)
                 .HasConversion<string>();
@@ -317,6 +323,18 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
                 .WithMany(p => p.UploadedMaterials)
                 .HasForeignKey(d => d.UploaderId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<VideoUploadSession>(entity =>
+        {
+            entity.ToTable("video_upload_sessions");
+            entity.HasKey(e => e.SessionId);
+            entity.HasIndex(e => e.ObjectKey).IsUnique();
+            entity.HasIndex(e => new { e.Status, e.ExpiresAt });
+            entity.Property(e => e.Status).HasDefaultValue("PENDING");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasOne<Lesson>().WithMany().HasForeignKey(e => e.LessonId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<Course>().WithMany().HasForeignKey(e => e.CourseId).OnDelete(DeleteBehavior.Cascade);
         });
 
         // ============================================================
