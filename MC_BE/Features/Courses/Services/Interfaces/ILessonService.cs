@@ -6,6 +6,7 @@ public interface ILessonService
 {
     Task<List<LessonDto>> GetLessonsByCourseIdAsync(int courseId);
     Task<LessonDto?> GetLessonByIdAsync(int lessonId);
+    Task<LessonPlaybackDto?> GetPlaybackAsync(int lessonId, int userId, bool isAdmin);
     Task<LessonDto?> CreateLessonAsync(int courseId, int instructorId, CreateLessonRequest request);
     Task<List<LessonDto>> CreateLessonsBulkAsync(int courseId, int instructorId, List<CreateLessonRequest> requests);
     Task<LessonDto?> UpdateLessonAsync(int lessonId, int instructorId, UpdateLessonRequest request);
@@ -17,6 +18,13 @@ public interface ILessonService
     /// Returns null if the lesson is not found or does not belong to the instructor.
     /// </summary>
     Task<LessonDto?> UploadVideoAsync(int lessonId, int instructorId, IFormFile file);
+
+    Task<List<VideoUploadSessionDto>> CreateVideoUploadSessionsAsync(
+        int courseId,
+        int instructorId,
+        CreateVideoUploadSessionsRequest request);
+
+    Task<LessonDto?> CompleteVideoUploadSessionAsync(int courseId, Guid sessionId, int instructorId);
 
     /// <summary>
     /// Removes the video from R2 and clears the VideoUrl on the lesson.

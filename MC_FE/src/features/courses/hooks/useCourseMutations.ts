@@ -91,12 +91,12 @@ export function useDeleteCourse() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (courseId: number) => courseApi.deleteCourse(courseId),
+    mutationFn: (input: { courseId: number; reason: string }) => courseApi.requestCourseDeletion(input.courseId, input.reason),
 
-    onSuccess: (_data, deletedCourseId) => {
+    onSuccess: (_data, input) => {
       // Remove the deleted course from the detail cache immediately
       queryClient.removeQueries({
-        queryKey: courseQueryKeys.instructorCourses.detail(deletedCourseId),
+        queryKey: courseQueryKeys.instructorCourses.detail(input.courseId),
       });
 
       // Refetch list to reflect the deletion
@@ -128,7 +128,7 @@ export function useToggleCourseStatus() {
       newStatus,
     }: {
       courseId: number;
-      newStatus: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+      newStatus: 'DRAFT' | 'ARCHIVED';
     }) => courseApi.toggleCourseStatus(courseId, newStatus),
 
     onSuccess: (updatedCourse) => {

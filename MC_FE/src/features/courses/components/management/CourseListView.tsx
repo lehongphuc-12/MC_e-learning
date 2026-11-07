@@ -73,6 +73,7 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
 }) => {
   const navigate = useNavigate();
   const [courseToDelete, setCourseToDelete] = useState<Course | null>(null);
+  const [deletionNotice, setDeletionNotice] = useState<{ message: string; isError: boolean } | null>(null);
   const [courseForStudents, setCourseForStudents] = useState<Course | null>(null);
   const [incompleteCourse, setIncompleteCourse] = useState<{
     course: Course;
@@ -84,9 +85,10 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
   const { mutate: submitForApproval } = useSubmitForApproval();
 
   const handleToggleAction = async (course: Course) => {
+    if (course.status === 'ARCHIVED') return;
     if (course.status === 'PUBLISHED') {
-      // Recall published course back to DRAFT
-      toggleStatus({ courseId: course.courseId, newStatus: 'DRAFT' });
+      // Published courses are archived to stop new enrollments while preserving current learners' access.
+      toggleStatus({ courseId: course.courseId, newStatus: 'ARCHIVED' });
     } else if (course.status === 'PENDING_APPROVAL') {
       // Recall pending course back to DRAFT
       toggleStatus({ courseId: course.courseId, newStatus: 'DRAFT' });
@@ -129,10 +131,20 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
     }
   };
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = (reason: string) => {
     if (!courseToDelete) return;
-    deleteCourse(courseToDelete.courseId, {
-      onSuccess: () => setCourseToDelete(null),
+    deleteCourse({
+      courseId: courseToDelete.courseId,
+      reason,
+    }, {
+      onSuccess: (result) => {
+        setCourseToDelete(null);
+        setDeletionNotice({ message: result.message, isError: false });
+      },
+      onError: (error) => setDeletionNotice({
+        message: error instanceof Error ? error.message : 'Không thể xử lý yêu cầu xóa khóa học.',
+        isError: true,
+      }),
     });
   };
 
@@ -181,6 +193,14 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
   // ---------------------------------------------------------------------------
   return (
     <>
+      {deletionNotice && (
+        <div className={`mb-4 rounded-xl border px-4 py-3 text-sm ${deletionNotice.isError ? 'border-rose-200 bg-rose-50 text-rose-800' : 'border-emerald-200 bg-emerald-50 text-emerald-800'}`} role="status">
+          <div className="flex items-start justify-between gap-3">
+            <span>{deletionNotice.message}</span>
+            <button onClick={() => setDeletionNotice(null)} aria-label="Đóng thông báo" className="font-bold">×</button>
+          </div>
+        </div>
+      )}
       <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm transition-all">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -304,15 +324,19 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
                         id={`toggle-status-btn-${course.courseId}`}
                         title={
                           course.status === 'PUBLISHED'
-                            ? 'Khóa học đã xuất bản (Bấm để gỡ xuống Bản nháp)'
+                            ? 'Lưu trữ khóa học để dừng đăng ký mới; học viên hiện tại vẫn giữ quyền học'
                             : course.status === 'PENDING_APPROVAL'
                             ? 'Đang chờ Admin duyệt (Bấm để rút về Bản nháp)'
-                            : 'Gửi khóa học cho Admin duyệt'
+                          : course.status === 'ARCHIVED'
+                          ? 'Khóa học đã lưu trữ'
+                          : 'Gửi khóa học cho Admin duyệt'
                         }
                         onClick={() => handleToggleAction(course)}
                         className="rounded-xl p-2 text-slate-400 hover:bg-amber-50 hover:text-amber-600 active:scale-95 transition-all cursor-pointer"
                       >
-                        {course.status === 'PUBLISHED' ? (
+                        {course.status === 'ARCHIVED' ? (
+                          <ToggleLeft className="h-5 w-5 text-slate-300" />
+                        ) : course.status === 'PUBLISHED' ? (
                           <ToggleRight className="h-5 w-5 text-emerald-600" />
                         ) : course.status === 'PENDING_APPROVAL' ? (
                           <Clock className="h-5 w-5 text-amber-500 animate-pulse" />
@@ -393,6 +417,7 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
 
       {/* Delete confirmation modal */}
       <DeleteCourseModal
+        key={courseToDelete?.courseId ?? 'none'}
         course={courseToDelete}
         isDeleting={isDeleting}
         onConfirm={handleConfirmDelete}

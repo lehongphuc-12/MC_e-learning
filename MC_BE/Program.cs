@@ -139,6 +139,7 @@ builder.Services.AddScoped<IAdminStatsService, AdminStatsService>();
 // COURSE MANAGEMENT
 // ============================================================
 builder.Services.AddScoped<ICourseService, CourseService>();
+builder.Services.AddScoped<ICourseLearningAccessService, CourseLearningAccessService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<IModuleService, ModuleService>();
 builder.Services.AddScoped<ILessonService, LessonService>();
@@ -168,6 +169,7 @@ builder.Services.AddScoped<IAdminForumService, AdminForumService>();
 // ============================================================
 builder.Services.AddScoped<ICertificateService, CertificateService>();
 builder.Services.AddScoped<ILearningProgressService, LearningProgressService>();
+builder.Services.AddScoped<ILearningAccessService, LearningAccessService>();
 builder.Services.AddScoped<ISpeakingSubmissionRepository, SpeakingSubmissionRepository>();
 builder.Services.AddScoped<ISpeakingSubmissionService, SpeakingSubmissionService>();
 
@@ -186,6 +188,8 @@ builder.Services.AddHttpClient<IMentorChatService, MentorChatService>();
 builder.Services.AddSingleton<IAudioExtractorService, AudioExtractorService>();
 builder.Services.AddSingleton<ITranscriptionQueue, TranscriptionQueue>();
 builder.Services.AddHostedService<TranscriptionWorker>();
+builder.Services.AddHostedService<VideoUploadSessionCleanupWorker>();
+builder.Services.AddHostedService<R2ObjectDeletionWorker>();
 
 // ============================================================
 // ENROLLMENT / PAYMENT

@@ -4,13 +4,15 @@ import { LearnerQuizHistoryActions } from '../../quizzes/pages/LearnerQuizHistor
 // =============================================================================
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
   ChevronLeft,
   ChevronRight,
   PlayCircle,
   Clock,
+  CalendarDays,
   BookOpen,
   CheckCircle2,
   Eye,
@@ -20,7 +22,6 @@ import {
   FileText,
   MessageSquare,
   Sparkles,
-  ExternalLink,
   RotateCcw,
   Layers,
   ChevronDown,
@@ -35,6 +36,7 @@ import {
   UploadCloud,
   FileAudio,
   Download,
+  LockKeyhole,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { WaveformVisualizer } from '@/components/ui/waveform-visualizer';
@@ -53,6 +55,7 @@ import {
 import { CertificateModal } from './CertificateModal';
 import { CourseChatDrawer } from './CourseChatDrawer';
 import { useAuthStore } from '../../../store/useAuthStore';
+import { lessonApi } from '../api/lessonApi';
 
 import type { Lesson } from '../types/lessonTypes';
 import type { Certificate } from '../types/learningTypes';
@@ -354,7 +357,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
             <span>BÀI KIỂM TRA NÓI CUỐI KHÓA</span>
           </div>
           <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
-            {lesson.title}
+            {lesson.title}{lesson.isLocked && <span className="ml-2 text-[10px] font-semibold text-slate-400">· Chưa mở khóa</span>}
           </h2>
         </div>
 
@@ -905,8 +908,24 @@ export function getEmbedVideoUrl(url?: string): string | null {
   return url;
 }
 
+/** Only these provider hosts are embeds; signed R2 URLs are direct video sources. */
+function isThirdPartyVideoUrl(url?: string): boolean {
+  if (!url) return false;
+
+  try {
+    const hostname = new URL(url).hostname.toLowerCase();
+    return hostname === 'youtu.be' ||
+      hostname === 'youtube.com' || hostname.endsWith('.youtube.com') ||
+      hostname === 'vimeo.com' || hostname.endsWith('.vimeo.com') ||
+      hostname === 'drive.google.com' || hostname === 'docs.google.com';
+  } catch {
+    return false;
+  }
+}
+
 export const CourseLearningPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { id } = useParams<{ id?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -933,6 +952,8 @@ export const CourseLearningPage: React.FC = () => {
   } = useCourseLessons(courseId);
 
   const { data: modules = [] } = useCourseModules(courseId);
+  const learningQueryClient = useQueryClient();
+  useEffect(() => { void learningQueryClient.invalidateQueries({ queryKey: ['course-lessons', courseId] }); }, [courseId, learningQueryClient]);
 
   const {
     data: quizzes = [],
@@ -1066,8 +1087,22 @@ export const CourseLearningPage: React.FC = () => {
 
   const [activeLesson, setActiveLesson] =
     useState<Lesson | null>(null);
+  const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
+  const pendingVideoPositionRef = useRef<number | null>(null);
+  const shouldResumeVideoRef = useRef(false);
+  const retriedPlaybackLessonRef = useRef<number | null>(null);
 
-  const lessonMaterials = courseMaterials.filter(m => m.lessonId == null || m.lessonId === activeLesson?.lessonId);
+  useEffect(() => {
+    if (!activeLesson) return;
+    const refreshed = orderedLessons.find(l => l.lessonId === activeLesson.lessonId);
+    if (refreshed?.isLocked) {
+      setActiveLesson(orderedLessons.find(l => !l.isLocked) || null);
+    } else if (refreshed && (refreshed.isLocked !== activeLesson.isLocked || refreshed.videoUrl !== activeLesson.videoUrl)) {
+      setActiveLesson(refreshed);
+    }
+  }, [orderedLessons, activeLesson]);
+
+  const lessonMaterials = courseMaterials.filter(m => m.lessonId == null || (activeLesson?.isLocked !== true && m.lessonId === activeLesson?.lessonId));
 
   const [isSidebarOpen, setIsSidebarOpen] =
     useState(true);
@@ -1127,16 +1162,11 @@ export const CourseLearningPage: React.FC = () => {
   // Pre-load durations for direct video files in the playlist in background
   useEffect(() => {
     orderedLessons.forEach((l) => {
-      if (l.videoUrl && l.videoUrl.trim() !== '') {
+      if (l.hasVideo) {
         if (detectedDurations[l.lessonId]) return;
 
-        const isEmbed =
-          l.videoUrl.includes('youtube.com') ||
-          l.videoUrl.includes('youtu.be') ||
-          l.videoUrl.includes('vimeo.com') ||
-          l.videoUrl.includes('drive.google.com');
-
-        if (!isEmbed) {
+        // Learner DTOs no longer expose source URLs; signed playback URLs are requested per active lesson.
+        if (l.videoUrl && !getEmbedVideoUrl(l.videoUrl)) {
           const v = document.createElement('video');
           v.preload = 'metadata';
           v.src = l.videoUrl;
@@ -1154,8 +1184,7 @@ export const CourseLearningPage: React.FC = () => {
   const getLessonDuration = (lesson?: Lesson | null): string => {
     if (!lesson) return '10 phút';
     const hasVideo = !!(
-      lesson.videoUrl &&
-      lesson.videoUrl.trim() !== '' &&
+      lesson.hasVideo &&
       lesson.lessonType?.toUpperCase() !== 'ASSIGNMENT'
     );
     if (!hasVideo) {
@@ -1338,30 +1367,24 @@ export const CourseLearningPage: React.FC = () => {
     activeLessonRef.current = activeLesson;
   }, [activeLesson]);
 
-  const embedUrl = getEmbedVideoUrl(
-    activeLesson?.videoUrl,
-  );
+  // All learner playback uses the backend-issued, enrollment-checked R2 URL.
+  const effectiveVideoUrl = playbackUrl;
+  const embedUrl = getEmbedVideoUrl(effectiveVideoUrl);
 
   // ===========================================================================
   // Quiz logic
   // ===========================================================================
 
-  // Get the quiz belonging to a specific lesson.
-  const getQuizForLesson = (
-    lessonId: number,
-  ) => {
-    return quizzes.find(
-      (quiz: (typeof quizzes)[number]) =>
-        quiz.lessonId === lessonId &&
-        quiz.status === 'ACTIVE',
-    );
-  };
+  // A lesson may contain multiple required practice quizzes; expose every one
+  // so the learner can complete all gates rather than becoming stuck after the first.
+  const getQuizzesForLesson = (lessonId: number) => quizzes.filter(
+    quiz => quiz.lessonId === lessonId && quiz.purpose === 'PRACTICE',
+  );
 
   // Overall course quiz: lessonId === null
   const overallQuiz = quizzes.find(
-    (quiz: (typeof quizzes)[number]) =>
-      quiz.lessonId == null &&
-      quiz.status === 'ACTIVE',
+    quiz => quiz.purpose === 'FINAL_ASSESSMENT' &&
+      (quiz.status === 'ACTIVE' || quiz.status === 'ARCHIVED' || quiz.status === 'INACTIVE'),
   );
 
   // ===========================================================================
@@ -1392,6 +1415,7 @@ export const CourseLearningPage: React.FC = () => {
     quizId: number,
     lessonId?: number,
   ) => {
+    if (lessonId && orderedLessons.find(l => l.lessonId === lessonId)?.isLocked) return;
     navigate(
       `/quizzes/${quizId}/take`,
       {
@@ -1404,10 +1428,39 @@ export const CourseLearningPage: React.FC = () => {
   };
 
   const renderQuizButton = (lessonId: number) => {
-    const quiz = getQuizForLesson(lessonId);
-    if (!quiz) return null;
-    return <div className="ml-7 mt-1 max-w-md"><LearnerQuizHistoryActions quizId={quiz.quizId} maxAttempts={quiz.maxAttempts} passingScore={quiz.passingScore} returnTo={getQuizReturnTo(lessonId)} onTake={() => handleTakeQuiz(quiz.quizId, lessonId)} /></div>;
+    const lessonQuizzes = getQuizzesForLesson(lessonId);
+    if (!lessonQuizzes.length) return null;
+    if (orderedLessons.find(l => l.lessonId === lessonId)?.isLocked)
+      return <p className="ml-7 mt-1 flex items-center gap-1.5 text-[11px] font-medium text-slate-500"><LockKeyhole size={12}/> Mở khóa bài học để làm Quiz</p>;
+    return <div className="ml-7 mt-1 max-w-md space-y-2">{lessonQuizzes.map(quiz => (
+      <div key={quiz.quizId} className="rounded-lg border border-slate-100 bg-white p-2">
+        <p className="mb-1 text-[11px] font-semibold text-slate-700">{quiz.title}</p>
+        {quiz.status === 'ACTIVE' ? <LearnerQuizHistoryActions quizId={quiz.quizId} maxAttempts={quiz.maxAttempts} passingScore={quiz.passingScore} returnTo={getQuizReturnTo(lessonId)} onTake={() => handleTakeQuiz(quiz.quizId, lessonId)} />
+          : quiz.status === 'ARCHIVED' ? <p className="text-[11px] text-amber-700">{quiz.availableFrom ? `Đang lên lịch mở: ${new Date(quiz.availableFrom).toLocaleString('vi-VN')}` : 'Quiz đang được lưu trữ.'}</p>
+          : <p className="text-[11px] text-slate-500">Quiz hiện đang ngừng hoạt động.</p>}
+      </div>
+    ))}</div>;
   };
+  // Bài tập hằng ngày gắn với bài học được tính vào điều kiện mở bài học/chương tiếp theo.
+  const renderDailyPracticeButtons = (lessonId: number) => {
+    const dailyQuizzes = quizzes.filter(q =>
+      q.lessonId === lessonId &&
+      q.purpose === 'DAILY_PRACTICE' &&
+      (q.status === 'ACTIVE' || q.status === 'ARCHIVED' || q.status === 'INACTIVE')
+    );
+    if (dailyQuizzes.length === 0) return null;
+    if (orderedLessons.find(l => l.lessonId === lessonId)?.isLocked)
+      return <p className="ml-7 mt-1 text-[11px] text-slate-500">Mở khóa bài học để làm luyện tập hằng ngày.</p>;
+    return <div className="ml-7 mt-1 space-y-2">{dailyQuizzes.map(q => (
+      <div key={q.quizId} className="rounded-lg border border-sky-100 bg-sky-50/70 p-2">
+        <p className="text-[11px] font-bold text-sky-800">Luyện tập hằng ngày: {q.title}</p>
+        {q.status === 'ACTIVE' ? <LearnerQuizHistoryActions quizId={q.quizId} maxAttempts={q.maxAttempts} passingScore={q.passingScore} returnTo={getQuizReturnTo(lessonId)} onTake={() => handleTakeQuiz(q.quizId, lessonId)} />
+          : q.status === 'ARCHIVED' ? <p className="text-[11px] text-amber-700">{q.availableFrom ? `Đang lên lịch mở: ${new Date(q.availableFrom).toLocaleString('vi-VN')}` : 'Bài luyện tập đang được lưu trữ.'}</p>
+          : <p className="text-[11px] text-slate-500">Bài luyện tập hiện đang ngừng hoạt động.</p>}
+      </div>
+    ))}</div>;
+  };
+
 
   // ===========================================================================
   // Load YouTube Iframe API script dynamically
@@ -1768,7 +1821,7 @@ export const CourseLearningPage: React.FC = () => {
               initialLessonId,
           );
 
-        if (found) {
+        if (found && !found.isLocked) {
           setActiveLesson(found);
           return;
         }
@@ -1785,14 +1838,14 @@ export const CourseLearningPage: React.FC = () => {
         const firstUncompleted =
           orderedLessons.find(
             (l) =>
-              !completedLessonIds.includes(
+              !l.isLocked && !completedLessonIds.includes(
                 l.lessonId,
               ),
           );
 
         const targetLesson =
           firstUncompleted ||
-          orderedLessons[0];
+          orderedLessons.find(l => !l.isLocked) || null;
 
         setActiveLesson(
           targetLesson,
@@ -1812,6 +1865,7 @@ export const CourseLearningPage: React.FC = () => {
   const handleSelectLesson = (
     lesson: Lesson,
   ) => {
+    if (lesson.isLocked) return;
     setIsVideoEnded(false);
     setReplayKey(0);
     setActiveLesson(lesson);
@@ -1826,6 +1880,48 @@ export const CourseLearningPage: React.FC = () => {
       },
     );
   };
+
+  // Khi học viên đạt bài tập/bài đánh giá và quay lại khóa học,
+  // tự chuyển đến bài học kế tiếp nếu Backend đã xác nhận bài đó được mở.
+  const autoAdvanceAfterQuiz = Boolean(
+    (location.state as { autoAdvanceAfterQuiz?: boolean } | null)?.autoAdvanceAfterQuiz,
+  );
+
+  useEffect(() => {
+    if (!autoAdvanceAfterQuiz || !activeLesson) return;
+    if (!completedLessonIds.includes(activeLesson.lessonId)) return;
+
+    const currentPosition = orderedLessons.findIndex(
+      lesson => lesson.lessonId === activeLesson.lessonId,
+    );
+    if (currentPosition < 0) return;
+
+    const nextUnlockedLesson = orderedLessons
+      .slice(currentPosition + 1)
+      .find(lesson =>
+        !lesson.isLocked &&
+        !completedLessonIds.includes(lesson.lessonId),
+      );
+
+    // Nếu còn bài tập hoặc bài đánh giá chưa đạt, Backend vẫn khóa bài kế tiếp.
+    // Giữ nguyên trang hiện tại; sau khi đạt bài còn thiếu, kết quả sẽ quay lại đây.
+    if (!nextUnlockedLesson) return;
+
+    setIsVideoEnded(false);
+    setReplayKey(0);
+    setActiveLesson(nextUnlockedLesson);
+    navigate(
+      `/courses/${courseId}/learn?lessonId=${nextUnlockedLesson.lessonId}`,
+      { replace: true, state: null },
+    );
+  }, [
+    autoAdvanceAfterQuiz,
+    activeLesson?.lessonId,
+    completedLessonIds,
+    orderedLessons,
+    courseId,
+    navigate,
+  ]);
 
   // ===========================================================================
   // Handle video playback time updates
@@ -1923,6 +2019,46 @@ export const CourseLearningPage: React.FC = () => {
   const [autoNextSeconds, setAutoNextSeconds] = useState(5);
   const [autoNextCancelled, setAutoNextCancelled] = useState(false);
   const videoElementRef = useRef<HTMLVideoElement | null>(null);
+
+  useEffect(() => {
+    setPlaybackUrl(null);
+    pendingVideoPositionRef.current = null;
+    shouldResumeVideoRef.current = false;
+
+    // Request playback for every lesson marked as having video. The backend rejects legacy sources for learners.
+    if (!activeLesson?.hasVideo) return;
+
+    let cancelled = false;
+    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const issueUrl = async () => {
+      const video = videoElementRef.current;
+      if (video?.dataset.lessonId === String(activeLesson.lessonId) && Number.isFinite(video.currentTime) && video.currentTime > 0) {
+        pendingVideoPositionRef.current = video.currentTime;
+        shouldResumeVideoRef.current = !video.paused;
+      }
+
+      const playback = await lessonApi.getPlaybackUrl(activeLesson.lessonId);
+      if (cancelled) return;
+
+      // Direct R2 URLs are truthy too, so identify external providers by host
+      // instead of using getEmbedVideoUrl as a boolean test.
+      if (isThirdPartyVideoUrl(playback.url))
+        throw new Error('Third-party video sources are disabled for course playback.');
+
+      setPlaybackUrl(playback.url);
+      const expiresIn = Date.parse(playback.expiresAt) - Date.now();
+      refreshTimer = setTimeout(() => {
+        void issueUrl().catch(() => {});
+      }, Math.max(30_000, expiresIn - 60_000));
+    };
+
+    void issueUrl().catch(() => setPlaybackUrl(null));
+    return () => {
+      cancelled = true;
+      if (refreshTimer) clearTimeout(refreshTimer);
+    };
+  }, [activeLesson?.lessonId, activeLesson?.hasVideo]);
   useEffect(() => {
     if (isVideoEnded) { setAutoNextSeconds(5); setAutoNextCancelled(false); }
   }, [isVideoEnded]);
@@ -1930,7 +2066,7 @@ export const CourseLearningPage: React.FC = () => {
     setAutoNextCancelled(true);
     setIsVideoEnded(false);
     const iframe = document.getElementById('video-player-iframe') as HTMLIFrameElement | null;
-    const url = activeLesson?.videoUrl || '';
+    const url = effectiveVideoUrl || '';
     if (url.includes('youtube.com') || url.includes('youtu.be')) {
       try { ytPlayerRef.current?.seekTo?.(0, true); ytPlayerRef.current?.playVideo?.(); } catch (_) { setReplayKey(k => k + 1); }
     } else if (url.includes('vimeo.com') && iframe?.contentWindow) {
@@ -1945,15 +2081,53 @@ export const CourseLearningPage: React.FC = () => {
     setAutoNextSeconds(5);
     setAutoNextCancelled(false);
   }, [activeLesson?.lessonId]);
+
+  // Chỉ trạng thái khóa của bài tiếp theo mới quyết định có được tự chuyển hay không.
+  // Không chặn chỉ vì bài hiện tại có quiz ACTIVE: DAILY_PRACTICE có thể là bài bổ trợ,
+  // còn quiz/bài tập bắt buộc phải được backend phản ánh bằng nextLesson.isLocked.
   useEffect(() => {
-    if (!isVideoEnded || !nextLesson || autoNextCancelled ||
-        !activeLesson?.videoUrl?.trim() ||
-        activeLesson?.lessonType?.toUpperCase() === 'ASSIGNMENT' ||
-        quizzes.some(q => q.lessonId === activeLesson?.lessonId && q.status === 'ACTIVE')) return;
-    if (autoNextSeconds <= 0) { handleSelectLesson(nextLesson); return; }
-    const timer = window.setTimeout(() => setAutoNextSeconds(n => n - 1), 1000);
+    // Lấy bài kế tiếp trực tiếp từ danh sách mới nhất để tránh dùng dữ liệu cũ.
+    const latestNextLesson =
+      currentIndex >= 0
+        ? orderedLessons[currentIndex + 1] ?? null
+        : null;
+
+    // Chỉ tự chuyển khi video đã kết thúc và bài kế tiếp đã được backend mở khóa.
+    // Không chặn chỉ vì bài hiện tại có quiz ACTIVE: một số DAILY_PRACTICE là bài bổ trợ;
+    // các bài tập/quiz bắt buộc phải được backend phản ánh qua trạng thái isLocked.
+    if (
+      !isVideoEnded ||
+      !latestNextLesson ||
+      latestNextLesson.isLocked ||
+      autoNextCancelled ||
+      !effectiveVideoUrl?.trim() ||
+      activeLesson?.lessonType?.toUpperCase() === 'ASSIGNMENT'
+    ) {
+      return;
+    }
+
+    if (autoNextSeconds <= 0) {
+      handleSelectLesson(latestNextLesson);
+      return;
+    }
+
+    const timer = window.setTimeout(
+      () => setAutoNextSeconds(seconds => Math.max(0, seconds - 1)),
+      1000,
+    );
+
     return () => window.clearTimeout(timer);
-  }, [isVideoEnded, nextLesson?.lessonId, autoNextCancelled, autoNextSeconds, activeLesson?.lessonId, quizzes]);
+  }, [
+    isVideoEnded,
+    currentIndex,
+    orderedLessons,
+    autoNextCancelled,
+    autoNextSeconds,
+    activeLesson?.lessonId,
+    activeLesson?.videoUrl,
+    activeLesson?.lessonType,
+    effectiveVideoUrl,
+  ]);
 
   // ===========================================================================
   // Total duration
@@ -1961,8 +2135,7 @@ export const CourseLearningPage: React.FC = () => {
 
   const totalDuration = orderedLessons.reduce((sum, l) => {
     const hasVideo = !!(
-      l.videoUrl &&
-      l.videoUrl.trim() !== '' &&
+      l.hasVideo &&
       l.lessonType?.toUpperCase() !== 'ASSIGNMENT'
     );
     if (hasVideo) {
@@ -2323,9 +2496,10 @@ export const CourseLearningPage: React.FC = () => {
             {/* Main Workspace Container (Video or Speaking Assignment) */}
 
             <div
+              onContextMenu={(event) => event.preventDefault()}
               className={`relative w-full overflow-hidden rounded-2xl border border-slate-200/80 shadow-2xl group ${
                 activeLesson?.lessonType?.toUpperCase() === 'ASSIGNMENT' ||
-                (!activeLesson?.videoUrl && activeLesson !== null)
+                (!effectiveVideoUrl && activeLesson !== null && !activeLesson.hasVideo)
                   ? 'min-h-[550px] bg-[#f4f7fa]'
                   : 'aspect-video bg-black'
               }`}
@@ -2356,10 +2530,16 @@ export const CourseLearningPage: React.FC = () => {
                         {activeLesson?.title}
                       </p>
 
-                      {nextLesson && !quizzes.some(q => q.lessonId === activeLesson?.lessonId && q.status === 'ACTIVE') && (
+                      {nextLesson && !nextLesson.isLocked && (
                         <div className="mt-3 text-xs text-slate-600">
-                          {autoNextCancelled ? 'Đã hủy tự chuyển bài.' : `Tự chuyển sang bài tiếp theo sau ${autoNextSeconds} giây.`}
-
+                          {autoNextCancelled
+                            ? 'Đã hủy tự chuyển bài.'
+                            : `Tự chuyển sang bài tiếp theo sau ${autoNextSeconds} giây.`}
+                        </div>
+                      )}
+                      {nextLesson?.isLocked && (
+                        <div className="mt-3 text-xs font-medium text-amber-700">
+                          Bài tiếp theo đang khóa. Hãy hoàn thành bài tập bắt buộc để tiếp tục.
                         </div>
                       )}
                       <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
@@ -2373,12 +2553,10 @@ export const CourseLearningPage: React.FC = () => {
 
                         {nextLesson && (
                           <button
-                            onClick={() => {
-                              setIsVideoEnded(false);
-
-                              handleSelectLesson(nextLesson);
-                            }}
-                            className="inline-flex items-center gap-2 rounded-xl bg-violet-600 text-white shadow-violet-500/30 hover:bg-violet-500 active:scale-95 transition-all cursor-pointer"
+                            disabled={nextLesson.isLocked}
+                            onClick={() => handleSelectLesson(nextLesson)}
+                            title={nextLesson.isLocked ? (nextLesson.lockReason || 'Hoàn thành bài tập bắt buộc để mở khóa') : 'Chuyển sang bài tiếp theo'}
+                            className="inline-flex items-center gap-2 rounded-xl bg-violet-600 text-white shadow-violet-500/30 hover:bg-violet-500 active:scale-95 transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
                           >
                             <span>
                               Bài tiếp theo: {nextLesson.title}
@@ -2407,11 +2585,26 @@ export const CourseLearningPage: React.FC = () => {
                     ) : (
                       <video
                         ref={videoElementRef}
+                        data-lesson-id={activeLesson?.lessonId}
                         key={`${activeLesson?.lessonId}-${replayKey}`}
                         src={embedUrl}
                         controls
+                        controlsList="nodownload noremoteplayback"
+                        disablePictureInPicture
+                        disableRemotePlayback
+                        draggable={false}
+                        onContextMenu={(event) => event.preventDefault()}
                         autoPlay
                         onLoadedMetadata={(e) => {
+                          retriedPlaybackLessonRef.current = null;
+                          if (pendingVideoPositionRef.current !== null) {
+                            const shouldResume = shouldResumeVideoRef.current;
+                            e.currentTarget.currentTime = pendingVideoPositionRef.current;
+                            pendingVideoPositionRef.current = null;
+                            shouldResumeVideoRef.current = false;
+                            if (shouldResume) void e.currentTarget.play().catch(() => {});
+                            else e.currentTarget.pause();
+                          }
                           if (activeLesson && e.currentTarget.duration) {
                             handleSaveLessonDuration(
                               activeLesson.lessonId,
@@ -2419,26 +2612,60 @@ export const CourseLearningPage: React.FC = () => {
                             );
                           }
                         }}
+                        onError={(e) => {
+                          if (!activeLesson?.hasVideo || retriedPlaybackLessonRef.current === activeLesson.lessonId) return;
+                          retriedPlaybackLessonRef.current = activeLesson.lessonId;
+                          const video = e.currentTarget;
+                          pendingVideoPositionRef.current = video.currentTime;
+                          shouldResumeVideoRef.current = !video.paused;
+                          void lessonApi.getPlaybackUrl(activeLesson.lessonId)
+                            .then((playback) => {
+                              if (!isThirdPartyVideoUrl(playback.url)) setPlaybackUrl(playback.url);
+                            })
+                            .catch(() => {});
+                        }}
                         onTimeUpdate={(e) => {
                           const v = e.currentTarget;
+                          const lessonId = activeLesson?.lessonId;
 
                           handleVideoTimeUpdate(v.currentTime);
-                          const watchedEnough = activeLesson ? recordActualPlayback(activeLesson.lessonId, v.currentTime, v.duration) : false;
+                          const watchedEnough = lessonId
+                            ? recordActualPlayback(lessonId, v.currentTime, v.duration)
+                            : false;
 
-                          if (watchedEnough && v.currentTime >= v.duration * 0.95 && activeLesson && !videoCompletionTriggeredRef.current[activeLesson.lessonId]) {
-                            videoCompletionTriggeredRef.current[activeLesson.lessonId] = true;
-                            handleMarkLessonComplete(activeLesson.lessonId, true);
+                          // Ghi nhận hoàn thành khi đã xem đủ 95% thời lượng.
+                          if (watchedEnough && lessonId && !videoCompletionTriggeredRef.current[lessonId]) {
+                            videoCompletionTriggeredRef.current[lessonId] = true;
+                            handleMarkLessonComplete(lessonId, true);
+                          }
+
+                          // Một số trình duyệt không phát onEnded ổn định với video nhúng/tệp trực tiếp.
+                          // Khi đầu phát đã đến sát cuối video, chủ động bật luồng tự chuyển bài.
+                          if (
+                            lessonId &&
+                            Number.isFinite(v.duration) &&
+                            v.duration > 0 &&
+                            (v.ended || v.currentTime >= v.duration - 0.75)
+                          ) {
+                            if (!videoCompletionTriggeredRef.current[lessonId]) {
+                              videoCompletionTriggeredRef.current[lessonId] = true;
+                              handleMarkLessonComplete(lessonId, true);
+                            }
+                            setVideoWatchProgress(prev => prev[lessonId] === 100 ? prev : { ...prev, [lessonId]: 100 });
+                            setIsVideoEnded(true);
                           }
                         }}
                         onPause={(e) =>
                           handleVideoTimeUpdate(e.currentTarget.currentTime)
                         }
-                        onEnded={(e) => {
-                          if (!activeLesson) return;
-                          if (!videoCompletionTriggeredRef.current[activeLesson.lessonId]) {
-                            videoCompletionTriggeredRef.current[activeLesson.lessonId] = true;
-                            handleMarkLessonComplete(activeLesson.lessonId, true);
+                        onEnded={() => {
+                          const lessonId = activeLesson?.lessonId;
+                          if (!lessonId) return;
+                          if (!videoCompletionTriggeredRef.current[lessonId]) {
+                            videoCompletionTriggeredRef.current[lessonId] = true;
+                            handleMarkLessonComplete(lessonId, true);
                           }
+                          setVideoWatchProgress(prev => prev[lessonId] === 100 ? prev : { ...prev, [lessonId]: 100 });
                           setIsVideoEnded(true);
                         }}
                         className="h-full w-full object-contain"
@@ -2458,7 +2685,9 @@ export const CourseLearningPage: React.FC = () => {
 
                       <p className="mt-1 text-xs text-slate-400 max-w-sm">
                         {activeLesson
-                          ? 'Bài học này chưa được cập nhật liên kết Video. Vui lòng chọn bài học khác.'
+                          ? activeLesson.hasVideo
+                            ? 'Bài học chưa có video upload lên kho riêng của MSEEK hoặc bạn chưa được cấp quyền phát. Hãy liên hệ giảng viên.'
+                            : 'Bài học này chưa được cập nhật liên kết Video. Vui lòng chọn bài học khác.'
                           : 'Vui lòng chọn bài học từ danh sách bên phải để bắt đầu xem video.'}
                       </p>
                     </div>
@@ -2494,7 +2723,7 @@ export const CourseLearningPage: React.FC = () => {
               </button>
 
               {activeLesson?.lessonType?.toUpperCase() === 'ASSIGNMENT' ||
-              (!activeLesson?.videoUrl && activeLesson !== null) ? (
+              (!effectiveVideoUrl && activeLesson !== null && !activeLesson.hasVideo) ? (
                 <div
                   className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold border transition-all ${
                     activeLesson && completedLessonIds.includes(activeLesson.lessonId)
@@ -2517,11 +2746,11 @@ export const CourseLearningPage: React.FC = () => {
               ) : (
                 <button
                   onClick={() =>
-                    activeLesson && !activeLesson.videoUrl?.trim() &&
+                    activeLesson && !effectiveVideoUrl?.trim() && !activeLesson.hasVideo &&
                     toggleComplete(activeLesson.lessonId)
                   }
-                  disabled={!!activeLesson?.videoUrl?.trim()}
-                  title={activeLesson?.videoUrl?.trim() ? 'Bài video được tự động hoàn thành khi xem đủ 95%' : 'Đánh dấu đã đọc xong bài lý thuyết'}
+                  disabled={!!effectiveVideoUrl?.trim() || !!activeLesson?.hasVideo}
+                  title={effectiveVideoUrl?.trim() || activeLesson?.hasVideo ? 'Bài video được tự động hoàn thành khi xem đủ 95%' : 'Đánh dấu đã đọc xong bài lý thuyết'}
                   className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all cursor-pointer shadow-2xs border ${
                     activeLesson &&
                     completedLessonIds.includes(
@@ -2539,7 +2768,7 @@ export const CourseLearningPage: React.FC = () => {
                       activeLesson.lessonId,
                     )
                       ? 'Đã hoàn thành'
-                      : activeLesson?.videoUrl?.trim() ? 'Tự hoàn thành khi xem 95%' : 'Đã đọc xong – Đánh dấu hoàn thành'}
+                      : effectiveVideoUrl?.trim() || activeLesson?.hasVideo ? 'Tự hoàn thành khi xem 95%' : 'Đã đọc xong – Đánh dấu hoàn thành'}
                   </span>
                 </button>
               )}
@@ -2602,21 +2831,6 @@ export const CourseLearningPage: React.FC = () => {
                   </h2>
                 </div>
 
-                {activeLesson?.videoUrl && (
-                  <a
-                    href={
-                      activeLesson.videoUrl
-                    }
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-xs font-bold text-violet-600 hover:text-violet-700 transition-colors"
-                  >
-                    <ExternalLink className="h-3.5 w-3.5" />
-                    <span>
-                      Mở link gốc Video
-                    </span>
-                  </a>
-                )}
               </div>
 
               {/* Tabs */}
@@ -2793,6 +3007,11 @@ export const CourseLearningPage: React.FC = () => {
                         lessonsByModule[
                           mod.moduleId
                         ] || [];
+                      const chapterQuiz = quizzes.find(q =>
+                        q.purpose === 'CHAPTER_ASSESSMENT' &&
+                        q.moduleId === mod.moduleId &&
+                        (q.status === 'ACTIVE' || q.status === 'ARCHIVED' || q.status === 'INACTIVE')
+                      );
 
                       const isCollapsed =
                         collapsedModules[
@@ -2877,10 +3096,10 @@ export const CourseLearningPage: React.FC = () => {
                                         <button
                                           type="button"
                                           onClick={() =>
-                                            handleSelectLesson(
-                                              lesson,
-                                            )
+                                            handleSelectLesson(lesson)
                                           }
+                                          disabled={lesson.isLocked}
+                                          title={lesson.isLocked ? (lesson.lockReason || 'Cần PASS bài kiểm tra trước đó') : undefined}
                                           className={`w-full flex items-start gap-2.5 p-2.5 rounded-lg text-left text-xs transition-all cursor-pointer ${
                                             isActive
                                               ? 'bg-violet-50 border border-violet-300 text-violet-900 shadow-2xs font-bold'
@@ -2888,7 +3107,9 @@ export const CourseLearningPage: React.FC = () => {
                                           }`}
                                         >
                                           <div className="shrink-0 mt-0.5">
-                                            {isCompleted ? (
+                                            {lesson.isLocked ? (
+                                              <LockKeyhole className="h-4 w-4 text-slate-400" />
+                                            ) : isCompleted ? (
                                               <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                                             ) : isActive ? (
                                               <PlayCircle className="h-4 w-4 text-violet-600 animate-pulse" />
@@ -2936,12 +3157,51 @@ export const CourseLearningPage: React.FC = () => {
                                         {renderQuizButton(
                                           lesson.lessonId,
                                         )}
+
+                                        {renderDailyPracticeButtons(lesson.lessonId)}
                                       </div>
                                     );
                                   },
                                 )
                               )}
                             </div>
+                          )}
+                          {!isCollapsed && chapterQuiz && (
+                            <div className="mx-2 mb-2 mt-1 rounded-xl border border-amber-200 bg-amber-50/70 p-3">
+                              <div className="flex items-start gap-2">
+                                <Award className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-xs font-extrabold text-amber-950">Bài đánh giá {mod.title}</p>
+                                  <p className="mt-1 text-[10px] leading-4 text-amber-800">Hoàn thành video và đạt tất cả bài luyện tập đã đến ngày mở trong chương để làm bài đánh giá. Đạt từ 80% để mở chương tiếp theo.</p>
+                                  {chapterQuiz.status === 'ACTIVE' && chapterQuiz.isLocked ? (
+                                    <p className="mt-2 flex items-center gap-1.5 text-[11px] font-semibold text-amber-800"><LockKeyhole size={12}/>{chapterQuiz.lockReason || 'Hoàn thành và PASS tất cả Quiz luyện tập trong chương để mở bài đánh giá.'}</p>
+                                  ) : chapterQuiz.status === 'ACTIVE' ? (
+                                    <div className="mt-2">
+                                      <LearnerQuizHistoryActions
+                                        quizId={chapterQuiz.quizId}
+                                        maxAttempts={chapterQuiz.maxAttempts}
+                                        passingScore={chapterQuiz.passingScore}
+                                        returnTo={getQuizReturnTo()}
+                                        onTake={() => handleTakeQuiz(chapterQuiz.quizId)}
+                                      />
+                                    </div>
+                                  ) : chapterQuiz.status === 'ARCHIVED' ? (
+                                    <p className="mt-2 text-[11px] font-semibold text-amber-800">
+                                      {chapterQuiz.availableFrom
+                                        ? `Đang lên lịch mở: ${new Date(chapterQuiz.availableFrom).toLocaleString('vi-VN')}`
+                                        : 'Bài đánh giá đang được lưu trữ.'}
+                                    </p>
+                                  ) : (
+                                    <p className="mt-2 text-[11px] font-semibold text-slate-500">Bài đánh giá hiện đang ngừng hoạt động.</p>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                          {!isCollapsed && !chapterQuiz && modLessons.length > 0 && (
+                            <p className="mx-3 mb-3 mt-1 rounded-lg border border-amber-100 bg-amber-50/60 p-2 text-[10px] leading-4 text-amber-800">
+                              Chương này chưa có bài đánh giá chương. Học viên cần bài đánh giá này sau khi hoàn thành các Quiz từng bài để mở chương tiếp theo.
+                            </p>
                           )}
                         </div>
                       );
@@ -2984,11 +3244,9 @@ export const CourseLearningPage: React.FC = () => {
                               >
                                 <button
                                   type="button"
-                                  onClick={() =>
-                                    handleSelectLesson(
-                                      lesson,
-                                    )
-                                  }
+                                  onClick={() => handleSelectLesson(lesson)}
+                                  disabled={lesson.isLocked}
+                                  title={lesson.isLocked ? (lesson.lockReason || 'Cần PASS bài kiểm tra trước đó') : undefined}
                                   className={`w-full flex items-start gap-2.5 p-2.5 rounded-lg text-left text-xs transition-all cursor-pointer ${
                                     isActive
                                       ? 'bg-amber-50 border border-amber-300 text-amber-900 shadow-2xs'
@@ -2996,7 +3254,9 @@ export const CourseLearningPage: React.FC = () => {
                                   }`}
                                 >
                                   <div className="shrink-0 mt-0.5">
-                                    {isCompleted ? (
+                                    {lesson.isLocked ? (
+                                              <LockKeyhole className="h-4 w-4 text-slate-400" />
+                                            ) : isCompleted ? (
                                       <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                                     ) : isActive ? (
                                       <PlayCircle className="h-4 w-4 text-amber-600 animate-pulse" />
@@ -3069,6 +3329,8 @@ export const CourseLearningPage: React.FC = () => {
                               key={lesson.lessonId}
                               type="button"
                               onClick={() => handleSelectLesson(lesson)}
+                              disabled={lesson.isLocked}
+                              title={lesson.isLocked ? (lesson.lockReason || 'Cần PASS bài kiểm tra trước đó') : undefined}
                               className={`w-full flex items-center justify-between p-2.5 rounded-lg text-left text-xs transition-all cursor-pointer ${
                                 isActive
                                   ? 'bg-purple-600 text-white shadow-xs font-bold'
@@ -3076,13 +3338,15 @@ export const CourseLearningPage: React.FC = () => {
                               }`}
                             >
                               <div className="flex items-center gap-2 min-w-0">
-                                {isCompleted ? (
+                                {lesson.isLocked ? (
+                                              <LockKeyhole className="h-4 w-4 text-slate-400" />
+                                            ) : isCompleted ? (
                                   <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
                                 ) : (
                                   <Mic className="h-4 w-4 text-purple-500 shrink-0" />
                                 )}
                                 <span className="font-bold truncate">
-                                  {lesson.title}
+                                  {lesson.title}{lesson.isLocked && <span className="ml-2 text-[10px] font-semibold text-slate-400">· Chưa mở khóa</span>}
                                 </span>
                               </div>
 
@@ -3094,6 +3358,29 @@ export const CourseLearningPage: React.FC = () => {
                             </button>
                           );
                         })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Course-wide daily practice (does not affect progression). */}
+                  {quizzes.filter(q => q.purpose === 'DAILY_PRACTICE' && q.lessonId == null && (q.status === 'ACTIVE' || q.status === 'ARCHIVED' || q.status === 'INACTIVE')).length > 0 && (
+                    <div className="mt-4 rounded-xl border border-sky-200 bg-sky-50/60 p-3.5">
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100 border border-sky-200">
+                          <CalendarDays className="h-4 w-4 text-sky-700" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-bold text-sky-950">Bài luyện tập hằng ngày</p>
+                          <p className="mt-1 text-[10px] leading-relaxed text-slate-600">Bài luyện tập bổ sung, không ảnh hưởng điều kiện mở khóa bài học hoặc chương.</p>
+                          {quizzes.filter(q => q.purpose === 'DAILY_PRACTICE' && q.lessonId == null && (q.status === 'ACTIVE' || q.status === 'ARCHIVED' || q.status === 'INACTIVE')).map(q => (
+                            <div key={q.quizId} className="mt-2 rounded-lg border border-sky-100 bg-white p-2">
+                              <p className="text-[11px] font-semibold text-sky-900">{q.title}</p>
+                              {q.status === 'ACTIVE' ? <LearnerQuizHistoryActions quizId={q.quizId} maxAttempts={q.maxAttempts} passingScore={q.passingScore} returnTo={getQuizReturnTo()} onTake={() => handleTakeQuiz(q.quizId)} />
+                                : q.status === 'ARCHIVED' ? <p className="mt-1 text-[11px] text-amber-700">{q.availableFrom ? `Đang lên lịch mở: ${new Date(q.availableFrom).toLocaleString('vi-VN')}` : 'Bài luyện tập đang được lưu trữ.'}</p>
+                                : <p className="mt-1 text-[11px] text-slate-500">Bài luyện tập hiện đang ngừng hoạt động.</p>}
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   )}
@@ -3150,13 +3437,21 @@ export const CourseLearningPage: React.FC = () => {
                           </div>
 
                           <div className="mt-3">
-                            <LearnerQuizHistoryActions
-                              quizId={overallQuiz.quizId}
-                              maxAttempts={overallQuiz.maxAttempts}
-                              passingScore={overallQuiz.passingScore}
-                              returnTo={getQuizReturnTo(activeLesson?.lessonId)}
-                              onTake={() => handleTakeQuiz(overallQuiz.quizId, activeLesson?.lessonId)}
-                            />
+                            {overallQuiz.status === 'ACTIVE' && overallQuiz.isLocked ? (
+                              <p className="flex items-center gap-1.5 text-[11px] font-semibold text-violet-800"><LockKeyhole size={12}/>{overallQuiz.lockReason || 'PASS tất cả bài học và bài đánh giá chương để mở Quiz tổng kết.'}</p>
+                            ) : overallQuiz.status === 'ACTIVE' ? (
+                              <LearnerQuizHistoryActions
+                                quizId={overallQuiz.quizId}
+                                maxAttempts={overallQuiz.maxAttempts}
+                                passingScore={overallQuiz.passingScore}
+                                returnTo={getQuizReturnTo(activeLesson?.lessonId)}
+                                onTake={() => handleTakeQuiz(overallQuiz.quizId)}
+                              />
+                            ) : overallQuiz.status === 'ARCHIVED' ? (
+                              <p className="text-[11px] font-semibold text-violet-700">{overallQuiz.availableFrom ? `Đang lên lịch mở: ${new Date(overallQuiz.availableFrom).toLocaleString('vi-VN')}` : 'Quiz tổng kết đang được lưu trữ.'}</p>
+                            ) : (
+                              <p className="text-[11px] text-slate-500">Quiz tổng kết hiện đang ngừng hoạt động.</p>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -3198,7 +3493,9 @@ export const CourseLearningPage: React.FC = () => {
                           }`}
                         >
                           <div className="shrink-0 mt-0.5">
-                            {isCompleted ? (
+                            {lesson.isLocked ? (
+                                              <LockKeyhole className="h-4 w-4 text-slate-400" />
+                                            ) : isCompleted ? (
                               <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                             ) : isActive ? (
                               <PlayCircle className="h-4 w-4 text-violet-600 animate-pulse" />

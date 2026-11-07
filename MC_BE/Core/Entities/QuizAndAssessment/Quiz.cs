@@ -36,8 +36,14 @@ public class Quiz
     [Column("PassingScore", TypeName = "decimal(5,2)")]
     public decimal PassingScore { get; set; } = 80.00m;
 
+    [Column("Purpose")]
+    public QuizPurpose Purpose { get; set; } = QuizPurpose.PRACTICE;
+
+    [Column("ModuleID")]
+    public int? ModuleId { get; set; }
+
     [Column("MaxAttempts")]
-    public int MaxAttempts { get; set; } = 1;
+    public int MaxAttempts { get; set; } = 0; // 0 = unlimited
 
     [Column("Status")]
     public QuizStatus Status { get; set; } = QuizStatus.ACTIVE;

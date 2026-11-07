@@ -14,6 +14,9 @@ public class QuizAnswerResultDto
 
     public bool? IsCorrect { get; set; }
 
+    // Nội dung giúp học viên hiểu kiến thức cần ôn sau khi làm bài.
+    public string? QuestionExplanation { get; set; }
+
     public string? TextAnswer { get; set; }
 
     public string? TeacherFeedback { get; set; }

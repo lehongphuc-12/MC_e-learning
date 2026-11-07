@@ -76,6 +76,42 @@ public class AdminCoursesController : ControllerBase
         return Ok(ApiResponse<CourseListResponse>.SuccessResponse(result));
     }
 
+    [HttpGet("deletion-requests")]
+    public async Task<ActionResult<ApiResponse<CourseDeletionRequestListDto>>> GetDeletionRequests(
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+    {
+        var result = await _courseService.GetPendingCourseDeletionRequestsAsync(page, pageSize);
+        return Ok(ApiResponse<CourseDeletionRequestListDto>.SuccessResponse(result));
+    }
+
+    [HttpPost("deletion-requests/{requestId:long}/approve")]
+    public Task<ActionResult<ApiResponse<CourseDeletionActionDto>>> ApproveDeletionRequest(
+        long requestId, [FromBody] ReviewCourseDeletionRequest request) => ReviewDeletionRequest(requestId, request, true);
+
+    [HttpPost("deletion-requests/{requestId:long}/reject")]
+    public Task<ActionResult<ApiResponse<CourseDeletionActionDto>>> RejectDeletionRequest(
+        long requestId, [FromBody] ReviewCourseDeletionRequest request) => ReviewDeletionRequest(requestId, request, false);
+
+    private async Task<ActionResult<ApiResponse<CourseDeletionActionDto>>> ReviewDeletionRequest(
+        long requestId, ReviewCourseDeletionRequest request, bool approve)
+    {
+        var adminId = GetCurrentAdminId();
+        if (adminId is null)
+            return Unauthorized(ApiResponse<CourseDeletionActionDto>.FailureResponse("Unauthorized."));
+        try
+        {
+            var result = await _courseService.ReviewCourseDeletionRequestAsync(
+                requestId, adminId.Value, approve, request.AdminNote);
+            if (result is null)
+                return NotFound(ApiResponse<CourseDeletionActionDto>.FailureResponse("Yêu cầu xóa không tồn tại."));
+            return Ok(ApiResponse<CourseDeletionActionDto>.SuccessResponse(result, result.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(ApiResponse<CourseDeletionActionDto>.FailureResponse(ex.Message));
+        }
+    }
+
     // -------------------------------------------------------------------------
     // POST /api/admin/courses/{id}/approve
     // Approves and publishes the course
@@ -87,11 +123,17 @@ public class AdminCoursesController : ControllerBase
         if (adminId is null)
             return Unauthorized(ApiResponse<CourseDto>.FailureResponse("Unauthorized."));
 
-        var result = await _courseService.ApproveCourseAsync(id, adminId.Value);
-        if (result is null)
-            return NotFound(ApiResponse<CourseDto>.FailureResponse("Khóa học không tồn tại."));
-
-        return Ok(ApiResponse<CourseDto>.SuccessResponse(result, "Phê duyệt và xuất bản khóa học thành công."));
+        try
+        {
+            var result = await _courseService.ApproveCourseAsync(id, adminId.Value);
+            if (result is null)
+                return NotFound(ApiResponse<CourseDto>.FailureResponse("Khóa học không tồn tại."));
+            return Ok(ApiResponse<CourseDto>.SuccessResponse(result, "Phê duyệt và xuất bản khóa học thành công."));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(ApiResponse<CourseDto>.FailureResponse(ex.Message));
+        }
     }
 
     // -------------------------------------------------------------------------

@@ -1,3 +1,4 @@
+
 using MC_BE.Core.Enums;
 using System.ComponentModel.DataAnnotations;
 
@@ -16,10 +17,27 @@ public class LessonDto
     public bool IsPreview { get; set; } = false;
     public LessonStatus Status { get; set; } = LessonStatus.ACTIVE;
     public string? VideoUrl { get; set; }
+
+    public bool IsLocked { get; set; }
+    public string? LockReason { get; set; }
+
+    // Thông tin video và đường dẫn phát.
+    public bool HasVideo { get; set; }
+    public bool RequiresPlaybackUrl { get; set; }
+
+    // Thông tin bản ghi lời nói và phụ đề.
     public string? Transcript { get; set; }
     public string? SubtitleUrl { get; set; }
     public TranscriptStatus TranscriptStatus { get; set; } = TranscriptStatus.NONE;
+
     public DateTime CreatedAt { get; set; }
+}
+
+public class LessonPlaybackDto
+{
+    public int LessonId { get; set; }
+    public string Url { get; set; } = string.Empty;
+    public DateTime ExpiresAt { get; set; }
 }
 
 public class CreateLessonRequest
@@ -31,18 +49,14 @@ public class CreateLessonRequest
     public string Title { get; set; } = string.Empty;
 
     public string? Description { get; set; }
-
     public LessonType? LessonType { get; set; } = Core.Enums.LessonType.VIDEO;
-
     public int OrderIndex { get; set; } = 1;
 
     [Range(0, 10000)]
     public int DurationMinutes { get; set; } = 0;
 
     public bool IsPreview { get; set; } = false;
-
     public LessonStatus Status { get; set; } = LessonStatus.ACTIVE;
-
     public string? VideoUrl { get; set; }
 }
 
@@ -54,17 +68,13 @@ public class UpdateLessonRequest
     public string? Title { get; set; }
 
     public string? Description { get; set; }
-
     public LessonType? LessonType { get; set; }
-
     public int? OrderIndex { get; set; }
 
     [Range(0, 10000)]
     public int? DurationMinutes { get; set; }
 
     public bool? IsPreview { get; set; }
-
     public LessonStatus? Status { get; set; }
-
     public string? VideoUrl { get; set; }
 }

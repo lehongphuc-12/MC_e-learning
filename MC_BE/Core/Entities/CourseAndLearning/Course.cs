@@ -39,6 +39,9 @@ public class Course
     [Column("Price", TypeName = "decimal(10,2)")]
     public decimal Price { get; set; } = 0.00m;
 
+    [Column("IsFree")]
+    public bool IsFree { get; set; }
+
     [Column("Level")]
     public CourseLevel? Level { get; set; }
 

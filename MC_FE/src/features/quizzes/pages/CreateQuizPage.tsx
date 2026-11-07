@@ -5,6 +5,9 @@ import { useCreateQuiz } from '../hooks/useQuiz';
 import { QuizQuestionEditor } from '../components/QuizQuestionEditor';
 import { CreateQuestionRequest, CreateQuizRequest, QuestionType, QuizStatus } from '../types/quizTypes';
 import { ToastType } from '../../../components/common/Toast';
+import { useCourseModules } from '../../courses/hooks/useModuleQueries';
+import { useCourseLessons } from '../../courses/hooks/useLessonQueries';
+import type { QuizPurpose } from '../types/quizTypes';
 interface CreateQuizPageProps {
   onToast?: (title: string, desc?: string, type?: ToastType) => void;
 }
@@ -399,6 +402,8 @@ export const CreateQuizPage: React.FC<CreateQuizPageProps> = ({
   const createQuizMutation = useCreateQuiz();
   const courseIdParam = searchParams.get('courseId');
   const lessonIdParam = searchParams.get('lessonId');
+  const moduleIdParam = searchParams.get('moduleId');
+  const purposeParam = searchParams.get('purpose') as QuizPurpose | null;
   const courseId = courseIdParam ? Number(courseIdParam) : null;
   const lessonId = lessonIdParam ? Number(lessonIdParam) : null;
   const isValidCourseId =
@@ -409,17 +414,39 @@ export const CreateQuizPage: React.FC<CreateQuizPageProps> = ({
     lessonId !== null &&
     Number.isInteger(lessonId) &&
     lessonId > 0;
+  const purpose: QuizPurpose = purposeParam ??
+    (isLessonQuiz ? 'PRACTICE' : 'FINAL_ASSESSMENT');
+  const initialModuleId = moduleIdParam ? Number(moduleIdParam) : null;
+  const { data: courseModules = [], isLoading: isModulesLoading } = useCourseModules(courseId ?? 0);
+  const { data: courseLessons = [], isLoading: isLessonsLoading } = useCourseLessons(courseId ?? 0);
+  const [moduleId, setModuleId] = useState<number | null>(
+    initialModuleId && Number.isInteger(initialModuleId) && initialModuleId > 0 ? initialModuleId : null
+  );
+  const [dailyDate, setDailyDate] = useState('');
+  const [dailyLessonId, setDailyLessonId] = useState<number | null>(
+    isLessonQuiz ? lessonId : null
+  );
+  const isChapterQuiz = purpose === 'CHAPTER_ASSESSMENT';
+  const isDailyPractice = purpose === 'DAILY_PRACTICE';
   const quizScopeTitle = isLessonQuiz
     ? 'Tạo Quiz cho bài học'
-    : 'Tạo Quiz tổng khóa học';
+    : isChapterQuiz
+      ? 'Tạo Quiz đánh giá chương'
+      : isDailyPractice
+        ? 'Tạo bài luyện tập hằng ngày'
+        : 'Tạo Quiz tổng kết khóa học';
   const quizScopeDescription = isLessonQuiz
     ? 'Tạo bài kiểm tra và bài tập tương tác cho bài học này.'
-    : 'Tạo bài kiểm tra tổng hợp kiến thức của toàn bộ khóa học.';
+    : isChapterQuiz
+      ? 'Bài đánh giá gắn với một chương. Học viên cần đạt 80% để mở khóa nội dung tiếp theo.'
+      : isDailyPractice
+        ? 'Tạo bài luyện tập có lịch mở trong ngày. Bài luyện tập hằng ngày không áp dụng cooldown đánh giá.'
+        : 'Tạo bài kiểm tra tổng hợp kiến thức của toàn bộ khóa học.';
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [timeLimitMinutes, setTimeLimitMinutes] = useState(0);
   const [passingScore, setPassingScore] = useState(80);
-  const [maxAttempts, setMaxAttempts] = useState(1);
+  const [maxAttempts, setMaxAttempts] = useState(0);
   const [status, setStatus] = useState<QuizStatus>('DRAFT');
   const [availableFrom, setAvailableFrom] = useState('');
   const [availableUntil, setAvailableUntil] = useState('');
@@ -470,6 +497,12 @@ export const CreateQuizPage: React.FC<CreateQuizPageProps> = ({
     if (!isValidCourseId) {
       return 'Course ID không hợp lệ.';
     }
+    if (isChapterQuiz && (!moduleId || !courseModules.some((module) => module.moduleId === moduleId))) {
+      return 'Vui lòng chọn chương học hợp lệ cho Quiz.';
+    }
+    if (isDailyPractice && !dailyDate) {
+      return 'Vui lòng chọn ngày áp dụng cho bài luyện tập hằng ngày.';
+    }
     if (!title.trim()) {
       return 'Vui lòng nhập tên Quiz.';
     }
@@ -485,9 +518,9 @@ export const CreateQuizPage: React.FC<CreateQuizPageProps> = ({
     }
     if (
       !Number.isInteger(maxAttempts) ||
-      maxAttempts <= 0
+      maxAttempts < 0
     ) {
-      return 'Số lần làm bài phải là số nguyên lớn hơn 0.';
+      return 'Số lần làm bài phải là số nguyên không âm (0 = không giới hạn).';
     }
     if (questions.length === 0) {
       return 'Quiz phải có ít nhất 1 câu hỏi.';
@@ -509,15 +542,21 @@ export const CreateQuizPage: React.FC<CreateQuizPageProps> = ({
     if (!isValidCourseId || courseId === null) return;
     const payload: CreateQuizRequest = {
       courseId,
-      lessonId: isLessonQuiz ? lessonId : null,
+      lessonId: isLessonQuiz ? lessonId : isDailyPractice ? dailyLessonId : null,
+      moduleId: isChapterQuiz ? moduleId : null,
+      purpose,
+      availableFrom: isDailyPractice && dailyDate
+        ? new Date(`${dailyDate}T00:00:00`).toISOString()
+        : availableFrom ? new Date(availableFrom).toISOString() : null,
+      availableUntil: isDailyPractice && dailyDate
+        ? new Date(`${dailyDate}T23:59:59`).toISOString()
+        : availableUntil ? new Date(availableUntil).toISOString() : null,
       title: title.trim(),
       description: description.trim() || null,
       timeLimitMinutes,
       passingScore,
       maxAttempts,
       status,
-      availableFrom: availableFrom ? new Date(availableFrom).toISOString() : null,
-      availableUntil: availableUntil ? new Date(availableUntil).toISOString() : null,
       questions: questions.map(normalizeQuestion),
     };
     try {
@@ -583,13 +622,15 @@ export const CreateQuizPage: React.FC<CreateQuizPageProps> = ({
             <section className="mseek-card rounded-[22px] border border-[#C9D9EF] bg-white p-5 shadow-[0_10px_35px_-22px_rgba(15,56,113,0.35)] sm:p-6">
               <div className="mb-6 flex items-center gap-3"><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#E8F1FF] text-[#1764E9]"><ClipboardList className="h-5 w-5"/></span><div><h2 className="text-lg font-extrabold text-[#102B59]">Thông tin Quiz</h2><p className="text-xs text-[#7488A7]">Thiết lập các thông tin cơ bản của bài kiểm tra.</p></div></div>
               <div className="grid gap-4 sm:grid-cols-2">
+                {isChapterQuiz && <label className="sm:col-span-2"><span className={labelClass}>Chương học <span className="text-red-500">*</span></span><select value={moduleId ?? ''} onChange={e=>setModuleId(e.target.value ? Number(e.target.value) : null)} className={inputClass} disabled={isModulesLoading}><option value="">-- Chọn chương học --</option>{courseModules.map(module=><option key={module.moduleId} value={module.moduleId}>{module.orderIndex}. {module.title}</option>)}</select><span className="mt-1 block text-[11px] text-[#8494AB]">Mỗi chương chỉ tạo một Quiz đánh giá.</span></label>}
+                {isDailyPractice && <><label className="sm:col-span-2"><span className={labelClass}>Bài học liên quan (không bắt buộc)</span><select value={dailyLessonId ?? ''} onChange={e=>setDailyLessonId(e.target.value ? Number(e.target.value) : null)} className={inputClass} disabled={isLessonsLoading}><option value="">-- Toàn khóa học / không gắn bài học --</option>{courseLessons.map(lesson=><option key={lesson.lessonId} value={lesson.lessonId}>{lesson.title}</option>)}</select><span className="mt-1 block text-[11px] text-[#8494AB]">Có thể gắn với một bài học cụ thể hoặc để trống để áp dụng cho toàn khóa học.</span></label><label className="sm:col-span-2"><span className={labelClass}>Ngày luyện tập <span className="text-red-500">*</span></span><input type="date" value={dailyDate} onChange={e=>setDailyDate(e.target.value)} className={inputClass}/><span className="mt-1 block text-[11px] text-[#8494AB]">Quiz mở từ 00:00 đến 23:59 theo giờ thiết bị.</span></label></>}
                 <label className="sm:col-span-2"><span className={labelClass}>Tên Quiz <span className="text-red-500">*</span></span><input value={title} onChange={e=>{setTitle(e.target.value);setErrorMessage('');}} placeholder="Ví dụ: Luyện tập kỹ năng dẫn chương trình" className={inputClass}/></label>
                 <label className="sm:col-span-2"><span className={labelClass}>Mô tả</span><textarea value={description} onChange={e=>setDescription(e.target.value)} rows={3} placeholder="Mô tả nội dung và mục tiêu của Quiz..." className={`${inputClass} resize-none`}/></label>
-                <label><span className={labelClass}>Trạng thái</span><select value={status} onChange={e=>setStatus(e.target.value as QuizStatus)} className={inputClass}><option value="DRAFT">Nháp</option><option value="ACTIVE">Đã xuất bản</option><option value="INACTIVE">Ngừng hoạt động</option><option value="ARCHIVED">Lưu trữ</option></select></label>
+                <label><span className={labelClass}>Trạng thái</span><select value={status} onChange={e=>setStatus(e.target.value as QuizStatus)} className={inputClass}><option value="DRAFT">Nháp</option><option value="ACTIVE">Đã xuất bản</option><option value="INACTIVE">Ngừng hoạt động</option><option value="ARCHIVED">Lưu trữ</option></select><span className="mt-1 block text-[11px] text-slate-500">Chọn Lưu trữ và đặt ngày mở để hệ thống tự xuất bản đúng lịch.</span></label>
                 <label><span className={labelClass}>Thời gian làm bài (phút)</span><input type="number" min={0} value={timeLimitMinutes} onChange={e=>setTimeLimitMinutes(Math.max(0,Number(e.target.value)))} className={inputClass}/><span className="mt-1 block text-[11px] text-[#8494AB]">0 = không giới hạn thời gian.</span></label>
-                <label><span className={labelClass}>Điểm đạt (%)</span><input type="number" min={0} max={100} value={passingScore} onChange={e=>setPassingScore(Number(e.target.value))} className={inputClass}/></label>
-                <label><span className={labelClass}>Số lần được làm</span><input type="number" min={1} step={1} value={maxAttempts} onChange={e=>setMaxAttempts(Number(e.target.value))} className={inputClass}/></label>
-                <div className="sm:col-span-2 rounded-2xl border border-[#BDD5F6] bg-[#EDF5FF] p-4 sm:p-5"><div className="mb-4 flex items-center gap-2 text-[#174987]"><CalendarClock className="h-5 w-5"/><h3 className="text-sm font-extrabold">Lịch mở và đóng Quiz</h3></div><div className="grid gap-4 sm:grid-cols-2"><label><span className={labelClass}>Ngày và giờ bắt đầu</span><input type="datetime-local" value={availableFrom} onChange={e=>{setAvailableFrom(e.target.value);setErrorMessage('');}} className={inputClass}/></label><label><span className={labelClass}>Ngày và giờ kết thúc</span><input type="datetime-local" min={availableFrom||undefined} value={availableUntil} onChange={e=>{setAvailableUntil(e.target.value);setErrorMessage('');}} className={inputClass}/></label></div><p className="mt-3 text-xs text-[#607DA4]">Để trống nếu không giới hạn. Giờ theo thiết bị, lưu UTC.</p></div>
+                <label><span className={labelClass}>Điểm đạt (%)</span><input type="number" min={0} max={100} value={80} disabled title="Điểm đạt cố định là 80% theo quy định MSEEK" className={inputClass}/></label>
+                <label><span className={labelClass}>Số lần được làm</span><input type="number" min={0} step={1} value={maxAttempts} onChange={e=>setMaxAttempts(Math.max(0, Number(e.target.value)))} className={inputClass}/><span className="mt-1 block text-[11px] text-slate-500">Nhập 0 để không giới hạn tổng số lượt làm bài.</span></label>
+                {!isDailyPractice && <div className="sm:col-span-2 rounded-2xl border border-[#BDD5F6] bg-[#EDF5FF] p-4 sm:p-5"><div className="mb-4 flex items-center gap-2 text-[#174987]"><CalendarClock className="h-5 w-5"/><h3 className="text-sm font-extrabold">Lịch mở và đóng Quiz</h3></div><div className="grid gap-4 sm:grid-cols-2"><label><span className={labelClass}>Ngày và giờ bắt đầu</span><input type="datetime-local" value={availableFrom} onChange={e=>{setAvailableFrom(e.target.value);setErrorMessage('');}} className={inputClass}/></label><label><span className={labelClass}>Ngày và giờ kết thúc</span><input type="datetime-local" min={availableFrom||undefined} value={availableUntil} onChange={e=>{setAvailableUntil(e.target.value);setErrorMessage('');}} className={inputClass}/></label></div><p className="mt-3 text-xs text-[#607DA4]">Để trống nếu không giới hạn. Giờ theo thiết bị, lưu UTC.</p></div>}
               </div>
             </section>
             <section className="mseek-card rounded-[22px] border border-[#C9D9EF] bg-white p-5 shadow-[0_10px_35px_-22px_rgba(15,56,113,0.35)] sm:p-6"><div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div className="flex items-center gap-3"><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#E8F1FF] text-[#1764E9]"><FileQuestion className="h-5 w-5"/></span><div><h2 className="text-lg font-extrabold">Câu hỏi & bài tập</h2><p className="text-xs text-[#7488A7]">Quiz hiện có {questions.length} câu hỏi/bài tập.</p></div></div><button type="button" onClick={handleAddQuestion} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#1764E9] px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#104DBB]"><Plus className="h-4 w-4"/>Thêm câu hỏi</button></div><div className="space-y-4">{questions.map((question,index)=><QuizQuestionEditor key={index} question={question} questionNumber={index+1} onChange={updatedQuestion=>handleQuestionChange(index,updatedQuestion)} onRemove={()=>handleRemoveQuestion(index)} canRemove={questions.length>1}/>)}</div></section>

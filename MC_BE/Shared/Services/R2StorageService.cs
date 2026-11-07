@@ -65,6 +65,16 @@ public class R2StorageService : IR2StorageService
         string contentType,
         string? folder = null)
     {
+        var key = await UploadObjectAsync(stream, fileName, contentType, folder);
+        return BuildPublicUrl(key);
+    }
+
+    public async Task<string> UploadObjectAsync(
+        Stream stream,
+        string fileName,
+        string contentType,
+        string? folder = null)
+    {
         var ext = Path.GetExtension(fileName);
         var uniqueKey = string.IsNullOrWhiteSpace(folder)
             ? $"{Guid.NewGuid()}{ext}"
@@ -85,7 +95,7 @@ public class R2StorageService : IR2StorageService
 
         await _s3.PutObjectAsync(request);
 
-        return BuildPublicUrl(uniqueKey);
+        return uniqueKey;
     }
 
     /// <inheritdoc />
@@ -105,18 +115,27 @@ public class R2StorageService : IR2StorageService
     {
         if (string.IsNullOrWhiteSpace(url)) return null;
 
-        // Try to extract from public domain first
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var parsedUrl))
+            return null;
+
         if (!string.IsNullOrWhiteSpace(_settings.PublicDomain))
         {
-            var domain = _settings.PublicDomain.TrimEnd('/');
-            if (url.StartsWith(domain, StringComparison.OrdinalIgnoreCase))
-                return url.Substring(domain.Length).TrimStart('/');
+            if (Uri.TryCreate(_settings.PublicDomain, UriKind.Absolute, out var publicUri) &&
+                Uri.Compare(parsedUrl, publicUri, UriComponents.SchemeAndServer, UriFormat.SafeUnescaped, StringComparison.OrdinalIgnoreCase) == 0)
+            {
+                var publicPath = publicUri.AbsolutePath.TrimEnd('/');
+                if (parsedUrl.AbsolutePath.StartsWith(publicPath + "/", StringComparison.Ordinal))
+                    return Uri.UnescapeDataString(parsedUrl.AbsolutePath[(publicPath.Length + 1)..]);
+            }
         }
 
-        // Otherwise try the R2 ServiceUrl/{BucketName}/ pattern
-        var prefix = $"{_settings.ServiceUrl.TrimEnd('/')}/{_settings.BucketName}/";
-        if (url.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-            return url.Substring(prefix.Length);
+        if (Uri.TryCreate(_settings.ServiceUrl, UriKind.Absolute, out var serviceUri) &&
+            Uri.Compare(parsedUrl, serviceUri, UriComponents.SchemeAndServer, UriFormat.SafeUnescaped, StringComparison.OrdinalIgnoreCase) == 0)
+        {
+            var bucketPath = $"{serviceUri.AbsolutePath.TrimEnd('/')}/{_settings.BucketName}/";
+            if (parsedUrl.AbsolutePath.StartsWith(bucketPath, StringComparison.Ordinal))
+                return Uri.UnescapeDataString(parsedUrl.AbsolutePath[bucketPath.Length..]);
+        }
 
         return null;
     }
@@ -138,19 +157,65 @@ public class R2StorageService : IR2StorageService
     /// <inheritdoc />
     public string GetPresignedUrl(string objectKey, double expiresHours = 24)
     {
+        if (string.IsNullOrWhiteSpace(objectKey))
+            throw new ArgumentException("Object key is required.", nameof(objectKey));
+
+        if (expiresHours <= 0 || expiresHours > 168)
+            throw new ArgumentOutOfRangeException(nameof(expiresHours), "Presigned URL expiry must be between 0 and 168 hours.");
+
+        var request = new GetPreSignedUrlRequest
+        {
+            BucketName = _settings.BucketName,
+            Key = objectKey,
+            Expires = DateTime.UtcNow.AddHours(expiresHours),
+        };
+        return _s3.GetPreSignedURL(request);
+    }
+
+    public string GetPresignedPutUrl(string objectKey, string contentType, double expiresMinutes = 15)
+    {
+        if (string.IsNullOrWhiteSpace(objectKey))
+            throw new ArgumentException("Object key is required.", nameof(objectKey));
+        if (string.IsNullOrWhiteSpace(contentType))
+            throw new ArgumentException("Content type is required.", nameof(contentType));
+        if (expiresMinutes <= 0 || expiresMinutes > 60)
+            throw new ArgumentOutOfRangeException(nameof(expiresMinutes), "Upload URL expiry must be between 0 and 60 minutes.");
+
+        var request = new GetPreSignedUrlRequest
+        {
+            BucketName = _settings.BucketName,
+            Key = objectKey,
+            Verb = HttpVerb.PUT,
+            Expires = DateTime.UtcNow.AddMinutes(expiresMinutes),
+            ContentType = contentType,
+        };
+
+        return _s3.GetPreSignedURL(request);
+    }
+
+    public async Task<bool> ObjectExistsAsync(string objectKey)
+    {
         try
         {
-            var request = new GetPreSignedUrlRequest
-            {
-                BucketName = _settings.BucketName,
-                Key        = objectKey,
-                Expires    = DateTime.UtcNow.AddHours(expiresHours),
-            };
-            return _s3.GetPreSignedURL(request);
+            await _s3.GetObjectMetadataAsync(_settings.BucketName, objectKey);
+            return true;
         }
-        catch
+        catch (AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
-            return $"{_settings.ServiceUrl.TrimEnd('/')}/{_settings.BucketName}/{objectKey}";
+            return false;
+        }
+    }
+
+    public async Task<(long ContentLength, string ContentType)?> GetObjectMetadataAsync(string objectKey)
+    {
+        try
+        {
+            var metadata = await _s3.GetObjectMetadataAsync(_settings.BucketName, objectKey);
+            return (metadata.ContentLength, metadata.Headers.ContentType ?? "application/octet-stream");
+        }
+        catch (AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            return null;
         }
     }
 

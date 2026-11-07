@@ -41,7 +41,7 @@ import {
   GitCompareArrows,
   CloudUpload,
   ShieldCheck,
-  Video, FileText, MoreVertical, LayoutGrid, List, CheckCircle2, Menu, BarChart3, Upload, SlidersHorizontal,
+  Video, FileText, MoreVertical, LayoutGrid, List, CheckCircle2, Menu, BarChart3, Upload, SlidersHorizontal, CalendarDays, GraduationCap,
 } from 'lucide-react';
 import { CourseStudentsModal } from './CourseStudentsModal';
 import { IncompleteCourseModal } from './IncompleteCourseModal';
@@ -71,6 +71,7 @@ import {
 import { LessonFormModal } from './LessonFormModal';
 import { LessonStatusModal } from './LessonStatusModal';
 import { ImportLessonModal } from './ImportLessonModal';
+import { BulkLessonVideoUploadModal } from './BulkLessonVideoUploadModal';
 import { ModuleFormModal } from './ModuleFormModal';
 import { ImportModuleModal } from './ImportModuleModal';
 import { CourseMaterialModal } from './CourseMaterialModal';
@@ -133,9 +134,11 @@ export const CourseLessonsPage: React.FC = () => {
   // ===========================================================================
 
   const [isLessonModalOpen, setIsLessonModalOpen] = useState(false);
+  const [isSavingLesson, setIsSavingLesson] = useState(false);
 
   const [isLessonImportModalOpen, setIsLessonImportModalOpen] =
     useState(false);
+  const [isBulkVideoUploadOpen, setIsBulkVideoUploadOpen] = useState(false);
 
   const [editingLesson, setEditingLesson] = useState<Lesson | null>(null);
 
@@ -197,6 +200,7 @@ export const CourseLessonsPage: React.FC = () => {
     title: string;
     message: string;
     reason?: string | null;
+    lessonId?: number;
   }>({
     isOpen: false,
     type: 'success',
@@ -218,10 +222,10 @@ export const CourseLessonsPage: React.FC = () => {
   const { mutate: deleteLesson, isPending: isDeletingLesson } =
     useDeleteLesson(courseId);
 
-  const { mutate: createModule, isPending: isCreatingModule } =
+  const { mutateAsync: createModuleAsync, isPending: isCreatingModule } =
     useCreateModule(courseId);
 
-  const { mutate: updateModule, isPending: isUpdatingModule } =
+  const { mutateAsync: updateModuleAsync, isPending: isUpdatingModule } =
     useUpdateModule(courseId);
 
   const { mutate: deleteModule, isPending: isDeletingModule } =
@@ -596,7 +600,12 @@ export const CourseLessonsPage: React.FC = () => {
     setIsLessonModalOpen(true);
   };
 
-  const handleLessonFormSubmit = async (dto: CreateLessonDto, file?: File | null) => {
+  const handleLessonFormSubmit = async (
+    dto: CreateLessonDto,
+    file?: File | null,
+    onUploadProgress?: (percent: number) => void,
+  ) => {
+    setIsSavingLesson(true);
     try {
       if (editingLesson) {
         await updateLessonAsync({
@@ -605,25 +614,9 @@ export const CourseLessonsPage: React.FC = () => {
         });
 
         if (file && editingLesson.lessonId) {
-          try {
-            await lessonApi.uploadVideo(editingLesson.lessonId, file);
-          } catch (uploadErr: any) {
-            console.error('File upload error:', uploadErr);
-            const reason = uploadErr?.response?.data?.message || uploadErr?.message || String(uploadErr);
-            setIsLessonModalOpen(false);
-            setEditingLesson(null);
-            setStatusModal({
-              isOpen: true,
-              type: 'error',
-              title: 'Cập nhật bài học thành công nhưng tải video thất bại',
-              message: `Bài học "${dto.title}" đã được lưu thông tin, nhưng quá trình tải file video lên Cloudflare R2 gặp sự cố.`,
-              reason: reason,
-            });
-            await queryClient.invalidateQueries({
-              queryKey: lessonQueryKeys.courseLessons(courseId),
-            });
-            refetchLessons?.();
-            return;
+          const uploadedLesson = await lessonApi.uploadVideo(editingLesson.lessonId, file, onUploadProgress);
+          if (!uploadedLesson.hasVideo || !uploadedLesson.requiresPlaybackUrl) {
+            throw new Error('Máy chủ nhận file nhưng chưa xác nhận video đã được gắn vào bài học. Vui lòng tải lại danh sách và kiểm tra trước khi thử lại.');
           }
         }
 
@@ -634,15 +627,16 @@ export const CourseLessonsPage: React.FC = () => {
           isOpen: true,
           type: 'success',
           title: 'Cập nhật bài học thành công!',
-          message: `Bài học "${dto.title}" đã được cập nhật thông tin thành công${file ? ' và video đã tải lên.' : '.'}`,
+          message: `Bài học "${dto.title}" đã được cập nhật thông tin thành công${file ? ' và video đã được tải lên, gắn vào bài học trên R2.' : ' Video hiện tại được giữ nguyên.'}`,
           reason: null,
+          lessonId: editingLesson.lessonId,
         });
       } else {
         const createdLesson = await createLessonAsync(dto);
 
         if (file && createdLesson?.lessonId) {
           try {
-            await lessonApi.uploadVideo(createdLesson.lessonId, file);
+            await lessonApi.uploadVideo(createdLesson.lessonId, file, onUploadProgress);
           } catch (uploadErr: any) {
             console.error('File upload error:', uploadErr);
             const reason = uploadErr?.response?.data?.message || uploadErr?.message || String(uploadErr);
@@ -672,6 +666,7 @@ export const CourseLessonsPage: React.FC = () => {
           title: 'Tạo bài học thành công!',
           message: `Bài học "${dto.title}" đã được tạo thành công${file ? ' cùng với video đi kèm.' : '.'}`,
           reason: null,
+          lessonId: createdLesson?.lessonId,
         });
       }
 
@@ -680,6 +675,15 @@ export const CourseLessonsPage: React.FC = () => {
       });
       refetchLessons?.();
     } catch (err: any) {
+      // In edit mode, keep the form open when upload fails so the instructor can retry.
+      // Metadata has already been saved, but the selected file has not been attached.
+      if (editingLesson && file) {
+        await queryClient.invalidateQueries({
+          queryKey: lessonQueryKeys.courseLessons(courseId),
+        });
+        refetchLessons?.();
+        throw err;
+      }
       console.error('Lesson submit error:', err);
       const reason = err?.response?.data?.message || err?.message || String(err);
       setIsLessonModalOpen(false);
@@ -690,6 +694,8 @@ export const CourseLessonsPage: React.FC = () => {
         message: `Đã xảy ra lỗi trong quá trình lưu thông tin bài học "${dto.title}" vào hệ thống.`,
         reason: reason,
       });
+    } finally {
+      setIsSavingLesson(false);
     }
   };
 
@@ -717,27 +723,14 @@ export const CourseLessonsPage: React.FC = () => {
     setIsModuleModalOpen(true);
   };
 
-  const handleModuleFormSubmit = (dto: CreateModuleDto) => {
+  const handleModuleFormSubmit = async (dto: CreateModuleDto) => {
     if (editingModule) {
-      updateModule(
-        {
-          moduleId: editingModule.moduleId,
-          dto,
-        },
-        {
-          onSuccess: () => {
-            setIsModuleModalOpen(false);
-            setEditingModule(null);
-          },
-        }
-      );
+      await updateModuleAsync({ moduleId: editingModule.moduleId, dto });
+      setEditingModule(null);
     } else {
-      createModule(dto, {
-        onSuccess: () => {
-          setIsModuleModalOpen(false);
-        },
-      });
+      await createModuleAsync(dto);
     }
+    setIsModuleModalOpen(false);
   };
 
   const handleDeleteModuleConfirm = () => {
@@ -806,6 +799,13 @@ export const CourseLessonsPage: React.FC = () => {
     return lessons.find((lesson) => lesson.lessonId === quiz.lessonId);
   };
 
+  const getQuizModule = (quiz: (typeof quizzes)[number]) =>
+    modules.find((module) => module.moduleId === quiz.moduleId);
+
+  const navigateToQuizCreation = (purpose: 'PRACTICE' | 'CHAPTER_ASSESSMENT' | 'FINAL_ASSESSMENT' | 'DAILY_PRACTICE') => {
+    navigate(`/instructor/quizzes/new?courseId=${courseId}&purpose=${purpose}`);
+  };
+
   // ===========================================================================
   // RENDER
   // ===========================================================================
@@ -844,7 +844,7 @@ export const CourseLessonsPage: React.FC = () => {
             </>}
           </main>
           <aside className="space-y-4">
-            <div className="rounded-2xl border border-[#e8effb] bg-white p-4 shadow-sm"><div className="relative"><button onClick={()=>setAddMenuOpen(!addMenuOpen)} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0754ef] px-4 py-3 text-sm font-bold text-white shadow-md shadow-blue-600/20 hover:bg-blue-700"><Plus size={18}/> Thêm nội dung <ChevronDown size={16}/></button>{addMenuOpen&&<div className="absolute left-0 right-0 top-[calc(100%+6px)] z-30 rounded-xl border border-blue-100 bg-white p-2 shadow-xl">{[{label:'Thêm chương',action:handleOpenCreateModule},{label:'Thêm bài giảng',action:()=>handleOpenCreateLesson(modules[0]?.moduleId)},{label:'Thêm Quiz',action:()=>navigate(`/instructor/quizzes/new?courseId=${courseId}`)},{label:'Thêm tài liệu',action:()=>setMaterialTarget({lessonId:null})},{label:'Thêm bài tập nói',action:()=>handleOpenCreateSpeakingAssignment(null)},{label:'Nhập từ CSV',action:()=>setIsModuleImportModalOpen(true)}].map(item=><button key={item.label} onClick={()=>{setAddMenuOpen(false);item.action()}} className="block w-full rounded-lg px-3 py-2.5 text-left text-xs font-semibold text-[#15376f] hover:bg-blue-50">{item.label}</button>)}</div>}</div><h3 className="mb-3 mt-5 text-sm font-extrabold text-[#0a245c]">Thao tác nhanh</h3><div className="grid grid-cols-2 gap-2">{[{label:'Thêm chương',icon:FolderPlus,action:handleOpenCreateModule},{label:'Thêm bài học',icon:PlusCircle,action:()=>handleOpenCreateLesson(modules[0]?.moduleId)},{label:'Nhập CSV',icon:FileSpreadsheet,action:()=>setIsModuleImportModalOpen(true)},{label:'Đồng bộ Quiz',icon:GitCompareArrows,action:()=>document.getElementById('quiz-management')?.scrollIntoView({behavior:'smooth'})},{label:'Chấm bài nói',icon:Mic2,action:()=>navigate(`/instructor/courses/${courseId}/speaking`)},{label:'Học viên',icon:Users,action:()=>setIsStudentsModalOpen(true)}].map(item=><button key={item.label} onClick={item.action} className="flex items-center justify-center gap-2 rounded-xl border border-[#dce8fb] bg-[#f9fbff] px-2 py-3 text-[11px] font-semibold text-[#17448e] hover:bg-blue-50"><item.icon size={15}/>{item.label}</button>)}</div></div>
+            <div className="rounded-2xl border border-[#e8effb] bg-white p-4 shadow-sm"><div className="relative"><button onClick={()=>setAddMenuOpen(!addMenuOpen)} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0754ef] px-4 py-3 text-sm font-bold text-white shadow-md shadow-blue-600/20 hover:bg-blue-700"><Plus size={18}/> Thêm nội dung <ChevronDown size={16}/></button>{addMenuOpen&&<div className="absolute left-0 right-0 top-[calc(100%+6px)] z-30 rounded-xl border border-blue-100 bg-white p-2 shadow-xl">{[{label:'Thêm chương',action:handleOpenCreateModule},{label:'Thêm bài giảng',action:()=>handleOpenCreateLesson(modules[0]?.moduleId)},{label:'Thêm Quiz',action:()=>navigate(`/instructor/quizzes/new?courseId=${courseId}`)},{label:'Thêm tài liệu',action:()=>setMaterialTarget({lessonId:null})},{label:'Thêm bài tập nói',action:()=>handleOpenCreateSpeakingAssignment(null)},{label:'Nhập từ CSV',action:()=>setIsModuleImportModalOpen(true)}].map(item=><button key={item.label} onClick={()=>{setAddMenuOpen(false);item.action()}} className="block w-full rounded-lg px-3 py-2.5 text-left text-xs font-semibold text-[#15376f] hover:bg-blue-50">{item.label}</button>)}</div>}</div><h3 className="mb-3 mt-5 text-sm font-extrabold text-[#0a245c]">Thao tác nhanh</h3><div className="grid grid-cols-2 gap-2">{[{label:'Thêm chương',icon:FolderPlus,action:handleOpenCreateModule},{label:'Thêm bài học',icon:PlusCircle,action:()=>handleOpenCreateLesson(modules[0]?.moduleId)},{label:'Tải video hàng loạt',icon:CloudUpload,action:()=>setIsBulkVideoUploadOpen(true)},{label:'Nhập CSV',icon:FileSpreadsheet,action:()=>setIsModuleImportModalOpen(true)},{label:'Đồng bộ Quiz',icon:GitCompareArrows,action:()=>document.getElementById('quiz-management')?.scrollIntoView({behavior:'smooth'})},{label:'Chấm bài nói',icon:Mic2,action:()=>navigate(`/instructor/courses/${courseId}/speaking`)},{label:'Học viên',icon:Users,action:()=>setIsStudentsModalOpen(true)}].map(item=><button key={item.label} onClick={item.action} className="flex items-center justify-center gap-2 rounded-xl border border-[#dce8fb] bg-[#f9fbff] px-2 py-3 text-[11px] font-semibold text-[#17448e] hover:bg-blue-50"><item.icon size={15}/>{item.label}</button>)}</div></div>
             <div className="rounded-2xl border border-[#e8effb] bg-white p-4 shadow-sm"><h3 className="mb-4 text-sm font-extrabold text-[#0a245c]">Thông tin khóa học</h3><div className="flex gap-3">{course?.thumbnailUrl?<img src={course.thumbnailUrl} alt={course.title} className="h-20 w-20 rounded-xl object-cover"/>:<div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl bg-blue-100"><Mic2 size={30} className="text-blue-600"/></div>}<div className="min-w-0"><p className="line-clamp-3 text-sm font-bold text-[#0a245c]">{course?.title}</p>{course?.status&&<div className="mt-2"><CourseStatusBadge status={course.status} size="sm"/></div>}</div></div><div className="mt-4 space-y-3 border-t border-blue-50 pt-4 text-xs text-[#52709f]"><p className="flex justify-between"><span>Chương học</span><strong className="text-[#0a245c]">{modules.length}</strong></p><p className="flex justify-between"><span>Bài học</span><strong className="text-[#0a245c]">{lessons.length}</strong></p><p className="flex justify-between"><span>Quiz</span><strong className="text-[#0a245c]">{quizzes.length}</strong></p><p className="flex justify-between"><span>Thời lượng dự kiến</span><strong className="text-[#0a245c]">{totalDuration} phút</strong></p></div><button onClick={()=>navigate('/instructor/courses')} className="mt-4 w-full rounded-xl border border-blue-200 py-2.5 text-xs font-bold text-blue-700 hover:bg-blue-50">Quản lý khóa học</button></div>
             <div className="rounded-2xl border border-[#e8effb] bg-white p-4 shadow-sm"><h3 className="mb-3 text-sm font-extrabold text-[#0a245c]">Cập nhật & phê duyệt</h3><button onClick={handleSyncAllDurations} disabled={isSyncingDurations} className="mb-2 w-full rounded-xl border border-blue-200 bg-blue-50 py-2.5 text-xs font-bold text-blue-700 hover:bg-blue-100 disabled:opacity-50">{isSyncingDurations?'Đang đồng bộ...':'Đồng bộ thời lượng bài học'}</button>{(course?.status==='DRAFT'||course?.status==='REJECTED')&&<button onClick={handleSendForApproval} disabled={isSubmittingForApproval} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0754ef] py-3 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-50"><Send size={15}/> Gửi duyệt khóa học</button>}<p className="mt-3 rounded-xl bg-[#edf5ff] p-3 text-xs leading-relaxed text-[#4167a1]">Sau khi hoàn thành nội dung, hãy kiểm tra bài học, Quiz và bài tập nói trước khi gửi duyệt.</p></div>
           </aside>
@@ -993,18 +993,18 @@ export const CourseLessonsPage: React.FC = () => {
               </div>
             </div>
 
-            {/* CREATE OVERALL COURSE QUIZ */}
-
-            <button
-              type="button"
-              onClick={() =>
-                navigate(`/instructor/quizzes/new?courseId=${courseId}`)
-              }
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#0754ef] px-5 py-3 text-xs font-extrabold text-white shadow-lg shadow-blue-600/25 transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#0644c4] active:scale-95"
-            >
-              <Plus className="h-4 w-4" />
-              Tạo Quiz tổng khóa học
-            </button>
+            {/* THREE QUIZ / PRACTICE TYPES */}
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" onClick={() => navigateToQuizCreation('CHAPTER_ASSESSMENT')} className="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-3 text-xs font-extrabold text-blue-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-blue-50">
+                <BookOpen className="h-4 w-4" /> Quiz theo chương
+              </button>
+              <button type="button" onClick={() => navigateToQuizCreation('DAILY_PRACTICE')} className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-extrabold text-emerald-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-emerald-100">
+                <CalendarDays className="h-4 w-4" /> Bài tập hằng ngày
+              </button>
+              <button type="button" onClick={() => navigateToQuizCreation('FINAL_ASSESSMENT')} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#0754ef] px-4 py-3 text-xs font-extrabold text-white shadow-lg shadow-blue-600/25 transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#0644c4] active:scale-95">
+                <GraduationCap className="h-4 w-4" /> Quiz tổng khóa học
+              </button>
+            </div>
           </div>
 
           {/* IMPORT / SEARCH: luôn hiển thị, kể cả khi chưa có Quiz */}
@@ -1043,16 +1043,11 @@ export const CourseLessonsPage: React.FC = () => {
                 học này.
               </p>
 
-              <button
-                type="button"
-                onClick={() =>
-                  navigate(`/instructor/quizzes/new?courseId=${courseId}`)
-                }
-                className="mt-3 inline-flex items-center gap-2 rounded-xl bg-[#0754ef] px-4 py-2.5 text-xs font-semibold text-white shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#0644c4] active:scale-95"
-              >
-                <Plus className="h-4 w-4" />
-                Tạo Quiz tổng khóa học
-              </button>
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                <button type="button" onClick={() => navigateToQuizCreation('CHAPTER_ASSESSMENT')} className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-xs font-bold text-blue-700 hover:bg-blue-50"><BookOpen size={15}/> Quiz theo chương</button>
+                <button type="button" onClick={() => navigateToQuizCreation('DAILY_PRACTICE')} className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100"><CalendarDays size={15}/> Bài tập hằng ngày</button>
+                <button type="button" onClick={() => navigateToQuizCreation('FINAL_ASSESSMENT')} className="inline-flex items-center gap-2 rounded-xl bg-[#0754ef] px-4 py-2.5 text-xs font-bold text-white hover:bg-blue-700"><GraduationCap size={15}/> Quiz tổng khóa học</button>
+              </div>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -1097,43 +1092,21 @@ export const CourseLessonsPage: React.FC = () => {
                         {/* QUIZ SCOPE */}
 
                         <td className="px-6 py-4">
-                          {quiz.lessonId == null ? (
-                            /* OVERALL COURSE QUIZ */
-
-                            <div className="inline-flex items-center gap-2 rounded-xl bg-[#f1f6ff] px-3 py-2 text-[11px] font-semibold text-[#17448e]">
-                              <ClipboardList className="h-3.5 w-3.5" />
-                              <span>Quiz tổng khóa học</span>
-                            </div>
-                          ) : lesson ? (
-                            /* LESSON QUIZ */
-
+                          {quiz.purpose === 'CHAPTER_ASSESSMENT' ? (
                             <div className="max-w-xs">
-                              <div className="flex items-center gap-2">
-                                <BookOpen className="h-3.5 w-3.5 shrink-0 text-[#0754ef]" />
-
-                                <span className="font-semibold text-[#17448e]">
-                                  Bài học
-                                </span>
-                              </div>
-
-                              <p
-                                className="mt-1 line-clamp-2 text-xs font-medium text-slate-700"
-                                title={lesson.title}
-                              >
-                                {lesson.title}
-                              </p>
-
-                              <p className="mt-0.5 text-[10px] text-slate-400">
-                                Lesson ID: {lesson.lessonId}
-                              </p>
+                              <div className="flex items-center gap-2 text-blue-700"><BookOpen className="h-3.5 w-3.5"/><span className="font-semibold">Quiz theo chương</span></div>
+                              <p className="mt-1 line-clamp-2 text-xs font-medium text-slate-700">{getQuizModule(quiz)?.title ?? `Chương #${quiz.moduleId ?? 'chưa gán'}`}</p>
+                              <p className="mt-0.5 text-[10px] text-slate-400">Cooldown sau 3 lần FAIL: 1 giờ</p>
+                            </div>
+                          ) : quiz.purpose === 'FINAL_ASSESSMENT' ? (
+                            <div className="inline-flex items-center gap-2 rounded-xl bg-violet-50 px-3 py-2 text-[11px] font-semibold text-violet-700"><GraduationCap className="h-3.5 w-3.5"/><span>Quiz tổng khóa học · Cooldown 6 giờ</span></div>
+                          ) : quiz.purpose === 'DAILY_PRACTICE' ? (
+                            <div className="max-w-xs">
+                              <div className="flex items-center gap-2 text-emerald-700"><CalendarDays className="h-3.5 w-3.5"/><span className="font-semibold">Bài tập hằng ngày</span></div>
+                              <p className="mt-1 text-xs text-slate-600">{quiz.availableFrom ? new Date(quiz.availableFrom).toLocaleDateString('vi-VN') : 'Chưa đặt ngày mở'}</p>
                             </div>
                           ) : (
-                            /* LESSON NOT FOUND */
-
-                            <div className="inline-flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-700">
-                              <BookOpen className="h-3.5 w-3.5" />
-                              <span>Lesson #{quiz.lessonId}</span>
-                            </div>
+                            <div className="inline-flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-[11px] font-semibold text-slate-600"><BookOpen className="h-3.5 w-3.5"/><span>Quiz thực hành theo bài học</span></div>
                           )}
                         </td>
 
@@ -1270,19 +1243,13 @@ export const CourseLessonsPage: React.FC = () => {
         modules={modules}
         defaultModuleId={targetModuleId}
         defaultLessonType={targetLessonType}
-        isSubmitting={isCreatingLesson || isUpdatingLesson}
+        isSubmitting={isSavingLesson || isCreatingLesson || isUpdatingLesson}
         onClose={() => {
           setIsLessonModalOpen(false);
           setEditingLesson(null);
           setTargetLessonType('VIDEO');
         }}
         onSubmit={handleLessonFormSubmit}
-        onVideoUploaded={(updatedLesson) => {
-          // Update local editingLesson state with new videoUrl so re-render retains R2 URL
-          setEditingLesson(updatedLesson);
-          // Refresh lesson list so main table updates immediately
-          refetchLessons?.();
-        }}
       />
 
       <ModuleFormModal
@@ -1304,6 +1271,14 @@ export const CourseLessonsPage: React.FC = () => {
         courseId={courseId}
         isOpen={isLessonImportModalOpen}
         onClose={() => setIsLessonImportModalOpen(false)}
+      />
+
+      <BulkLessonVideoUploadModal
+        courseId={courseId}
+        lessons={lessons}
+        isOpen={isBulkVideoUploadOpen}
+        onClose={() => setIsBulkVideoUploadOpen(false)}
+        onComplete={() => queryClient.invalidateQueries({ queryKey: lessonQueryKeys.courseLessons(courseId) })}
       />
 
       {/* COURSE / LESSON MATERIAL MODAL */}
@@ -1448,6 +1423,10 @@ export const CourseLessonsPage: React.FC = () => {
         message={statusModal.message}
         reason={statusModal.reason}
         onClose={() => setStatusModal((prev) => ({ ...prev, isOpen: false }))}
+        onViewLesson={statusModal.lessonId ? () => {
+          setStatusModal((prev) => ({ ...prev, isOpen: false }));
+          navigate(`/instructor/courses/${courseId}/learn?lessonId=${statusModal.lessonId}`);
+        } : undefined}
       />
     </div>
   );

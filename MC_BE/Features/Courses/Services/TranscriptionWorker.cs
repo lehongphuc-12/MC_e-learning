@@ -67,19 +67,33 @@ public class TranscriptionWorker : BackgroundService
         if (lesson == null)
         {
             _logger.LogWarning("Lesson {LessonId} not found, skipping transcription job.", job.LessonId);
-            CleanupFile(job.VideoTempFilePath);
             return;
         }
 
         lesson.TranscriptStatus = TranscriptStatus.PROCESSING;
         await db.SaveChangesAsync(cancellationToken);
 
+        string? videoTempPath = null;
         string? mp3TempPath = null;
         try
         {
+            // Upload requests can now finish without keeping a local copy of the source video.
+            // Download it here only when transcription needs a seekable file for FFmpeg.
+            var sourceVideo = await r2.GetObjectStreamAsync(job.VideoObjectKey);
+            if (sourceVideo is null)
+                throw new FileNotFoundException($"Video object '{job.VideoObjectKey}' was not found in R2.");
+
+            var extension = Path.GetExtension(Path.GetFileName(job.OriginalFileName));
+            videoTempPath = Path.Combine(Path.GetTempPath(), $"mseek_source_{job.LessonId}_{Guid.NewGuid():N}{extension}");
+            await using (var sourceStream = sourceVideo.Value.Stream)
+            await using (var videoFile = new FileStream(videoTempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                await sourceStream.CopyToAsync(videoFile, cancellationToken);
+            }
+
             // 1. Extract audio from video to temp MP3 (64kbps, mono)
             mp3TempPath = Path.Combine(Path.GetTempPath(), $"mseek_audio_{job.LessonId}_{Guid.NewGuid():N}.mp3");
-            await audioExtractor.ExtractAudioToMp3Async(job.VideoTempFilePath, mp3TempPath, cancellationToken);
+            await audioExtractor.ExtractAudioToMp3Async(videoTempPath, mp3TempPath, cancellationToken);
 
             // 2. Send MP3 stream to Groq Whisper Cloud API
             await using var mp3Stream = File.OpenRead(mp3TempPath);
@@ -93,11 +107,11 @@ public class TranscriptionWorker : BackgroundService
                 job.LessonId, result.Text.Length, result.Duration);
 
             // 3. Upload WebVTT subtitle file to Cloudflare R2
-            string? subtitleUrl = null;
+            string? subtitleObjectKey = null;
             if (!string.IsNullOrWhiteSpace(result.WebVtt))
             {
                 using var vttStream = new MemoryStream(Encoding.UTF8.GetBytes(result.WebVtt));
-                subtitleUrl = await r2.UploadAsync(
+                subtitleObjectKey = await r2.UploadObjectAsync(
                     vttStream, 
                     $"subtitle_{job.LessonId}.vtt", 
                     "text/vtt", 
@@ -106,7 +120,8 @@ public class TranscriptionWorker : BackgroundService
 
             // 4. Update Lesson record in Database
             lesson.Transcript = result.Text;
-            lesson.SubtitleUrl = subtitleUrl;
+            lesson.SubtitleObjectKey = subtitleObjectKey;
+            lesson.SubtitleUrl = null;
             lesson.TranscriptStatus = TranscriptStatus.COMPLETED;
             await db.SaveChangesAsync(cancellationToken);
 
@@ -147,7 +162,8 @@ public class TranscriptionWorker : BackgroundService
         }
         finally
         {
-            CleanupFile(job.VideoTempFilePath);
+            if (!string.IsNullOrEmpty(videoTempPath))
+                CleanupFile(videoTempPath);
             if (!string.IsNullOrEmpty(mp3TempPath))
             {
                 CleanupFile(mp3TempPath);

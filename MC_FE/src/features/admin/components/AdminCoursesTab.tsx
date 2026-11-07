@@ -14,10 +14,12 @@ import {
   Send,
   RefreshCw,
 } from 'lucide-react';
-import { AdminCourse, CourseModerationStatus } from '../types/adminTypes';
+import { AdminCourse, CourseDeletionRequest, CourseModerationStatus } from '../types/adminTypes';
 
 interface AdminCoursesTabProps {
   courses: AdminCourse[];
+  deletionRequests: CourseDeletionRequest[];
+  onReviewDeletionRequest: (requestId: number, approve: boolean, note: string) => void;
   onReviewCourse: (course: AdminCourse) => void;
   onApproveCourse: (courseId: string) => void;
   onRejectCourse: (courseId: string, reason: string) => void;
@@ -27,6 +29,8 @@ interface AdminCoursesTabProps {
 
 export const AdminCoursesTab: React.FC<AdminCoursesTabProps> = ({
   courses,
+  deletionRequests,
+  onReviewDeletionRequest,
   onReviewCourse,
   onApproveCourse,
   onRejectCourse,
@@ -38,6 +42,7 @@ export const AdminCoursesTab: React.FC<AdminCoursesTabProps> = ({
   const [rejectingCourseId, setRejectingCourseId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [deletionNotes, setDeletionNotes] = useState<Record<number, string>>({});
 
   const handleRefreshClick = async () => {
     if (!onRefresh) return;
@@ -111,6 +116,45 @@ export const AdminCoursesTab: React.FC<AdminCoursesTabProps> = ({
           </button>
         )}
       </div>
+
+      {deletionRequests.length > 0 && (
+        <section className="rounded-2xl border border-rose-500/30 bg-rose-500/5 p-5 space-y-4">
+          <div>
+            <h2 className="text-base font-bold text-rose-200">Yêu cầu xóa khóa học ({deletionRequests.length})</h2>
+            <p className="mt-1 text-xs text-slate-400">Khóa học được lưu trữ ngay khi gửi yêu cầu. Chỉ xóa vĩnh viễn nếu chưa có học viên, giao dịch hoặc kết quả học tập.</p>
+          </div>
+          {deletionRequests.map((item) => {
+            const hasHistory = item.enrollmentCount + item.paymentItemCount + item.speakingSubmissionCount + item.quizAttemptCount > 0;
+            return (
+              <article key={item.requestId} className="rounded-xl border border-slate-800 bg-slate-950/70 p-4 space-y-3">
+                <div className="flex flex-col gap-1 sm:flex-row sm:justify-between">
+                  <div>
+                    <h3 className="font-semibold text-white">{item.courseTitle}</h3>
+                    <p className="text-xs text-slate-400">Giảng viên: {item.instructorName} · {formatDate(item.requestedAt)}</p>
+                  </div>
+                  <p className="max-w-xl text-xs text-slate-300">Lý do: {item.reason}</p>
+                </div>
+                <p className={`text-xs ${hasHistory ? 'text-amber-300' : 'text-emerald-300'}`}>
+                  Lịch sử: {item.enrollmentCount} lượt ghi danh, {item.paymentItemCount} mục thanh toán, {item.speakingSubmissionCount} bài nộp, {item.quizAttemptCount} lượt làm quiz.
+                  {hasHistory ? ' Không thể xóa vĩnh viễn; hãy từ chối để giữ khóa ở trạng thái lưu trữ.' : ' Chưa phát hiện lịch sử; có thể duyệt xóa vĩnh viễn.'}
+                </p>
+                <textarea
+                  rows={2}
+                  maxLength={1000}
+                  value={deletionNotes[item.requestId] ?? ''}
+                  onChange={(event) => setDeletionNotes((current) => ({ ...current, [item.requestId]: event.target.value }))}
+                  placeholder="Ghi chú cho giảng viên (bắt buộc nếu từ chối)..."
+                  className="w-full rounded-lg border border-slate-800 bg-slate-900 p-2.5 text-xs text-white"
+                />
+                <div className="flex justify-end gap-2">
+                  <button onClick={() => onReviewDeletionRequest(item.requestId, false, deletionNotes[item.requestId] ?? '')} disabled={!(deletionNotes[item.requestId] ?? '').trim()} className="rounded-lg bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-200 disabled:opacity-40">Từ chối, giữ lưu trữ</button>
+                  <button onClick={() => onReviewDeletionRequest(item.requestId, true, deletionNotes[item.requestId] ?? '')} disabled={hasHistory} className="rounded-lg bg-rose-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40" title={hasHistory ? 'Có lịch sử học tập/thanh toán' : 'Xóa khóa học và lên lịch dọn file R2'}>Duyệt xóa vĩnh viễn</button>
+                </div>
+              </article>
+            );
+          })}
+        </section>
+      )}
 
       {/* 2 Main View Sub-Tabs */}
       <div className="flex border-b border-slate-800 space-x-2">

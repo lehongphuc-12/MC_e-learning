@@ -12,10 +12,12 @@ namespace MC_BE.Features.Courses.Controllers;
 public class ModulesController : ControllerBase
 {
     private readonly IModuleService _moduleService;
+    private readonly ICourseLearningAccessService _courseAccess;
 
-    public ModulesController(IModuleService moduleService)
+    public ModulesController(IModuleService moduleService, ICourseLearningAccessService courseAccess)
     {
         _moduleService = moduleService;
+        _courseAccess = courseAccess;
     }
 
     private int? GetCurrentUserId()
@@ -29,7 +31,22 @@ public class ModulesController : ControllerBase
     [HttpGet("courses/{courseId:int}/modules")]
     public async Task<ActionResult<ApiResponse<List<ModuleDto>>>> GetModules(int courseId)
     {
+        var userId = GetCurrentUserId();
+        if (userId is null)
+            return Unauthorized(ApiResponse<List<ModuleDto>>.FailureResponse("Unauthorized."));
+
+        if (!await _courseAccess.CanAccessCourseAsync(courseId, userId.Value, User.IsInRole("Admin")))
+            return Forbid();
+
         var modules = await _moduleService.GetModulesByCourseIdAsync(courseId);
+
+        // Do not serialize legacy public video URLs to learners. They must use authorized playback.
+        if (!User.IsInRole("Instructor") && !User.IsInRole("Admin"))
+        {
+            foreach (var lesson in modules.SelectMany(module => module.Lessons))
+                lesson.VideoUrl = null;
+        }
+
         return Ok(ApiResponse<List<ModuleDto>>.SuccessResponse(modules));
     }
 

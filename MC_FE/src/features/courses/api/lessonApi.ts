@@ -8,7 +8,64 @@ interface ApiEnvelope<T> {
   message?: string;
 }
 
+export interface LessonPlayback {
+  lessonId: number;
+  url: string;
+  expiresAt: string;
+}
+
+export interface VideoUploadSessionRequest {
+  lessonId: number;
+  fileName: string;
+  contentType: string;
+  size: number;
+}
+
+export interface VideoUploadSession {
+  sessionId: string;
+  lessonId: number;
+  uploadUrl: string;
+  contentType: string;
+  expiresAt: string;
+}
+
 export const lessonApi = {
+  async createVideoUploadSessions(courseId: number, files: VideoUploadSessionRequest[]): Promise<VideoUploadSession[]> {
+    const envelope = await request<ApiEnvelope<VideoUploadSession[]>>(`/courses/${courseId}/video-upload-sessions`, {
+      method: 'POST',
+      body: JSON.stringify({ files }),
+    });
+    return envelope.data;
+  },
+
+  async completeVideoUploadSession(courseId: number, sessionId: string): Promise<Lesson> {
+    const envelope = await request<ApiEnvelope<Lesson>>(`/courses/${courseId}/video-upload-sessions/${sessionId}/complete`, {
+      method: 'POST',
+    });
+    return envelope.data;
+  },
+
+  uploadVideoDirect(uploadUrl: string, contentType: string, file: File, onProgress?: (percent: number) => void): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('PUT', uploadUrl);
+      xhr.setRequestHeader('Content-Type', contentType);
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable) onProgress?.(Math.round((event.loaded / event.total) * 100));
+      });
+      xhr.addEventListener('load', () => xhr.status >= 200 && xhr.status < 300
+        ? resolve()
+        : reject(new Error(`R2 upload failed (HTTP ${xhr.status}).`)));
+      xhr.addEventListener('error', () => reject(new Error('Network error while uploading to R2.')));
+      xhr.addEventListener('abort', () => reject(new Error('Upload was cancelled.')));
+      xhr.send(file);
+    });
+  },
+
+  async getPlaybackUrl(lessonId: number): Promise<LessonPlayback> {
+    const envelope = await request<ApiEnvelope<LessonPlayback>>(`/lessons/${lessonId}/playback`);
+    return envelope.data;
+  },
   async getLessonsByCourseId(courseId: number): Promise<Lesson[]> {
     const envelope = await request<ApiEnvelope<Lesson[]>>(`/courses/${courseId}/lessons`);
     return envelope.data;
