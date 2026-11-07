@@ -111,6 +111,26 @@ public class TranscriptionWorker : BackgroundService
             await db.SaveChangesAsync(cancellationToken);
 
             _logger.LogInformation("Lesson {LessonId} transcription completed and saved successfully.", job.LessonId);
+
+            // 5. Ingest transcript into MentorChat AI Vector Store (Qdrant)
+            try
+            {
+                var mentorChat = scope.ServiceProvider.GetService<IMentorChatService>();
+                if (mentorChat != null && !string.IsNullOrWhiteSpace(result.Text))
+                {
+                    await mentorChat.IngestTranscriptAsync(
+                        lesson.CourseId,
+                        lesson.LessonId,
+                        lesson.Title,
+                        result.Text,
+                        cancellationToken);
+                    _logger.LogInformation("Lesson {LessonId} transcript automatically indexed into MentorChat RAG.", job.LessonId);
+                }
+            }
+            catch (Exception mcEx)
+            {
+                _logger.LogWarning(mcEx, "Could not index transcript into MentorChat for Lesson {LessonId} (MentorChat service may be offline or starting up)", job.LessonId);
+            }
         }
         catch (Exception ex)
         {

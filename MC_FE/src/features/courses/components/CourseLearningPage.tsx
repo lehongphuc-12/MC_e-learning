@@ -51,6 +51,7 @@ import {
   useIssueCertificate,
 } from '../hooks/useCertificateQueries';
 import { CertificateModal } from './CertificateModal';
+import { CourseChatDrawer } from './CourseChatDrawer';
 import { useAuthStore } from '../../../store/useAuthStore';
 
 import type { Lesson } from '../types/lessonTypes';
@@ -1070,6 +1071,7 @@ export const CourseLearningPage: React.FC = () => {
 
   const [isSidebarOpen, setIsSidebarOpen] =
     useState(true);
+  const [isAiChatOpen, setIsAiChatOpen] = useState(false);
 
   const [activeTab, setActiveTab] =
     useState<'overview' | 'notes' | 'discussion'>(
@@ -2236,6 +2238,22 @@ export const CourseLearningPage: React.FC = () => {
             </span>
           </div>
 
+          {/* Course Content Q&A Trigger */}
+          <button
+            onClick={() => setIsAiChatOpen(!isAiChatOpen)}
+            className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all cursor-pointer border shadow-xs ${
+              isAiChatOpen
+                ? 'bg-violet-700 text-white border-violet-700 shadow-violet-500/20'
+                : 'bg-white text-violet-700 hover:bg-violet-50 border-violet-200'
+            }`}
+            title="Hỏi đáp nội dung bài giảng"
+          >
+            <MessageSquare className={`h-4 w-4 ${isAiChatOpen ? 'text-white' : 'text-violet-600'}`} />
+            <span className="hidden sm:inline">
+              Hỏi đáp bài học
+            </span>
+          </button>
+
           <button
             onClick={() =>
               setIsSidebarOpen(
@@ -3250,6 +3268,25 @@ export const CourseLearningPage: React.FC = () => {
           (user as any)?.fullName ||
           'Học viên'
         }
+      />
+
+      {/* AI Mentor RAG Chat Drawer */}
+      <CourseChatDrawer
+        isOpen={isAiChatOpen}
+        onClose={() => setIsAiChatOpen(false)}
+        courseId={courseId}
+        courseTitle={course?.title}
+        activeLesson={activeLesson ? {
+          lessonId: activeLesson.lessonId,
+          title: activeLesson.title,
+          lessonType: activeLesson.lessonType
+        } : null}
+        onSelectLesson={(targetLessonId) => {
+          const found = courseLessons.find((l) => l.lessonId === targetLessonId);
+          if (found) {
+            handleSelectLesson(found);
+          }
+        }}
       />
     </div>
   );

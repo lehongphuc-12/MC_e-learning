@@ -1,8 +1,12 @@
+import logging
 from typing import List, Dict, Any, Optional
 from qdrant_client.models import Filter, FieldCondition, MatchValue
 from app.core.config import settings
 from app.rag.qdrant_service import qdrant_client
 from app.rag.embeddings import generate_embedding
+
+logger = logging.getLogger("mentorchat.retriever")
+
 
 def retrieve_course_chunks(
     course_id: int, 
@@ -14,7 +18,19 @@ def retrieve_course_chunks(
     Tìm kiếm đoạn kiến thức tương đồng ngữ nghĩa.
     Khóa cứng bộ lọc course_id để tuyệt đối không lấy nhầm khóa khác.
     """
-    query_vector = generate_embedding(query)
+    logger.info(
+        "[Retriever] course_id=%s lesson_id=%s top_k=%d — đang tạo query embedding...",
+        course_id, lesson_id, top_k,
+    )
+
+    try:
+        query_vector = generate_embedding(query)
+    except Exception as e:
+        logger.error(
+            "[Retriever] course_id=%s — LỖI tạo query embedding: %s",
+            course_id, e, exc_info=True,
+        )
+        raise RuntimeError(f"Không thể tạo embedding cho câu hỏi: {e}") from e
 
     # Bộ lọc bắt buộc theo course_id
     must_conditions = [
@@ -32,22 +48,56 @@ def retrieve_course_chunks(
                 match=MatchValue(value=int(lesson_id))
             )
         )
+        logger.info("[Retriever] course_id=%s — lọc theo lesson_id=%s.", course_id, lesson_id)
 
-    search_result = qdrant_client.search(
-        collection_name=settings.QDRANT_COLLECTION,
-        query_vector=query_vector,
-        query_filter=Filter(must=must_conditions),
-        limit=top_k
-    )
+    filter_obj = Filter(must=must_conditions)
+
+    logger.info("[Retriever] course_id=%s — đang tìm kiếm vector trong Qdrant...", course_id)
+    try:
+        # Hỗ trợ cả query_points (qdrant-client >= 1.10) và search (legacy)
+        if hasattr(qdrant_client, "query_points"):
+            search_res = qdrant_client.query_points(
+                collection_name=settings.QDRANT_COLLECTION,
+                query=query_vector,
+                query_filter=filter_obj,
+                limit=top_k
+            )
+            hits = search_res.points
+        else:
+            hits = qdrant_client.search(
+                collection_name=settings.QDRANT_COLLECTION,
+                query_vector=query_vector,
+                query_filter=filter_obj,
+                limit=top_k
+            )
+    except Exception as e:
+        logger.error(
+            "[Retriever] course_id=%s — LỖI truy vấn Qdrant: %s",
+            course_id, e, exc_info=True,
+        )
+        raise RuntimeError(f"Lỗi truy vấn Vector Store: {e}") from e
 
     results = []
-    for hit in search_result:
+    for hit in hits:
+        payload = hit.payload or {}
         results.append({
-            "content": hit.payload.get("content", ""),
-            "title": hit.payload.get("title", ""),
-            "source_type": hit.payload.get("source_type", ""),
-            "lesson_id": hit.payload.get("lesson_id"),
-            "score": round(hit.score, 3)
+            "content": payload.get("content", ""),
+            "title": payload.get("title", ""),
+            "source_type": payload.get("source_type", ""),
+            "lesson_id": payload.get("lesson_id"),
+            "score": round(hit.score, 3) if hit.score is not None else 0.0
         })
+
+    if results:
+        logger.info(
+            "[Retriever] course_id=%s — tìm thấy %d chunks, scores: %s",
+            course_id, len(results), [r["score"] for r in results],
+        )
+    else:
+        logger.warning(
+            "[Retriever] course_id=%s lesson_id=%s — KHÔNG tìm thấy chunk nào. "
+            "Có thể khóa học chưa được lập chỉ mục hoặc câu hỏi quá khác biệt với nội dung.",
+            course_id, lesson_id,
+        )
 
     return results
