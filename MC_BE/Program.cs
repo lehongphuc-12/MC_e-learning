@@ -70,6 +70,7 @@ builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("Emai
 builder.Services.Configure<PayOsSettings>(builder.Configuration.GetSection("PayOS"));
 builder.Services.Configure<R2Settings>(builder.Configuration.GetSection("CloudflareR2"));
 builder.Services.Configure<GroqSettings>(builder.Configuration.GetSection("Groq"));
+builder.Services.Configure<MentorChatSettings>(builder.Configuration.GetSection("MentorChat"));
 
 // ============================================================
 // CORS — restrict to known origins only (never wildcard + credentials)
@@ -183,6 +184,7 @@ builder.Services.AddScoped<IR2StorageService, R2StorageService>();
 // AI SPEECH-TO-TEXT & TRANSCRIPTION
 // ============================================================
 builder.Services.AddHttpClient<IGroqWhisperService, GroqWhisperService>();
+builder.Services.AddHttpClient<IMentorChatService, MentorChatService>();
 builder.Services.AddSingleton<IAudioExtractorService, AudioExtractorService>();
 builder.Services.AddSingleton<ITranscriptionQueue, TranscriptionQueue>();
 builder.Services.AddHostedService<TranscriptionWorker>();

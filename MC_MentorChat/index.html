@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MC AI Mentor - Trợ Lý RAG E-Learning</title>
+  <meta name="description" content="Giao diện Chatbot RAG thông minh hỗ trợ kéo thả tệp PDF và Word phục vụ học tập và tra cứu tài liệu tức thì.">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="./ui/style.css">
+</head>
+<body>
+
+  <!-- Top App Navigation -->
+  <header class="app-header">
+    <div class="brand-section">
+      <div class="brand-logo">🎓</div>
+      <div class="brand-info">
+        <h1>
+          MC Mentor RAG
+          <span class="brand-badge">AI Assistant</span>
+        </h1>
+        <div class="brand-sub">
+          <span class="status-dot"></span>
+          <span>Hệ thống RAG sẵn sàng</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <!-- Mode Toggle -->
+      <div class="api-mode-selector">
+        <span class="mode-label">Chế độ:</span>
+        <div class="toggle-pill">
+          <button id="btn-mode-demo" class="active" type="button">Mô phỏng Demo</button>
+          <button id="btn-mode-api" type="button">FastAPI Live</button>
+        </div>
+      </div>
+
+      <!-- Clear Chat -->
+      <button id="clear-chat-btn" class="icon-btn" title="Làm mới cuộc trò chuyện" type="button">
+        🔄
+      </button>
+
+      <!-- Mobile Sidebar Toggle -->
+      <button id="sidebar-toggle-btn" class="icon-btn" title="Mở danh sách tài liệu" type="button">
+        📁
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <div class="app-container">
+
+    <!-- Sidebar: Knowledge Base & Upload -->
+    <aside class="app-sidebar" id="app-sidebar">
+      
+      <div class="sidebar-header">
+        <div class="sidebar-title">
+          <span>📚 Kho Tri Thức RAG</span>
+          <span class="badge-count" id="doc-count-badge">0</span>
+        </div>
+      </div>
+
+      <div class="sidebar-scroll-area">
+
+        <!-- Drag & Drop Zone -->
+        <div class="dropzone-container" id="dropzone">
+          <div class="dropzone-icon-wrap">
+            <span>☁️</span>
+          </div>
+          <div class="dropzone-title">Kéo thả tệp vào đây</div>
+          <div class="dropzone-sub">Hỗ trợ PDF, Word (.docx), TXT (Tối đa 25MB)</div>
+          
+          <div class="dropzone-tags">
+            <span class="tag-badge pdf">PDF</span>
+            <span class="tag-badge docx">DOCX</span>
+            <span class="tag-badge txt">TXT</span>
+          </div>
+
+          <!-- Hidden File Input -->
+          <input type="file" id="file-input" multiple accept=".pdf,.docx,.doc,.txt,.md" style="display: none;">
+        </div>
+
+        <!-- Uploading Progress Feedback -->
+        <div class="upload-progress-box" id="upload-progress-box">
+          <div class="progress-header">
+            <span>Đang xử lý tệp...</span>
+            <span id="progress-percent">0%</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" id="progress-bar-fill"></div>
+          </div>
+          <div class="progress-status-text" id="progress-status-text">
+            <span>⚡</span> Khởi tạo phân tích tệp...
+          </div>
+        </div>
+
+        <!-- Documents Section -->
+        <div class="documents-section">
+          <div class="section-label-bar">
+            <span>Tài liệu đã lập chỉ mục</span>
+            <button class="clear-btn" id="clear-docs-btn" type="button">Xóa tất cả</button>
+          </div>
+          
+          <div class="document-list" id="document-list">
+            <!-- Dynamically populated document cards -->
+          </div>
+        </div>
+
+        <!-- Quick Prompts Section -->
+        <div class="quick-prompts-section">
+          <div class="section-label-bar">
+            <span>Gợi ý câu hỏi nhanh</span>
+          </div>
+          <div class="quick-prompts-list">
+            <button class="prompt-pill" type="button" data-prompt="Tóm tắt các nội dung và luận điểm chính trong tài liệu này">
+              <span>📋</span> Tóm tắt nội dung chính
+            </button>
+            <button class="prompt-pill" type="button" data-prompt="Giải thích các khái niệm quan trọng nhất kèm ví dụ minh họa">
+              <span>💡</span> Giải thích khái niệm cốt lõi
+            </button>
+            <button class="prompt-pill" type="button" data-prompt="Hãy tạo 5 câu hỏi ôn tập tự kiểm tra từ tài liệu">
+              <span>❓</span> Tạo 5 câu hỏi tự kiểm tra
+            </button>
+            <button class="prompt-pill" type="button" data-prompt="Chỉ ra những điểm cần lưu ý và lỗi thường gặp theo tài liệu">
+              <span>⚠️</span> Lưu ý và lỗi thường gặp
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Sidebar Footer Stats -->
+      <div class="sidebar-footer">
+        <div class="stat-chip">
+          <span>Tài liệu:</span>
+          <strong id="stat-doc-count">0</strong>
+        </div>
+        <div class="stat-chip">
+          <span>Vector Chunks:</span>
+          <strong id="stat-chunk-count">0</strong>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- Main Chat Content -->
+    <main class="chat-main">
+
+      <!-- Chat Top Sub-bar -->
+      <div class="chat-top-bar">
+        <div class="model-badge-info">
+          <div class="model-pill">
+            <span class="sparkle">✨</span>
+            <span>Gemini 2.5 Flash + RAG Vector Store</span>
+          </div>
+        </div>
+        <div class="rag-context-badge">
+          <span>🔍 Phạm vi:</span>
+          <strong id="rag-target-name">Đang tải...</strong>
+        </div>
+      </div>
+
+      <!-- Messages Thread -->
+      <div class="chat-messages-container" id="chat-messages">
+        
+        <!-- Welcome Hero Banner (Visible when empty) -->
+        <div class="welcome-hero" id="welcome-hero">
+          <div class="hero-orb">🤖</div>
+          <h2 class="hero-title">Xin chào! Tôi là MC AI Mentor</h2>
+          <p class="hero-desc">
+            Trợ lý học tập thông minh ứng dụng công nghệ <strong>RAG (Retrieval-Augmented Generation)</strong>.<br>
+            Hãy thả tài liệu <strong>PDF</strong> hoặc <strong>Word (.docx)</strong> vào bảng điều khiển bên trái để bắt đầu tra cứu & giải đáp chuẩn xác từng trang!
+          </p>
+
+          <div class="hero-features-grid">
+            <div class="feature-card">
+              <span class="feature-icon">📁</span>
+              <div class="feature-title">Kéo thả đa định dạng</div>
+              <div class="feature-text">Tự động bóc tách văn bản từ PDF, DOCX, TXT với độ chính xác cao.</div>
+            </div>
+            <div class="feature-card">
+              <span class="feature-icon">🎯</span>
+              <div class="feature-title">Trích dẫn nguồn cụ thể</div>
+              <div class="feature-text">Mỗi câu trả lời đều đính kèm trích dẫn số trang và đoạn văn bản gốc.</div>
+            </div>
+            <div class="feature-card">
+              <span class="feature-icon">⚡</span>
+              <div class="feature-title">Học tập tương tác</div>
+              <div class="feature-text">Tóm tắt, phân tích đề cương, sinh câu hỏi ôn tập theo ngữ cảnh thực tế.</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Chat Input Floating Dock -->
+      <div class="chat-input-wrapper">
+        <div class="chat-input-box">
+          
+          <!-- Attachment Button triggers dropzone/file input -->
+          <button class="action-btn-circle" id="attach-btn" title="Đính kèm tệp PDF hoặc DOCX" type="button" onclick="document.getElementById('file-input').click()">
+            📎
+          </button>
+
+          <!-- Input Textarea -->
+          <textarea 
+            id="chat-input" 
+            class="chat-input-textarea" 
+            placeholder="Hỏi bất kỳ điều gì về tài liệu đã nạp (hoặc kéo thả tệp vào)..."
+            rows="1"
+          ></textarea>
+
+          <!-- Action Buttons -->
+          <div class="input-actions">
+            <button class="action-btn-circle send-btn" id="send-btn" title="Gửi câu hỏi" type="button" disabled>
+              ➤
+            </button>
+          </div>
+
+        </div>
+
+        <div class="input-helper-bar">
+          <div class="rag-hint">
+            <span>🔒 Bảo mật: Dữ liệu được vector hóa cục bộ & dùng riêng cho phiên học của bạn.</span>
+          </div>
+          <div>
+            <span>Nhấn <strong>Enter</strong> để gửi • <strong>Shift + Enter</strong> để xuống dòng</span>
+          </div>
+        </div>
+      </div>
+
+    </main>
+
+  </div>
+
+  <!-- Document Preview Modal -->
+  <div class="modal-overlay" id="preview-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title" id="preview-title">Chi tiết tài liệu</h3>
+        <button class="icon-btn" id="close-modal-btn" type="button">✕</button>
+      </div>
+      <div class="modal-body" id="preview-content">
+        <!-- Document preview contents -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" type="button" onclick="document.getElementById('preview-modal').classList.remove('active')">Đóng</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Script -->
+  <script src="./ui/app.js"></script>
+</body>
+</html>
