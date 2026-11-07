@@ -1,4 +1,5 @@
 
+using MC_BE.Core.Enums;
 using MC_BE.Features.Learning.Services.Interfaces;
 using MC_BE.Shared.Data;
 using MC_BE.Shared.Services.Interfaces;
@@ -98,5 +99,7 @@ public class CourseMaterialsReadController : ControllerBase
                 : m.FileUrl;
             return new { materialId = m.MaterialId, lessonId = m.LessonId, title = m.Title, fileUrl = url, materialType = m.MaterialType?.ToString() };
         });
+
+        return Ok(items);
     }
 }
