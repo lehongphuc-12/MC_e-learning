@@ -22,6 +22,91 @@ namespace MC_BE.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("MC_BE.Core.Entities.BackgroundMusic", b =>
+                {
+                    b.Property<int>("MusicId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("MusicId");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("MusicId"));
+
+                    b.Property<string>("AudioUrl")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("AudioUrl");
+
+                    b.Property<string>("CloudinaryPublicId")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("CloudinaryPublicId");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("CreatedAt")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<bool>("IsSystemDefault")
+                        .HasColumnType("boolean")
+                        .HasColumnName("IsSystemDefault");
+
+                    b.Property<int?>("LessonId")
+                        .HasColumnType("integer")
+                        .HasColumnName("LessonId");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("Title");
+
+                    b.HasKey("MusicId");
+
+                    b.HasIndex("LessonId");
+
+                    b.ToTable("background_musics", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            MusicId = 1,
+                            AudioUrl = "https://res.cloudinary.com/dsbhtgduv/video/upload/v1794227349/background-music/system/lang_man.mp3",
+                            CloudinaryPublicId = "background-music/system/lang_man",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsSystemDefault = true,
+                            Title = "Lãng mạn"
+                        },
+                        new
+                        {
+                            MusicId = 2,
+                            AudioUrl = "https://res.cloudinary.com/dsbhtgduv/video/upload/v1794227354/background-music/system/sang_trong.mp3",
+                            CloudinaryPublicId = "background-music/system/sang_trong",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsSystemDefault = true,
+                            Title = "Sang trọng"
+                        },
+                        new
+                        {
+                            MusicId = 3,
+                            AudioUrl = "https://res.cloudinary.com/dsbhtgduv/video/upload/v1794227356/background-music/system/soi_dong.mp3",
+                            CloudinaryPublicId = "background-music/system/soi_dong",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsSystemDefault = true,
+                            Title = "Sôi động"
+                        },
+                        new
+                        {
+                            MusicId = 4,
+                            AudioUrl = "https://res.cloudinary.com/dsbhtgduv/video/upload/v1794227359/background-music/system/truyen_cam_hung.mp3",
+                            CloudinaryPublicId = "background-music/system/truyen_cam_hung",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsSystemDefault = true,
+                            Title = "Truyền cảm hứng"
+                        });
+                });
+
             modelBuilder.Entity("MC_BE.Core.Entities.Category", b =>
                 {
                     b.Property<int>("CategoryId")
@@ -2803,6 +2888,97 @@ namespace MC_BE.Migrations
                     b.ToTable("scenario_nodes", (string)null);
                 });
 
+            modelBuilder.Entity("MC_BE.Core.Entities.SpeakingScript", b =>
+                {
+                    b.Property<int>("ScriptId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("ScriptID");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("ScriptId"));
+
+                    b.Property<int?>("CreatedBy")
+                        .HasColumnType("integer")
+                        .HasColumnName("CreatedBy");
+
+                    b.Property<int>("LessonId")
+                        .HasColumnType("integer")
+                        .HasColumnName("LessonID");
+
+                    b.Property<string>("OriginalContent")
+                        .HasColumnType("text")
+                        .HasColumnName("OriginalContent");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("DRAFT")
+                        .HasColumnName("Status");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("Title");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("UpdatedAt")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.HasKey("ScriptId");
+
+                    b.HasIndex("CreatedBy");
+
+                    b.HasIndex("LessonId")
+                        .IsUnique();
+
+                    b.ToTable("speaking_scripts", (string)null);
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.SpeakingScriptLevel", b =>
+                {
+                    b.Property<int>("LevelId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("LevelID");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("LevelId"));
+
+                    b.Property<string>("CleanScriptForScoring")
+                        .HasColumnType("text")
+                        .HasColumnName("CleanScriptForScoring");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("Content");
+
+                    b.Property<string>("Level")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("Level");
+
+                    b.Property<int>("ScriptId")
+                        .HasColumnType("integer")
+                        .HasColumnName("ScriptID");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("UpdatedAt")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.HasKey("LevelId");
+
+                    b.HasIndex("ScriptId", "Level")
+                        .IsUnique();
+
+                    b.ToTable("speaking_script_levels", (string)null);
+                });
+
             modelBuilder.Entity("MC_BE.Core.Entities.SpeakingSubmission", b =>
                 {
                     b.Property<int>("SubmissionId")
@@ -3094,6 +3270,16 @@ namespace MC_BE.Migrations
                     b.HasIndex("Status", "ExpiresAt");
 
                     b.ToTable("video_upload_sessions", (string)null);
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.BackgroundMusic", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.Lesson", "Lesson")
+                        .WithMany()
+                        .HasForeignKey("LessonId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("Lesson");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.Certificate", b =>
@@ -3823,6 +4009,35 @@ namespace MC_BE.Migrations
                     b.Navigation("Question");
                 });
 
+            modelBuilder.Entity("MC_BE.Core.Entities.SpeakingScript", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedBy")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("MC_BE.Core.Entities.Lesson", "Lesson")
+                        .WithOne("SpeakingScript")
+                        .HasForeignKey("MC_BE.Core.Entities.SpeakingScript", "LessonId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("Lesson");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.SpeakingScriptLevel", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.SpeakingScript", "Script")
+                        .WithMany("Levels")
+                        .HasForeignKey("ScriptId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Script");
+                });
+
             modelBuilder.Entity("MC_BE.Core.Entities.SpeakingSubmission", b =>
                 {
                     b.HasOne("MC_BE.Core.Entities.User", "GradedBy")
@@ -3971,6 +4186,8 @@ namespace MC_BE.Migrations
                     b.Navigation("LessonProgresses");
 
                     b.Navigation("Quizzes");
+
+                    b.Navigation("SpeakingScript");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.Module", b =>
@@ -4061,6 +4278,11 @@ namespace MC_BE.Migrations
                     b.Navigation("Choices");
 
                     b.Navigation("IncomingChoices");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.SpeakingScript", b =>
+                {
+                    b.Navigation("Levels");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.User", b =>
