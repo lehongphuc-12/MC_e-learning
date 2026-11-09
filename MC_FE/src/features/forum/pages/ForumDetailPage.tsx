@@ -40,6 +40,10 @@ export const ForumDetailPage: React.FC<ForumDetailPageProps> = ({ user, onToast 
     setIsUserProfileModalOpen(true);
   };
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [id]);
+
   const postIdNumber = Number(id);
 
   const loadDataSilent = async () => {

@@ -117,6 +117,10 @@ export const AiVoiceCoachPage: React.FC<AiVoiceCoachPageProps> = ({
 }) => {
   const navigate = useNavigate();
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, []);
+
   // Selected sample
   const [activeSampleId, setActiveSampleId] = useState<string>('sample-1');
   const activeSample = DEMO_SAMPLES.find((s) => s.id === activeSampleId) || DEMO_SAMPLES[0];

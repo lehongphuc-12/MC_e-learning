@@ -134,3 +134,9 @@ MC_MentorChat/uploads/
 MC_MentorChat/data/
 !MC_MentorChat/data/.gitkeep
 MC_MentorChat/storage/
+
+# Local audio files
+nhac_nen/
+*.mp3
+*.wav
+

@@ -153,11 +153,17 @@ export const AppRouter: React.FC<AppRouterProps> = ({
   })();
 
   const handleNavigate = (screen: ScreenType) => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    document.documentElement.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    document.body.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     const targetPath = screen === 'home' ? '/' : `/${screen}`;
     navigate(targetPath);
   };
 
   const handleSelectCourse = (course: Course) => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    document.documentElement.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    document.body.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     setSelectedCourse(course);
     navigate(`/course-detail?id=${course.id}`);
   };
