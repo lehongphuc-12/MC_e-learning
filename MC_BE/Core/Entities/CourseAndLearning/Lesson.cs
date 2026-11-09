@@ -68,4 +68,5 @@ public class Lesson
     public virtual ICollection<CourseMaterial> CourseMaterials { get; set; } = new List<CourseMaterial>();
     public virtual ICollection<LessonProgress> LessonProgresses { get; set; } = new List<LessonProgress>();
     public virtual ICollection<Quiz> Quizzes { get; set; } = new List<Quiz>();
+    public virtual SpeakingScript? SpeakingScript { get; set; }
 }
