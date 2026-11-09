@@ -6,10 +6,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   X, Save, Loader2, Video, Mic2, FileText, ClipboardList,
-  Upload, CheckCircle2, Trash2, CloudUpload, Sparkles, Clock,
+  Upload, CheckCircle2, Trash2, CloudUpload, Sparkles, Clock, Download, AlertCircle, Layers,
+  Music, Play, Pause, Plus, Volume2,
 } from 'lucide-react';
 import type { Lesson, CreateLessonDto } from '../../types/lessonTypes';
 import type { CourseModule } from '../../types/moduleTypes';
+import { speakingApi } from '../../api/speakingApi';
+import type { SpeakingLevel, BackgroundMusicDto } from '../../types/speakingTypes';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -22,7 +25,13 @@ interface LessonFormModalProps {
   isSubmitting: boolean;
   onClose: () => void;
   /** Called only after form validation. The parent saves metadata and uploads the optional file. */
-  onSubmit: (dto: CreateLessonDto, file?: File | null, onUploadProgress?: (percent: number) => void) => Promise<void> | void;
+  onSubmit: (
+    dto: CreateLessonDto,
+    file?: File | null,
+    onUploadProgress?: (percent: number) => void,
+    scriptLevels?: { BEGINNER: string; INTERMEDIATE: string; ADVANCED: string } | null,
+    customMusics?: Array<{ title: string; audioUrl: string; cloudinaryPublicId?: string }> | null
+  ) => Promise<void> | void;
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -33,6 +42,33 @@ const ALLOWED_VIDEO_TYPES = [
 ];
 
 const MAX_FILE_SIZE_BYTES = 500 * 1024 * 1024; // 500 MB
+
+const TEMPLATE_MARKDOWN = `# K\u1ecaCH B\u1ea2N LUY\u1ec6N N\u00d3I M\u1eaaU (3 C\u1ea4P \u0110\u1ed8)
+
+## [LEVEL: BEGINNER]
+[H\u01af\u1edaNG D\u1eaaN: \u0110\u1ee9ng th\u1eb3ng, hai tay th\u1ea3 l\u1ecfng t\u1ef1 nhi\u00ean, \u00e1nh m\u1eaft h\u01b0\u1edbng v\u1ec1 kh\u00e1n gi\u1ea3, m\u1ec9m c\u01b0\u1eddi nh\u1eb9 nh\u00e0ng]
+K\u00ednh th\u01b0a qu\u00fd v\u1ecb quan kh\u00e1ch!
+[GI\u1eccNG \u0110\u1eccC: Tone tr\u1ea7m \u1ea5m, trang tr\u1ecdng, t\u1ed1c \u0111\u1ed9 v\u1eeba ph\u1ea3i]
+L\u1eddi \u0111\u1ea7u ti\u00ean, cho ph\u00e9p MC \u0111\u01b0\u1ee3c g\u1eedi \u0111\u1ebfn to\u00e0n th\u1ec3 qu\u00fd v\u1ecb l\u1eddi ch\u00e0o tr\u00e2n tr\u1ecdng v\u00e0 l\u1eddi ch\u00fac m\u1eebng n\u1ed3ng nhi\u1ec7t nh\u1ea5t.
+[NG\u1eaeT NGH\u1ec8: 2 gi\u00e2y]
+Ng\u00e0y h\u00f4m nay, ch\u00fang ta c\u00f3 m\u1eb7t t\u1ea1i \u0111\u00e2y \u0111\u1ec3 c\u00f9ng nhau ch\u1ee9ng ki\u1ebfn kho\u1ea3nh kh\u1eafc thi\u00eang li\u00eang nh\u1ea5t c\u1ee7a hai b\u1ea1n tr\u1ebb.
+[H\u01af\u1edaNG D\u1eaaN: Nghi\u00eang \u0111\u1ea7u nh\u1eb9, n\u1edf n\u1ee5 c\u01b0\u1eddi \u1ea5m \u00e1p]
+T\u00ecnh y\u00eau l\u00e0 m\u1ed9t h\u00e0nh tr\u00ecnh k\u1ef3 di\u1ec7u, v\u00e0 ng\u00e0y h\u00f4m nay ch\u00ednh l\u00e0 kh\u1edfi \u0111\u1ea7u cho m\u1ed9t ch\u01b0\u01a1ng m\u1edbi t\u01b0\u01a1i s\u00e1ng.
+
+## [LEVEL: INTERMEDIATE]
+K\u00ednh th\u01b0a qu\u00fd v\u1ecb quan kh\u00e1ch!
+[GI\u1eccNG \u0110\u1eccC: Tone tr\u1ea7m \u1ea5m, trang tr\u1ecdng, t\u1ed1c \u0111\u1ed9 v\u1eeba ph\u1ea3i]
+L\u1eddi \u0111\u1ea7u ti\u00ean, cho ph\u00e9p MC \u0111\u01b0\u1ee3c g\u1eedi \u0111\u1ebfn to\u00e0n th\u1ec3 qu\u00fd v\u1ecb l\u1eddi ch\u00e0o tr\u00e2n tr\u1ecdng v\u00e0 l\u1eddi ch\u00fac m\u1eebng n\u1ed3ng nhi\u1ec7t nh\u1ea5t.
+Ng\u00e0y h\u00f4m nay, ch\u00fang ta c\u00f3 m\u1eb7t t\u1ea1i \u0111\u00e2y \u0111\u1ec3 c\u00f9ng nhau ch\u1ee9ng ki\u1ebfn kho\u1ea3nh kh\u1eafc thi\u00eang li\u00eang nh\u1ea5t c\u1ee7a hai b\u1ea1n tr\u1ebb.
+[GI\u1eccNG \u0110\u1eccC: N\u00e2ng cao t\u00f4ng gi\u1ecdng \u1edf c\u00e2u cu\u1ed1i, t\u1ea1o s\u1ef1 h\u00e0o h\u1ee9ng]
+T\u00ecnh y\u00eau l\u00e0 m\u1ed9t h\u00e0nh tr\u00ecnh k\u1ef3 di\u1ec7u, v\u00e0 ng\u00e0y h\u00f4m nay ch\u00ednh l\u00e0 kh\u1edfi \u0111\u1ea7u cho m\u1ed9t ch\u01b0\u01a1ng m\u1edbi t\u01b0\u01a1i s\u00e1ng.
+
+## [LEVEL: ADVANCED]
+K\u00ednh th\u01b0a qu\u00fd v\u1ecb quan kh\u00e1ch! L\u1eddi \u0111\u1ea7u ti\u00ean, cho ph\u00e9p MC \u0111\u01b0\u1ee3c g\u1eedi \u0111\u1ebfn to\u00e0n th\u1ec3 qu\u00fd v\u1ecb l\u1eddi ch\u00e0o tr\u00e2n tr\u1ecdng v\u00e0 l\u1eddi ch\u00fac m\u1eebng n\u1ed3ng nhi\u1ec7t nh\u1ea5t.
+Ng\u00e0y h\u00f4m nay, ch\u00fang ta c\u00f3 m\u1eb7t t\u1ea1i \u0111\u00e2y \u0111\u1ec3 c\u00f9ng nhau ch\u1ee9ng ki\u1ebfn kho\u1ea3nh kh\u1eafc thi\u00eang li\u00eang nh\u1ea5t c\u1ee7a hai b\u1ea1n tr\u1ebb.
+T\u00ecnh y\u00eau l\u00e0 m\u1ed9t h\u00e0nh tr\u00ecnh k\u1ef3 di\u1ec7u, v\u00e0 ng\u00e0y h\u00f4m nay ch\u00ednh l\u00e0 kh\u1edfi \u0111\u1ea7u cho m\u1ed9t ch\u01b0\u01a1ng m\u1edbi t\u01b0\u01a1i s\u00e1ng.
+`;
+
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -72,6 +108,235 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const submitLockRef = useRef(false);
+
+  // ─── Speaking Script (3 Levels) Upload & Parser State ──────────────────
+  const [scriptDocFile, setScriptDocFile] = useState<File | null>(null);
+  const [isParsingScript, setIsParsingScript] = useState(false);
+  const [scriptParseError, setScriptParseError] = useState<string | null>(null);
+  const [activeScriptTab, setActiveScriptTab] = useState<SpeakingLevel>('BEGINNER');
+  const [scriptLevels, setScriptLevels] = useState<{
+    BEGINNER: string;
+    INTERMEDIATE: string;
+    ADVANCED: string;
+  }>({
+    BEGINNER: '',
+    INTERMEDIATE: '',
+    ADVANCED: '',
+  });
+  const docInputRef = useRef<HTMLInputElement>(null);
+  const [showOptionalVideo, setShowOptionalVideo] = useState(false);
+
+  // ─── Background Music State & Handlers ────────────────────────────────────
+  interface CustomMusicItem {
+    tempId: number;
+    title: string;
+    audioUrl: string;
+    cloudinaryPublicId?: string;
+    fileSizeMb?: string;
+    isUploading?: boolean;
+    uploadError?: string | null;
+  }
+
+  const [defaultMusics, setDefaultMusics] = useState<BackgroundMusicDto[]>([
+    { musicId: 2, title: 'Sang trọng (Formal)', audioUrl: 'https://res.cloudinary.com/dsbhtgduv/video/upload/v1794227354/background-music/system/sang_trong.mp3', isSystemDefault: true },
+    { musicId: 4, title: 'Sâu lắng (Emotional)', audioUrl: 'https://res.cloudinary.com/dsbhtgduv/video/upload/v1794227359/background-music/system/truyen_cam_hung.mp3', isSystemDefault: true },
+    { musicId: 3, title: 'Hào hứng (Energetic)', audioUrl: 'https://res.cloudinary.com/dsbhtgduv/video/upload/v1794227356/background-music/system/soi_dong.mp3', isSystemDefault: true },
+    { musicId: 1, title: 'Nhẹ nhàng (Soft Ambient)', audioUrl: 'https://res.cloudinary.com/dsbhtgduv/video/upload/v1794227349/background-music/system/lang_man.mp3', isSystemDefault: true },
+  ]);
+  const [isLoadingDefaults, setIsLoadingDefaults] = useState<boolean>(false);
+  const [savedLessonMusics, setSavedLessonMusics] = useState<BackgroundMusicDto[]>([]);
+  const [customMusics, setCustomMusics] = useState<CustomMusicItem[]>([]);
+  const [playingAudioUrl, setPlayingAudioUrl] = useState<string | null>(null);
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+  const customMusicInputRef = useRef<HTMLInputElement>(null);
+
+  // Load musics when modal opens
+  useEffect(() => {
+    if (!isOpen || lessonType !== 'ASSIGNMENT') return;
+
+    let isMounted = true;
+    setIsLoadingDefaults(true);
+
+    // Fetch system default musics
+    speakingApi.getDefaultMusics()
+      .then((res) => {
+        if (isMounted && res.success && res.data && res.data.length > 0) {
+          setDefaultMusics(res.data);
+        }
+      })
+      .catch((err) => console.warn('Could not load default musics from API, using fallback:', err))
+      .finally(() => {
+        if (isMounted) setIsLoadingDefaults(false);
+      });
+
+    // If editing existing lesson, fetch its custom musics
+    if (existingLesson?.lessonId) {
+      speakingApi.getMusicsForLesson(existingLesson.lessonId)
+        .then((res) => {
+          if (isMounted && res.success && res.data) {
+            setSavedLessonMusics(res.data.filter((m) => !m.isSystemDefault));
+          }
+        })
+        .catch((err) => console.warn('Could not load lesson musics:', err));
+    } else {
+      setSavedLessonMusics([]);
+    }
+
+    // Cleanup staged musics on modal open
+    setCustomMusics([]);
+
+    return () => {
+      isMounted = false;
+      if (previewAudioRef.current) {
+        previewAudioRef.current.pause();
+        previewAudioRef.current = null;
+      }
+      setPlayingAudioUrl(null);
+    };
+  }, [isOpen, lessonType, existingLesson?.lessonId]);
+
+  // Audio preview toggle
+  const handleTogglePreview = (audioUrl: string) => {
+    if (playingAudioUrl === audioUrl) {
+      if (previewAudioRef.current) {
+        previewAudioRef.current.pause();
+        previewAudioRef.current = null;
+      }
+      setPlayingAudioUrl(null);
+    } else {
+      if (previewAudioRef.current) {
+        previewAudioRef.current.pause();
+        previewAudioRef.current = null;
+      }
+      const audio = new Audio(audioUrl);
+      audio.volume = 0.5;
+      previewAudioRef.current = audio;
+      setPlayingAudioUrl(audioUrl);
+      audio.onended = () => {
+        setPlayingAudioUrl(null);
+      };
+      audio.play().catch((err) => {
+        console.warn('Audio preview error:', err);
+        setPlayingAudioUrl(null);
+      });
+    }
+  };
+
+  const handleSelectCustomMusicFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Dung lượng tập tin nhạc không được vượt quá 5MB.');
+      e.target.value = '';
+      return;
+    }
+
+    const title = file.name.replace(/\.[^/.]+$/, '');
+    const tempId = Date.now();
+    const tempPreviewUrl = URL.createObjectURL(file);
+    const sizeMb = (file.size / (1024 * 1024)).toFixed(1);
+
+    // 1. Thêm ngay vào state với trạng thái isUploading = true để hiển thị spinner
+    setCustomMusics((prev) => [
+      ...prev,
+      {
+        tempId,
+        title,
+        audioUrl: tempPreviewUrl,
+        fileSizeMb: sizeMb,
+        isUploading: true,
+      },
+    ]);
+
+    e.target.value = '';
+
+    // 2. Kích hoạt Pre-upload ngay lập tức lên Cloudinary dưới dạng background task
+    try {
+      const res = await speakingApi.preUploadMusic(file, title);
+      if (res.success && res.data) {
+        setCustomMusics((prev) =>
+          prev.map((m) =>
+            m.tempId === tempId
+              ? {
+                  ...m,
+                  audioUrl: res.data.audioUrl,
+                  cloudinaryPublicId: res.data.cloudinaryPublicId,
+                  isUploading: false,
+                }
+              : m
+          )
+        );
+      } else {
+        setCustomMusics((prev) =>
+          prev.map((m) =>
+            m.tempId === tempId
+              ? {
+                  ...m,
+                  isUploading: false,
+                  uploadError: res.message || 'Lỗi khi tải lên',
+                }
+              : m
+          )
+        );
+      }
+    } catch (err: any) {
+      setCustomMusics((prev) =>
+        prev.map((m) =>
+          m.tempId === tempId
+            ? {
+                ...m,
+                isUploading: false,
+                uploadError: err?.message || 'Không thể tải lên máy chủ',
+              }
+            : m
+        )
+      );
+    }
+  };
+
+  const handleRemoveCustomMusic = (tempId: number) => {
+    setCustomMusics((prev) => {
+      const target = prev.find((m) => m.tempId === tempId);
+      if (target) {
+        if (playingAudioUrl === target.audioUrl) {
+          if (previewAudioRef.current) {
+            previewAudioRef.current.pause();
+            previewAudioRef.current = null;
+          }
+          setPlayingAudioUrl(null);
+        }
+        if (target.audioUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(target.audioUrl);
+        }
+      }
+      return prev.filter((m) => m.tempId !== tempId);
+    });
+  };
+
+  const handleDeleteSavedMusic = async (musicId: number, musicTitle: string) => {
+    if (!window.confirm(`Bạn có chắc muốn xóa bài nhạc "${musicTitle}" khỏi bài học này?`)) return;
+    try {
+      const res = await speakingApi.deleteMusic(musicId);
+      if (res.success) {
+        setSavedLessonMusics((prev) => prev.filter((m) => m.musicId !== musicId));
+        if (playingAudioUrl) {
+          const match = savedLessonMusics.find((m) => m.musicId === musicId);
+          if (match && playingAudioUrl === match.audioUrl) {
+            if (previewAudioRef.current) {
+              previewAudioRef.current.pause();
+              previewAudioRef.current = null;
+            }
+            setPlayingAudioUrl(null);
+          }
+        }
+      }
+    } catch (err: any) {
+      console.error('Failed to delete music:', err);
+      alert('Không thể xóa bài nhạc. Vui lòng thử lại.');
+    }
+  };
+
 
   // Preview the selected local file without uploading it or exposing the saved source URL.
   useEffect(() => {
@@ -123,6 +388,13 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
       setDurationMinutes(10);
       setOrderIndex(1);
       setIsPreview(false);
+      setScriptLevels({
+        BEGINNER: '',
+        INTERMEDIATE: '',
+        ADVANCED: '',
+      });
+      setScriptDocFile(null);
+      setScriptParseError(null);
     }
     setErrorMsg(null);
     setSelectedFile(null);
@@ -204,6 +476,80 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
     // Otherwise calculate from description content
     setDurationMinutes(calculateDurationFromContent(description));
   };
+
+  
+  const handleDownloadTemplate = () => {
+    const blob = new Blob([TEMPLATE_MARKDOWN], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'kich_ban_mau_3_level.md';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDocFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+    const allowed = ['.docx', '.txt', '.md'];
+    if (!allowed.includes(ext)) {
+      setScriptParseError('Chỉ hỗ trợ tập tin định dạng .docx, .txt hoặc .md');
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      setScriptParseError('Dung lượng tập tin vượt quá giới hạn 10MB.');
+      return;
+    }
+
+    setScriptDocFile(file);
+    setScriptParseError(null);
+
+    // Auto trigger parse immediately
+    triggerParseScriptFile(file);
+  };
+
+  const triggerParseScriptFile = async (fileToParse: File) => {
+    setIsParsingScript(true);
+    setScriptParseError(null);
+    try {
+      const res = await speakingApi.parseScriptFileDirect(fileToParse);
+      if (res.success && res.data) {
+        const newLevels = {
+          BEGINNER: '',
+          INTERMEDIATE: '',
+          ADVANCED: '',
+        };
+        res.data.levels.forEach((lvl) => {
+          if (lvl.level === 'BEGINNER' || lvl.level === 'INTERMEDIATE' || lvl.level === 'ADVANCED') {
+            newLevels[lvl.level] = lvl.content;
+          }
+        });
+        setScriptLevels(newLevels);
+
+        // Auto populate description with beginner content if description is empty
+        if (!description.trim() && newLevels.BEGINNER) {
+          const cleanDesc = newLevels.BEGINNER.replace(/\[[^\]]*\]/g, '').trim();
+          setDescription(cleanDesc);
+          setDurationMinutes(calculateDurationFromContent(cleanDesc));
+        }
+      } else {
+        setScriptParseError(res.message || 'Không thể phân tách cấp độ kịch bản từ tập tin.');
+      }
+    } catch (err: any) {
+      setScriptParseError(err.message || 'Lỗi kết nối khi phân tích tập tin.');
+    } finally {
+      setIsParsingScript(false);
+    }
+  };
+
+  const hasScriptContent = Boolean(
+    scriptLevels?.BEGINNER?.trim() || scriptLevels?.INTERMEDIATE?.trim() || scriptLevels?.ADVANCED?.trim()
+  );
 
   if (!isOpen) return null;
 
@@ -290,6 +636,28 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
     setIsUploading(Boolean(selectedFile));
     setUploadProgress(0);
     try {
+      const baseScript =
+        scriptLevels?.BEGINNER?.trim() ||
+        scriptLevels?.INTERMEDIATE?.trim() ||
+        scriptLevels?.ADVANCED?.trim() ||
+        description.trim();
+
+      const levelsPayload =
+        lessonType === 'ASSIGNMENT' && baseScript
+          ? {
+              BEGINNER: scriptLevels?.BEGINNER?.trim() || baseScript,
+              INTERMEDIATE: scriptLevels?.INTERMEDIATE?.trim() || baseScript,
+              ADVANCED: scriptLevels?.ADVANCED?.trim() || baseScript,
+            }
+          : null;
+
+      const customMusicsPayload = customMusics
+        .filter((m) => !m.uploadError && !m.isUploading && m.audioUrl)
+        .map((m) => ({
+          title: m.title,
+          audioUrl: m.audioUrl,
+          cloudinaryPublicId: m.cloudinaryPublicId,
+        }));
       await onSubmit({
         title: title.trim(),
         description: description.trim() || undefined,
@@ -302,7 +670,7 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
         orderIndex: Number(orderIndex) || 1,
         isPreview,
         status: 'ACTIVE',
-      }, selectedFile, (percent) => setUploadProgress(percent));
+      }, selectedFile, (percent) => setUploadProgress(percent), levelsPayload, customMusicsPayload);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Không thể lưu bài học. Vui lòng thử lại.';
       if (selectedFile && isEditMode) setUploadError(message);
@@ -444,7 +812,171 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
           {/* ══════════════════════════════════════════════
               VIDEO / AUDIO SECTION
               ══════════════════════════════════════════════ */}
-          {isVideoLesson && (
+          {/* ══════════════════════════════════════════════════════════════
+              SPEAKING ASSIGNMENT: KỊCH BẢN NÓI (3 CẤP ĐỘ)
+              ══════════════════════════════════════════════════════════════ */}
+          {lessonType === 'ASSIGNMENT' && (
+            <div className="rounded-2xl border-2 border-purple-300 bg-purple-50/40 p-5 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-purple-200">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-purple-600 text-white shadow-xs">
+                      <Sparkles className="h-4 w-4" />
+                    </div>
+                    <span className="text-sm font-black text-slate-900 tracking-tight">
+                      KỊCH BẢN NÓI (.docx, .txt, .md) — PHÂN TÁCH 3 CẤP ĐỘ
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Tải 1 file Word (.docx), Text (.txt) hoặc Markdown (.md), hệ thống C# thuần sẽ tự động chuẩn hóa và tách thành 3 cấp độ (Beginner, Intermediate, Advanced).
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleDownloadTemplate}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-purple-200 text-purple-700 hover:bg-purple-100 font-bold text-xs shadow-xs transition-all cursor-pointer"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  <span>Tải template mẫu (.md)</span>
+                </button>
+              </div>
+
+              {/* Error if any */}
+              {scriptParseError && (
+                <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-bold text-rose-700 flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  <span>{scriptParseError}</span>
+                </div>
+              )}
+
+              {/* Dropzone for Script File (.docx, .txt, .md) */}
+              <div
+                onClick={() => docInputRef.current?.click()}
+                className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all ${
+                  scriptDocFile
+                    ? 'border-purple-500 bg-purple-100/60 shadow-inner'
+                    : 'border-purple-300 hover:border-purple-500 bg-white hover:bg-purple-50/40'
+                }`}
+              >
+                <input
+                  ref={docInputRef}
+                  type="file"
+                  accept=".docx,.txt,.md"
+                  onChange={handleDocFileChange}
+                  className="hidden"
+                />
+                <div className="flex flex-col items-center justify-center">
+                  <div className="w-12 h-12 rounded-2xl bg-purple-100 text-purple-600 flex items-center justify-center mb-2 shadow-xs">
+                    <FileText className="w-6 h-6" />
+                  </div>
+                  {scriptDocFile ? (
+                    <div>
+                      <p className="text-sm font-bold text-slate-900">{scriptDocFile.name}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        {(scriptDocFile.size / 1024).toFixed(1)} KB · Bấm để đổi file khác
+                      </p>
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="text-sm font-bold text-slate-800">
+                        Kéo thả file kịch bản (.docx, .txt, .md) vào đây hoặc <span className="text-purple-600 underline font-black">bấm để chọn file</span>
+                      </p>
+                      <p className="text-xs text-slate-400 mt-1">
+                        Hỗ trợ file Word (.docx), Văn bản UTF-8 (.txt), Markdown (.md) — Tối đa 10 MB
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {isParsingScript && (
+                <div className="p-3 bg-white rounded-xl border border-purple-200 flex items-center justify-center gap-2 text-xs font-bold text-purple-700">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Đang phân tích và bóc tách kịch bản thành 3 cấp độ trong bộ nhớ C#...</span>
+                </div>
+              )}
+
+              {/* 3-Level Tabs & Inline Editor */}
+              {hasScriptContent && (
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5 uppercase tracking-wide">
+                      <Layers className="h-3.5 w-3.5 text-purple-600" />
+                      Xem trước & Hiệu chỉnh 3 Cấp độ
+                    </span>
+                    <span className="text-[11px] text-slate-400">
+                      Có thể chỉnh sửa trực tiếp nội dung từng cấp độ bên dưới
+                    </span>
+                  </div>
+
+                  {/* Level Switcher Tabs */}
+                  <div className="grid grid-cols-3 gap-2">
+                    {(
+                      [
+                        { key: 'BEGINNER', label: '🌱 Dễ (Beginner)', note: 'Đủ hướng dẫn + ngắt nghỉ' },
+                        { key: 'INTERMEDIATE', label: '⚡ Trung bình (Inter)', note: 'Chỉ giữ giọng đọc' },
+                        { key: 'ADVANCED', label: '🔥 Chuyên nghiệp (Adv)', note: '100% Lời thoại thuần' },
+                      ] as const
+                    ).map((tab) => (
+                      <button
+                        key={tab.key}
+                        type="button"
+                        onClick={() => setActiveScriptTab(tab.key)}
+                        className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                          activeScriptTab === tab.key
+                            ? 'bg-purple-600 text-white border-purple-600 shadow-md shadow-purple-500/20 font-bold scale-[1.01]'
+                            : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'
+                        }`}
+                      >
+                        <p className="text-xs">{tab.label}</p>
+                        <p className={`text-[10px] truncate ${activeScriptTab === tab.key ? 'text-purple-100' : 'text-slate-400'}`}>
+                          {tab.note}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Tab Textarea Editor */}
+                  <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-xs">
+                    <textarea
+                      rows={6}
+                      value={scriptLevels?.[activeScriptTab] ?? ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setScriptLevels((prev) => ({ ...prev, [activeScriptTab]: val }));
+                        // Auto-sync clean text to description
+                        if (activeScriptTab === 'BEGINNER' || activeScriptTab === 'ADVANCED') {
+                          const clean = val.replace(/\[[^\]]*\]/g, '').trim();
+                          setDescription(clean);
+                          setDurationMinutes(calculateDurationFromContent(clean));
+                        }
+                      }}
+                      placeholder={`Nhập nội dung cho cấp độ ${activeScriptTab}...`}
+                      className="w-full text-xs text-slate-800 leading-relaxed font-mono focus:outline-none resize-none"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Optional Collapsible for Video Instruction */}
+              <div className="pt-2 border-t border-purple-100">
+                <button
+                  type="button"
+                  onClick={() => setShowOptionalVideo((prev) => !prev)}
+                  className="text-xs font-bold text-slate-500 hover:text-purple-700 flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Video className="w-3.5 h-3.5" />
+                  <span>{showOptionalVideo ? 'Ẩn' : '+ Thêm'} Audio / Video hướng dẫn mẫu (Không bắt buộc)</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ══════════════════════════════════════════════════════════════
+              VIDEO SECTION (For VIDEO lessons, or optional for ASSIGNMENT)
+              ══════════════════════════════════════════════════════════════ */}
+          {(lessonType === 'VIDEO' || (lessonType === 'ASSIGNMENT' && showOptionalVideo)) && (
             <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-4 space-y-3">
               <div className="flex items-center gap-2 mb-2">
                 <Video className="h-4 w-4 text-slate-500" />
@@ -714,6 +1246,248 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
               <label htmlFor="lesson-ispreview" className="text-xs font-semibold text-slate-700 cursor-pointer">
                 Cho phép học viên xem thử miễn phí (Free Preview)
               </label>
+            </div>
+          )}
+
+          {/* =========================================================================
+              CARD: CẤU HÌNH NHẠC NỀN LUYỆN NÓI (BACKGROUND MUSIC)
+          ========================================================================== */}
+          {lessonType === 'ASSIGNMENT' && (
+            <div className="rounded-2xl border border-indigo-100 bg-gradient-to-b from-indigo-50/40 via-white to-purple-50/20 p-5 space-y-4 shadow-2xs">
+              {/* Card Header */}
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-indigo-100/80 pb-3">
+                <div>
+                  <h4 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                    <Music className="h-4 w-4 text-indigo-600" />
+                    <span>🎵 Cấu hình Nhạc nền luyện nói (Background Music)</span>
+                  </h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                    Nhạc nền giúp học viên cảm nhận nhịp điệu khi luyện đọc kịch bản MC. Nhạc phát riêng qua loa/tai nghe và hoàn toàn <strong className="text-indigo-900 font-bold">KHÔNG lẫn vào file ghi âm nộp bài</strong>.
+                  </p>
+                </div>
+                {isLoadingDefaults && (
+                  <div className="flex items-center gap-1.5 text-xs text-indigo-600 font-semibold">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <span>Đang tải...</span>
+                  </div>
+                )}
+              </div>
+
+              {/* A. Danh sách 4 bản nhạc hệ thống (System Presets) */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                    <span>Nhạc hệ thống có sẵn (4 bài mặc định):</span>
+                  </label>
+                  <span className="text-[10px] font-semibold text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-100">
+                    Học viên tự do lựa chọn khi luyện nói
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {defaultMusics.map((music) => {
+                    const isPlaying = playingAudioUrl === music.audioUrl;
+                    return (
+                      <div
+                        key={music.musicId}
+                        className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
+                          isPlaying
+                            ? 'border-indigo-400 bg-indigo-50/70 shadow-xs ring-2 ring-indigo-500/20'
+                            : 'border-slate-200 bg-white hover:border-indigo-200 shadow-2xs'
+                        }`}
+                      >
+                        <div className="min-w-0 pr-2">
+                          <div className="flex items-center gap-1.5">
+                            <Music className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+                            <span className="text-xs font-bold text-slate-800 truncate" title={music.title}>
+                              {music.title}
+                            </span>
+                          </div>
+                          <span className="inline-block mt-0.5 text-[10px] font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200">
+                            Mặc định hệ thống
+                          </span>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleTogglePreview(music.audioUrl)}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer shrink-0 ${
+                            isPlaying
+                              ? 'bg-indigo-600 text-white shadow-xs'
+                              : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                          }`}
+                          title={isPlaying ? 'Dừng nghe thử' : 'Nghe thử'}
+                        >
+                          {isPlaying ? (
+                            <>
+                              <Pause className="h-3 w-3 fill-current" />
+                              <span>Dừng</span>
+                            </>
+                          ) : (
+                            <>
+                              <Play className="h-3 w-3 fill-current" />
+                              <span>Nghe thử</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* B. Khu vực Nhạc riêng của bài học (Custom Music) */}
+              <div className="space-y-3 pt-2 border-t border-indigo-100/70">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                    <span>Nhạc nền riêng của bài học này:</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => customMusicInputRef.current?.click()}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold transition-all cursor-pointer active:scale-95"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>+ Tải lên nhạc nền riêng (.mp3, tối đa 5MB)</span>
+                  </button>
+                  <input
+                    ref={customMusicInputRef}
+                    type="file"
+                    accept=".mp3,audio/mpeg,audio/wav,audio/ogg"
+                    className="hidden"
+                    onChange={handleSelectCustomMusicFile}
+                  />
+                </div>
+
+                {/* Danh sách các bài nhạc riêng đã thêm hoặc đã lưu */}
+                {(savedLessonMusics.length > 0 || customMusics.length > 0) ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {/* Nhạc đã có trên server (nếu đang ở chế độ edit) */}
+                    {savedLessonMusics.map((m) => {
+                      const isPlaying = playingAudioUrl === m.audioUrl;
+                      return (
+                        <div
+                          key={`saved-${m.musicId}`}
+                          className={`flex items-center justify-between p-3 rounded-xl border bg-white transition-all shadow-2xs ${
+                            isPlaying ? 'border-indigo-400 bg-indigo-50/70 ring-2 ring-indigo-500/20' : 'border-slate-200'
+                          }`}
+                        >
+                          <div className="min-w-0 pr-2">
+                            <div className="flex items-center gap-1.5">
+                              <Music className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                              <span className="text-xs font-bold text-slate-800 truncate" title={m.title}>
+                                {m.title}
+                              </span>
+                            </div>
+                            <span className="inline-block mt-0.5 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                              Đã lưu trên bài học
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleTogglePreview(m.audioUrl)}
+                              className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                isPlaying
+                                  ? 'bg-indigo-600 text-white shadow-xs'
+                                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                              }`}
+                            >
+                              {isPlaying ? <Pause className="h-3 w-3 fill-current" /> : <Play className="h-3 w-3 fill-current" />}
+                              <span>{isPlaying ? 'Dừng' : 'Nghe'}</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteSavedMusic(m.musicId, m.title)}
+                              className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                              title="Xóa bài nhạc này"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {/* Nhạc riêng tự tải lên (Pre-uploaded) */}
+                    {customMusics.map((item) => {
+                      const isPlaying = playingAudioUrl === item.audioUrl;
+                      return (
+                        <div
+                          key={item.tempId}
+                          className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
+                            item.uploadError
+                              ? 'border-rose-200 bg-rose-50/40'
+                              : item.isUploading
+                              ? 'border-indigo-300 bg-indigo-50/50 animate-pulse'
+                              : isPlaying
+                              ? 'border-indigo-400 bg-indigo-50/70 ring-2 ring-indigo-500/20'
+                              : 'border-indigo-200 bg-white shadow-2xs'
+                          }`}
+                        >
+                          <div className="min-w-0 pr-2">
+                            <div className="flex items-center gap-1.5">
+                              <Music className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+                              <span className="text-xs font-bold text-slate-800 truncate" title={item.title}>
+                                {item.title}
+                              </span>
+                            </div>
+                            
+                            {item.isUploading ? (
+                              <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-bold text-indigo-700 bg-indigo-100/70 px-2 py-0.5 rounded-full">
+                                <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                                <span>Đang tải lên Cloudinary ({item.fileSizeMb} MB)...</span>
+                              </span>
+                            ) : item.uploadError ? (
+                              <span className="inline-block mt-1 text-[10px] font-bold text-rose-700 bg-rose-100/70 px-2 py-0.5 rounded-full">
+                                ⚠️ {item.uploadError}
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                                <CheckCircle2 className="w-2.5 h-2.5" />
+                                <span>Đã sẵn sàng ({item.fileSizeMb} MB)</span>
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleTogglePreview(item.audioUrl)}
+                              disabled={item.isUploading}
+                              className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer disabled:opacity-40 ${
+                                isPlaying
+                                  ? 'bg-indigo-600 text-white shadow-xs'
+                                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                              }`}
+                            >
+                              {isPlaying ? <Pause className="h-3 w-3 fill-current" /> : <Play className="h-3 w-3 fill-current" />}
+                              <span>{isPlaying ? 'Dừng' : 'Nghe'}</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveCustomMusic(item.tempId)}
+                              className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                              title="Xóa bài nhạc này"
+                            >
+                              <Trash2 className="h-3.5 w-3.5 text-rose-500" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="p-3.5 rounded-xl bg-slate-50 border border-dashed border-slate-200 text-center">
+                    <p className="text-xs text-slate-500">
+                      Chưa tải lên bài nhạc riêng nào. Bài tập này sẽ sử dụng 4 bài nhạc nền hệ thống ở trên.
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
