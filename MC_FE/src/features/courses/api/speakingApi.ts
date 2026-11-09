@@ -1,4 +1,14 @@
 import { request } from '../../../services/api';
+import {
+  SpeakingLevel,
+  ParsePreviewDto,
+  SaveScriptRequest,
+  SpeakingScriptDto,
+  SpeakingScriptLevelDto,
+  UpdateLevelContentRequest,
+  BackgroundMusicDto,
+  PreUploadMusicResultDto,
+} from '../types/speakingTypes';
 
 export interface SpeakingSubmissionDto {
   submissionId: number;
@@ -101,6 +111,163 @@ export const speakingApi = {
   async getMySubmissions(): Promise<ApiResponse<SpeakingSubmissionDto[]>> {
     return request('/speaking-submissions/my-submissions', {
       method: 'GET',
+    });
+  },
+
+  /**
+   * POST /api/speaking-scripts/parse-file
+   * Parse document (.docx, .txt, .md) directly without requiring an existing lessonId
+   */
+  async parseScriptFileDirect(file: File): Promise<ApiResponse<ParsePreviewDto>> {
+    const formData = new FormData();
+    formData.append('File', file);
+    return request('/speaking-scripts/parse-file', {
+      method: 'POST',
+      body: formData,
+    });
+  },
+
+  /**
+   * POST /api/speaking-scripts/lessons/{lessonId}/parse
+   * Instructor uploads document (.docx, .txt, .md) to parse in-memory into 3 levels
+   */
+  async parseScriptFile(lessonId: number, file: File): Promise<ApiResponse<ParsePreviewDto>> {
+    const formData = new FormData();
+    formData.append('File', file);
+    return request(`/speaking-scripts/lessons/${lessonId}/parse`, {
+      method: 'POST',
+      body: formData,
+    });
+  },
+
+  /**
+   * POST /api/speaking-scripts/lessons/{lessonId}/publish
+   * Instructor saves and publishes 3-level script
+   */
+  async publishScript(lessonId: number, data: SaveScriptRequest): Promise<ApiResponse<SpeakingScriptDto>> {
+    return request(`/speaking-scripts/lessons/${lessonId}/publish`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * GET /api/speaking-scripts/lessons/{lessonId}
+   * Get speaking script with all 3 levels
+   */
+  async getScriptByLesson(lessonId: number): Promise<ApiResponse<SpeakingScriptDto>> {
+    return request(`/speaking-scripts/lessons/${lessonId}`, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * GET /api/speaking-scripts/lessons/{lessonId}/level/{level}
+   * Get specific level script content
+   */
+  async getLevelContent(lessonId: number, level: SpeakingLevel): Promise<ApiResponse<SpeakingScriptLevelDto>> {
+    return request(`/speaking-scripts/lessons/${lessonId}/level/${level}`, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * PUT /api/speaking-scripts/{scriptId}/levels/{level}
+   * Update content of a single level
+   */
+  async updateLevelContent(
+    scriptId: number,
+    level: SpeakingLevel,
+    data: UpdateLevelContentRequest
+  ): Promise<ApiResponse<SpeakingScriptDto>> {
+    return request(`/speaking-scripts/${scriptId}/levels/${level}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * DELETE /api/speaking-scripts/lessons/{lessonId}
+   * Instructor deletes a speaking script
+   */
+  async deleteScript(lessonId: number): Promise<ApiResponse<boolean>> {
+    return request(`/speaking-scripts/lessons/${lessonId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  /**
+   * GET /api/speaking-scripts/musics/defaults
+   * Get 4 system default background musics
+   */
+  async getDefaultMusics(): Promise<ApiResponse<BackgroundMusicDto[]>> {
+    return request('/speaking-scripts/musics/defaults', {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * GET /api/speaking-scripts/lessons/{lessonId}/musics
+   * Get all available musics for a lesson (system defaults + custom uploads)
+   */
+  async getMusicsForLesson(lessonId: number): Promise<ApiResponse<BackgroundMusicDto[]>> {
+    return request(`/speaking-scripts/lessons/${lessonId}/musics`, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * POST /api/speaking-scripts/lessons/{lessonId}/musics/upload
+   * Instructor uploads custom background music for a lesson
+   */
+  async uploadMusicForLesson(
+    lessonId: number,
+    file: File,
+    title: string
+  ): Promise<ApiResponse<BackgroundMusicDto>> {
+    const formData = new FormData();
+    formData.append('File', file);
+    formData.append('Title', title);
+    return request(`/speaking-scripts/lessons/${lessonId}/musics/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+  },
+
+  /**
+   * DELETE /api/speaking-scripts/musics/{musicId}
+   * Instructor deletes a custom background music
+   */
+  async deleteMusic(musicId: number): Promise<ApiResponse<boolean>> {
+    return request(`/speaking-scripts/musics/${musicId}`, {
+      method: 'DELETE',
+    });
+  },
+  /**
+   * POST /api/speaking-scripts/musics/pre-upload
+   * Pre-upload custom background music to Cloudinary in background
+   */
+  async preUploadMusic(file: File, title: string): Promise<ApiResponse<PreUploadMusicResultDto>> {
+    const formData = new FormData();
+    formData.append('File', file);
+    formData.append('Title', title);
+    return request('/speaking-scripts/musics/pre-upload', {
+      method: 'POST',
+      body: formData,
+    });
+  },
+
+  /**
+   * POST /api/speaking-scripts/lessons/{lessonId}/musics/link
+   * Link pre-uploaded background musics to a lesson
+   */
+  async linkMusicsToLesson(
+    lessonId: number,
+    musics: Array<{ title: string; audioUrl: string; cloudinaryPublicId?: string }>
+  ): Promise<ApiResponse<BackgroundMusicDto[]>> {
+    return request(`/speaking-scripts/lessons/${lessonId}/musics/link`, {
+      method: 'POST',
+      body: JSON.stringify({ musics }),
     });
   },
 };
