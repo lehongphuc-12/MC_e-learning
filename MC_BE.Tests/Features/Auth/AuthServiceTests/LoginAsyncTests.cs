@@ -264,4 +264,30 @@ public class LoginAsyncTests : AuthServiceTestBase
         result.Data.Should().NotBeNull();
         result.Data!.User.Email.Should().Be("normal@example.com");
     }
+
+    [Fact]
+    public async Task LoginAsync_WhenUserHasNoRole_DefaultsRoleNameToLearner()
+    {
+        // Arrange
+        var user = new User
+        {
+            UserId = 2,
+            FullName = "No Role Login User",
+            Email = "norolelogin@example.com",
+            PasswordHash = "hashed_Password123",
+            Status = "ACTIVE",
+            Role = null
+        };
+        Users.Add(user);
+
+        var request = new LoginRequest { Email = "norolelogin@example.com", Password = "Password123" };
+        var httpContext = new DefaultHttpContext();
+
+        // Act
+        var result = await Service.LoginAsync(request, httpContext.Response);
+
+        // Assert
+        result.Success.Should().BeTrue();
+        result.Data!.User.RoleName.Should().Be("Learner");
+    }
 }

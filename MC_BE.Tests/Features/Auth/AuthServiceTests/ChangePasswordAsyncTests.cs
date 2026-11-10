@@ -33,8 +33,11 @@ public class ChangePasswordAsyncTests : AuthServiceTestBase
         result.Message.Should().Be("User account is inactive.");
     }
 
-    [Fact]
-    public async Task ChangePasswordAsync_WhenStandardUserAndOldPasswordEmpty_ReturnsFailure()
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData(null)]
+    public async Task ChangePasswordAsync_WhenStandardUserAndOldPasswordEmptyOrWhitespace_ReturnsFailure(string? oldPassword)
     {
         // Arrange
         Users.Add(new User
@@ -45,7 +48,7 @@ public class ChangePasswordAsyncTests : AuthServiceTestBase
             IsGoogleLogin = false
         });
 
-        var request = new ChangePasswordRequestDto { OldPassword = "", NewPassword = "NewPass" };
+        var request = new ChangePasswordRequestDto { OldPassword = oldPassword, NewPassword = "NewPass" };
 
         // Act
         var result = await Service.ChangePasswordAsync(1, request);

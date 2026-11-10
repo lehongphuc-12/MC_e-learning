@@ -132,4 +132,28 @@ public class GetProfileAsyncTests : UserProfileServiceTestBase
         result.Data.Bio.Should().BeNull();
         result.Data.PreferredLanguage.Should().Be("en");
     }
+
+    [Fact]
+    public async Task GetProfileAsync_WhenRequestIsNull_FallsBackToCurrentUserId()
+    {
+        // Arrange
+        var user = new User
+        {
+            UserId = 5,
+            FullName = "Null Request User",
+            Status = "ACTIVE"
+        };
+
+        UserRepoMock
+            .Setup(r => r.FindAsync(It.IsAny<Expression<Func<User, bool>>>(), It.IsAny<Expression<Func<User, object>>[]>()))
+            .ReturnsAsync(new List<User> { user });
+
+        // Act
+        var result = await Service.GetProfileAsync(null, currentUserId: 5);
+
+        // Assert
+        result.Success.Should().BeTrue();
+        result.Data!.UserId.Should().Be(5);
+        result.Data.FullName.Should().Be("Null Request User");
+    }
 }
