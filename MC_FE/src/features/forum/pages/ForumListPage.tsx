@@ -36,6 +36,10 @@ export const ForumListPage: React.FC<ForumListPageProps> = ({ user, onToast }) =
     setIsUserProfileModalOpen(true);
   };
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, []);
+
   // Fetch topics
   useEffect(() => {
     forumApi.getTopics().then(setTopics);
@@ -248,7 +252,10 @@ export const ForumListPage: React.FC<ForumListPageProps> = ({ user, onToast }) =
                   <button
                     type="button"
                     disabled={page <= 1}
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    onClick={() => {
+                      setPage((p) => Math.max(1, p - 1));
+                      window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+                    }}
                     className="p-2 rounded-xl bg-slate-900 border border-slate-200 text-slate-600 hover:bg-slate-800 hover:text-slate-900 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                   >
                     <ChevronLeft className="h-4 w-4" />
@@ -259,7 +266,10 @@ export const ForumListPage: React.FC<ForumListPageProps> = ({ user, onToast }) =
                   <button
                     type="button"
                     disabled={page >= totalPages}
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    onClick={() => {
+                      setPage((p) => Math.min(totalPages, p + 1));
+                      window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+                    }}
                     className="p-2 rounded-xl bg-slate-900 border border-slate-200 text-slate-600 hover:bg-slate-800 hover:text-slate-900 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
                   >
                     <ChevronRight className="h-4 w-4" />

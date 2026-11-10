@@ -48,6 +48,7 @@ import { IncompleteCourseModal } from './IncompleteCourseModal';
 
 import { useCourseDetail } from '../../hooks/useInstructorCourses';
 import { useSubmitForApproval } from '../../hooks/useCourseMutations';
+import { speakingApi } from '../../api/speakingApi';
 
 import { useQuizzesByCourse } from '../../../quizzes/hooks/useQuiz';
 
@@ -604,6 +605,8 @@ export const CourseLessonsPage: React.FC = () => {
     dto: CreateLessonDto,
     file?: File | null,
     onUploadProgress?: (percent: number) => void,
+    scriptLevels?: { BEGINNER: string; INTERMEDIATE: string; ADVANCED: string } | null,
+    customMusics?: Array<{ title: string; audioUrl: string; cloudinaryPublicId?: string }> | null,
   ) => {
     setIsSavingLesson(true);
     try {
@@ -612,6 +615,41 @@ export const CourseLessonsPage: React.FC = () => {
           lessonId: editingLesson.lessonId,
           dto,
         });
+
+        if (scriptLevels && dto.lessonType === 'ASSIGNMENT' && editingLesson.lessonId) {
+          const fallbackContent =
+            scriptLevels.BEGINNER?.trim() ||
+            scriptLevels.INTERMEDIATE?.trim() ||
+            scriptLevels.ADVANCED?.trim() ||
+            dto.description?.trim() ||
+            '';
+
+          const beginnerContent = scriptLevels.BEGINNER?.trim() || fallbackContent;
+          const intermediateContent = scriptLevels.INTERMEDIATE?.trim() || fallbackContent;
+          const advancedContent = scriptLevels.ADVANCED?.trim() || fallbackContent;
+
+          try {
+            await speakingApi.publishScript(editingLesson.lessonId, {
+              title: dto.title,
+              levels: [
+                { level: 'BEGINNER', content: beginnerContent },
+                { level: 'INTERMEDIATE', content: intermediateContent },
+                { level: 'ADVANCED', content: advancedContent },
+              ],
+            });
+          } catch (scriptErr) {
+            console.error('Failed to publish speaking script:', scriptErr);
+          }
+        }
+
+        const musicsToUploadEdit = customMusics || [];
+        if (musicsToUploadEdit.length > 0 && editingLesson.lessonId) {
+          try {
+            await speakingApi.linkMusicsToLesson(editingLesson.lessonId, musicsToUploadEdit);
+          } catch (musicErr) {
+            console.error('Failed to link pre-uploaded background music:', musicErr);
+          }
+        }
 
         if (file && editingLesson.lessonId) {
           const uploadedLesson = await lessonApi.uploadVideo(editingLesson.lessonId, file, onUploadProgress);
@@ -633,6 +671,41 @@ export const CourseLessonsPage: React.FC = () => {
         });
       } else {
         const createdLesson = await createLessonAsync(dto);
+
+        if (scriptLevels && dto.lessonType === 'ASSIGNMENT' && createdLesson?.lessonId) {
+          const fallbackContent =
+            scriptLevels.BEGINNER?.trim() ||
+            scriptLevels.INTERMEDIATE?.trim() ||
+            scriptLevels.ADVANCED?.trim() ||
+            dto.description?.trim() ||
+            '';
+
+          const beginnerContent = scriptLevels.BEGINNER?.trim() || fallbackContent;
+          const intermediateContent = scriptLevels.INTERMEDIATE?.trim() || fallbackContent;
+          const advancedContent = scriptLevels.ADVANCED?.trim() || fallbackContent;
+
+          try {
+            await speakingApi.publishScript(createdLesson.lessonId, {
+              title: dto.title,
+              levels: [
+                { level: 'BEGINNER', content: beginnerContent },
+                { level: 'INTERMEDIATE', content: intermediateContent },
+                { level: 'ADVANCED', content: advancedContent },
+              ],
+            });
+          } catch (scriptErr) {
+            console.error('Failed to publish speaking script:', scriptErr);
+          }
+        }
+
+        const musicsToUploadCreate = customMusics || [];
+        if (musicsToUploadCreate.length > 0 && createdLesson?.lessonId) {
+          try {
+            await speakingApi.linkMusicsToLesson(createdLesson.lessonId, musicsToUploadCreate);
+          } catch (musicErr) {
+            console.error('Failed to link pre-uploaded background music:', musicErr);
+          }
+        }
 
         if (file && createdLesson?.lessonId) {
           try {

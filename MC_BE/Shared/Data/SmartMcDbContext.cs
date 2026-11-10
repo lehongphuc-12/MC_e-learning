@@ -45,6 +45,9 @@ public class SmartMcDbContext : DbContext
     public DbSet<LessonProgress> LessonProgresses { get; set; } = null!;
     public DbSet<Certificate> Certificates { get; set; } = null!;
     public DbSet<SpeakingSubmission> SpeakingSubmissions { get; set; } = null!;
+    public DbSet<SpeakingScript> SpeakingScripts { get; set; } = null!;
+    public DbSet<SpeakingScriptLevel> SpeakingScriptLevels { get; set; } = null!;
+    public DbSet<BackgroundMusic> BackgroundMusics { get; set; } = null!;
     public DbSet<VideoUploadSession> VideoUploadSessions { get; set; } = null!;
     public DbSet<R2ObjectDeletionJob> R2ObjectDeletionJobs { get; set; } = null!;
     public DbSet<CourseDeletionRequest> CourseDeletionRequests { get; set; } = null!;
@@ -463,6 +466,104 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
                 .WithMany()
                 .HasForeignKey(d => d.EnrollmentId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+                modelBuilder.Entity<SpeakingScript>(entity =>
+        {
+            entity.ToTable("speaking_scripts");
+            entity.HasKey(e => e.ScriptId);
+            entity.HasIndex(e => e.LessonId).IsUnique();
+
+            entity.Property(e => e.Status)
+                .HasConversion<string>()
+                .HasDefaultValue(SpeakingScriptStatus.DRAFT);
+
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasOne(d => d.Lesson)
+                .WithOne(l => l.SpeakingScript)
+                .HasForeignKey<SpeakingScript>(d => d.LessonId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(d => d.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(d => d.CreatedBy)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<SpeakingScriptLevel>(entity =>
+        {
+            entity.ToTable("speaking_script_levels");
+            entity.HasKey(e => e.LevelId);
+            entity.HasIndex(e => new { e.ScriptId, e.Level }).IsUnique();
+
+            entity.Property(e => e.Level)
+                .HasConversion<string>();
+
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasOne(d => d.Script)
+                .WithMany(s => s.Levels)
+                .HasForeignKey(d => d.ScriptId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<BackgroundMusic>(entity =>
+        {
+            entity.ToTable("background_musics");
+            entity.HasKey(e => e.MusicId);
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasOne(d => d.Lesson)
+                .WithMany()
+                .HasForeignKey(d => d.LessonId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasData(
+                new BackgroundMusic
+                {
+                    MusicId = 1,
+                    Title = "Lãng mạn",
+                    AudioUrl = "https://res.cloudinary.com/dsbhtgduv/video/upload/v1794227349/background-music/system/lang_man.mp3",
+                    CloudinaryPublicId = "background-music/system/lang_man",
+                    IsSystemDefault = true,
+                    LessonId = null,
+                    CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+                },
+                new BackgroundMusic
+                {
+                    MusicId = 2,
+                    Title = "Sang trọng",
+                    AudioUrl = "https://res.cloudinary.com/dsbhtgduv/video/upload/v1794227354/background-music/system/sang_trong.mp3",
+                    CloudinaryPublicId = "background-music/system/sang_trong",
+                    IsSystemDefault = true,
+                    LessonId = null,
+                    CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+                },
+                new BackgroundMusic
+                {
+                    MusicId = 3,
+                    Title = "Sôi động",
+                    AudioUrl = "https://res.cloudinary.com/dsbhtgduv/video/upload/v1794227356/background-music/system/soi_dong.mp3",
+                    CloudinaryPublicId = "background-music/system/soi_dong",
+                    IsSystemDefault = true,
+                    LessonId = null,
+                    CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+                },
+                new BackgroundMusic
+                {
+                    MusicId = 4,
+                    Title = "Truyền cảm hứng",
+                    AudioUrl = "https://res.cloudinary.com/dsbhtgduv/video/upload/v1794227359/background-music/system/truyen_cam_hung.mp3",
+                    CloudinaryPublicId = "background-music/system/truyen_cam_hung",
+                    IsSystemDefault = true,
+                    LessonId = null,
+                    CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+                }
+            );
         });
 
         modelBuilder.Entity<SpeakingSubmission>(entity =>
