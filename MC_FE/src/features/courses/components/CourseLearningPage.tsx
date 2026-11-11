@@ -3828,37 +3828,53 @@ export const CourseLearningPage: React.FC = () => {
                             completedLessonIds.includes(lesson.lessonId);
 
                           return (
-                            <button
-                              key={lesson.lessonId}
-                              type="button"
-                              onClick={() => handleSelectLesson(lesson)}
-                              disabled={lesson.isLocked}
-                              title={lesson.isLocked ? (lesson.lockReason || 'Cần PASS bài kiểm tra trước đó') : undefined}
-                              className={`w-full flex items-center justify-between p-2.5 rounded-lg text-left text-xs transition-all cursor-pointer ${
-                                isActive
-                                  ? 'bg-purple-600 text-white shadow-xs font-bold'
-                                  : 'bg-white hover:bg-purple-50 text-slate-700 border border-purple-200'
-                              }`}
-                            >
-                              <div className="flex items-center gap-2 min-w-0">
+                            <div key={lesson.lessonId} className="min-w-0 rounded-lg border border-purple-200 bg-white p-2">
+                              <button
+                                type="button"
+                                onClick={() => handleSelectLesson(lesson)}
+                                disabled={lesson.isLocked}
+                                title={lesson.isLocked ? (lesson.lockReason || 'Cần PASS bài kiểm tra trước đó') : undefined}
+                                className={`flex w-full min-w-0 items-center gap-2 rounded-md p-1.5 text-left text-xs transition-all disabled:cursor-not-allowed ${
+                                  isActive
+                                    ? 'bg-purple-600 text-white font-bold'
+                                    : 'text-slate-700 hover:bg-purple-50'
+                                }`}
+                              >
                                 {lesson.isLocked ? (
-                                              <LockKeyhole className="h-4 w-4 text-slate-400" />
-                                            ) : isCompleted ? (
-                                  <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                                  <LockKeyhole className="h-4 w-4 shrink-0 text-slate-400" />
+                                ) : isCompleted ? (
+                                  <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
                                 ) : (
-                                  <Mic className="h-4 w-4 text-purple-500 shrink-0" />
+                                  <Mic className="h-4 w-4 shrink-0 text-purple-500" />
                                 )}
-                                <span className="font-bold truncate">
-                                  {lesson.title}{lesson.isLocked && <span className="ml-2 text-[10px] font-semibold text-slate-400">· Chưa mở khóa</span>}
+                                <span className="min-w-0 flex-1 truncate font-bold" title={lesson.title}>
+                                  {lesson.title}
                                 </span>
+                                {lesson.isLocked && (
+                                  <span className="shrink-0 text-[10px] font-semibold text-slate-400">Chưa mở khóa</span>
+                                )}
+                              </button>
+                              <div className="mt-2 grid min-w-0 grid-cols-2 gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleSelectLesson(lesson)}
+                                  disabled={lesson.isLocked}
+                                  title={lesson.isLocked ? (lesson.lockReason || 'Cần PASS bài kiểm tra trước đó') : 'Làm bài thi nói'}
+                                  className="min-w-0 rounded-lg bg-purple-600 px-1.5 py-2 text-center text-[11px] font-bold text-white transition-colors hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  Làm bài
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={lesson.isLocked}
+                                  title={lesson.isLocked ? (lesson.lockReason || 'Bài học chưa mở khóa') : 'Luyện tập phát âm với AI'}
+                                  onClick={() => navigate(`/courses/${courseId}/lessons/${lesson.lessonId}/ai-practice`)}
+                                  className="min-w-0 rounded-lg border border-purple-300 bg-purple-100 px-1.5 py-2 text-center text-[11px] font-bold leading-tight text-purple-800 transition-colors hover:bg-purple-200 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  Luyện tập với AI
+                                </button>
                               </div>
-
-                              <span className={`text-[10px] px-2 py-0.5 rounded font-bold shrink-0 ${
-                                isActive ? 'bg-white/20 text-white' : 'bg-purple-100 text-purple-700'
-                              }`}>
-                                Làm bài
-                              </span>
-                            </button>
+                            </div>
                           );
                         })}
                       </div>

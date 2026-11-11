@@ -27,6 +27,7 @@ import { adminApi } from '../features/admin/services/adminApi';
 import { mockCourses } from '../data/mockData';
 import { HomeScreen } from '../features/courses/components/HomeScreen';
 import { AiVoiceCoachPage } from '../features/courses/components/AiVoiceCoachPage';
+import { AIPracticePage } from '../features/voiceAI/pages/AIPracticePage';
 
 // Feature route modules
 import { renderAuthRoutes } from '../features/auth/routes';
@@ -306,7 +307,11 @@ export const AppRouter: React.FC<AppRouterProps> = ({
           </ProtectedRoute>
         }
       />
-      <Route
+            <Route
+        path="/courses/:courseId/lessons/:lessonId/ai-practice"
+        element={<ProtectedRoute user={user}><AIPracticePage /></ProtectedRoute>}
+      />
+<Route
         path="/courses/:id/learn"
         element={
           <ProtectedRoute user={user}>
