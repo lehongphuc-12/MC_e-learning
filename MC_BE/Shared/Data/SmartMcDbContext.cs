@@ -11,7 +11,7 @@ using ConversationRead = MC_BE.Core.Entities.Chat.ConversationRead;
 using StickerPack = MC_BE.Core.Entities.Chat.StickerPack;
 using Sticker = MC_BE.Core.Entities.Chat.Sticker;
 using ChatCall = MC_BE.Core.Entities.Chat.ChatCall;
-
+using MC_BE.Core.Entities;
 namespace MC_BE.Shared.Data;
 
 public class SmartMcDbContext : DbContext
@@ -110,7 +110,12 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
     public DbSet<ForumComment> ForumComments { get; set; } = null!;
     public DbSet<ForumReaction> ForumReactions { get; set; } = null!;
     public DbSet<ForumReport> ForumReports { get; set; } = null!;
+    // AI PRACTICE (bảng riêng, không thay đổi bảng feedback cũ)
+    public DbSet<AIPracticeSession> AIPracticeSessions { get; set; } = null!;
+    public DbSet<AIPracticeFeedback> AIPracticeFeedbacks { get; set; } = null!;
 
+    public DbSet<AIPronunciationFeedback> AIPronunciationFeedbacks
+    { get; set; } = null!;
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -1416,6 +1421,79 @@ modelBuilder.Entity<QuizAnswerScenarioPath>(entity =>
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
+        // AI PRACTICE: cấu hình mới, không chỉnh sửa AIPronunciationFeedback
+        modelBuilder.Entity<AIPracticeSession>(e =>
+        {
+            e.ToTable("ai_practice_sessions");
+            e.HasKey(x => x.PracticeSessionId);
+            e.HasIndex(x => new { x.LearnerId, x.CreatedAt });
+            e.HasIndex(x => new { x.CourseId, x.LessonId, x.CreatedAt });
+            e.HasOne<User>().WithMany().HasForeignKey(x => x.LearnerId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Course>().WithMany().HasForeignKey(x => x.CourseId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Lesson>().WithMany().HasForeignKey(x => x.LessonId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<AIPracticeFeedback>(e =>
+        {
+            e.ToTable("ai_practice_feedbacks");
+            e.HasKey(x => x.PracticeFeedbackId);
+            e.HasIndex(x => x.PracticeSessionId).IsUnique();
+            e.HasOne<AIPracticeSession>().WithMany().HasForeignKey(x => x.PracticeSessionId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<User>().WithMany().HasForeignKey(x => x.LearnerId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+        
+        // KHÔNG thay block modelBuilder.Entity<AIPronunciationFeedback> cũ.
+
+        modelBuilder.Entity<AIPronunciationFeedback>(entity =>
+{
+    entity.ToTable("ai_pronunciation_feedbacks");
+
+    entity.HasKey(e => e.FeedbackId);
+
+    entity.HasIndex(e => new
+    {
+        e.SubmissionId,
+        e.LearnerId
+    }).IsUnique();
+
+    entity.Property(e => e.ModelVersion)
+        .HasMaxLength(50)
+        .IsRequired();
+
+    entity.Property(e => e.LLMProvider)
+        .HasMaxLength(100)
+        .IsRequired();
+
+    entity.Property(e => e.LLMModel)
+        .HasMaxLength(100)
+        .IsRequired();
+
+    entity.Property(e => e.PredictionJson)
+        .HasColumnType("text");
+
+    entity.Property(e => e.FeedbackJson)
+        .HasColumnType("text");
+
+    entity.Property(e => e.Summary)
+        .HasColumnType("text");
+
+    entity.Property(e => e.CreatedAt)
+        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+    entity.Property(e => e.UpdatedAt)
+        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+    entity.HasOne<SpeakingSubmission>()
+        .WithMany()
+        .HasForeignKey(e => e.SubmissionId)
+        .OnDelete(DeleteBehavior.Cascade);
+
+    entity.HasOne<User>()
+        .WithMany()
+        .HasForeignKey(e => e.LearnerId)
+        .OnDelete(DeleteBehavior.Restrict);
+});
         modelBuilder.Entity<ForumReport>(entity =>
         {
             entity.ToTable("forum_reports");
