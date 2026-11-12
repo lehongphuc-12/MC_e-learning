@@ -22,6 +22,193 @@ namespace MC_BE.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("MC_BE.Core.Entities.AIPracticeFeedback", b =>
+                {
+                    b.Property<int>("PracticeFeedbackId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("PracticeFeedbackId"));
+
+                    b.Property<int>("CheckpointEpoch")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ExpectedText")
+                        .HasColumnType("text");
+
+                    b.Property<string>("FeedbackJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("LLMModel")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("LLMProvider")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("LearnerId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ModelVersion")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<int>("PracticeSessionId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("PredictionJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Summary")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("PracticeFeedbackId");
+
+                    b.HasIndex("LearnerId");
+
+                    b.HasIndex("PracticeSessionId")
+                        .IsUnique();
+
+                    b.ToTable("ai_practice_feedbacks", (string)null);
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.AIPracticeSession", b =>
+                {
+                    b.Property<int>("PracticeSessionId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("PracticeSessionId"));
+
+                    b.Property<string>("AudioUrl")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int?>("CourseId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("ExpectedText")
+                        .HasMaxLength(5000)
+                        .HasColumnType("character varying(5000)");
+
+                    b.Property<int>("LearnerId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("LessonId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("PracticeMode")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("PracticeSessionId");
+
+                    b.HasIndex("LessonId");
+
+                    b.HasIndex("LearnerId", "CreatedAt");
+
+                    b.HasIndex("CourseId", "LessonId", "CreatedAt");
+
+                    b.ToTable("ai_practice_sessions", (string)null);
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.AIPronunciationFeedback", b =>
+                {
+                    b.Property<int>("FeedbackId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("FeedbackId"));
+
+                    b.Property<int>("CheckpointEpoch")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("ExpectedText")
+                        .HasColumnType("text");
+
+                    b.Property<string>("FeedbackJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("LLMModel")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("LLMProvider")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("LearnerId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ModelVersion")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("PredictionJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("SubmissionId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Summary")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("TranscriptText")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.HasKey("FeedbackId");
+
+                    b.HasIndex("LearnerId");
+
+                    b.HasIndex("SubmissionId", "LearnerId")
+                        .IsUnique();
+
+                    b.ToTable("ai_pronunciation_feedbacks", (string)null);
+                });
+
             modelBuilder.Entity("MC_BE.Core.Entities.BackgroundMusic", b =>
                 {
                     b.Property<int>("MusicId")
@@ -3270,6 +3457,55 @@ namespace MC_BE.Migrations
                     b.HasIndex("Status", "ExpiresAt");
 
                     b.ToTable("video_upload_sessions", (string)null);
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.AIPracticeFeedback", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("LearnerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MC_BE.Core.Entities.AIPracticeSession", null)
+                        .WithMany()
+                        .HasForeignKey("PracticeSessionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.AIPracticeSession", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.Course", null)
+                        .WithMany()
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MC_BE.Core.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("LearnerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MC_BE.Core.Entities.Lesson", null)
+                        .WithMany()
+                        .HasForeignKey("LessonId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.AIPronunciationFeedback", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("LearnerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MC_BE.Core.Entities.SpeakingSubmission", null)
+                        .WithMany()
+                        .HasForeignKey("SubmissionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.BackgroundMusic", b =>

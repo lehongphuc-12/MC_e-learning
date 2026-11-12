@@ -36,7 +36,11 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-
+using MC_BE.Features.VoiceAssessment.Services;
+using MC_BE.Features.VoiceAssessment.Services.Interfaces;
+using MC_BE.Features.VoiceAssessment.Providers;
+using MC_BE.Features.VoiceAssessment.Providers.Interfaces;
+using Microsoft.Extensions.Options;
 var builder = WebApplication.CreateBuilder(args);
 
 // ============================================================
@@ -211,7 +215,14 @@ builder.Services.AddHostedService<EnrollmentExpirationWorker>();
 // ============================================================
 builder.Services.AddScoped<IChatService, ChatService>();
 builder.Services.AddScoped<ICallService, CallService>();
+// ============================================================
+// Model AI
+// ============================================================
+builder.Services.Configure<OpenAISettings>(
+    builder.Configuration.GetSection("OpenAI"));
 
+builder.Services.Configure<VoiceAssessmentAISettings>(
+    builder.Configuration.GetSection("VoiceAssessmentAI"));
 // ============================================================
 // SIGNALR
 // ============================================================
@@ -267,7 +278,60 @@ builder.Services.AddControllers()
     {
         options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
     });
+// ============================================================
+// VOICE ASSESSMENT - AI FEEDBACK
+// ============================================================
 
+builder.Services.AddScoped<
+    IAIResponseService,
+    AIResponseService>();
+
+// AI PRACTICE (bổ sung độc lập, giữ nguyên AIResponseService)
+builder.Services.AddScoped<IAIPracticeService, AIPracticeService>();
+
+builder.Services.AddHttpClient<
+    ILLMProvider,
+    OpenAIProvider>();
+
+builder.Services.AddHttpClient(
+    "VoiceAssessmentAI",
+    (serviceProvider, client) =>
+    {
+        var settings = serviceProvider
+            .GetRequiredService<
+                Microsoft.Extensions.Options.IOptions<VoiceAssessmentAISettings>>()
+            .Value;
+
+        if (!Uri.TryCreate(
+                settings.BaseUrl,
+                UriKind.Absolute,
+                out var baseUri) ||
+            (baseUri.Scheme != Uri.UriSchemeHttp &&
+             baseUri.Scheme != Uri.UriSchemeHttps))
+        {
+            throw new InvalidOperationException(
+                "Địa chỉ dịch vụ AI không hợp lệ.");
+        }
+
+        if (settings.TimeoutSeconds <= 0)
+        {
+            throw new InvalidOperationException(
+                "Thời gian chờ dịch vụ AI phải lớn hơn 0.");
+        }
+
+        client.BaseAddress = new Uri(
+            settings.BaseUrl.TrimEnd('/') + "/");
+
+        client.Timeout = TimeSpan.FromSeconds(
+            settings.TimeoutSeconds);
+    });
+
+builder.Services.AddHttpClient(
+    "AudioSource",
+    client =>
+    {
+        client.Timeout = TimeSpan.FromSeconds(60);
+    });
 // ============================================================
 // OPEN API / SWAGGER (always registered so dev tools work; UI gated below)
 // ============================================================
