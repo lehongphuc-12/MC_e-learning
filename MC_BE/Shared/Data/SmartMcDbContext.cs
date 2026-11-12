@@ -45,6 +45,12 @@ public class SmartMcDbContext : DbContext
     public DbSet<LessonProgress> LessonProgresses { get; set; } = null!;
     public DbSet<Certificate> Certificates { get; set; } = null!;
     public DbSet<SpeakingSubmission> SpeakingSubmissions { get; set; } = null!;
+    public DbSet<SpeakingScript> SpeakingScripts { get; set; } = null!;
+    public DbSet<SpeakingScriptLevel> SpeakingScriptLevels { get; set; } = null!;
+    public DbSet<BackgroundMusic> BackgroundMusics { get; set; } = null!;
+    public DbSet<VideoUploadSession> VideoUploadSessions { get; set; } = null!;
+    public DbSet<R2ObjectDeletionJob> R2ObjectDeletionJobs { get; set; } = null!;
+    public DbSet<CourseDeletionRequest> CourseDeletionRequests { get; set; } = null!;
 
     // ============================================================
     // Section 3: Payment
@@ -200,7 +206,9 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
 
         modelBuilder.Entity<Course>(entity =>
         {
-            entity.ToTable("courses");
+            entity.ToTable("courses", table => table.HasCheckConstraint(
+                "CK_courses_FreePriceConsistency",
+                "(\"IsFree\" = TRUE AND \"Price\" = 0) OR (\"IsFree\" = FALSE AND \"Price\" > 0)"));
 
             entity.HasKey(e => e.CourseId);
 
@@ -209,6 +217,9 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
 
             entity.Property(e => e.Price)
                 .HasDefaultValue(0.00m);
+
+            entity.Property(e => e.IsFree)
+                .HasDefaultValue(false);
 
             entity.Property(e => e.Level)
                 .HasConversion<string>();
@@ -319,6 +330,43 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        modelBuilder.Entity<VideoUploadSession>(entity =>
+        {
+            entity.ToTable("video_upload_sessions");
+            entity.HasKey(e => e.SessionId);
+            entity.HasIndex(e => e.ObjectKey).IsUnique();
+            entity.HasIndex(e => new { e.Status, e.ExpiresAt });
+            entity.Property(e => e.Status).HasDefaultValue("PENDING");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasOne<Lesson>().WithMany().HasForeignKey(e => e.LessonId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<Course>().WithMany().HasForeignKey(e => e.CourseId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<R2ObjectDeletionJob>(entity =>
+        {
+            entity.ToTable("r2_object_deletion_jobs");
+            entity.HasKey(job => job.JobId);
+            entity.HasIndex(job => new { job.Status, job.NextAttemptAt });
+            entity.HasIndex(job => new { job.SourceCourseId, job.ObjectKey }).IsUnique();
+            entity.Property(job => job.Status).HasDefaultValue("PENDING");
+            entity.Property(job => job.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(job => job.NextAttemptAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            // No Course FK: deletion records must survive the course's cascading database delete.
+        });
+
+        modelBuilder.Entity<CourseDeletionRequest>(entity =>
+        {
+            entity.ToTable("course_deletion_requests");
+            entity.HasKey(request => request.RequestId);
+            entity.HasIndex(request => new { request.Status, request.RequestedAt });
+            entity.HasIndex(request => request.CourseId)
+                .IsUnique()
+                .HasFilter("\"Status\" = 'PENDING'");
+            entity.Property(request => request.Status).HasDefaultValue("PENDING");
+            entity.Property(request => request.RequestedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            // No FK to courses: retain the request as an audit record after an approved deletion.
+        });
+
         // ============================================================
         // ENROLLMENT CONFIGURATION
         // ============================================================
@@ -418,6 +466,104 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
                 .WithMany()
                 .HasForeignKey(d => d.EnrollmentId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+                modelBuilder.Entity<SpeakingScript>(entity =>
+        {
+            entity.ToTable("speaking_scripts");
+            entity.HasKey(e => e.ScriptId);
+            entity.HasIndex(e => e.LessonId).IsUnique();
+
+            entity.Property(e => e.Status)
+                .HasConversion<string>()
+                .HasDefaultValue(SpeakingScriptStatus.DRAFT);
+
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasOne(d => d.Lesson)
+                .WithOne(l => l.SpeakingScript)
+                .HasForeignKey<SpeakingScript>(d => d.LessonId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(d => d.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(d => d.CreatedBy)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<SpeakingScriptLevel>(entity =>
+        {
+            entity.ToTable("speaking_script_levels");
+            entity.HasKey(e => e.LevelId);
+            entity.HasIndex(e => new { e.ScriptId, e.Level }).IsUnique();
+
+            entity.Property(e => e.Level)
+                .HasConversion<string>();
+
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasOne(d => d.Script)
+                .WithMany(s => s.Levels)
+                .HasForeignKey(d => d.ScriptId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<BackgroundMusic>(entity =>
+        {
+            entity.ToTable("background_musics");
+            entity.HasKey(e => e.MusicId);
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasOne(d => d.Lesson)
+                .WithMany()
+                .HasForeignKey(d => d.LessonId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasData(
+                new BackgroundMusic
+                {
+                    MusicId = 1,
+                    Title = "Lãng mạn",
+                    AudioUrl = "https://res.cloudinary.com/dsbhtgduv/video/upload/v1794227349/background-music/system/lang_man.mp3",
+                    CloudinaryPublicId = "background-music/system/lang_man",
+                    IsSystemDefault = true,
+                    LessonId = null,
+                    CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+                },
+                new BackgroundMusic
+                {
+                    MusicId = 2,
+                    Title = "Sang trọng",
+                    AudioUrl = "https://res.cloudinary.com/dsbhtgduv/video/upload/v1794227354/background-music/system/sang_trong.mp3",
+                    CloudinaryPublicId = "background-music/system/sang_trong",
+                    IsSystemDefault = true,
+                    LessonId = null,
+                    CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+                },
+                new BackgroundMusic
+                {
+                    MusicId = 3,
+                    Title = "Sôi động",
+                    AudioUrl = "https://res.cloudinary.com/dsbhtgduv/video/upload/v1794227356/background-music/system/soi_dong.mp3",
+                    CloudinaryPublicId = "background-music/system/soi_dong",
+                    IsSystemDefault = true,
+                    LessonId = null,
+                    CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+                },
+                new BackgroundMusic
+                {
+                    MusicId = 4,
+                    Title = "Truyền cảm hứng",
+                    AudioUrl = "https://res.cloudinary.com/dsbhtgduv/video/upload/v1794227359/background-music/system/truyen_cam_hung.mp3",
+                    CloudinaryPublicId = "background-music/system/truyen_cam_hung",
+                    IsSystemDefault = true,
+                    LessonId = null,
+                    CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+                }
+            );
         });
 
         modelBuilder.Entity<SpeakingSubmission>(entity =>

@@ -40,13 +40,12 @@ public class ModulesController : ControllerBase
 
         var modules = await _moduleService.GetModulesByCourseIdAsync(courseId);
 
-        // SECURITY HARDENING — enable after learner videos have been migrated to private R2.
-        // This prevents public Drive/YouTube URLs from being returned in the module list.
-        // if (!User.IsInRole("Instructor") && !User.IsInRole("Admin"))
-        // {
-        //     foreach (var lesson in modules.SelectMany(module => module.Lessons))
-        //         lesson.VideoUrl = null;
-        // }
+        // Do not serialize legacy public video URLs to learners. They must use authorized playback.
+        if (!User.IsInRole("Instructor") && !User.IsInRole("Admin"))
+        {
+            foreach (var lesson in modules.SelectMany(module => module.Lessons))
+                lesson.VideoUrl = null;
+        }
 
         return Ok(ApiResponse<List<ModuleDto>>.SuccessResponse(modules));
     }

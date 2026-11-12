@@ -70,6 +70,7 @@ builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("Emai
 builder.Services.Configure<PayOsSettings>(builder.Configuration.GetSection("PayOS"));
 builder.Services.Configure<R2Settings>(builder.Configuration.GetSection("CloudflareR2"));
 builder.Services.Configure<GroqSettings>(builder.Configuration.GetSection("Groq"));
+builder.Services.Configure<MentorChatSettings>(builder.Configuration.GetSection("MentorChat"));
 
 // ============================================================
 // CORS — restrict to known origins only (never wildcard + credentials)
@@ -171,6 +172,10 @@ builder.Services.AddScoped<ILearningProgressService, LearningProgressService>();
 builder.Services.AddScoped<ILearningAccessService, LearningAccessService>();
 builder.Services.AddScoped<ISpeakingSubmissionRepository, SpeakingSubmissionRepository>();
 builder.Services.AddScoped<ISpeakingSubmissionService, SpeakingSubmissionService>();
+builder.Services.AddScoped<ISpeakingScriptRepository, SpeakingScriptRepository>();
+builder.Services.AddScoped<ISpeakingScriptService, SpeakingScriptService>();
+builder.Services.AddScoped<SpeakingScriptParserService>();
+builder.Services.AddScoped<IBackgroundMusicService, BackgroundMusicService>();
 
 // ============================================================
 // EMAIL / CLOUDINARY
@@ -183,9 +188,12 @@ builder.Services.AddScoped<IR2StorageService, R2StorageService>();
 // AI SPEECH-TO-TEXT & TRANSCRIPTION
 // ============================================================
 builder.Services.AddHttpClient<IGroqWhisperService, GroqWhisperService>();
+builder.Services.AddHttpClient<IMentorChatService, MentorChatService>();
 builder.Services.AddSingleton<IAudioExtractorService, AudioExtractorService>();
 builder.Services.AddSingleton<ITranscriptionQueue, TranscriptionQueue>();
 builder.Services.AddHostedService<TranscriptionWorker>();
+builder.Services.AddHostedService<VideoUploadSessionCleanupWorker>();
+builder.Services.AddHostedService<R2ObjectDeletionWorker>();
 
 // ============================================================
 // ENROLLMENT / PAYMENT
@@ -330,6 +338,27 @@ using (var scope = app.Services.CreateScope())
             ALTER TABLE IF EXISTS lessons ADD COLUMN IF NOT EXISTS ""Transcript"" text;
             ALTER TABLE IF EXISTS lessons ADD COLUMN IF NOT EXISTS ""SubtitleUrl"" text;
             ALTER TABLE IF EXISTS lessons ADD COLUMN IF NOT EXISTS ""TranscriptStatus"" integer NOT NULL DEFAULT 0;
+            CREATE TABLE IF NOT EXISTS speaking_scripts (
+                ""ScriptID"" SERIAL PRIMARY KEY,
+                ""LessonID"" integer NOT NULL UNIQUE,
+                ""Title"" character varying(500) NOT NULL,
+                ""OriginalContent"" text,
+                ""CreatedBy"" integer,
+                ""UpdatedAt"" timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+                ""Status"" character varying(20) DEFAULT 'DRAFT',
+                CONSTRAINT fk_speaking_scripts_lesson FOREIGN KEY (""LessonID"") REFERENCES lessons(""LessonID"") ON DELETE CASCADE,
+                CONSTRAINT fk_speaking_scripts_user FOREIGN KEY (""CreatedBy"") REFERENCES users(""UserID"") ON DELETE SET NULL
+            );
+            CREATE TABLE IF NOT EXISTS speaking_script_levels (
+                ""LevelID"" SERIAL PRIMARY KEY,
+                ""ScriptID"" integer NOT NULL,
+                ""Level"" character varying(20) NOT NULL,
+                ""Content"" text NOT NULL,
+                ""CleanScriptForScoring"" text,
+                ""UpdatedAt"" timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT fk_speaking_script_levels_script FOREIGN KEY (""ScriptID"") REFERENCES speaking_scripts(""ScriptID"") ON DELETE CASCADE,
+                CONSTRAINT uq_script_level UNIQUE (""ScriptID"", ""Level"")
+            );
         ");
     }
     catch (Exception ex)

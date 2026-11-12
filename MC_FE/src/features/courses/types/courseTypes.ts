@@ -57,6 +57,7 @@ export interface Course {
   description?: string;       // COURSE.Description (TEXT, nullable)
   thumbnailUrl?: string;      // COURSE.ThumbnailUrl (VARCHAR 255, nullable)
   price: number;              // COURSE.Price (DECIMAL 10,2, DEFAULT 0.00)
+  isFree?: boolean;           // Explicit classification; optional for legacy/mock course data
   level?: CourseLevel;        // COURSE.Level (VARCHAR 50, nullable)
   status: CourseStatus;       // COURSE.Status (DEFAULT 'DRAFT')
   createdAt: string;          // COURSE.CreatedAt (ISO 8601 string from backend)
@@ -90,6 +91,7 @@ export interface CreateCourseDto {
   categoryId?: number | null; // Optional FK
   thumbnailUrl?: string;      // Optional URL
   price: number;              // Required: >= 0
+  isFree: boolean;
   level?: CourseLevel;        // Optional
   status?: CourseStatus;      // Default: 'DRAFT'
   submissionNote?: string;
@@ -161,6 +163,7 @@ export interface CourseFormValues {
   categoryId: string;      // Select returns string; coerce to number on submit
   thumbnailUrl: string;
   price: string;           // Coerce to number on submit
+  isFree: boolean;
   level: CourseLevel | '';
   status: CourseStatus;    // 'DRAFT' | 'PENDING_APPROVAL' | 'PUBLISHED' | 'REJECTED' | 'ARCHIVED'
   submissionNote?: string;

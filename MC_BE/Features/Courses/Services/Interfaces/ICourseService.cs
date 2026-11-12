@@ -51,10 +51,16 @@ public interface ICourseService
     Task<CourseDto?> UpdateCourseAsync(int courseId, int instructorId, UpdateCourseRequest request);
 
     /// <summary>
-    /// Hard-deletes a course. Only the owner instructor can delete their course.
-    /// Returns false if not found or caller is not the owner.
+    /// Deletes only an unpublished draft with no learner or payment history.
     /// </summary>
-    Task<bool> DeleteCourseAsync(int courseId, int instructorId);
+    Task<CourseDeletionActionDto?> DeleteCourseAsync(int courseId, int instructorId);
+
+    Task<CourseDeletionActionDto?> RequestCourseDeletionAsync(int courseId, int instructorId, string reason);
+
+    Task<CourseDeletionRequestListDto> GetPendingCourseDeletionRequestsAsync(int page, int pageSize);
+
+    Task<CourseDeletionActionDto?> ReviewCourseDeletionRequestAsync(
+        long requestId, int adminId, bool approve, string? adminNote);
 
     /// <summary>
     /// Quick status change (DRAFT ↔ PUBLISHED ↔ ARCHIVED) without opening the full edit form.

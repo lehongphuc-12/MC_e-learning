@@ -131,7 +131,7 @@ public class EnrollmentService : IEnrollmentService
         // 3. TẠO ENROLLMENT
         // ============================================================
 
-        var isFreeCourse = course.Price <= 0;
+        var isFreeCourse = course.IsFree;
 
         var newEnrollment = new Enrollment
         {

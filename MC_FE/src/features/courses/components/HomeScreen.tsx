@@ -214,6 +214,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 const [studioVisible, setStudioVisible] = useState(false);
 
 useEffect(() => {
+  window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+}, []);
+
+useEffect(() => {
   const section = studioRef.current;
   if (!section) return;
 

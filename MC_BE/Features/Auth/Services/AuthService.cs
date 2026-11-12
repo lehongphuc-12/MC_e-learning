@@ -272,7 +272,7 @@ public class AuthService : IAuthService
         // 4. Verify password — Google-only accounts cannot use email/password login
         if (string.IsNullOrEmpty(user.PasswordHash) || user.IsGoogleLogin)
         {
-            return ApiResponse<LoginResponse>.FailureResponse("Tai khoan nay duoc dang ky bang Google. Vui long dang nhap bang Google.");
+            return ApiResponse<LoginResponse>.FailureResponse("Tài khoản này được đăng ký bằng Google. Vui lòng đăng nhập bằng Google.");
         }
 
         var isPasswordValid = _passwordHasher.VerifyPassword(request.Password, user.PasswordHash);

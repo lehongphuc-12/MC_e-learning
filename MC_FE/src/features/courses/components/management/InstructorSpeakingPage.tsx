@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Mic,
@@ -33,6 +33,8 @@ import { courseApi } from '../../api/courseApi';
 import { moduleApi } from '../../api/moduleApi';
 import { lessonApi } from '../../api/lessonApi';
 import { Course } from '../../types/courseTypes';
+import { SpeakingScriptUploadModal } from './SpeakingScriptUploadModal';
+import { FileText, UploadCloud } from 'lucide-react';
 import { ToastType } from '../../../../components/common/Toast';
 
 export interface SpeakingAssignmentItem {
@@ -80,10 +82,12 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
   const [createDescription, setCreateDescription] = useState<string>('');
   const [createDuration, setCreateDuration] = useState<number>(15);
   const [isCreatingAssignment, setIsCreatingAssignment] = useState<boolean>(false);
+  const createAssignmentLockRef = useRef(false);
 
   // Created Speaking Assignments state
   const [speakingAssignments, setSpeakingAssignments] = useState<SpeakingAssignmentItem[]>([]);
   const [isLoadingAssignments, setIsLoadingAssignments] = useState<boolean>(false);
+  const [scriptModalAssignment, setScriptModalAssignment] = useState<SpeakingAssignmentItem | null>(null);
 
   // Fetch created speaking assignments for instructor's courses
   const loadAssignments = async (courseList: Course[]) => {
@@ -131,6 +135,7 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
 
   const handleCreateAssignment = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (createAssignmentLockRef.current || isCreatingAssignment) return;
     if (!createCourseId) {
       if (onToast) onToast('Vui lòng chọn khóa học', 'Khóa học là bắt buộc.', 'error');
       return;
@@ -140,6 +145,7 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
       return;
     }
 
+    createAssignmentLockRef.current = true;
     setIsCreatingAssignment(true);
     try {
       await lessonApi.createLesson(Number(createCourseId), {
@@ -166,6 +172,7 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
       if (onToast)
         onToast('Thất bại', err.message || 'Có lỗi xảy ra khi tạo bài tập nói.', 'error');
     } finally {
+      createAssignmentLockRef.current = false;
       setIsCreatingAssignment(false);
     }
   };
@@ -463,13 +470,22 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
                   </div>
 
                   <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
-                    <button
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setScriptModalAssignment(assignment)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 font-bold text-xs transition-all cursor-pointer border border-blue-200 shadow-sm"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        <span>Kịch bản 3 Level</span>
+                      </button>
+                      <button
                       onClick={() => navigate(`/instructor/courses/${assignment.courseId}/lessons`)}
                       className="text-xs font-semibold text-purple-600 hover:text-purple-800 flex items-center gap-1 cursor-pointer"
                     >
                       <span>Quản lý trong Khóa học</span>
                       <ChevronRight className="w-3.5 h-3.5" />
                     </button>
+                    </div>
 
                     <button
                       onClick={() => handleDeleteAssignment(assignment.lessonId)}
@@ -1012,8 +1028,21 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
           </div>
         </div>
       )}
+
+      {/* Speaking Script Upload & 3-Level Management Modal */}
+      {scriptModalAssignment && (
+        <SpeakingScriptUploadModal
+          isOpen={Boolean(scriptModalAssignment)}
+          onClose={() => setScriptModalAssignment(null)}
+          lessonId={scriptModalAssignment.lessonId}
+          lessonTitle={scriptModalAssignment.title}
+          courseTitle={scriptModalAssignment.courseTitle}
+          onSuccess={() => {
+            if (onToast) onToast('Kịch bản đã được lưu!', 'Học viên đã có thể luyện nói theo 3 cấp độ.', 'success');
+          }}
+          onToast={onToast}
+        />
+      )}
     </div>
   );
 };
-
-export default InstructorSpeakingPage;

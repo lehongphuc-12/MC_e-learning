@@ -9,6 +9,7 @@ export interface LessonStatusModalProps {
   reason?: string | null;
   onClose: () => void;
   onRetry?: () => void;
+  onViewLesson?: () => void;
 }
 
 export const LessonStatusModal: React.FC<LessonStatusModalProps> = ({
@@ -19,6 +20,7 @@ export const LessonStatusModal: React.FC<LessonStatusModalProps> = ({
   reason,
   onClose,
   onRetry,
+  onViewLesson,
 }) => {
   const [copied, setCopied] = useState(false);
 
@@ -140,14 +142,14 @@ export const LessonStatusModal: React.FC<LessonStatusModalProps> = ({
           )}
 
           <button
-            onClick={onClose}
+            onClick={onViewLesson ?? onClose}
             className={`flex items-center justify-center gap-2 rounded-2xl px-6 py-2.5 text-xs font-bold text-white shadow-md transition-all cursor-pointer ${
               isSuccess
                 ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
                 : 'bg-slate-900 hover:bg-slate-800 shadow-slate-900/20'
             }`}
           >
-            <span>{isSuccess ? 'Hoàn tất' : 'Đóng thông báo'}</span>
+            <span>{isSuccess ? (onViewLesson ? 'Xem bài vừa cập nhật' : 'Hoàn tất') : 'Đóng thông báo'}</span>
             {isSuccess && <ArrowRight className="h-4 w-4" />}
           </button>
         </div>
