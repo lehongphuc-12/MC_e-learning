@@ -53,12 +53,20 @@ public class LearningProgressService : ILearningProgressService
 
     public async Task<CourseLearningProgressDto?> GetCourseProgressAsync(int learnerId, int courseId)
     {
-        var enrollments = await _enrollmentRepository.FindAsync(
-            e => e.LearnerId == learnerId && e.CourseId == courseId,
-            e => e.Course,
-            e => e.LessonProgresses);
-
-        var enrollment = enrollments.FirstOrDefault();
+        var now = DateTime.UtcNow;
+        var enrollment = await _enrollmentRepository.GetQueryable()
+            .AsNoTracking()
+            .Include(e => e.Course)
+            .Include(e => e.LessonProgresses)
+            .Where(e =>
+                e.LearnerId == learnerId &&
+                e.CourseId == courseId &&
+                (e.Status == "ACTIVE" || e.Status == "COMPLETED") &&
+                (!e.ExpiresAt.HasValue || e.ExpiresAt.Value > now))
+            .OrderByDescending(e => e.Status == "ACTIVE")
+            .ThenByDescending(e => e.EnrolledAt ?? e.CreatedAt)
+            .ThenByDescending(e => e.EnrollmentId)
+            .FirstOrDefaultAsync();
 
         if (enrollment == null)
         {
@@ -143,11 +151,18 @@ public class LearningProgressService : ILearningProgressService
         var lesson = await _lessonRepository.GetByIdAsync(lessonId);
         if (lesson == null) return null;
 
-        var enrollments = await _enrollmentRepository.FindAsync(
-            e => e.LearnerId == learnerId && e.CourseId == lesson.CourseId,
-            e => e.LessonProgresses);
-
-        var enrollment = enrollments.FirstOrDefault();
+        var now = DateTime.UtcNow;
+        var enrollment = await _enrollmentRepository.GetQueryable()
+            .Include(e => e.LessonProgresses)
+            .Where(e =>
+                e.LearnerId == learnerId &&
+                e.CourseId == lesson.CourseId &&
+                (e.Status == "ACTIVE" || e.Status == "COMPLETED") &&
+                (!e.ExpiresAt.HasValue || e.ExpiresAt.Value > now))
+            .OrderByDescending(e => e.Status == "ACTIVE")
+            .ThenByDescending(e => e.EnrolledAt ?? e.CreatedAt)
+            .ThenByDescending(e => e.EnrollmentId)
+            .FirstOrDefaultAsync();
 
         if (enrollment == null) return null;
         var decision = await _access.CheckLessonAsync(learnerId, lessonId);
