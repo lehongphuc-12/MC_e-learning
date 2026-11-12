@@ -2603,7 +2603,6 @@ export const CourseLearningPage: React.FC = () => {
       !latestNextLesson ||
       latestNextLesson.isLocked ||
       autoNextCancelled ||
-      !effectiveVideoUrl?.trim() ||
       activeLesson?.lessonType?.toUpperCase() === 'ASSIGNMENT'
     ) {
       return;
@@ -2784,11 +2783,8 @@ export const CourseLearningPage: React.FC = () => {
       <style>{`
         .mseek-light-studio{background:linear-gradient(145deg,#dbeaff 0%,#f0f7ff 50%,#dceaff 100%);color:#101d50}
         .mseek-topbar{backdrop-filter:blur(16px);background:linear-gradient(90deg,#f9fcff,#e9f2ff 55%,#edf3ff);border-color:#c9ddff}
-        .mseek-stage-hero{background:linear-gradient(90deg,rgba(222,235,255,.92) 0%,rgba(199,221,255,.60) 43%,rgba(191,214,255,.13) 78%),url('/images/mseek-mc-blue-banner.png') center/cover no-repeat,#bcd5ff;min-height:132px}
-        .mseek-stage-glow{background:radial-gradient(circle at 24% 0%,rgba(255,255,255,.68),transparent 34%);pointer-events:none}
-        .mseek-stage-mic{animation:mseekFloat 5s ease-in-out infinite}
         .mseek-stage-main{background:transparent}
-        .mseek-curriculum,.mseek-right-rail{box-shadow:0 8px 32px rgba(18,69,154,.08)}
+        .mseek-curriculum{box-shadow:0 8px 32px rgba(18,69,154,.08)}
         .mseek-light-studio button{transition:transform .2s ease,box-shadow .2s ease,background-color .2s ease,border-color .2s ease}
         .mseek-light-studio button:not(:disabled):active{transform:scale(.97)}
         .mseek-light-studio button:focus-visible{outline:3px solid #93baff;outline-offset:3px}
@@ -2804,10 +2800,8 @@ export const CourseLearningPage: React.FC = () => {
         .mseek-light-studio .border-violet-200{border-color:#bed5ff}
         .mseek-light-studio .bg-violet-50{background-color:#eef5ff}
         .mseek-light-studio .bg-violet-100{background-color:#dceaff}
-        @keyframes mseekFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
-        @media(max-width:1279px){.mseek-right-rail{display:none}}
-        @media(max-width:767px){.mseek-curriculum{width:min(80vw,320px)}.mseek-stage-hero{padding:14px 16px;min-height:112px}}
-        @media(prefers-reduced-motion:reduce){.mseek-stage-mic{animation:none}.mseek-light-studio *{transition-duration:.01ms!important;animation-duration:.01ms!important}}
+        @media(max-width:767px){.mseek-curriculum{width:min(80vw,320px)}}
+        @media(prefers-reduced-motion:reduce){.mseek-light-studio *{transition-duration:.01ms!important;animation-duration:.01ms!important}}
       `}</style>
       {/* ── Top Bar ─────────────────────────────────────────────────────── */}
 
@@ -2953,45 +2947,9 @@ export const CourseLearningPage: React.FC = () => {
         </div>
       </header>
 
-      {/* Course banner: dynamic title, decorative background only */}
-      <section className="mseek-stage-hero relative shrink-0 overflow-hidden rounded-b-2xl border-b border-blue-200 px-5 py-4 md:px-8 md:py-5">
-        <div className="mseek-stage-glow absolute inset-0" />
-        <div className="relative z-10 flex min-h-[86px] items-center gap-4">
-          <div className="mseek-stage-mic flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-white bg-white/90 shadow-lg"><BookOpen className="h-7 w-7 text-blue-600" /></div>
-          <div className="min-w-0 max-w-[min(65%,760px)]">
-            <p className="mb-1 text-[10px] font-black uppercase tracking-[.16em] text-blue-700">MSEEK · MC VOICE STUDIO</p>
-            <h2 className="text-lg font-black tracking-tight text-[#09236c] md:text-2xl">{course?.title || 'Hành trình làm chủ giọng nói'}</h2>
-            <p className="mt-1 text-xs font-medium text-blue-700">Tự tin cất tiếng · Truyền cảm hứng · Tỏa sáng trên sân khấu</p>
-          </div>
-        </div>
-      </section>
-
       {/* ── Main Container ──────────────────────────────────────────────── */}
 
       <div className="flex flex-1 overflow-hidden relative flex-row-reverse">
-        {/* Right study summary: only data already available in this page */}
-        <aside className="mseek-right-rail hidden w-[286px] shrink-0 flex-col gap-3 overflow-y-auto bg-transparent p-3 xl:flex">
-          <div className="rounded-2xl border border-blue-100 bg-white/90 p-4 shadow-sm">
-            <h3 className="mb-4 flex items-center gap-2 text-sm font-extrabold text-[#0c2056]"><Award className="h-4 w-4 text-blue-600"/> Tiến độ học tập</h3>
-            <div className="flex items-center gap-4">
-              <div className="grid h-[88px] w-[88px] shrink-0 place-items-center rounded-full" style={{background:`conic-gradient(#1554f5 ${Math.min(100,completionPercentage)}%,#dbe8ff 0)`}}>
-                <div className="grid h-[69px] w-[69px] place-items-center rounded-full bg-white text-xl font-black text-blue-700">{completionPercentage}%</div>
-              </div>
-              <div className="space-y-2 text-[11px] text-slate-600"><p>✓ Đã hoàn thành <b>{completedLessonIds.length}/{totalLessonCount} bài</b></p><p>◷ Tổng thời lượng: <b>{totalDuration} phút</b></p><p>▣ Bài hiện tại: <b>{currentIndex >= 0 ? currentIndex+1 : 1}/{totalLessonCount}</b></p></div>
-            </div>
-          </div>
-          <div className="rounded-2xl border border-blue-100 bg-white/90 p-4 shadow-sm">
-            <h3 className="mb-3 flex items-center gap-2 text-sm font-extrabold text-[#0c2056]"><FileText className="h-4 w-4 text-blue-600"/> Thông tin bài học</h3>
-            <p className="text-xs font-bold text-blue-700">{activeLesson?.title || 'Chọn bài học để bắt đầu'}</p>
-            <p className="mt-2 text-xs leading-relaxed text-slate-600">{activeLesson?.description || 'Xem nội dung, học qua video và thực hành luyện giọng theo lộ trình.'}</p>
-            <div className="mt-3 rounded-xl bg-blue-50 p-3 text-xs text-blue-700">Thời lượng: {getLessonDuration(activeLesson)}</div>
-          </div>
-          <div className="rounded-2xl border border-blue-100 bg-white/90 p-4 shadow-sm">
-            <h3 className="mb-2 flex items-center gap-2 text-sm font-extrabold text-[#0c2056]"><Mic className="h-4 w-4 text-blue-600"/> Luyện tập giọng nói</h3>
-            <p className="text-xs leading-relaxed text-slate-600">Chọn bài tập nói trong lộ trình để ghi âm hoặc tải tệp âm thanh lên cho giảng viên đánh giá.</p>
-            <div className="mt-4 flex h-12 items-center justify-center gap-[3px]">{[12,22,32,18,38,26,14,34,43,19,30,17,40,23,12,35,26,15,33,20,38,16,27,12].map((h,i)=><span key={i} className="w-[3px] rounded-full bg-blue-400/80" style={{height:h}}/>)}</div>
-          </div>
-        </aside>
         {/* Left / Center Main Content */}
 
         <main className="mseek-stage-main min-w-0 flex-1 overflow-y-auto bg-transparent p-3 md:p-4 scrollbar-thin scrollbar-thumb-violet-300">
@@ -3784,7 +3742,7 @@ export const CourseLearningPage: React.FC = () => {
                                       {
                                         lesson.title
                                       }
-                                    </p>
+                                    </p>z
 
                                     <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-500">
                                       <span className="flex items-center gap-1">

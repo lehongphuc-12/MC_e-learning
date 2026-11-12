@@ -43,25 +43,27 @@ export function useUpdateLessonProgress(courseId: number) {
   return useMutation({
     mutationFn: ({ lessonId, dto }: { lessonId: number; dto: UpdateLessonProgressDto }) =>
       learningApi.updateLessonProgress(lessonId, dto),
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       if (data) {
         queryClient.setQueryData(learningQueryKeys.courseProgress(courseId, userId), data);
       } else {
-        queryClient.invalidateQueries({
+        await queryClient.invalidateQueries({
           queryKey: learningQueryKeys.courseProgress(courseId, userId),
         });
       }
-      // Tiến độ video thay đổi có thể mở khóa bài học/chương tiếp theo.
-      // Tải lại danh sách bài học và trạng thái khóa ngay, không chờ chu kỳ 30 giây.
-      queryClient.invalidateQueries({
-        queryKey: ['course-lessons', courseId],
-      });
-      queryClient.invalidateQueries({
-        queryKey: ['quizzes', 'course', courseId],
-      });
-      queryClient.invalidateQueries({
-        queryKey: ['courses', 'learned'],
-      });
+
+      // Chờ Backend tính lại isLocked trước khi bộ đếm tự chuyển bài bắt đầu.
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ['course-lessons', courseId],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ['quizzes', 'course', courseId],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ['courses', 'learned'],
+        }),
+      ]);
     },
   });
 }

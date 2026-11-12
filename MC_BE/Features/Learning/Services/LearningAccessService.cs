@@ -16,7 +16,8 @@ public sealed class LearningAccessService : ILearningAccessService
         int Id,
         int? ModuleId,
         int Order,
-        bool Preview
+        bool Preview,
+        bool HasVideo
     );
 
     private sealed record QuizNode(
@@ -59,7 +60,11 @@ public sealed class LearningAccessService : ILearningAccessService
                 x.LessonId,
                 x.ModuleId,
                 x.OrderIndex,
-                x.IsPreview))
+                x.IsPreview,
+                x.CourseMaterials.Any(m =>
+                    m.MaterialType == MaterialType.VIDEO &&
+                    ((m.ObjectKey != null && m.ObjectKey != "") ||
+                     (m.FileUrl != null && m.FileUrl != "")))))
             .ToListAsync();
 
         var quizzes = await _db.Quizzes.AsNoTracking()
@@ -153,13 +158,17 @@ public sealed class LearningAccessService : ILearningAccessService
                 q.LessonId == lessonId)
             .ToList();
 
-    // Kiểm tra hoàn thành video và bài tập của một bài học.
+    // Bài có video phải hoàn thành video trước khi chuyển bài.
+    // Chỉ yêu cầu PASS bài tập khi bài học thực sự được gắn quiz luyện tập ACTIVE.
+    // Nếu bài học không có quiz luyện tập thì không phát sinh điều kiện PASS quiz.
     private static string? CheckLessonCompletionAndPractice(
         LessonNode lesson,
-        LearningSnapshot data,
-        bool requireAtLeastOnePracticeQuiz = true)
+        LearningSnapshot data)
     {
-        if (!data.CompletedLessonIds.Contains(lesson.Id))
+        // Chỉ yêu cầu hoàn thành tiến độ nếu bài học thực sự có video.
+        // Bài không gắn video vẫn có thể chuyển tiếp, nhưng quiz được gắn
+        // với bài đó (nếu có) vẫn phải PASS.
+        if (lesson.HasVideo && !data.CompletedLessonIds.Contains(lesson.Id))
         {
             return $"Vui lòng hoàn thành video của bài học {lesson.Id} trước.";
         }
@@ -167,17 +176,13 @@ public sealed class LearningAccessService : ILearningAccessService
         var practices =
             ActivePracticeQuizzesForLesson(data, lesson.Id);
 
-        if (requireAtLeastOnePracticeQuiz && practices.Count == 0)
-        {
-            return $"Bài học {lesson.Id} chưa có bài tập luyện tập được thiết lập.";
-        }
-
         if (practices.Any(q =>
             !data.PassedQuizIds.Contains(q.Id)))
         {
             return $"Vui lòng đạt tất cả bài tập luyện tập của bài học {lesson.Id} trước.";
         }
 
+        // Không có bài tập được gắn: không phát sinh điều kiện PASS quiz.
         return null;
     }
 
@@ -227,7 +232,8 @@ public sealed class LearningAccessService : ILearningAccessService
                 }
             }
 
-            // Kiểm tra bài đánh giá chương trước.
+            // Chỉ bắt buộc PASS bài đánh giá nếu chương thực sự được gắn
+            // ít nhất một bài đánh giá chương đang ACTIVE.
             var chapterAssessments = data.Quizzes
                 .Where(q =>
                     q.Purpose == QuizPurpose.CHAPTER_ASSESSMENT &&
@@ -235,9 +241,8 @@ public sealed class LearningAccessService : ILearningAccessService
                     q.ModuleId == previousModuleId)
                 .ToList();
 
-            if (chapterAssessments.Count == 0 ||
-                chapterAssessments.Any(q =>
-                    !data.PassedQuizIds.Contains(q.Id)))
+            if (chapterAssessments.Any(q =>
+                !data.PassedQuizIds.Contains(q.Id)))
             {
                 return "Vui lòng đạt bài đánh giá chương trước.";
             }
@@ -406,7 +411,16 @@ public sealed class LearningAccessService : ILearningAccessService
                     lessonLockReason ?? "Bài học đang bị khóa.");
             }
 
-            if (!data.CompletedLessonIds.Contains(quiz.LessonId.Value))
+            var quizLesson = ordered.FirstOrDefault(
+                lesson => lesson.Id == quiz.LessonId.Value);
+
+            if (quizLesson == null)
+            {
+                return (false, "Không tìm thấy bài học được gắn với bài tập.");
+            }
+
+            if (quizLesson.HasVideo &&
+                !data.CompletedLessonIds.Contains(quiz.LessonId.Value))
             {
                 return (false,
                     "Vui lòng hoàn thành video của bài học trước khi làm bài tập.");
@@ -445,7 +459,7 @@ public sealed class LearningAccessService : ILearningAccessService
                         "Vui lòng hoàn thành các bài học theo đúng thứ tự trước.");
                 }
 
-                // Phải hoàn thành video và tất cả bài tập trong chương.
+                // Chỉ kiểm tra video nếu bài có video; chỉ PASS các bài tập thực sự được gắn.
                 var reason =
                     CheckLessonCompletionAndPractice(lesson, data);
 
@@ -507,7 +521,7 @@ public sealed class LearningAccessService : ILearningAccessService
             if (reason != null)
             {
                 return (false,
-                    "Vui lòng hoàn thành toàn bộ video và đạt tất cả bài tập hằng ngày trước khi thi cuối khóa.");
+                    "Vui lòng hoàn thành toàn bộ video và PASS các bài tập được gắn trước khi thi cuối khóa.");
             }
         }
 
