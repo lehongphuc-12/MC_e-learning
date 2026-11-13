@@ -3,7 +3,7 @@ import { LearnerQuizHistoryActions } from '../../quizzes/pages/LearnerQuizHistor
 // CourseLearningPage.tsx — Course Video Player / Learning Page
 // =============================================================================
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
@@ -42,6 +42,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { WaveformVisualizer } from '@/components/ui/waveform-visualizer';
 import { useBackgroundMusic } from '../hooks/useBackgroundMusic';
 import { BackgroundMusicControl } from './BackgroundMusicControl';
+import { toWav16k } from '../../voiceAI/components/audioToWav';
 
 import { useCourseDetail } from '../hooks/useInstructorCourses';
 import { useCourseLessons } from '../hooks/useLessonQueries';
@@ -56,6 +57,7 @@ import {
 } from '../hooks/useCertificateQueries';
 import { CertificateModal } from './CertificateModal';
 import { CourseChatDrawer } from './CourseChatDrawer';
+import { Toast, ToastMessage } from '../../../components/common/Toast';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { lessonApi } from '../api/lessonApi';
 
@@ -64,7 +66,7 @@ import type { Certificate } from '../types/learningTypes';
 
 import { useQuizzesByCourse } from '../../quizzes/hooks/useQuiz';
 import { speakingApi, SpeakingSubmissionDto } from '../api/speakingApi';
-import { SpeakingLevel, SpeakingScriptDto } from '../types/speakingTypes';
+import { SpeakingLevel, SpeakingScriptDto, getSpeakingGradeInfo } from '../types/speakingTypes';
 import {
   Play,
   Pause,
@@ -85,9 +87,10 @@ import { request } from '../../../services/api';
 // =============================================================================
 
 interface LearnerSpeakingWorkspaceProps {
-  lesson: Lesson;
+  lesson?: Lesson | null;
   courseId: number;
   onMarkComplete?: (lessonId: number) => void;
+  scriptOverride?: SpeakingScriptDto | null;
 }
 
 const LEVEL_TABS: Array<{
@@ -120,6 +123,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
   lesson,
   courseId,
   onMarkComplete,
+  scriptOverride,
 }) => {
   // Submission & Remote State
   const [submission, setSubmission] = useState<SpeakingSubmissionDto | null>(null);
@@ -131,7 +135,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
   const [selectedLevel, setSelectedLevel] = useState<SpeakingLevel>('BEGINNER');
 
   // Background Music Hook (Independent audio element)
-  const bgMusic = useBackgroundMusic(lesson.lessonId);
+  const bgMusic = useBackgroundMusic(lesson?.lessonId ?? 0);
 
   // Teleprompter Auto-Scroll Engine (60fps requestAnimationFrame)
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -140,7 +144,11 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [activePauseCountdown, setActivePauseCountdown] = useState<number | null>(null);
   const [isPausedByTag, setIsPausedByTag] = useState<boolean>(false);
+  const [activePauseId, setActivePauseId] = useState<number | null>(null);
   const [activeParaIndex, setActiveParaIndex] = useState<number>(0);
+  const [focusPaddingTop, setFocusPaddingTop] = useState<number>(140);
+
+
 
   const teleprompterRef = useRef<HTMLDivElement | null>(null);
   const teleprompterWrapperRef = useRef<HTMLDivElement | null>(null);
@@ -172,6 +180,20 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isReRecording, setIsReRecording] = useState<boolean>(false);
+  const navigate = useNavigate();
+  const [isPreparingAI, setIsPreparingAI] = useState<boolean>(false);
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState<boolean>(false);
+  const [toastMessage, setToastMessage] = useState<ToastMessage | null>(null);
+  const toastTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const workspaceContainerRef = useRef<HTMLDivElement | null>(null);
+
+  const showToast = (title: string, desc?: string, type: 'success' | 'info' | 'warning' | 'error' = 'success') => {
+    setToastMessage({ title, desc, type });
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => {
+      setToastMessage(null);
+    }, 4500);
+  };
 
   // Audio Device & Mode
   const [submissionMode, setSubmissionMode] = useState<'MIC' | 'UPLOAD'>('MIC');
@@ -234,6 +256,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
     if (pauseTimerRef.current) clearInterval(pauseTimerRef.current);
     pausedTagsHitRef.current.clear();
     setActivePauseCountdown(null);
+    setActivePauseId(null);
     setIsPausedByTag(false);
 
     if (teleprompterRef.current) {
@@ -256,6 +279,52 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
     }
     setLearnerNote('');
     setIsReRecording(false);
+
+    if (scriptOverride) {
+      setScriptData(scriptOverride);
+      setIsLoadingScript(false);
+      setIsLoadingSubmission(true);
+      setErrorMsg(null);
+      speakingApi
+        .getLatestSubmissionByScript(scriptOverride.scriptId)
+        .then((res) => {
+          if (alive) {
+            if (res.success && res.data) {
+              setSubmission(res.data);
+              if (
+                res.data.status === 'GRADED' &&
+                (res.data.score ?? 0) >= 80 &&
+                onMarkComplete &&
+                lesson?.lessonId
+              ) {
+                onMarkComplete(lesson.lessonId);
+              }
+            } else {
+              setSubmission(null);
+            }
+          }
+        })
+        .catch(() => {
+          if (alive) setSubmission(null);
+        })
+        .finally(() => {
+          if (alive) setIsLoadingSubmission(false);
+        });
+
+      return () => {
+        alive = false;
+        if (rafRef.current) cancelAnimationFrame(rafRef.current);
+        if (pauseTimerRef.current) clearInterval(pauseTimerRef.current);
+        if (recTimerRef.current) clearInterval(recTimerRef.current);
+        if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+      };
+    }
+
+    if (!lesson?.lessonId) {
+      setIsLoadingScript(false);
+      setIsLoadingSubmission(false);
+      return;
+    }
 
     // 1. Fetch speaking script (3 levels)
     setIsLoadingScript(true);
@@ -286,7 +355,12 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
         if (alive) {
           if (res.success && res.data) {
             setSubmission(res.data);
-            if (res.data.status === 'GRADED' && onMarkComplete) {
+            // Chỉ đánh dấu hoàn thành bài học khi điểm >= 80 (Đạt / GRADED)
+            if (
+              res.data.status === 'GRADED' &&
+              (res.data.score ?? 0) >= 80 &&
+              onMarkComplete
+            ) {
               onMarkComplete(lesson.lessonId);
             }
           } else {
@@ -308,7 +382,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
       if (recTimerRef.current) clearInterval(recTimerRef.current);
       if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
     };
-  }, [lesson.lessonId]);
+  }, [lesson?.lessonId, scriptOverride?.scriptId]);
 
   // Helper function to strictly filter tags according to each level specification
   const filterContentByLevel = (text: string, level: SpeakingLevel): string => {
@@ -349,8 +423,8 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
       }
     }
 
-    // 3. Fallback to lesson.description if still empty
-    if (!raw && lesson.description && lesson.description.trim()) {
+    // 3. Fallback to lesson?.description if still empty
+    if (!raw && lesson?.description && lesson.description.trim()) {
       raw = lesson.description.trim();
     }
 
@@ -360,7 +434,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
     }
 
     return filterContentByLevel(raw, selectedLevel);
-  }, [scriptData, selectedLevel, lesson.description]);
+  }, [scriptData, selectedLevel, lesson?.description]);
 
   // Clean script for scoring (without any [...] tags)
   const cleanScriptForScoring = useMemo(() => {
@@ -481,6 +555,36 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
     return items;
   }, [currentLevelContent, selectedLevel]);
 
+  // Dynamically calculate paddingTop so content starts neatly below Studio Focus Line
+  const updateFocusPadding = useCallback(() => {
+    if (!teleprompterRef.current) return;
+    const container = teleprompterRef.current;
+    const containerHeight = container.clientHeight;
+    if (!containerHeight) return;
+
+    // Focus line is at 30% with height 48px (h-12). Bottom of focus line is at: containerHeight * 0.30 + 48
+    // Content starts comfortably below the focus line with a 14px gap
+    const focusLineBottom = containerHeight * 0.30 + 48;
+    const calculated = Math.max(20, Math.round(focusLineBottom + 14));
+    setFocusPaddingTop(calculated);
+  }, []);
+
+  useEffect(() => {
+    updateFocusPadding();
+    const t = setTimeout(updateFocusPadding, 50);
+    return () => clearTimeout(t);
+  }, [fontSize, selectedLevel, isFullscreen, teleprompterItems, updateFocusPadding]);
+
+  useEffect(() => {
+    const container = teleprompterRef.current;
+    if (!container) return;
+    const observer = new ResizeObserver(() => {
+      updateFocusPadding();
+    });
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [updateFocusPadding]);
+
   // Auto-scroll loop using requestAnimationFrame with sub-pixel float accumulator
   useEffect(() => {
     if (!isPlaying || isPausedByTag) {
@@ -517,17 +621,22 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
 
       const currentContainer = teleprompterRef.current;
       const containerRect = currentContainer.getBoundingClientRect();
-      const triggerLine = containerRect.top + containerRect.height * 0.35; // 35% viewport trigger
+      const triggerLine = containerRect.top + containerRect.height * 0.30 + 24; // Focus line center (30% + 24px)
 
-      // Calculate active highlighted spoken line
-      const lineEls = currentContainer.querySelectorAll<HTMLDivElement>('[data-line-id]');
-      lineEls.forEach((el) => {
-        const rect = el.getBoundingClientRect();
-        if (rect.top <= triggerLine && rect.bottom >= triggerLine) {
-          const idx = Number(el.dataset.lineId || 0);
-          setActiveParaIndex(idx);
-        }
-      });
+      // If at top or near top, always activate line 0
+      if (currentContainer.scrollTop < 25) {
+        setActiveParaIndex(0);
+      } else {
+        // Calculate active highlighted spoken line
+        const lineEls = currentContainer.querySelectorAll<HTMLDivElement>('[data-line-id]');
+        lineEls.forEach((el) => {
+          const rect = el.getBoundingClientRect();
+          if (rect.top <= triggerLine + 20 && rect.bottom >= triggerLine - 20) {
+            const idx = Number(el.dataset.lineId || 0);
+            setActiveParaIndex(idx);
+          }
+        });
+      }
 
       // Pause Tag Detection: ONLY FOR BEGINNER LEVEL
       if (selectedLevel === 'BEGINNER') {
@@ -545,6 +654,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
 
             // Pause Teleprompter
             setIsPausedByTag(true);
+            setActivePauseId(tagId);
             setActivePauseCountdown(seconds);
 
             let remaining = seconds;
@@ -554,6 +664,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
               if (remaining <= 0) {
                 if (pauseTimerRef.current) clearInterval(pauseTimerRef.current);
                 setActivePauseCountdown(null);
+                setActivePauseId(null);
                 setIsPausedByTag(false);
                 // Resync accumulator after pause
                 if (teleprompterRef.current) {
@@ -594,12 +705,14 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
     if (pauseTimerRef.current) clearInterval(pauseTimerRef.current);
     pausedTagsHitRef.current.clear();
     setActivePauseCountdown(null);
+    setActivePauseId(null);
     setIsPausedByTag(false);
     setActiveParaIndex(0);
     accumulatedScrollRef.current = 0;
     if (teleprompterRef.current) {
       teleprompterRef.current.scrollTo({ top: 0, behavior: 'smooth' });
     }
+    updateFocusPadding();
   };
 
   const toggleFullscreen = () => {
@@ -629,7 +742,16 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
         audio: selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : true,
       };
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      const mediaRecorder = new MediaRecorder(stream);
+      const preferredMimeTypes = [
+        'audio/webm;codecs=opus',
+        'video/webm;codecs=opus',
+        'audio/webm',
+        'video/webm',
+      ];
+      const selectedMime = preferredMimeTypes.find((t) => typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(t));
+      const mediaRecorder = selectedMime
+        ? new MediaRecorder(stream, { mimeType: selectedMime })
+        : new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
@@ -640,9 +762,14 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
       };
 
       mediaRecorder.onstop = () => {
-        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        const url = URL.createObjectURL(blob);
-        setAudioBlob(blob);
+        // Use 'video/webm' MIME type so Chromium maps the downloaded file to .webm (recognized by Windows/Mac media players) instead of .weba
+        const file = new File(
+          audioChunksRef.current,
+          `speaking_${lesson.lessonId}_${Date.now()}.webm`,
+          { type: 'video/webm' }
+        );
+        const url = URL.createObjectURL(file);
+        setAudioBlob(file);
         setAudioUrl(url);
         stream.getTracks().forEach((track) => track.stop());
       };
@@ -764,15 +891,96 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
     }
   };
 
-  const handleSubmitAssignment = async () => {
+  const handleGoToAIPractice = async () => {
+    if (!audioBlob && !uploadedFile) return;
+
+    try {
+      setIsPreparingAI(true);
+      let targetFile: File | null = null;
+
+      if (submissionMode === 'MIC' && audioBlob) {
+        targetFile = await toWav16k(audioBlob);
+      } else if (uploadedFile) {
+        const ext = uploadedFile.name.split('.').pop()?.toLowerCase();
+        if (ext === 'wav' || ext === 'flac') {
+          targetFile = uploadedFile;
+        } else {
+          targetFile = await toWav16k(uploadedFile);
+        }
+      }
+
+      const targetLessonId = lesson?.lessonId ?? 0;
+      navigate(`/courses/${courseId}/lessons/${targetLessonId}/ai-practice`, {
+        state: {
+          prefillScriptText: cleanScriptForScoring,
+          prefillAudioFile: targetFile,
+          fromTeleprompter: true,
+        },
+      });
+    } catch (err) {
+      console.error('Failed to prepare audio for AI practice:', err);
+      const targetLessonId = lesson?.lessonId ?? 0;
+      navigate(`/courses/${courseId}/lessons/${targetLessonId}/ai-practice`, {
+        state: {
+          prefillScriptText: cleanScriptForScoring,
+          fromTeleprompter: true,
+        },
+      });
+    } finally {
+      setIsPreparingAI(false);
+    }
+  };
+
+  const handleOpenConfirmSubmit = () => {
+    if (submission) {
+      const hasScore = submission.score !== null && submission.score !== undefined;
+      const numScore = hasScore ? Number(submission.score) : null;
+      if (numScore !== null && numScore >= 80) {
+        showToast('Thông báo', 'Bạn đã đạt yêu cầu bài thi nói này (≥ 80 điểm), không cần nộp lại.', 'info');
+        return;
+      }
+      if (!hasScore || submission.status === 'SUBMITTED') {
+        showToast('Thông báo', 'Bài nộp của bạn đang chờ giảng viên chấm, không thể nộp lại lúc này.', 'warning');
+        return;
+      }
+    }
     const fileToUpload = submissionMode === 'MIC' ? audioBlob : uploadedFile;
-    if (!fileToUpload) return;
+    if (!fileToUpload || isSubmitting) return;
+    setErrorMsg(null);
+    setIsConfirmModalOpen(true);
+  };
+
+  const handleConfirmSubmit = async () => {
+    if (submission) {
+      const hasScore = submission.score !== null && submission.score !== undefined;
+      const numScore = hasScore ? Number(submission.score) : null;
+      if (numScore !== null && numScore >= 80) {
+        setIsConfirmModalOpen(false);
+        showToast('Thông báo', 'Bạn đã đạt yêu cầu bài thi nói này (≥ 80 điểm), không cần nộp lại.', 'info');
+        return;
+      }
+      if (!hasScore || submission.status === 'SUBMITTED') {
+        setIsConfirmModalOpen(false);
+        showToast('Thông báo', 'Bài nộp của bạn đang chờ giảng viên chấm, không thể nộp lại lúc này.', 'warning');
+        return;
+      }
+    }
+    const fileToUpload = submissionMode === 'MIC' ? audioBlob : uploadedFile;
+    if (!fileToUpload) {
+      setIsConfirmModalOpen(false);
+      return;
+    }
     setIsSubmitting(true);
     setErrorMsg(null);
 
     try {
       const formData = new FormData();
-      formData.append('LessonId', lesson.lessonId.toString());
+      if (scriptOverride) {
+        formData.append('ScriptId', scriptOverride.scriptId.toString());
+      }
+      if (lesson?.lessonId) {
+        formData.append('LessonId', lesson.lessonId.toString());
+      }
 
       if (fileToUpload instanceof File) {
         formData.append('AudioFile', fileToUpload, fileToUpload.name);
@@ -798,22 +1006,36 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
           URL.revokeObjectURL(uploadedAudioUrl);
           setUploadedAudioUrl(null);
         }
-        if (res.data.status === 'GRADED' && onMarkComplete) {
+        setIsConfirmModalOpen(false);
+        showToast(
+          'Nộp bài ghi âm thành công!',
+          'Bản ghi âm của bạn đã được ghi nhận và gửi đến giảng viên.',
+          'success'
+        );
+        workspaceContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+
+        if (res.data.status === 'GRADED' && (res.data.score ?? 0) >= 80 && onMarkComplete && lesson?.lessonId) {
           onMarkComplete(lesson.lessonId);
         }
       } else {
-        setErrorMsg(res.message || 'Không thể nộp bài thu âm. Vui lòng thử lại.');
+        const msg = res.message || 'Không thể nộp bài thu âm. Vui lòng thử lại.';
+        setErrorMsg(msg);
+        showToast('Nộp bài không thành công', msg, 'error');
+        setIsConfirmModalOpen(false);
       }
     } catch (err: any) {
       console.error('Submit speaking assignment error:', err);
-      setErrorMsg('Đã xảy ra lỗi khi nộp bài ghi âm.');
+      const msg = err?.message || 'Đã xảy ra lỗi khi nộp bài ghi âm.';
+      setErrorMsg(msg);
+      showToast('Nộp bài thất bại', msg, 'error');
+      setIsConfirmModalOpen(false);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="flex flex-col h-full w-full bg-[#f8fafc] text-slate-900 overflow-y-auto scrollbar-thin">
+    <div ref={workspaceContainerRef} className="flex flex-col h-full w-full bg-[#f8fafc] text-slate-900 overflow-y-auto scrollbar-thin">
       {/* ── Top Bar: Title & Level Switcher ── */}
       <div className="bg-white border-b border-slate-200 px-5 py-4 md:px-8 shadow-xs sticky top-0 z-30">
         <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
@@ -823,8 +1045,8 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
               <span>PHÒNG LUYỆN NÓI STUDIO TELEPROMPTER</span>
             </div>
             <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
-              {lesson.title}
-              {lesson.isLocked && (
+              {scriptOverride?.title || lesson?.title || 'Bài tập luyện nói'}
+              {lesson?.isLocked && (
                 <span className="ml-2 text-xs font-semibold text-slate-400">· Chưa mở khóa</span>
               )}
             </h2>
@@ -833,7 +1055,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-600">
               <Clock className="w-4 h-4 text-blue-600" />
-              <span>Thời lượng: {lesson.durationMinutes || 15} phút</span>
+              <span>Thời lượng: {scriptOverride?.durationMinutes || lesson?.durationMinutes || 15} phút</span>
             </div>
           </div>
         </div>
@@ -895,62 +1117,115 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
       )}
 
       {/* ── Existing Graded / Submitted Banner ── */}
-      {submission && !isReRecording && (
-        <div className="mx-5 md:mx-8 mt-4 p-5 rounded-3xl bg-white border border-slate-200 shadow-lg space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
-            <div className="flex items-center gap-2">
-              {submission.status === 'GRADED' ? (
-                <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-black flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  ĐÃ ĐƯỢC CHẤM ĐIỂM
-                </span>
-              ) : (
-                <span className="px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-black flex items-center gap-1.5">
-                  <Clock className="w-4 h-4 text-amber-600" />
-                  ĐÃ NỘP - CHỜ GIẢNG VIÊN ĐÁNH GIÁ
+      {submission && (() => {
+        const hasScore = submission.score !== null && submission.score !== undefined;
+        const gradeInfo = hasScore ? getSpeakingGradeInfo(submission.score) : null;
+
+        return (
+          <div className="mx-5 md:mx-8 mt-4 p-5 rounded-3xl bg-white border border-slate-200 shadow-lg space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                {!hasScore ? (
+                  <span className="px-3 py-1 rounded-full bg-amber-100 text-amber-800 text-xs font-black flex items-center gap-1.5 shadow-2xs">
+                    <Clock className="w-4 h-4 text-amber-600 animate-pulse" />
+                    ĐÃ NỘP - CHỜ GIẢNG VIÊN ĐÁNH GIÁ
+                  </span>
+                ) : gradeInfo?.isPassed ? (
+                  <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-black flex items-center gap-1.5 shadow-2xs">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    ĐÃ ĐẠT • {gradeInfo.tier.toUpperCase()} ({submission.score}/100)
+                  </span>
+                ) : (
+                  <span className="px-3 py-1 rounded-full bg-rose-100 text-rose-800 text-xs font-black flex items-center gap-1.5 shadow-2xs">
+                    <AlertCircle className="w-4 h-4 text-rose-600" />
+                    CHƯA ĐẠT • {gradeInfo?.tier.toUpperCase()} ({submission.score}/100) — YÊU CẦU ≥ 80
+                  </span>
+                )}
+              </div>
+
+              {hasScore && !gradeInfo?.isPassed && (
+                <span className="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full">
+                  ⚠️ Chưa đạt yêu cầu (≥ 80). Bạn có thể thu âm và nộp lại ở khung bên dưới.
                 </span>
               )}
             </div>
 
-            <button
-              onClick={() => setIsReRecording(true)}
-              className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs font-bold transition-all cursor-pointer border border-blue-200"
-            >
-              <Mic className="w-3.5 h-3.5" />
-              <span>Luyện tập lại / Thu lại bài</span>
-            </button>
-          </div>
+            {hasScore && gradeInfo && (
+              <div
+                className={`p-5 rounded-2xl border flex flex-wrap items-center justify-between gap-4 transition-all ${
+                  gradeInfo.isPassed
+                    ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950'
+                    : 'bg-rose-50/70 border-rose-200 text-rose-950'
+                }`}
+              >
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold flex items-center gap-1.5 uppercase tracking-wider">
+                      <Award className="w-4 h-4" />
+                      Điểm số đạt được:
+                    </span>
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full text-[11px] font-black border ${
+                        gradeInfo.isPassed
+                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                          : 'bg-rose-100 text-rose-800 border-rose-300'
+                      }`}
+                    >
+                      Xếp loại: {gradeInfo.tier} ({gradeInfo.isPassed ? 'Đạt' : 'Chưa đạt'})
+                    </span>
+                  </div>
 
-          {submission.status === 'GRADED' && (
-            <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200 flex flex-wrap items-center justify-between gap-4">
-              <div className="space-y-1">
-                <span className="text-xs font-bold text-emerald-900 flex items-center gap-1.5">
-                  <Award className="w-4 h-4 text-emerald-600" />
-                  Điểm số đạt được:
-                </span>
-                <p className="text-2xl font-black text-emerald-700">
-                  {submission.score} <span className="text-sm font-semibold text-emerald-500">/ 100</span>
-                </p>
-                {submission.feedback && (
-                  <p className="text-xs text-emerald-900 italic mt-1">
-                    "{submission.feedback}"
+                  <p
+                    className={`text-3xl font-black ${
+                      gradeInfo.isPassed ? 'text-emerald-700' : 'text-rose-700'
+                    }`}
+                  >
+                    {submission.score}{' '}
+                    <span className="text-sm font-semibold opacity-70">/ 100</span>
                   </p>
-                )}
-              </div>
-              <div className="text-right text-xs text-emerald-800">
-                {submission.gradedByName && <p>Chấm bởi: <b>{submission.gradedByName}</b></p>}
-              </div>
-            </div>
-          )}
 
-          {submission.audioUrl && (
-            <div>
-              <p className="text-xs font-bold text-slate-500 mb-1">Bản ghi âm đã nộp:</p>
-              <audio src={submission.audioUrl} controls className="w-full h-10" />
-            </div>
-          )}
-        </div>
-      )}
+                  {submission.feedback && (
+                    <div className="mt-2 bg-white/70 p-3 rounded-xl border border-slate-200/60 max-w-2xl">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-0.5">
+                        Lời nhận xét từ Giảng viên:
+                      </p>
+                      <p className="text-xs font-medium italic text-slate-800">
+                        "{submission.feedback}"
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="text-right text-xs space-y-1">
+                  {submission.gradedByName && (
+                    <p className="text-slate-600">
+                      Giảng viên chấm: <b className="text-slate-900">{submission.gradedByName}</b>
+                    </p>
+                  )}
+                  {submission.gradedAt && (
+                    <p className="text-[11px] text-slate-400">
+                      Thời gian: {new Date(submission.gradedAt).toLocaleDateString('vi-VN', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {submission.audioUrl && (
+              <div>
+                <p className="text-xs font-bold text-slate-500 mb-1">Bản ghi âm đã nộp:</p>
+                <audio src={submission.audioUrl} controls className="w-full h-10" />
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ── Main Area: Teleprompter Studio & Integrated Action Bar (4.2 & 4.3) ── */}
       <div className="p-4 md:p-8 flex-1 flex flex-col space-y-3">
@@ -1056,22 +1331,46 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
             </div>
           </div>
 
-          {/* Studio Focus Eye Line indicator */}
-          <div className="absolute top-[35%] left-0 right-0 h-12 bg-blue-500/10 pointer-events-none border-y border-blue-400/20 z-0 flex items-center justify-between px-4">
-            <span className="text-[9px] font-bold tracking-widest text-blue-400/50 uppercase">
-              TIÊU ĐIỂM ĐỌC
-            </span>
-            <span className="text-[9px] font-bold tracking-widest text-blue-400/50 uppercase">
-              STUDIO FOCUS LINE
-            </span>
-          </div>
+          {/* Middle Studio Viewport Area with Studio Focus Line */}
+          <div className="relative flex-1 min-h-0 overflow-hidden flex flex-col">
+            {/* Studio Focus Eye Line indicator */}
+            <div className="absolute top-[30%] left-0 right-0 h-12 bg-blue-500/15 pointer-events-none border-y border-blue-400/30 z-10 flex items-center justify-between px-4 sm:px-6 shadow-[0_0_15px_rgba(59,130,246,0.08)]">
+              <span className="text-[9px] sm:text-[10px] font-extrabold tracking-widest text-blue-400/70 uppercase">
+                TIÊU ĐIỂM ĐỌC
+              </span>
+              <span className="text-[9px] sm:text-[10px] font-extrabold tracking-widest text-blue-400/70 uppercase">
+                STUDIO FOCUS LINE
+              </span>
+            </div>
 
-          {/* ── Scrollable Script Content Viewport (Tự động xuống dòng theo dấu phẩy & chấm) ── */}
-          <div
-            ref={teleprompterRef}
-            onScroll={(e) => { if (!isPlaying) accumulatedScrollRef.current = e.currentTarget.scrollTop; }}
-            className="flex-1 overflow-y-auto px-6 md:px-16 pt-16 pb-44 space-y-3.5 scrollbar-none select-none"
-            style={{ scrollBehavior: 'auto' }}
+            {/* ── Scrollable Script Content Viewport (Tự động xuống dòng theo dấu phẩy & chấm) ── */}
+            <div
+              ref={teleprompterRef}
+              onScroll={(e) => {
+                const target = e.currentTarget;
+                if (!isPlaying) {
+                  accumulatedScrollRef.current = target.scrollTop;
+                  if (target.scrollTop < 25) {
+                    setActiveParaIndex(0);
+                  } else {
+                    const containerRect = target.getBoundingClientRect();
+                    const triggerLine = containerRect.top + containerRect.height * 0.30 + 24;
+                    const lineEls = target.querySelectorAll<HTMLDivElement>('[data-line-id]');
+                    lineEls.forEach((el) => {
+                      const rect = el.getBoundingClientRect();
+                      if (rect.top <= triggerLine + 20 && rect.bottom >= triggerLine - 20) {
+                        const idx = Number(el.dataset.lineId || 0);
+                        setActiveParaIndex(idx);
+                      }
+                    });
+                  }
+                }
+              }}
+              className="flex-1 overflow-y-auto px-6 md:px-16 pb-44 space-y-3.5 scrollbar-none select-none"
+              style={{
+                scrollBehavior: 'auto',
+                paddingTop: `${focusPaddingTop}px`,
+              }}
           >
             {isLoadingScript ? (
               <div className="flex flex-col items-center justify-center h-full text-slate-400 py-20">
@@ -1085,7 +1384,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
             ) : (
               teleprompterItems.map((item) => {
                 const isActive = activeParaIndex === item.id;
-                const isCurrentPaused = isPausedByTag && activePauseCountdown !== null && item.pauseSeconds;
+                const isCurrentPaused = isPausedByTag && activePauseCountdown !== null && activePauseId === item.id;
 
                 return (
                   <div
@@ -1099,7 +1398,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                   >
                     {/* Thẻ Hướng dẫn & Giọng đọc: CHỈ là chip siêu nhỏ (11-12px) nằm ngay trên câu, KHÔNG viền to, KHÔNG chiếm chỗ */}
                     {(item.guide || item.tone) && (
-                      <div className="flex flex-wrap items-center gap-1.5 mb-1 select-none">
+                      <div className="teleprompter-cue-tags flex flex-wrap items-center gap-1.5 mb-1 select-none">
                         {item.guide && (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-normal bg-amber-400/10 text-amber-300 border border-amber-400/20 italic">
                             💡 {item.guide}
@@ -1149,107 +1448,112 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
             <div className="h-44" />
           </div>
 
+          </div>
+
           {/* ── 4.3 Integrated Bottom Action Bar (Cố định ở chân khung Teleprompter) ── */}
-          <div className="border-t border-slate-700/80 bg-slate-900/95 px-4 py-3 flex flex-wrap md:flex-nowrap items-center justify-between gap-3 z-10 backdrop-blur-md">
-            {/* Left: Record Controls */}
-            <div className="flex items-center gap-2 shrink-0">
-              {submissionMode === 'MIC' ? (
-                <>
-                  {!isRecording && !audioBlob && (
-                    <button
-                      type="button"
-                      onClick={handleStartRecording}
-                      disabled={countdown !== null}
-                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black shadow-md shadow-rose-500/25 transition-all cursor-pointer active:scale-95 whitespace-nowrap shrink-0 disabled:opacity-50"
-                    >
-                      <Mic className="w-4 h-4 fill-current" />
-                      <span>{countdown !== null ? `BẮT ĐẦU TRONG ${countdown}S...` : 'BẮT ĐẦU THU ÂM'}</span>
-                    </button>
-                  )}
-
-                  {isRecording && (
-                    <button
-                      type="button"
-                      onClick={handleStopRecording}
-                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-950/90 hover:bg-rose-900 text-rose-200 border border-rose-500/60 text-xs font-black shadow-md transition-all cursor-pointer active:scale-95 whitespace-nowrap shrink-0"
-                    >
-                      <Square className="w-4 h-4 fill-current text-rose-500" />
-                      <span>DỪNG THU ÂM</span>
-                    </button>
-                  )}
-
-                  {audioBlob && !isRecording && (
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <audio src={audioUrl || ''} controls className="h-8 w-36 sm:w-44 shrink-0" />
+          <div className="border-t border-slate-700/80 bg-slate-900/95 px-3 sm:px-4 py-2.5 sm:py-3 flex flex-wrap items-center justify-start gap-2.5 sm:gap-3 z-10 backdrop-blur-md shrink-0 max-w-full overflow-x-auto scrollbar-none">
+            {/* Left Group: Record Controls + Timer & Waveform */}
+            <div className="flex flex-wrap items-center gap-2.5 sm:gap-3 shrink-0">
+              {/* Record Controls */}
+              <div className="flex items-center gap-2 shrink-0">
+                {submissionMode === 'MIC' ? (
+                  <>
+                    {!isRecording && !audioBlob && (
                       <button
                         type="button"
-                        onClick={handleResetRecording}
-                        className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-slate-300 hover:text-white transition-all cursor-pointer shrink-0"
-                        title="Thu lại từ đầu"
+                        onClick={handleStartRecording}
+                        disabled={countdown !== null}
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black shadow-md shadow-rose-500/25 transition-all cursor-pointer active:scale-95 whitespace-nowrap shrink-0 disabled:opacity-50"
                       >
-                        Thu lại
+                        <Mic className="w-4 h-4 fill-current shrink-0" />
+                        <span>{countdown !== null ? `BẮT ĐẦU TRONG ${countdown}S...` : 'BẮT ĐẦU THU ÂM'}</span>
                       </button>
-                    </div>
-                  )}
-                </>
-              ) : (
-                /* Upload local file */
-                <div className="flex items-center gap-2 shrink-0">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".mp3,.wav,.m4a,.ogg,.webm,.aac"
-                    onChange={handleFileSelect}
-                    className="hidden"
-                  />
-                  {uploadedFile ? (
-                    <div className="flex items-center gap-2">
-                      <audio src={uploadedAudioUrl || ''} controls className="h-8 w-36 sm:w-44" />
+                    )}
+
+                    {isRecording && (
                       <button
                         type="button"
-                        onClick={handleResetUploadedFile}
-                        className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 cursor-pointer"
-                        title="Bỏ chọn file"
+                        onClick={handleStopRecording}
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-950/90 hover:bg-rose-900 text-rose-200 border border-rose-500/60 text-xs font-black shadow-md transition-all cursor-pointer active:scale-95 whitespace-nowrap shrink-0"
                       >
-                        <X className="w-4 h-4" />
+                        <Square className="w-4 h-4 fill-current text-rose-500 shrink-0" />
+                        <span>DỪNG THU ÂM</span>
                       </button>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold transition-all cursor-pointer shrink-0"
-                    >
-                      <UploadCloud className="w-3.5 h-3.5 text-blue-400" />
-                      <span>Chọn file MP3/Audio</span>
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
+                    )}
 
-            {/* Middle: Fixed Tabular Timer & Waveform (Không giật layout) */}
-            <div className="flex items-center gap-2.5 bg-slate-950/70 px-3 py-1.5 rounded-xl border border-slate-700/60 shrink-0">
-              <span
-                className={`w-2 h-2 rounded-full shrink-0 ${
-                  isRecording ? 'bg-rose-500 shadow-sm shadow-rose-500/80 ring-2 ring-rose-500/30' : 'bg-slate-600'
-                }`}
-              />
-              <span className="tabular-nums font-mono w-14 text-center text-xs font-black text-slate-200 shrink-0">
-                {formatTime(recordingTime)}
-              </span>
-              <div className="w-24 sm:w-32 h-6 flex items-center justify-center overflow-hidden shrink-0">
-                <WaveformVisualizer
-                  isPlaying={isRecording}
-                  barCount={16}
-                  barColor={isRecording ? 'bg-rose-500' : 'bg-slate-600'}
-                  size="sm"
+                    {audioBlob && !isRecording && (
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <audio src={audioUrl || ''} controls preload="metadata" className="h-8 w-28 sm:w-36 md:w-44 shrink-0" />
+                        <button
+                          type="button"
+                          onClick={handleResetRecording}
+                          className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-bold text-slate-300 hover:text-white transition-all cursor-pointer shrink-0 whitespace-nowrap"
+                          title="Thu lại từ đầu"
+                        >
+                          Thu lại
+                        </button>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  /* Upload local file */
+                  <div className="flex items-center gap-2 shrink-0">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".mp3,.wav,.m4a,.ogg,.webm,.aac"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                    />
+                    {uploadedFile ? (
+                      <div className="flex items-center gap-2">
+                        <audio src={uploadedAudioUrl || ''} controls className="h-8 w-28 sm:w-36 md:w-44" />
+                        <button
+                          type="button"
+                          onClick={handleResetUploadedFile}
+                          className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 cursor-pointer"
+                          title="Bỏ chọn file"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold transition-all cursor-pointer shrink-0"
+                      >
+                        <UploadCloud className="w-3.5 h-3.5 text-blue-400" />
+                        <span>Chọn file MP3/Audio</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Fixed Tabular Timer & Waveform (Kéo sát nút thu âm) */}
+              <div className="flex items-center gap-2 sm:gap-2.5 bg-slate-950/70 px-2.5 sm:px-3 py-1.5 rounded-xl border border-slate-700/60 shrink-0">
+                <span
+                  className={`w-2 h-2 rounded-full shrink-0 ${
+                    isRecording ? 'bg-rose-500 shadow-sm shadow-rose-500/80 ring-2 ring-rose-500/30' : 'bg-slate-600'
+                  }`}
                 />
+                <span className="tabular-nums font-mono w-12 sm:w-14 text-center text-xs font-black text-slate-200 shrink-0">
+                  {formatTime(recordingTime)}
+                </span>
+                <div className="w-16 sm:w-24 md:w-32 h-6 flex items-center justify-center overflow-hidden shrink-0">
+                  <WaveformVisualizer
+                    isPlaying={isRecording}
+                    barCount={16}
+                    barColor={isRecording ? 'bg-rose-500' : 'bg-slate-600'}
+                    size="sm"
+                  />
+                </div>
               </div>
             </div>
 
-            {/* Right: Background Music, Submit Button & Auto Scroll Toggle */}
-            <div className="flex items-center gap-2 shrink-0">
+            {/* Right: Background Music, AI Practice Button, Submit Button & Auto Scroll Toggle */}
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
               <BackgroundMusicControl
                 musics={bgMusic.musics}
                 selectedMusicId={bgMusic.selectedMusicId}
@@ -1259,7 +1563,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                 isLoading={bgMusic.isLoading}
               />
 
-              <label className="hidden lg:flex items-center gap-1.5 text-[11px] text-slate-400 select-none cursor-pointer">
+              <label className="hidden sm:flex items-center gap-1.5 text-[11px] text-slate-400 select-none cursor-pointer shrink-0">
                 <input
                   type="checkbox"
                   checked={autoScrollOnRecord}
@@ -1273,7 +1577,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                 <select
                   value={selectedDeviceId}
                   onChange={(e) => setSelectedDeviceId(e.target.value)}
-                  className="px-2 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs font-medium text-slate-300 max-w-[120px] truncate focus:outline-none shrink-0"
+                  className="px-2 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs font-medium text-slate-300 max-w-[100px] sm:max-w-[120px] truncate focus:outline-none shrink-0"
                 >
                   {audioDevices.map((d, i) => (
                     <option key={d.deviceId || i} value={d.deviceId}>
@@ -1283,30 +1587,93 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                 </select>
               )}
 
+              {/* Nút Luyện tập với AI */}
               <button
                 type="button"
-                onClick={handleSubmitAssignment}
-                disabled={isSubmitting || (!audioBlob && !uploadedFile)}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-black shadow-md shadow-blue-500/25 transition-all cursor-pointer active:scale-95 disabled:opacity-40 disabled:pointer-events-none whitespace-nowrap shrink-0"
+                onClick={handleGoToAIPractice}
+                disabled={isPreparingAI || (!audioBlob && !uploadedFile)}
+                title={!audioBlob && !uploadedFile ? 'Vui lòng thu âm hoặc chọn file để luyện tập với AI' : 'Luyện tập phát âm với AI'}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-700 hover:to-violet-700 text-white text-xs font-black shadow-md shadow-purple-500/25 transition-all cursor-pointer active:scale-95 disabled:opacity-40 disabled:pointer-events-none whitespace-nowrap shrink-0"
               >
-                {isSubmitting ? (
+                {isPreparingAI ? (
                   <>
-                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>Đang nộp...</span>
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin shrink-0" />
+                    <span>Đang nạp AI...</span>
                   </>
                 ) : (
                   <>
-                    <Send className="w-3.5 h-3.5" />
-                    <span>NỘP BÀI THI NÓI</span>
+                    <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                    <span>Luyện tập với AI</span>
                   </>
                 )}
               </button>
+
+              {/* Submission button or status pill */}
+              {(() => {
+                const hasScore = submission?.score !== null && submission?.score !== undefined;
+                const numScore = hasScore ? Number(submission!.score) : null;
+                const isWaitingForGrading = submission !== null && (!hasScore || submission.status === 'SUBMITTED');
+                const isPassed = submission !== null && numScore !== null && numScore >= 80;
+                const isFailed = submission !== null && numScore !== null && numScore < 80;
+
+                if (isPassed) {
+                  return (
+                    <div className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-950/70 text-emerald-300 border border-emerald-600/50 text-xs font-bold whitespace-nowrap shrink-0 shadow-xs">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      <span>
+                        Đã đạt ({submission!.score}/100 • {getSpeakingGradeInfo(submission!.score).tier})
+                      </span>
+                    </div>
+                  );
+                }
+
+                if (isWaitingForGrading) {
+                  return (
+                    <div className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-950/70 text-amber-300 border border-amber-600/50 text-xs font-bold whitespace-nowrap shrink-0 shadow-xs">
+                      <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <span>Đã nộp bài • Chờ Giảng viên chấm</span>
+                    </div>
+                  );
+                }
+
+                return (
+                  <>
+                    {isFailed && (
+                      <div className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-950/70 text-rose-300 border border-rose-600/50 text-xs font-bold whitespace-nowrap shrink-0 shadow-xs">
+                        <AlertCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                        <span>
+                          Chưa đạt ({submission!.score}/100 • {getSpeakingGradeInfo(submission!.score).tier}) — Có thể nộp lại
+                        </span>
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={handleOpenConfirmSubmit}
+                      disabled={isSubmitting || (!audioBlob && !uploadedFile)}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-black shadow-md shadow-blue-500/25 transition-all cursor-pointer active:scale-95 disabled:opacity-40 disabled:pointer-events-none whitespace-nowrap shrink-0"
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin shrink-0" />
+                          <span>Đang nộp...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Send className="w-3.5 h-3.5 shrink-0" />
+                          <span>NỘP BÀI THI NÓI</span>
+                        </>
+                      )}
+                    </button>
+                  </>
+                );
+              })()}
             </div>
           </div>
         </div>
 
         {/* ── Sub-bar: Input Mode (Mic vs MP3) & Note to Instructor ── */}
-        <div className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm flex flex-wrap md:flex-nowrap items-center justify-between gap-3 text-xs">
+        <div className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm flex flex-wrap items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-2">
             <span className="font-bold text-slate-500 shrink-0">Nguồn thu:</span>
             <div className="flex bg-slate-100 p-0.5 rounded-xl border border-slate-200 shrink-0">
@@ -1346,6 +1713,93 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
             />
           </div>
         </div>
+
+        {/* ── Confirm Submit Modal ── */}
+        {isConfirmModalOpen && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+            onClick={() => {
+              if (!isSubmitting) setIsConfirmModalOpen(false);
+            }}
+          >
+            <div
+              className="w-full max-w-md rounded-3xl bg-white border border-slate-200 shadow-2xl p-6 relative animate-in zoom-in-95 duration-200"
+              onClick={(e) => e.stopPropagation()}
+              role="alertdialog"
+              aria-modal="true"
+            >
+              {/* Close Button */}
+              <button
+                type="button"
+                onClick={() => setIsConfirmModalOpen(false)}
+                disabled={isSubmitting}
+                className="absolute top-4 right-4 p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+
+              {/* Header with Icon */}
+              <div className="flex items-start gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 border border-blue-100 shadow-sm">
+                  <Send className="h-5 w-5" />
+                </div>
+                <div className="pt-0.5 pr-6">
+                  <h3 className="text-lg font-black text-slate-900 leading-snug">
+                    Xác nhận nộp bài thi nói
+                  </h3>
+                  <p className="mt-2 text-xs leading-relaxed text-slate-600">
+                    {submission && submission.score !== null && submission.score !== undefined && Number(submission.score) < 80
+                      ? 'Bạn đang nộp lại bài thi nói để cải thiện điểm số. Bản ghi âm mới sẽ thay thế bản ghi âm cũ và gửi tới giảng viên chấm lại.'
+                      : 'Bạn có chắc chắn muốn nộp bài ghi âm này không? Sau khi nộp sẽ không thể chỉnh sửa trong lúc chờ giảng viên chấm.'}
+                  </p>
+                  {submissionMode === 'MIC' ? (
+                    <p className="mt-2 text-[11px] font-semibold text-blue-600 bg-blue-50/70 px-2.5 py-1 rounded-lg inline-block">
+                      🎙 Bản thu trực tiếp: {formatTime(recordingTime)}
+                    </p>
+                  ) : uploadedFile ? (
+                    <p className="mt-2 text-[11px] font-semibold text-blue-600 bg-blue-50/70 px-2.5 py-1 rounded-lg inline-block truncate max-w-full">
+                      📁 Tệp đính kèm: {uploadedFile.name}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+
+              {/* Footer Actions */}
+              <div className="mt-6 flex items-center justify-end gap-3 border-t border-slate-100 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsConfirmModalOpen(false)}
+                  disabled={isSubmitting}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 hover:bg-slate-100 active:scale-95 disabled:opacity-50 transition-all cursor-pointer"
+                >
+                  Hủy
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleConfirmSubmit}
+                  disabled={isSubmitting}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-black shadow-md shadow-blue-500/25 active:scale-95 disabled:opacity-50 transition-all cursor-pointer"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin shrink-0" />
+                      <span>Đang nộp bài...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-3.5 h-3.5 shrink-0" />
+                      <span>Xác nhận nộp bài</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Toast Notification ── */}
+        <Toast toast={toastMessage} onClose={() => setToastMessage(null)} />
       </div>
     </div>
   );
@@ -1489,6 +1943,28 @@ export const CourseLearningPage: React.FC = () => {
     return () => { alive = false; };
   }, [courseId, user?.id]);
 
+  // Course Speaking Scripts (3 Scopes: LESSON, CHAPTER, FINAL)
+  const [courseSpeakingScripts, setCourseSpeakingScripts] = useState<SpeakingScriptDto[]>([]);
+  const [activeSpeakingScript, setActiveSpeakingScript] = useState<SpeakingScriptDto | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    if (!courseId) return;
+    speakingApi
+      .getSpeakingScriptsByCourse(courseId)
+      .then((res) => {
+        if (alive && res.success && res.data) {
+          setCourseSpeakingScripts(res.data);
+        }
+      })
+      .catch((err) => {
+        console.error('Error fetching course speaking scripts:', err);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [courseId]);
+
   // ===========================================================================
   // Sort modules by orderIndex
   // ===========================================================================
@@ -1584,6 +2060,7 @@ export const CourseLearningPage: React.FC = () => {
     };
   }, [lessons, sortedModules]);
 
+
   // ===========================================================================
   // Active state
   // ===========================================================================
@@ -1618,6 +2095,93 @@ export const CourseLearningPage: React.FC = () => {
 
   const [completedLessonIds, setCompletedLessonIds] =
     useState<number[]>([]);
+
+  // Deduplicated Final Speaking Assignments list (merges lessons and scripts to avoid duplicate cards)
+  const finalSpeakingItems = useMemo(() => {
+    const items: Array<{
+      key: string;
+      lessonId?: number;
+      scriptId?: number;
+      title: string;
+      isLocked: boolean;
+      lockReason?: string;
+      lesson?: Lesson;
+      script?: SpeakingScriptDto;
+    }> = [];
+
+    const seenLessonIds = new Set<number>();
+    const seenTitles = new Set<string>();
+
+    for (const lesson of speakingAssignmentLessons) {
+      seenLessonIds.add(lesson.lessonId);
+      seenTitles.add(lesson.title.trim().toLowerCase());
+      const matchedScript = courseSpeakingScripts.find(
+        (s) =>
+          s.scope === 'FINAL' &&
+          (s.lessonId === lesson.lessonId ||
+            s.title.trim().toLowerCase() === lesson.title.trim().toLowerCase()),
+      );
+      items.push({
+        key: `lesson-${lesson.lessonId}`,
+        lessonId: lesson.lessonId,
+        scriptId: matchedScript?.scriptId,
+        title: lesson.title,
+        isLocked: Boolean(lesson.isLocked),
+        lockReason: lesson.lockReason,
+        lesson,
+        script: matchedScript,
+      });
+    }
+
+    const finalScripts = courseSpeakingScripts.filter((s) => s.scope === 'FINAL');
+    for (const sc of finalScripts) {
+      if (sc.lessonId && seenLessonIds.has(sc.lessonId)) continue;
+      if (seenTitles.has(sc.title.trim().toLowerCase())) continue;
+      items.push({
+        key: `script-${sc.scriptId}`,
+        scriptId: sc.scriptId,
+        title: sc.title,
+        isLocked: false,
+        script: sc,
+      });
+    }
+
+    return items;
+  }, [speakingAssignmentLessons, courseSpeakingScripts]);
+
+  const [finalSpeakingSubmissions, setFinalSpeakingSubmissions] = useState<
+    Record<string, SpeakingSubmissionDto>
+  >({});
+
+  useEffect(() => {
+    let alive = true;
+    if (!user?.id || finalSpeakingItems.length === 0) return;
+
+    finalSpeakingItems.forEach((item) => {
+      const fetcher = item.lessonId
+        ? speakingApi.getLatestSubmissionByLesson(item.lessonId)
+        : item.scriptId
+        ? speakingApi.getLatestSubmissionByScript(item.scriptId)
+        : null;
+
+      if (fetcher) {
+        fetcher
+          .then((res) => {
+            if (alive && res.success && res.data) {
+              setFinalSpeakingSubmissions((prev) => ({
+                ...prev,
+                [item.key]: res.data,
+              }));
+            }
+          })
+          .catch(() => {});
+      }
+    });
+
+    return () => {
+      alive = false;
+    };
+  }, [finalSpeakingItems, user?.id, completedLessonIds]);
 
   const [isVideoEnded, setIsVideoEnded] =
     useState(false);
@@ -1962,6 +2526,53 @@ export const CourseLearningPage: React.FC = () => {
           : <p className="text-[11px] text-slate-500">Bài luyện tập hiện đang ngừng hoạt động.</p>}
       </div>
     ))}</div>;
+  };
+
+  // Bài tập luyện nói gắn với bài học
+  const renderLessonSpeakingScripts = (lessonId: number) => {
+    const lessonScripts = courseSpeakingScripts.filter(
+      (s) => s.scope === 'LESSON' && s.lessonId === lessonId
+    );
+    if (lessonScripts.length === 0) return null;
+    const isLessonLocked = orderedLessons.find((l) => l.lessonId === lessonId)?.isLocked;
+    if (isLessonLocked) {
+      return (
+        <p className="ml-7 mt-1 text-[11px] text-slate-500">
+          Mở khóa bài học để làm bài luyện nói.
+        </p>
+      );
+    }
+    return (
+      <div className="ml-7 mt-1.5 space-y-1.5">
+        {lessonScripts.map((sc) => {
+          const isSelected = activeSpeakingScript?.scriptId === sc.scriptId;
+          return (
+            <div
+              key={sc.scriptId}
+              onClick={() => handleSelectSpeakingScript(sc)}
+              className={`cursor-pointer rounded-lg border p-2 transition-all ${
+                isSelected
+                  ? 'border-purple-500 bg-purple-50 text-purple-900 shadow-xs'
+                  : 'border-purple-100 bg-purple-50/50 hover:bg-purple-100/70 text-slate-800'
+              }`}
+            >
+              <div className="flex items-center justify-between gap-1">
+                <p className="text-[11px] font-bold truncate flex items-center gap-1.5">
+                  <Mic className="h-3.5 w-3.5 text-purple-600 shrink-0" />
+                  <span className="truncate">{sc.title}</span>
+                </p>
+                <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-purple-200/80 text-purple-800 shrink-0">
+                  Bài nói
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-500 mt-0.5">
+                Thời lượng: {sc.durationMinutes || 5} phút • Đạt {sc.passingScore || 80}%
+              </p>
+            </div>
+          );
+        })}
+      </div>
+    );
   };
 
 
@@ -2371,6 +2982,7 @@ export const CourseLearningPage: React.FC = () => {
     if (lesson.isLocked) return;
     setIsVideoEnded(false);
     setReplayKey(0);
+    setActiveSpeakingScript(null);
     setActiveLesson(lesson);
 
     setSearchParams(
@@ -2382,6 +2994,26 @@ export const CourseLearningPage: React.FC = () => {
         replace: true,
       },
     );
+  };
+
+  const handleSelectSpeakingScript = (script: SpeakingScriptDto) => {
+    setIsVideoEnded(false);
+    setReplayKey(0);
+    setActiveSpeakingScript(script);
+    if (script.lessonId) {
+      const matchLesson = orderedLessons.find((l) => l.lessonId === script.lessonId);
+      if (matchLesson) {
+        setActiveLesson(matchLesson);
+        setSearchParams(
+          {
+            lessonId: matchLesson.lessonId.toString(),
+          },
+          {
+            replace: true,
+          },
+        );
+      }
+    }
   };
 
   // Khi học viên đạt bài tập/bài đánh giá và quay lại khóa học,
@@ -2680,34 +3312,30 @@ export const CourseLearningPage: React.FC = () => {
   }
 
   // ===========================================================================
-  // Completion
+  // Completion & Certificate
   // ===========================================================================
 
   const totalLessonCount =
     orderedLessons.length;
 
-  const localPercentage =
-    totalLessonCount > 0
-      ? Math.round(
-          (completedLessonIds.length /
-            totalLessonCount) *
-            100,
-        )
-      : 0;
-
+  // Lấy % tiến độ hoàn thành từ Backend (đã tính gộp Lessons + Active Quizzes)
   const completionPercentage =
-    Math.max(
-      progressData?.completionPercentage ??
-        0,
-      localPercentage,
-    );
+    progressData != null
+      ? Math.round(progressData.completionPercentage)
+      : (totalLessonCount > 0
+          ? Math.round(
+              (completedLessonIds.length /
+                totalLessonCount) *
+                100,
+            )
+          : 0);
 
-  const is100Percent =
-    completionPercentage >=
-      100 ||
-    (totalLessonCount > 0 &&
-      completedLessonIds.length >=
-        totalLessonCount);
+  // Khóa học hoàn thành 100% khi backend xác nhận (isCompleted == true) hoặc đã có chứng chỉ trong DB
+  const isCourseFullyCompleted = Boolean(
+    certificate ||
+    progressData?.certificateCode ||
+    (progressData?.isCompleted && completionPercentage >= 100)
+  );
 
   // ===========================================================================
   // Certificate
@@ -2726,52 +3354,23 @@ export const CourseLearningPage: React.FC = () => {
           if (issued) {
             certToDisplay = issued;
             setActiveCert(issued);
+            setIsCertModalOpen(true);
           }
-        } catch (err) {
+        } catch (err: any) {
           console.warn(
-            'Backend issue certificate error, fallback to local certificate:',
+            'Backend issue certificate error:',
             err,
           );
+          const errorMsg =
+            err?.response?.data?.message ||
+            err?.message ||
+            'Chưa đủ điều kiện nhận chứng chỉ. Vui lòng hoàn thành tất cả bài học và bài thi cuối khóa.';
+          alert(errorMsg);
+          return;
         }
+      } else if (certToDisplay) {
+        setIsCertModalOpen(true);
       }
-
-      if (!certToDisplay) {
-        certToDisplay = {
-          certificateId: 1,
-          enrollmentId:
-            progressData?.enrollmentId ||
-            1,
-          learnerId:
-            Number(user?.id) || 1,
-          learnerName:
-            user?.name ||
-            (user as any)?.fullName ||
-            'Học viên',
-          courseId: courseId,
-          courseTitle:
-            course?.title ||
-            'Kỹ Thuật Xử Lý Kịch Bản MC & Biến Tấu Linh Hoạt',
-          instructorName:
-            'Giảng Viên MSEEK Academy',
-          certificateCode:
-            progressData?.certificateCode ||
-            `CERT-2026-${Math.random()
-              .toString(36)
-              .substring(2, 8)
-              .toUpperCase()}`,
-          issuedAt:
-            new Date().toISOString(),
-          completionPercentage: 100,
-          grade: 'EXCELLENT',
-          status: 'ACTIVE',
-        };
-
-        setActiveCert(
-          certToDisplay,
-        );
-      }
-
-      setIsCertModalOpen(true);
     };
 
   // ===========================================================================
@@ -2876,7 +3475,7 @@ export const CourseLearningPage: React.FC = () => {
 
           {/* Certificate Button */}
 
-          {(is100Percent ||
+          {(isCourseFullyCompleted ||
             certificate ||
             progressData?.certificateCode) && (
             <button
@@ -2959,15 +3558,17 @@ export const CourseLearningPage: React.FC = () => {
             <div
               onContextMenu={(event) => event.preventDefault()}
               className={`relative w-full overflow-hidden rounded-2xl border border-slate-200/80 shadow-2xl group ${
+                activeSpeakingScript !== null ||
                 activeLesson?.lessonType?.toUpperCase() === 'ASSIGNMENT' ||
                 (!effectiveVideoUrl && activeLesson !== null && !activeLesson.hasVideo)
                   ? 'min-h-[550px] bg-[#f4f7fa]'
                   : 'aspect-video bg-black'
               }`}
             >
-              {activeLesson?.lessonType?.toUpperCase() === 'ASSIGNMENT' ? (
+              {activeSpeakingScript !== null || activeLesson?.lessonType?.toUpperCase() === 'ASSIGNMENT' ? (
                 <LearnerSpeakingWorkspace
                   lesson={activeLesson}
+                  scriptOverride={activeSpeakingScript}
                   courseId={courseId}
                   onMarkComplete={(lessonId) =>
                     handleMarkLessonComplete(lessonId, true)
@@ -3183,8 +3784,7 @@ export const CourseLearningPage: React.FC = () => {
                 </span>
               </button>
 
-              {activeLesson?.lessonType?.toUpperCase() === 'ASSIGNMENT' ||
-              (!effectiveVideoUrl && activeLesson !== null && !activeLesson.hasVideo) ? (
+              {activeLesson?.lessonType?.toUpperCase() === 'ASSIGNMENT' ? (
                 <div
                   className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold border transition-all ${
                     activeLesson && completedLessonIds.includes(activeLesson.lessonId)
@@ -3195,12 +3795,32 @@ export const CourseLearningPage: React.FC = () => {
                   {activeLesson && completedLessonIds.includes(activeLesson.lessonId) ? (
                     <>
                       <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                      <span>Đã hoàn thành (Đã chấm điểm)</span>
+                      <span>Đã hoàn thành bài nói (Đạt ≥ 80)</span>
                     </>
                   ) : (
                     <>
                       <Clock className="h-4 w-4 text-amber-600 animate-pulse" />
-                      <span>Chờ Giảng viên chấm điểm...</span>
+                      <span>Bài tập nói (Yêu cầu ≥ 80 để Đạt)</span>
+                    </>
+                  )}
+                </div>
+              ) : (!effectiveVideoUrl && activeLesson !== null && !activeLesson.hasVideo) ? (
+                <div
+                  className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold border transition-all ${
+                    activeLesson && completedLessonIds.includes(activeLesson.lessonId)
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                      : 'bg-amber-50 text-amber-700 border-amber-300 shadow-2xs'
+                  }`}
+                >
+                  {activeLesson && completedLessonIds.includes(activeLesson.lessonId) ? (
+                    <>
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                      <span>Đã hoàn thành</span>
+                    </>
+                  ) : (
+                    <>
+                      <Clock className="h-4 w-4 text-amber-600" />
+                      <span>Chưa hoàn thành</span>
                     </>
                   )}
                 </div>
@@ -3620,6 +4240,7 @@ export const CourseLearningPage: React.FC = () => {
                                         )}
 
                                         {renderDailyPracticeButtons(lesson.lessonId)}
+                                        {renderLessonSpeakingScripts(lesson.lessonId)}
                                       </div>
                                     );
                                   },
@@ -3663,6 +4284,49 @@ export const CourseLearningPage: React.FC = () => {
                             <p className="mx-3 mb-3 mt-1 rounded-lg border border-amber-100 bg-amber-50/60 p-2 text-[10px] leading-4 text-amber-800">
                               Chương này chưa có bài đánh giá chương. Học viên cần bài đánh giá này sau khi hoàn thành các Quiz từng bài để mở chương tiếp theo.
                             </p>
+                          )}
+                          {!isCollapsed && (
+                            courseSpeakingScripts
+                              .filter((sc) => sc.scope === 'CHAPTER' && sc.moduleId === mod.moduleId)
+                              .map((sc) => {
+                                const isSelected = activeSpeakingScript?.scriptId === sc.scriptId;
+                                return (
+                                  <div
+                                    key={sc.scriptId}
+                                    className={`mx-2 mb-2 mt-1 rounded-xl border p-3 transition-all ${
+                                      isSelected
+                                        ? 'border-purple-500 bg-purple-50/90 shadow-xs'
+                                        : 'border-purple-200 bg-purple-50/60 hover:bg-purple-100/40'
+                                    }`}
+                                  >
+                                    <div className="flex items-start gap-2">
+                                      <Mic className="mt-0.5 h-4 w-4 shrink-0 text-purple-600" />
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex items-center justify-between gap-1">
+                                          <p className="text-xs font-extrabold text-purple-950 truncate">
+                                            Bài nói theo chương: {sc.title}
+                                          </p>
+                                          <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-purple-200 text-purple-800 shrink-0">
+                                            CHƯƠNG
+                                          </span>
+                                        </div>
+                                        <p className="mt-1 text-[10px] leading-4 text-purple-800">
+                                          Luyện nói theo kịch bản của chương {mod.title}. Điểm đạt yêu cầu: {sc.passingScore || 80}/100.
+                                        </p>
+                                        <div className="mt-2 flex items-center gap-2">
+                                          <button
+                                            type="button"
+                                            onClick={() => handleSelectSpeakingScript(sc)}
+                                            className="rounded-lg bg-purple-600 px-2.5 py-1 text-[11px] font-bold text-white transition-colors hover:bg-purple-700"
+                                          >
+                                            Làm bài thi nói
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })
                           )}
                         </div>
                       );
@@ -3766,12 +4430,14 @@ export const CourseLearningPage: React.FC = () => {
 
                   {/* Speaking Assignments Section */}
 
-                  {speakingAssignmentLessons.length > 0 && (
+                  {finalSpeakingItems.length > 0 && (
                     <div className="rounded-xl border border-purple-200 bg-purple-50/50 p-3 shadow-2xs">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-xs font-bold text-purple-900 flex items-center gap-1.5">
                           <Mic className="h-4 w-4 text-purple-600 animate-pulse" />
-                          <span>Bài thi nói cuối khóa ({speakingAssignmentLessons.length})</span>
+                          <span>
+                            Bài thi nói cuối khóa ({finalSpeakingItems.length})
+                          </span>
                         </span>
                         <span className="text-[10px] bg-purple-100 text-purple-700 font-extrabold px-2 py-0.5 rounded-full border border-purple-200">
                           SPEAKING
@@ -3779,55 +4445,114 @@ export const CourseLearningPage: React.FC = () => {
                       </div>
 
                       <div className="space-y-1.5">
-                        {speakingAssignmentLessons.map((lesson) => {
+                        {finalSpeakingItems.map((item) => {
+                          const sub = finalSpeakingSubmissions[item.key];
+                          const hasScore = sub?.score != null;
+                          const score = hasScore ? Number(sub.score) : null;
+                          const isPassed =
+                            (score !== null && score >= 80) ||
+                            (item.lessonId ? completedLessonIds.includes(item.lessonId) : false);
+
                           const isActive =
-                            lesson.lessonId === activeLesson?.lessonId;
-                          const isCompleted =
-                            completedLessonIds.includes(lesson.lessonId);
+                            (item.lesson && item.lesson.lessonId === activeLesson?.lessonId && !activeSpeakingScript) ||
+                            (item.script && item.script.scriptId === activeSpeakingScript?.scriptId);
+
+                          const handleClickSelect = () => {
+                            if (item.lesson) {
+                              handleSelectLesson(item.lesson);
+                            } else if (item.script) {
+                              handleSelectSpeakingScript(item.script);
+                            }
+                          };
+
+                          const handleGoToAI = () => {
+                            const targetLessonId = item.lessonId || activeLesson?.lessonId || 0;
+                            navigate(`/courses/${courseId}/lessons/${targetLessonId}/ai-practice`);
+                          };
 
                           return (
-                            <div key={lesson.lessonId} className="min-w-0 rounded-lg border border-purple-200 bg-white p-2">
+                            <div
+                              key={item.key}
+                              className={`min-w-0 rounded-lg border p-2 transition-all ${
+                                isPassed
+                                  ? 'border-emerald-300 bg-emerald-50/50 shadow-2xs'
+                                  : 'border-purple-200 bg-white'
+                              }`}
+                            >
                               <button
                                 type="button"
-                                onClick={() => handleSelectLesson(lesson)}
-                                disabled={lesson.isLocked}
-                                title={lesson.isLocked ? (lesson.lockReason || 'Cần PASS bài kiểm tra trước đó') : undefined}
-                                className={`flex w-full min-w-0 items-center gap-2 rounded-md p-1.5 text-left text-xs transition-all disabled:cursor-not-allowed ${
-                                  isActive
+                                onClick={handleClickSelect}
+                                disabled={item.isLocked}
+                                title={item.isLocked ? (item.lockReason || 'Cần PASS bài kiểm tra trước đó') : undefined}
+                                className={`flex w-full min-w-0 items-center justify-between gap-2 rounded-md p-1.5 text-left text-xs transition-all disabled:cursor-not-allowed ${
+                                  isPassed
+                                    ? isActive
+                                      ? 'bg-emerald-600 text-white font-bold shadow-xs'
+                                      : 'bg-emerald-100/90 text-emerald-950 border border-emerald-300 hover:bg-emerald-200/80 font-bold'
+                                    : isActive
                                     ? 'bg-purple-600 text-white font-bold'
                                     : 'text-slate-700 hover:bg-purple-50'
                                 }`}
                               >
-                                {lesson.isLocked ? (
-                                  <LockKeyhole className="h-4 w-4 shrink-0 text-slate-400" />
-                                ) : isCompleted ? (
-                                  <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
-                                ) : (
-                                  <Mic className="h-4 w-4 shrink-0 text-purple-500" />
-                                )}
-                                <span className="min-w-0 flex-1 truncate font-bold" title={lesson.title}>
-                                  {lesson.title}
-                                </span>
-                                {lesson.isLocked && (
-                                  <span className="shrink-0 text-[10px] font-semibold text-slate-400">Chưa mở khóa</span>
-                                )}
+                                <div className="flex min-w-0 items-center gap-2 flex-1">
+                                  {item.isLocked ? (
+                                    <LockKeyhole className="h-4 w-4 shrink-0 text-slate-400" />
+                                  ) : isPassed ? (
+                                    <CheckCircle2
+                                      className={`h-4 w-4 shrink-0 ${
+                                        isActive ? 'text-white' : 'text-emerald-600'
+                                      }`}
+                                    />
+                                  ) : (
+                                    <Mic className="h-4 w-4 shrink-0 text-purple-500" />
+                                  )}
+                                  <span className="min-w-0 flex-1 truncate font-bold" title={item.title}>
+                                    {item.title}
+                                  </span>
+                                </div>
+
+                                {item.isLocked ? (
+                                  <span className="shrink-0 text-[10px] font-semibold text-slate-400">
+                                    Chưa mở khóa
+                                  </span>
+                                ) : isPassed ? (
+                                  <span
+                                    className={`shrink-0 text-[10px] font-extrabold px-1.5 py-0.5 rounded ${
+                                      isActive
+                                        ? 'bg-white/20 text-white border border-white/30'
+                                        : 'bg-emerald-200 text-emerald-900 border border-emerald-300'
+                                    }`}
+                                  >
+                                    {score !== null ? `${score}đ` : '80đ'}
+                                  </span>
+                                ) : null}
                               </button>
+
                               <div className="mt-2 grid min-w-0 grid-cols-2 gap-2">
                                 <button
                                   type="button"
-                                  onClick={() => handleSelectLesson(lesson)}
-                                  disabled={lesson.isLocked}
-                                  title={lesson.isLocked ? (lesson.lockReason || 'Cần PASS bài kiểm tra trước đó') : 'Làm bài thi nói'}
-                                  className="min-w-0 rounded-lg bg-purple-600 px-1.5 py-2 text-center text-[11px] font-bold text-white transition-colors hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                  onClick={handleClickSelect}
+                                  disabled={item.isLocked}
+                                  title={item.isLocked ? (item.lockReason || 'Cần PASS bài kiểm tra trước đó') : 'Làm bài thi nói'}
+                                  className={`min-w-0 rounded-lg px-1.5 py-2 text-center text-[11px] font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50 flex items-center justify-center gap-1 ${
+                                    isPassed
+                                      ? 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-2xs'
+                                      : 'bg-purple-600 text-white hover:bg-purple-700'
+                                  }`}
                                 >
-                                  Làm bài
+                                  {isPassed && <CheckCircle2 className="h-3.5 w-3.5" />}
+                                  <span>Làm bài</span>
                                 </button>
                                 <button
                                   type="button"
-                                  disabled={lesson.isLocked}
-                                  title={lesson.isLocked ? (lesson.lockReason || 'Bài học chưa mở khóa') : 'Luyện tập phát âm với AI'}
-                                  onClick={() => navigate(`/courses/${courseId}/lessons/${lesson.lessonId}/ai-practice`)}
-                                  className="min-w-0 rounded-lg border border-purple-300 bg-purple-100 px-1.5 py-2 text-center text-[11px] font-bold leading-tight text-purple-800 transition-colors hover:bg-purple-200 disabled:cursor-not-allowed disabled:opacity-50"
+                                  disabled={item.isLocked}
+                                  title={item.isLocked ? (item.lockReason || 'Bài học chưa mở khóa') : 'Luyện tập phát âm với AI'}
+                                  onClick={handleGoToAI}
+                                  className={`min-w-0 rounded-lg px-1.5 py-2 text-center text-[11px] font-bold leading-tight transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                                    isPassed
+                                      ? 'border border-emerald-300 bg-emerald-100/70 text-emerald-800 hover:bg-emerald-200/80'
+                                      : 'border border-purple-300 bg-purple-100 text-purple-800 hover:bg-purple-200'
+                                  }`}
                                 >
                                   Luyện tập với AI
                                 </button>

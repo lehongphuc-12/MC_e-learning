@@ -17,22 +17,35 @@ import {
   Pause,
   Plus,
   Loader2,
+  BookOpen,
+  FolderOpen,
 } from 'lucide-react';
 import { speakingApi } from '../../api/speakingApi';
+import { courseApi } from '../../api/courseApi';
+import { moduleApi } from '../../api/moduleApi';
+import { lessonApi } from '../../api/lessonApi';
 import {
   SpeakingLevel,
+  SpeakingScope,
   ParsePreviewDto,
   SpeakingScriptDto,
   BackgroundMusicDto,
+  getSpeakingScopeInfo,
 } from '../../types/speakingTypes';
 import { ToastType } from '../../../../components/common/Toast';
+import type { CourseModule } from '../../types/moduleTypes';
+import type { Lesson } from '../../types/lessonTypes';
 
 interface SpeakingScriptUploadModalProps {
   isOpen: boolean;
   onClose: () => void;
-  lessonId: number;
-  lessonTitle: string;
+  lessonId?: number | null;
+  lessonTitle?: string;
+  courseId?: number;
   courseTitle?: string;
+  initialScope?: SpeakingScope;
+  scriptToEdit?: SpeakingScriptDto | null;
+  coursesList?: { courseId: number; title: string }[];
   onSuccess?: () => void;
   onToast?: (title: string, desc?: string, type?: ToastType) => void;
 }
@@ -68,21 +81,49 @@ export const SpeakingScriptUploadModal: React.FC<SpeakingScriptUploadModalProps>
   onClose,
   lessonId,
   lessonTitle,
+  courseId,
   courseTitle,
+  initialScope = 'FINAL',
+  scriptToEdit = null,
+  coursesList,
   onSuccess,
   onToast,
 }) => {
+  // Scope and Hierarchy States
+  const [scope, setScope] = useState<SpeakingScope>(
+    scriptToEdit?.scope || initialScope || 'FINAL'
+  );
+  const [selectedCourseId, setSelectedCourseId] = useState<number>(
+    scriptToEdit?.courseId || courseId || 0
+  );
+  const [selectedModuleId, setSelectedModuleId] = useState<number | null>(
+    scriptToEdit?.moduleId ?? null
+  );
+  const [selectedLessonId, setSelectedLessonId] = useState<number | null>(
+    scriptToEdit?.lessonId ?? lessonId ?? null
+  );
+
+  // Dynamic Options
+  const [availableCourses, setAvailableCourses] = useState<{ courseId: number; title: string }[]>(
+    coursesList || []
+  );
+  const [availableModules, setAvailableModules] = useState<CourseModule[]>([]);
+  const [availableLessons, setAvailableLessons] = useState<Lesson[]>([]);
+  const [isLoadingHierarchy, setIsLoadingHierarchy] = useState(false);
+
+  // Script & Levels States
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isParsing, setIsParsing] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
-  const [existingScript, setExistingScript] = useState<SpeakingScriptDto | null>(null);
-  const [isLoadingExisting, setIsLoadingExisting] = useState(false);
 
-  // Parsed / Editable Content State
-  const [scriptTitle, setScriptTitle] = useState(lessonTitle || '');
-  const [originalContent, setOriginalContent] = useState('');
+  const [scriptTitle, setScriptTitle] = useState(
+    scriptToEdit?.title || lessonTitle || ''
+  );
+  const [originalContent, setOriginalContent] = useState(
+    scriptToEdit?.originalContent || ''
+  );
   const [activeTab, setActiveTab] = useState<SpeakingLevel>('BEGINNER');
   const [editableContents, setEditableContents] = useState<Record<SpeakingLevel, string>>({
     BEGINNER: '',
@@ -103,13 +144,86 @@ export const SpeakingScriptUploadModal: React.FC<SpeakingScriptUploadModalProps>
   const [isUploadingMusic, setIsUploadingMusic] = useState<boolean>(false);
   const musicFileInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Initialize or reset when opened
+  useEffect(() => {
+    if (!isOpen) return;
+
+    if (scriptToEdit) {
+      setScope(scriptToEdit.scope || 'FINAL');
+      setSelectedCourseId(scriptToEdit.courseId);
+      setSelectedModuleId(scriptToEdit.moduleId ?? null);
+      setSelectedLessonId(scriptToEdit.lessonId ?? null);
+      setScriptTitle(scriptToEdit.title || '');
+      setOriginalContent(scriptToEdit.originalContent || '');
+
+      const newContents: Record<SpeakingLevel, string> = {
+        BEGINNER: '',
+        INTERMEDIATE: '',
+        ADVANCED: '',
+      };
+      scriptToEdit.levels?.forEach((lvl) => {
+        newContents[lvl.level] = lvl.content;
+      });
+      setEditableContents(newContents);
+    } else {
+      setScope(initialScope || 'FINAL');
+      if (courseId) setSelectedCourseId(courseId);
+      if (lessonId) setSelectedLessonId(lessonId);
+      if (lessonTitle) setScriptTitle(lessonTitle);
+    }
+    setErrorMsg(null);
+    setValidationErrors([]);
+  }, [isOpen, scriptToEdit, courseId, lessonId, lessonTitle, initialScope]);
+
+  // Load Courses list if empty
+  useEffect(() => {
+    if (!isOpen) return;
+    if (availableCourses.length === 0) {
+      courseApi.getInstructorCourses({ page: 1, limit: 100 }).then((res) => {
+        const list = (res.data ?? []).map((c) => ({ courseId: c.courseId, title: c.title }));
+        setAvailableCourses(list);
+        if (!selectedCourseId && list.length > 0) {
+          setSelectedCourseId(list[0].courseId);
+        }
+      }).catch(console.error);
+    }
+  }, [isOpen, availableCourses.length, selectedCourseId]);
+
+  // Load modules & lessons when selectedCourseId changes
+  useEffect(() => {
+    if (!selectedCourseId || !isOpen) return;
+
+    setIsLoadingHierarchy(true);
+    Promise.all([
+      moduleApi.getModulesByCourseId(selectedCourseId).catch(() => []),
+      lessonApi.getLessonsByCourseId(selectedCourseId).catch(() => []),
+    ]).then(([mods, less]) => {
+      setAvailableModules(mods);
+      setAvailableLessons(less);
+    }).finally(() => {
+      setIsLoadingHierarchy(false);
+    });
+  }, [selectedCourseId, isOpen]);
+
+  // Load musics
+  useEffect(() => {
+    if (!isOpen) return;
+    loadMusics();
+  }, [isOpen, selectedLessonId]);
+
   const loadMusics = async () => {
-    if (!lessonId) return;
     setIsLoadingMusics(true);
     try {
-      const res = await speakingApi.getMusicsForLesson(lessonId);
-      if (res.success && res.data) {
-        setMusics(res.data);
+      if (selectedLessonId) {
+        const res = await speakingApi.getMusicsForLesson(selectedLessonId);
+        if (res.success && res.data) {
+          setMusics(res.data);
+          return;
+        }
+      }
+      const defaultRes = await speakingApi.getDefaultMusics();
+      if (defaultRes.success && defaultRes.data) {
+        setMusics(defaultRes.data);
       }
     } catch (err) {
       console.error('Error fetching musics:', err);
@@ -149,146 +263,58 @@ export const SpeakingScriptUploadModal: React.FC<SpeakingScriptUploadModalProps>
       onToast?.('Thiếu tập tin', 'Vui lòng chọn file âm thanh (.mp3, .wav, .ogg)', 'warning');
       return;
     }
-    if (uploadMusicFile.size > 5 * 1024 * 1024) {
-      onToast?.('File quá lớn', 'Dung lượng tập tin nhạc không được vượt quá 5MB', 'error');
-      return;
-    }
+    const title = uploadMusicTitle.trim() || uploadMusicFile.name.replace(/\.[^/.]+$/, '');
+
     setIsUploadingMusic(true);
     try {
-      const title = uploadMusicTitle.trim() || uploadMusicFile.name.replace(/\.[^/.]+$/, '');
-      const res = await speakingApi.uploadMusicForLesson(lessonId, uploadMusicFile, title);
-      if (res.success) {
-        onToast?.('Thành công', 'Đã tải lên nhạc nền cho bài học', 'success');
-        setUploadMusicFile(null);
-        setUploadMusicTitle('');
-        if (musicFileInputRef.current) musicFileInputRef.current.value = '';
-        await loadMusics();
+      if (selectedLessonId) {
+        const res = await speakingApi.uploadMusicForLesson(selectedLessonId, uploadMusicFile, title);
+        if (res.success) {
+          onToast?.('Tải lên thành công!', `Nhạc nền "${title}" đã được thêm vào bài tập.`, 'success');
+          setUploadMusicTitle('');
+          setUploadMusicFile(null);
+          if (musicFileInputRef.current) musicFileInputRef.current.value = '';
+          loadMusics();
+        } else {
+          onToast?.('Tải lên thất bại', res.message || 'Không thể tải nhạc nền.', 'error');
+        }
       } else {
-        onToast?.('Thất bại', res.message || 'Không thể tải lên nhạc nền', 'error');
+        const res = await speakingApi.preUploadMusic(uploadMusicFile, title);
+        if (res.success) {
+          onToast?.('Tải lên thành công!', `Nhạc nền "${title}" đã sẵn sàng.`, 'success');
+          setUploadMusicTitle('');
+          setUploadMusicFile(null);
+          if (musicFileInputRef.current) musicFileInputRef.current.value = '';
+        }
       }
     } catch (err: any) {
-      onToast?.('Lỗi', err.message || 'Lỗi khi tải lên file nhạc', 'error');
+      onToast?.('Lỗi tải lên nhạc nền', err.message || 'Đã xảy ra lỗi.', 'error');
     } finally {
       setIsUploadingMusic(false);
     }
   };
 
-  const handleDeleteMusic = async (musicId: number, title: string) => {
-    if (!window.confirm(`Bạn có chắc muốn xóa bài nhạc "${title}"?`)) return;
-    try {
-      const res = await speakingApi.deleteMusic(musicId);
-      if (res.success) {
-        onToast?.('Đã xóa', `Đã xóa bài nhạc "${title}"`, 'success');
-        if (previewPlayingId === musicId && previewAudioRef.current) {
-          previewAudioRef.current.pause();
-          setPreviewPlayingId(null);
-        }
-        await loadMusics();
-      } else {
-        onToast?.('Thất bại', res.message || 'Không thể xóa bài nhạc', 'error');
-      }
-    } catch (err: any) {
-      onToast?.('Lỗi', err.message || 'Lỗi khi xóa bài nhạc', 'error');
-    }
-  };
-
-  // Stop preview audio when modal closes
-  useEffect(() => {
-    if (!isOpen && previewAudioRef.current) {
-      previewAudioRef.current.pause();
-      previewAudioRef.current = null;
-      setPreviewPlayingId(null);
-    }
-  }, [isOpen]);
-
-  // Load existing script if any
-  useEffect(() => {
-    if (!isOpen || !lessonId) return;
-
-    const loadScript = async () => {
-      setIsLoadingExisting(true);
-      setErrorMsg(null);
-      try {
-        const res = await speakingApi.getScriptByLesson(lessonId);
-        if (res.success && res.data) {
-          setExistingScript(res.data);
-          setScriptTitle(res.data.title || lessonTitle);
-          setOriginalContent(res.data.originalContent || '');
-          const contents: Record<SpeakingLevel, string> = {
-            BEGINNER: '',
-            INTERMEDIATE: '',
-            ADVANCED: '',
-          };
-          res.data.levels.forEach((lvl) => {
-            if (lvl.level === 'BEGINNER' || lvl.level === 'INTERMEDIATE' || lvl.level === 'ADVANCED') {
-              contents[lvl.level] = lvl.content;
-            }
-          });
-          setEditableContents(contents);
-        } else {
-          setExistingScript(null);
-        }
-      } catch (e) {
-        setExistingScript(null);
-      } finally {
-        setIsLoadingExisting(false);
-      }
-    };
-
-    loadScript();
-  }, [isOpen, lessonId, lessonTitle]);
-
-  if (!isOpen) return null;
-
-  const handleDownloadTemplate = () => {
-    const blob = new Blob([TEMPLATE_MARKDOWN], { type: 'text/markdown;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `kich_ban_mau_3_level.md`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    if (onToast) onToast('Đã tải kịch bản mẫu!', 'Bạn có thể mở chỉnh sửa và tải lên lại.', 'success');
-  };
-
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const allowed = ['.docx', '.txt', '.md'];
-    const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
-    if (!allowed.includes(ext)) {
-      setErrorMsg('Vui lòng chọn tập tin có định dạng .docx, .txt hoặc .md');
-      return;
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setSelectedFile(file);
+      setErrorMsg(null);
+      setValidationErrors([]);
+      handleParseFile(file);
     }
-
-    if (file.size > 10 * 1024 * 1024) {
-      setErrorMsg('Dung lượng tập tin vượt quá 10MB.');
-      return;
-    }
-
-    setErrorMsg(null);
-    setValidationErrors([]);
-    setSelectedFile(file);
   };
 
-  const handleParseFile = async () => {
-    if (!selectedFile) {
-      setErrorMsg('Vui lòng chọn tập tin trước khi phân tích.');
-      return;
-    }
-
+  const handleParseFile = async (file: File) => {
     setIsParsing(true);
     setErrorMsg(null);
     setValidationErrors([]);
 
     try {
-      const res = await speakingApi.parseScriptFile(lessonId, selectedFile);
+      const res = await speakingApi.parseScriptFileDirect(file);
+
       if (res.success && res.data) {
-        const preview: ParsePreviewDto = res.data;
-        setOriginalContent(preview.originalContent);
+        const data: ParsePreviewDto = res.data;
+        setOriginalContent(data.originalContent || '');
 
         const newContents: Record<SpeakingLevel, string> = {
           BEGINNER: '',
@@ -296,71 +322,138 @@ export const SpeakingScriptUploadModal: React.FC<SpeakingScriptUploadModalProps>
           ADVANCED: '',
         };
 
-        preview.levels.forEach((lvl) => {
+        data.levels.forEach((lvl) => {
           newContents[lvl.level] = lvl.content;
         });
 
         setEditableContents(newContents);
+
+        if (!scriptTitle.trim()) {
+          const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
+          setScriptTitle(fileNameWithoutExt);
+        }
+
         if (onToast) onToast('Phân tích thành công!', 'Kịch bản đã được tách thành 3 cấp độ.', 'success');
       } else {
-        setErrorMsg(res.message || 'Không thể phân tích tập tin.');
-        setValidationErrors(res.errors || []);
+        setErrorMsg(res.message || 'Không thể phân tích kịch bản.');
+        if (res.errors && res.errors.length > 0) {
+          setValidationErrors(res.errors);
+        }
       }
     } catch (err: any) {
-      setErrorMsg(err.message || 'Đã xảy ra lỗi khi phân tích tập tin.');
+      setErrorMsg(err.message || 'Đã xảy ra lỗi khi phân tích file kịch bản.');
     } finally {
       setIsParsing(false);
     }
   };
 
-  const handlePublish = async () => {
+  const handleDownloadTemplate = () => {
+    const blob = new Blob([TEMPLATE_MARKDOWN], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'kich-ban-mau-3-cap-do.md';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleSaveAndPublish = async () => {
     if (!scriptTitle.trim()) {
-      setErrorMsg('Vui lòng nhập tiêu đề kịch bản.');
+      setErrorMsg('Vui lòng nhập tiêu đề cho bài tập nói.');
       return;
     }
 
-    // Verify all 3 levels have content
-    const required: SpeakingLevel[] = ['BEGINNER', 'INTERMEDIATE', 'ADVANCED'];
-    for (const lvl of required) {
-      if (!editableContents[lvl]?.trim()) {
-        setErrorMsg(`Cấp độ ${lvl} chưa có nội dung. Vui lòng nhập nội dung cho đủ 3 cấp độ.`);
-        return;
-      }
+    if (!selectedCourseId) {
+      setErrorMsg('Vui lòng chọn khóa học cho bài tập nói.');
+      return;
     }
+
+    if (scope === 'CHAPTER' && !selectedModuleId) {
+      setErrorMsg('Vui lòng chọn chương áp dụng cho bài tập nói.');
+      return;
+    }
+
+    if (scope === 'LESSON' && !selectedLessonId) {
+      setErrorMsg('Vui lòng chọn bài học áp dụng cho bài tập nói.');
+      return;
+    }
+
+    const hasContent = editableContents.BEGINNER.trim() ||
+      editableContents.INTERMEDIATE.trim() ||
+      editableContents.ADVANCED.trim();
+
+    if (!hasContent) {
+      setErrorMsg('Vui lòng cung cấp nội dung kịch bản cho ít nhất một cấp độ.');
+      return;
+    }
+
+    // Auto fallback for empty levels
+    const validFallback = editableContents.BEGINNER.trim() ||
+      editableContents.INTERMEDIATE.trim() ||
+      editableContents.ADVANCED.trim() ||
+      originalContent.trim();
+
+    const finalLevels = [
+      { level: 'BEGINNER' as SpeakingLevel, content: editableContents.BEGINNER.trim() || validFallback },
+      { level: 'INTERMEDIATE' as SpeakingLevel, content: editableContents.INTERMEDIATE.trim() || validFallback },
+      { level: 'ADVANCED' as SpeakingLevel, content: editableContents.ADVANCED.trim() || validFallback },
+    ];
 
     setIsPublishing(true);
     setErrorMsg(null);
 
     try {
-      const res = await speakingApi.publishScript(lessonId, {
-        title: scriptTitle.trim(),
-        originalContent: originalContent,
-        levels: [
-          { level: 'BEGINNER', content: editableContents.BEGINNER },
-          { level: 'INTERMEDIATE', content: editableContents.INTERMEDIATE },
-          { level: 'ADVANCED', content: editableContents.ADVANCED },
-        ],
-      });
+      if (scriptToEdit) {
+        const res = await speakingApi.updateSpeakingScript(scriptToEdit.scriptId, {
+          courseId: selectedCourseId,
+          scope,
+          moduleId: scope === 'CHAPTER' ? selectedModuleId : (scope === 'LESSON' ? selectedModuleId : null),
+          lessonId: scope === 'LESSON' ? selectedLessonId : null,
+          title: scriptTitle.trim(),
+          originalContent,
+          levels: finalLevels,
+          passingScore: 80,
+        });
 
-      if (res.success) {
-        if (onToast) onToast('Xuất bản thành công!', 'Kịch bản luyện nói 3 cấp độ đã sẵn sàng cho học viên.', 'success');
-        if (onSuccess) onSuccess();
-        onClose();
+        if (res.success) {
+          if (onToast) onToast('Cập nhật thành công!', 'Bài tập luyện nói đã được lưu thành công.', 'success');
+          if (onSuccess) onSuccess();
+          onClose();
+        } else {
+          setErrorMsg(res.message || 'Không thể cập nhật bài tập nói.');
+        }
       } else {
-        setErrorMsg(res.message || 'Không thể xuất bản kịch bản.');
+        const res = await speakingApi.createSpeakingScript({
+          courseId: selectedCourseId,
+          scope,
+          moduleId: scope === 'CHAPTER' ? selectedModuleId : (scope === 'LESSON' ? selectedModuleId : null),
+          lessonId: scope === 'LESSON' ? selectedLessonId : null,
+          title: scriptTitle.trim(),
+          originalContent,
+          levels: finalLevels,
+          passingScore: 80,
+        });
+
+        if (res.success) {
+          if (onToast) onToast('Tạo bài nói thành công!', 'Bài tập luyện nói 3 cấp độ đã được xuất bản.', 'success');
+          if (onSuccess) onSuccess();
+          onClose();
+        } else {
+          setErrorMsg(res.message || 'Không thể tạo bài tập nói.');
+        }
       }
     } catch (err: any) {
-      setErrorMsg(err.message || 'Đã xảy ra lỗi khi xuất bản kịch bản.');
+      setErrorMsg(err.message || 'Đã xảy ra lỗi khi lưu bài tập nói.');
     } finally {
       setIsPublishing(false);
     }
   };
 
-  // Helper to format tags into pretty badges in preview mode
   const renderFormattedPreview = (text: string) => {
     if (!text) return <p className="text-slate-400 italic">Chưa có nội dung cho cấp độ này.</p>;
 
-    // Split text into paragraphs
     const paragraphs = text.split('\n');
 
     return (
@@ -368,7 +461,6 @@ export const SpeakingScriptUploadModal: React.FC<SpeakingScriptUploadModalProps>
         {paragraphs.map((para, pIdx) => {
           if (!para.trim()) return <div key={pIdx} className="h-2" />;
 
-          // Highlight tags: [HƯỚNG DẪN: ...], [GIỌNG ĐỌC: ...], [NGẮT NGHỈ: ...]
           const tagRegex = /(\[[^\]]+\])/g;
           const parts = para.split(tagRegex);
 
@@ -414,9 +506,9 @@ export const SpeakingScriptUploadModal: React.FC<SpeakingScriptUploadModalProps>
     );
   };
 
-  const hasAnyContent = Boolean(
-    editableContents.BEGINNER || editableContents.INTERMEDIATE || editableContents.ADVANCED
-  );
+  if (!isOpen) return null;
+
+  const currentScopeInfo = getSpeakingScopeInfo(scope);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
@@ -426,14 +518,11 @@ export const SpeakingScriptUploadModal: React.FC<SpeakingScriptUploadModalProps>
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-600/10 text-blue-700 text-xs font-bold mb-1">
               <Sparkles className="w-3.5 h-3.5" />
-              <span>QUẢN LÝ KỊCH BẢN NÓI (3 CẤP ĐỘ)</span>
+              <span>{scriptToEdit ? 'CHỈNH SỬA BÀI TẬP NÓI' : 'TẠO BÀI TẬP NÓI MỚI (3 CẤP ĐỘ)'}</span>
             </div>
             <h2 className="text-lg md:text-xl font-black text-slate-900 tracking-tight">
-              {lessonTitle}
+              {scriptTitle || 'Kịch bản luyện nói Studio'}
             </h2>
-            {courseTitle && (
-              <p className="text-xs text-slate-500 font-medium">Khóa học: {courseTitle}</p>
-            )}
           </div>
           <button
             onClick={onClose}
@@ -448,13 +537,13 @@ export const SpeakingScriptUploadModal: React.FC<SpeakingScriptUploadModalProps>
           {/* Error Banner */}
           {errorMsg && (
             <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-start gap-3">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
               <div>
                 <p className="font-bold">{errorMsg}</p>
                 {validationErrors.length > 0 && (
-                  <ul className="mt-1 list-disc pl-4 space-y-0.5">
-                    {validationErrors.map((err, i) => (
-                      <li key={i}>{err}</li>
+                  <ul className="mt-1 list-disc list-inside space-y-0.5 opacity-90">
+                    {validationErrors.map((err, idx) => (
+                      <li key={idx}>{err}</li>
                     ))}
                   </ul>
                 )}
@@ -462,188 +551,245 @@ export const SpeakingScriptUploadModal: React.FC<SpeakingScriptUploadModalProps>
             </div>
           )}
 
-          {/* Section 1: Upload & Parser */}
-          <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200 space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                  <UploadCloud className="w-4 h-4 text-blue-600" />
-                  <span>Tải lên kịch bản (.docx, .txt, .md)</span>
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Hệ thống C# thuần sẽ tự động chuẩn hóa và bóc tách thành 3 cấp độ: Beginner, Intermediate, Advanced.
-                </p>
+          {/* 1. Scope & Hierarchy Config */}
+          <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-4">
+            <div>
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2 block">
+                Phạm vi áp dụng (Scope) *
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {(
+                  [
+                    { key: 'LESSON', label: 'Bài học hằng ngày', desc: 'Gắn theo từng bài giảng' },
+                    { key: 'CHAPTER', label: 'Theo chương', desc: 'Đánh giá kỹ năng sau mỗi chương' },
+                    { key: 'FINAL', label: 'Tổng cuối khóa', desc: 'Bài thi nói tổng kết khóa học' },
+                  ] as const
+                ).map((s) => {
+                  const isSel = scope === s.key;
+                  return (
+                    <button
+                      key={s.key}
+                      type="button"
+                      onClick={() => setScope(s.key)}
+                      className={`p-3 text-left rounded-xl border transition-all cursor-pointer ${
+                        isSel
+                          ? 'border-blue-600 bg-blue-50/80 text-blue-900 shadow-xs'
+                          : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                      }`}
+                    >
+                      <p className="text-xs font-black">{s.label}</p>
+                      <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">{s.desc}</p>
+                    </button>
+                  );
+                })}
               </div>
+            </div>
+
+            {/* Cascading Course -> Module -> Lesson */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2">
+              <div>
+                <label className="text-[11px] font-bold text-slate-600 mb-1 flex items-center gap-1">
+                  <BookOpen className="w-3.5 h-3.5 text-blue-500" /> Khóa học *
+                </label>
+                <select
+                  value={selectedCourseId}
+                  onChange={(e) => {
+                    const cId = Number(e.target.value);
+                    setSelectedCourseId(cId);
+                    setSelectedModuleId(null);
+                    setSelectedLessonId(null);
+                  }}
+                  className="w-full text-xs font-medium px-3 py-2 rounded-xl border border-slate-200 bg-white focus:outline-hidden focus:ring-2 focus:ring-blue-500/20"
+                >
+                  <option value={0}>-- Chọn khóa học --</option>
+                  {availableCourses.map((c) => (
+                    <option key={c.courseId} value={c.courseId}>
+                      {c.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {(scope === 'CHAPTER' || scope === 'LESSON') && (
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 mb-1 flex items-center gap-1">
+                    <FolderOpen className="w-3.5 h-3.5 text-amber-500" /> Chương / Module {scope === 'CHAPTER' ? '*' : ''}
+                  </label>
+                  <select
+                    value={selectedModuleId || ''}
+                    onChange={(e) => {
+                      const mId = e.target.value ? Number(e.target.value) : null;
+                      setSelectedModuleId(mId);
+                      setSelectedLessonId(null);
+                    }}
+                    disabled={!selectedCourseId || isLoadingHierarchy}
+                    className="w-full text-xs font-medium px-3 py-2 rounded-xl border border-slate-200 bg-white focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 disabled:bg-slate-100"
+                  >
+                    <option value="">-- Chọn chương --</option>
+                    {availableModules.map((m) => (
+                      <option key={m.moduleId} value={m.moduleId}>
+                        {m.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {scope === 'LESSON' && (
+                <div>
+                  <label className="text-[11px] font-bold text-slate-600 mb-1 flex items-center gap-1">
+                    <FileText className="w-3.5 h-3.5 text-sky-500" /> Bài học *
+                  </label>
+                  <select
+                    value={selectedLessonId || ''}
+                    onChange={(e) => {
+                      const lId = e.target.value ? Number(e.target.value) : null;
+                      setSelectedLessonId(lId);
+                      const matched = availableLessons.find((l) => l.lessonId === lId);
+                      if (matched && !scriptTitle) setScriptTitle(matched.title);
+                    }}
+                    disabled={!selectedCourseId || isLoadingHierarchy}
+                    className="w-full text-xs font-medium px-3 py-2 rounded-xl border border-slate-200 bg-white focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 disabled:bg-slate-100"
+                  >
+                    <option value="">-- Chọn bài học --</option>
+                    {availableLessons
+                      .filter((l) => !selectedModuleId || l.moduleId === selectedModuleId)
+                      .map((l) => (
+                        <option key={l.lessonId} value={l.lessonId}>
+                          {l.title}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="text-[11px] font-bold text-slate-600 mb-1 block">
+                Tiêu đề bài tập nói *
+              </label>
+              <input
+                type="text"
+                value={scriptTitle}
+                onChange={(e) => setScriptTitle(e.target.value)}
+                placeholder="VD: Bài thi cuối khóa: Lời dẫn Khai mạc & Nghi thức Rót rượu Champagne"
+                className="w-full text-xs font-medium px-3 py-2 rounded-xl border border-slate-200 bg-white focus:outline-hidden focus:ring-2 focus:ring-blue-500/20"
+              />
+            </div>
+          </div>
+
+          {/* 2. File Upload / Auto Parser Box */}
+          <div className="p-5 md:p-6 rounded-2xl border-2 border-dashed border-blue-200 bg-blue-50/30 flex flex-col items-center justify-center text-center relative hover:bg-blue-50/50 transition-colors">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              accept=".docx,.txt,.md"
+              className="hidden"
+            />
+            <div className="w-12 h-12 rounded-2xl bg-blue-600/10 text-blue-600 flex items-center justify-center mb-3">
+              <UploadCloud className="w-6 h-6" />
+            </div>
+            <h3 className="text-sm font-bold text-slate-800">
+              Tải lên tài liệu kịch bản (.docx, .txt, .md)
+            </h3>
+            <p className="text-xs text-slate-500 max-w-md mt-1 mb-4">
+              Hệ thống sẽ tự động phân tích và trích xuất thành 3 cấp độ: <b>Dễ (Beginner)</b>,{' '}
+              <b>Trung bình (Intermediate)</b>, và <b>Chuyên nghiệp (Advanced)</b>.
+            </p>
+
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isParsing}
+                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                {isParsing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Đang phân tích kịch bản...</span>
+                  </>
+                ) : (
+                  <>
+                    <FileText className="w-4 h-4" />
+                    <span>Chọn tập tin từ máy</span>
+                  </>
+                )}
+              </button>
+
               <button
                 type="button"
                 onClick={handleDownloadTemplate}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-100 shadow-sm transition-all cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
               >
-                <Download className="w-3.5 h-3.5 text-blue-600" />
-                <span>Tải template mẫu (.md)</span>
+                <Download className="w-4 h-4 text-slate-500" />
+                <span>Tải kịch bản mẫu (.md)</span>
               </button>
             </div>
+          </div>
 
-            {/* Drop Zone */}
-            <div
-              onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-2xl p-6 text-center cursor-pointer transition-all bg-white hover:bg-blue-50/20 group"
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".docx,.txt,.md"
-                onChange={handleFileChange}
-                className="hidden"
-              />
-              <div className="flex flex-col items-center justify-center">
-                <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform mb-3 shadow-inner">
-                  <FileText className="w-6 h-6" />
-                </div>
-                {selectedFile ? (
-                  <div className="space-y-1">
-                    <p className="text-sm font-bold text-slate-900">{selectedFile.name}</p>
-                    <p className="text-xs text-slate-400">
-                      {(selectedFile.size / 1024).toFixed(1)} KB · Nhấn để đổi file khác
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-1">
-                    <p className="text-sm font-semibold text-slate-700">
-                      Kéo thả hoặc <span className="text-blue-600 font-bold">chọn tập tin</span> kịch bản
-                    </p>
-                    <p className="text-xs text-slate-400">Hỗ trợ định dạng .docx, .txt, .md (tối đa 10MB)</p>
-                  </div>
-                )}
+          {/* 3. 3-Level Studio Editors */}
+          <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-xs">
+            <div className="border-b border-slate-200 bg-slate-50 p-2 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-1">
+                {(
+                  [
+                    { key: 'BEGINNER', label: '1. Dễ (Beginner)', badge: 'Đầy đủ nhịp thở & focus' },
+                    { key: 'INTERMEDIATE', label: '2. Trung bình', badge: 'Điểm nhấn & gợi ý' },
+                    { key: 'ADVANCED', label: '3. Chuyên nghiệp', badge: 'Kịch bản trơn thực chiến' },
+                  ] as const
+                ).map((tab) => {
+                  const isActive = activeTab === tab.key;
+                  return (
+                    <button
+                      key={tab.key}
+                      onClick={() => setActiveTab(tab.key)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                        isActive
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'text-slate-600 hover:bg-slate-200/60'
+                      }`}
+                    >
+                      <span>{tab.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="flex items-center gap-1 bg-slate-200/60 p-1 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('EDIT')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                    viewMode === 'EDIT'
+                      ? 'bg-white text-slate-900 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Soạn thảo</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('PREVIEW')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                    viewMode === 'PREVIEW'
+                      ? 'bg-white text-slate-900 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>Xem trước</span>
+                </button>
               </div>
             </div>
 
-            {/* Parse Action Button */}
-            {selectedFile && (
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={handleParseFile}
-                  disabled={isParsing}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
-                >
-                  {isParsing ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>Đang phân tích kịch bản...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="w-4 h-4" />
-                      <span>Phân tích & Tách 3 Cấp Độ</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Section 2: 3-Level Tabs & Inline Editor */}
-          {hasAnyContent && (
-            <div className="space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3 pb-2 border-b border-slate-200">
-                <div className="flex items-center gap-2">
-                  <Layers className="w-4 h-4 text-blue-600" />
-                  <h3 className="text-sm font-bold text-slate-900">Xem trước & Hiệu chỉnh 3 Cấp độ</h3>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <div className="flex rounded-xl bg-slate-100 p-0.5 border border-slate-200">
-                    <button
-                      type="button"
-                      onClick={() => setViewMode('EDIT')}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                        viewMode === 'EDIT'
-                          ? 'bg-white text-slate-900 shadow-sm'
-                          : 'text-slate-500 hover:text-slate-900'
-                      }`}
-                    >
-                      <Edit3 className="w-3.5 h-3.5" />
-                      <span>Chỉnh sửa</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setViewMode('PREVIEW')}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                        viewMode === 'PREVIEW'
-                          ? 'bg-white text-slate-900 shadow-sm'
-                          : 'text-slate-500 hover:text-slate-900'
-                      }`}
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                      <span>Xem định dạng</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Title input */}
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">
-                  Tiêu đề kịch bản bài tập nói:
-                </label>
-                <input
-                  type="text"
-                  value={scriptTitle}
-                  onChange={(e) => setScriptTitle(e.target.value)}
-                  placeholder="Nhập tiêu đề kịch bản..."
-                  className="w-full px-4 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              {/* Level Tabs */}
-              <div className="grid grid-cols-3 gap-2">
-                {(
-                  [
-                    {
-                      key: 'BEGINNER',
-                      label: '🌱 Dễ (Beginner)',
-                      desc: 'Đầy đủ Hướng dẫn + Giọng đọc + Ngắt nghỉ',
-                    },
-                    {
-                      key: 'INTERMEDIATE',
-                      label: '⚡ Trung bình (Intermediate)',
-                      desc: 'Chỉ giữ Giọng đọc',
-                    },
-                    {
-                      key: 'ADVANCED',
-                      label: '🔥 Nâng cao (Advanced)',
-                      desc: '100% Lời thoại sạch',
-                    },
-                  ] as const
-                ).map((lvl) => (
-                  <button
-                    key={lvl.key}
-                    type="button"
-                    onClick={() => setActiveTab(lvl.key)}
-                    className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
-                      activeTab === lvl.key
-                        ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-500/20'
-                        : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'
-                    }`}
-                  >
-                    <p className="text-xs font-bold">{lvl.label}</p>
-                    <p
-                      className={`text-[10px] mt-0.5 line-clamp-1 ${
-                        activeTab === lvl.key ? 'text-blue-100' : 'text-slate-400'
-                      }`}
-                    >
-                      {lvl.desc}
-                    </p>
-                  </button>
-                ))}
-              </div>
-
-              {/* Active Tab Content (Editor / Preview) */}
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 min-h-[220px]">
-                {viewMode === 'EDIT' ? (
+            <div className="p-4 md:p-5">
+              {viewMode === 'EDIT' ? (
+                <div>
                   <textarea
-                    rows={10}
+                    rows={12}
                     value={editableContents[activeTab]}
                     onChange={(e) =>
                       setEditableContents((prev) => ({
@@ -651,206 +797,105 @@ export const SpeakingScriptUploadModal: React.FC<SpeakingScriptUploadModalProps>
                         [activeTab]: e.target.value,
                       }))
                     }
-                    placeholder={`Nhập hoặc chỉnh sửa nội dung cấp độ ${activeTab}...`}
-                    className="w-full h-full p-2 bg-transparent text-xs text-slate-800 leading-relaxed font-mono focus:outline-none resize-y"
+                    placeholder={`Nhập nội dung kịch bản cho cấp độ ${activeTab}... Bạn có thể sử dụng các tag: [HƯỚNG DẪN: ...], [GIỌNG ĐỌC: ...], [NGẮT NGHỈ: 2s]`}
+                    className="w-full text-xs md:text-sm font-mono leading-relaxed p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 text-slate-800 resize-y"
                   />
-                ) : (
-                  <div className="p-2 overflow-y-auto max-h-[350px]">
-                    {renderFormattedPreview(editableContents[activeTab])}
+                  <div className="flex items-center justify-between mt-2 text-[11px] text-slate-400">
+                    <span>
+                      Hỗ trợ tag: <code>[HƯỚNG DẪN: ...]</code>, <code>[GIỌNG ĐỌC: ...]</code>,{' '}
+                      <code>[NGẮT NGHỈ: Xs]</code>
+                    </span>
+                    <span>{editableContents[activeTab].length} ký tự</span>
                   </div>
-                )}
-              </div>
-            </div>
-          )}
-        
-          {/* Section 3: Background Music Configuration */}
-          <div className="p-5 rounded-2xl bg-slate-50/80 border border-slate-200 shadow-xs space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                  <Music className="w-4 h-4 text-indigo-600" />
-                  <span>Cấu hình Nhạc nền Luyện nói (Background Music)</span>
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Nhạc nền giúp học viên cảm thụ nhịp điệu MC khi luyện tập. Nhạc phát độc lập qua loa/tai nghe và hoàn toàn KHÔNG lẫn vào bản ghi âm nộp bài.
-                </p>
-              </div>
-
-              {isLoadingMusics && (
-                <div className="flex items-center gap-1.5 text-xs text-indigo-600 font-semibold">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Đang tải danh sách...</span>
+                </div>
+              ) : (
+                <div className="min-h-[240px] p-4 rounded-xl bg-slate-50 border border-slate-200/80">
+                  {renderFormattedPreview(editableContents[activeTab])}
                 </div>
               )}
             </div>
-
-            {/* Music List */}
-            <div className="space-y-2">
-              <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                Danh sách nhạc khả dụng ({musics.length} bài):
-              </span>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {musics.map((m) => {
-                  const isPlaying = previewPlayingId === m.musicId;
-                  return (
-                    <div
-                      key={m.musicId}
-                      className="flex items-center justify-between p-3 rounded-xl bg-white border border-slate-200 hover:border-indigo-300 transition-all shadow-2xs"
-                    >
-                      <div className="min-w-0 pr-2">
-                        <div className="flex items-center gap-1.5">
-                          <Music className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                          <span className="text-xs font-bold text-slate-800 truncate" title={m.title}>
-                            {m.title}
-                          </span>
-                        </div>
-                        <span
-                          className={`inline-block mt-0.5 text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                            m.isSystemDefault
-                              ? 'bg-purple-50 text-purple-700 border border-purple-200'
-                              : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                          }`}
-                        >
-                          {m.isSystemDefault ? 'Mặc định hệ thống' : 'Tải lên riêng'}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => handleTogglePreview(m)}
-                          className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                            isPlaying
-                              ? 'bg-indigo-600 text-white shadow-xs'
-                              : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                          }`}
-                          title={isPlaying ? 'Dừng nghe thử' : 'Nghe thử'}
-                        >
-                          {isPlaying ? (
-                            <>
-                              <Pause className="w-3 h-3 fill-current" />
-                              <span>Dừng</span>
-                            </>
-                          ) : (
-                            <>
-                              <Play className="w-3 h-3 fill-current" />
-                              <span>Nghe</span>
-                            </>
-                          )}
-                        </button>
-
-                        {!m.isSystemDefault && (
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteMusic(m.musicId, m.title)}
-                            className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
-                            title="Xóa bài nhạc này"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Upload Custom Music Box */}
-            <div className="mt-4 p-3.5 rounded-xl bg-white border border-dashed border-indigo-200 space-y-3">
-              <span className="text-xs font-bold text-indigo-900 flex items-center gap-1.5">
-                <Plus className="w-3.5 h-3.5 text-indigo-600" />
-                <span>Thêm nhạc nền riêng cho bài học này (.mp3, ≤ 5MB)</span>
-              </span>
-
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                <input
-                  type="text"
-                  placeholder="Tên bài nhạc (VD: Nhạc khai tiệc hoành tráng...)"
-                  value={uploadMusicTitle}
-                  onChange={(e) => setUploadMusicTitle(e.target.value)}
-                  className="flex-1 px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                />
-
-                <input
-                  ref={musicFileInputRef}
-                  type="file"
-                  accept=".mp3,.wav,.ogg"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) {
-                      setUploadMusicFile(f);
-                      if (!uploadMusicTitle) {
-                        setUploadMusicTitle(f.name.replace(/\.[^/.]+$/, ''));
-                      }
-                    }
-                  }}
-                  className="text-xs file:mr-2 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 text-slate-500 cursor-pointer"
-                />
-
-                <button
-                  type="button"
-                  onClick={handleUploadMusic}
-                  disabled={isUploadingMusic || !uploadMusicFile}
-                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-all cursor-pointer disabled:opacity-50 shrink-0"
-                >
-                  {isUploadingMusic ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      <span>Đang tải lên...</span>
-                    </>
-                  ) : (
-                    <>
-                      <UploadCloud className="w-3.5 h-3.5" />
-                      <span>Tải lên</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
           </div>
 
+          {/* 4. Background Music Section */}
+          <div className="p-5 rounded-2xl border border-slate-200 bg-slate-50 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Music className="w-4 h-4 text-purple-600" />
+                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                  Nhạc nền luyện nói Studio ({musics.length})
+                </h4>
+              </div>
+              <span className="text-[11px] text-slate-500">
+                Học viên có thể chọn nhạc nền khi luyện nói
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {musics.map((m) => {
+                const isPlaying = previewPlayingId === m.musicId;
+                return (
+                  <div
+                    key={m.musicId}
+                    className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-slate-200 shadow-2xs"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <button
+                        type="button"
+                        onClick={() => handleTogglePreview(m)}
+                        className={`w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer transition-colors ${
+                          isPlaying
+                            ? 'bg-purple-600 text-white'
+                            : 'bg-purple-50 text-purple-600 hover:bg-purple-100'
+                        }`}
+                      >
+                        {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 ml-0.5" />}
+                      </button>
+                      <span className="text-xs font-bold text-slate-700 truncate">{m.title}</span>
+                    </div>
+                    {m.isSystemDefault && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                        Hệ thống
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
 
-        {/* Footer Actions */}
-        <div className="p-5 md:px-7 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
-          <div className="text-xs text-slate-500">
-            {existingScript ? (
-              <span className="text-emerald-600 font-semibold flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4" />
-                Đã có kịch bản ({existingScript.status})
-              </span>
-            ) : (
-              <span>Chưa xuất bản kịch bản cho bài học này</span>
-            )}
+        {/* Footer */}
+        <div className="p-4 md:px-7 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className={`text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full border ${currentScopeInfo.badgeClass}`}>
+              {currentScopeInfo.label}
+            </span>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={onClose}
               disabled={isPublishing}
-              className="px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-xs font-bold text-slate-700 transition-all cursor-pointer"
+              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
             >
-              Đóng
+              Hủy
             </button>
-
             <button
               type="button"
-              onClick={handlePublish}
-              disabled={isPublishing || !hasAnyContent}
-              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+              onClick={handleSaveAndPublish}
+              disabled={isPublishing}
+              className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
             >
               {isPublishing ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span>Đang xuất bản...</span>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Đang lưu kịch bản...</span>
                 </>
               ) : (
                 <>
                   <Save className="w-4 h-4" />
-                  <span>Lưu & Xuất Bản 3 Level</span>
+                  <span>{scriptToEdit ? 'Lưu thay đổi' : 'Xuất bản kịch bản'}</span>
                 </>
               )}
             </button>

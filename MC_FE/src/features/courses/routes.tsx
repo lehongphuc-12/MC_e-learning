@@ -13,6 +13,7 @@ import { CourseManagementPage } from './components/management/CourseManagementPa
 import { CourseFormPage } from './components/management/CourseFormPage';
 import { CourseLessonsPage } from './components/management/CourseLessonsPage';
 import { InstructorSpeakingPage } from './components/management/InstructorSpeakingPage';
+import { InstructorSpeakingAssignmentsPage } from './components/management/InstructorSpeakingAssignmentsPage';
 import { ProtectedRoute } from '../../components/common/ProtectedRoute';
 import { ToastType } from '../../components/common/Toast';
 
@@ -221,6 +222,34 @@ export const renderCourseRoutes = ({
             onToast={onToast}
           >
             {withInstructorLayout(<InstructorSpeakingPage onToast={onToast} />)}
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/instructor/speaking-assignments"
+        element={
+          <ProtectedRoute
+            user={user}
+            allowedRoles={['instructor', 'admin']}
+            currentScreen={currentScreen}
+            onNavigate={onNavigate}
+            onToast={onToast}
+          >
+            {withInstructorLayout(<InstructorSpeakingAssignmentsPage onToast={onToast} />)}
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/instructor/courses/:courseId/speaking-assignments"
+        element={
+          <ProtectedRoute
+            user={user}
+            allowedRoles={['instructor', 'admin']}
+            currentScreen={currentScreen}
+            onNavigate={onNavigate}
+            onToast={onToast}
+          >
+            {withInstructorLayout(<InstructorSpeakingAssignmentsPage onToast={onToast} />)}
           </ProtectedRoute>
         }
       />

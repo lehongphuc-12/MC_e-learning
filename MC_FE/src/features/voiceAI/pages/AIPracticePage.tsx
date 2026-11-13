@@ -1,6 +1,6 @@
 
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
   AudioLines,
@@ -30,7 +30,9 @@ export function AIPracticePage() {
   const lessonId = Number(lessonParam);
 
   const navigate = useNavigate();
+  const location = useLocation();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const hasPrefilledRef = useRef(false);
 
   const [audio, setAudio] = useState<File | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -39,6 +41,27 @@ export function AIPracticePage() {
   const [fileError, setFileError] = useState('');
 
   const { result, loading, error, submit, reset } = useAIPractice();
+
+  useEffect(() => {
+    if (hasPrefilledRef.current) return;
+    const state = location.state as {
+      fromTeleprompter?: boolean;
+      prefillScriptText?: string;
+      prefillAudioFile?: File;
+    } | null;
+
+    if (!state?.fromTeleprompter) return;
+    hasPrefilledRef.current = true;
+
+    if (state.prefillScriptText) {
+      setExpectedText(state.prefillScriptText);
+    }
+
+    if (state.prefillAudioFile) {
+      setFile(state.prefillAudioFile);
+      setActiveTab('upload');
+    }
+  }, [location.state]);
 
   const validCourse = Number.isInteger(courseId) && courseId > 0;
   const validLesson = Number.isInteger(lessonId) && lessonId > 0;

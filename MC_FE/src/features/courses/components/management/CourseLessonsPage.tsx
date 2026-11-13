@@ -49,6 +49,7 @@ import { IncompleteCourseModal } from './IncompleteCourseModal';
 import { useCourseDetail } from '../../hooks/useInstructorCourses';
 import { useSubmitForApproval } from '../../hooks/useCourseMutations';
 import { speakingApi } from '../../api/speakingApi';
+import { SpeakingScriptDto, getSpeakingScopeInfo } from '../../types/speakingTypes';
 
 import { useQuizzesByCourse } from '../../../quizzes/hooks/useQuiz';
 
@@ -113,6 +114,18 @@ export const CourseLessonsPage: React.FC = () => {
 
   const { data: quizzes = [], isLoading: isQuizzesLoading } =
     useQuizzesByCourse(courseId);
+
+  const [courseSpeakingScripts, setCourseSpeakingScripts] = useState<SpeakingScriptDto[]>([]);
+  const [speakingScopeFilter, setSpeakingScopeFilter] = useState<'ALL' | 'LESSON' | 'CHAPTER' | 'FINAL'>('ALL');
+  const [reloadSpeaking, setReloadSpeaking] = useState(0);
+
+  useEffect(() => {
+    if (courseId) {
+      speakingApi.getSpeakingScriptsByCourse(courseId).then((res) => {
+        if (res.success && res.data) setCourseSpeakingScripts(res.data);
+      }).catch(console.error);
+    }
+  }, [courseId, reloadSpeaking]);
 
   // ===========================================================================
   // ACCORDION STATE
@@ -441,7 +454,7 @@ export const CourseLessonsPage: React.FC = () => {
       missing.push('Chưa tạo Bài học (Lesson) nào');
     }
 
-    const hasSpeakingAssignment = lessons.some((l) => l.lessonType === 'ASSIGNMENT');
+    const hasSpeakingAssignment = lessons.some((l) => l.lessonType === 'ASSIGNMENT') || courseSpeakingScripts.some((s) => s.scope === 'FINAL');
     if (!hasSpeakingAssignment) {
       missing.push('Chưa tạo Bài tập nói (Speaking Assignment) cuối khóa nào');
     }
@@ -928,7 +941,7 @@ export const CourseLessonsPage: React.FC = () => {
           COURSE-LEVEL SPEAKING ASSIGNMENT MANAGEMENT
       ====================================================================== */}
 
-      <div id="speaking-assignment-management" className="mx-auto max-w-[1500px] px-6 pt-10">
+      <div id="speaking-assignment-management" className="mx-auto max-w-[1500px] px-6 pt-10 scroll-mt-28">
         <div className="overflow-hidden rounded-[30px] border border-[#d8e6ff] bg-white shadow-[0_12px_35px_-18px_rgba(7,84,239,0.18)] transition-all duration-300 hover:shadow-xl hover:shadow-blue-600/10">
           {/* HEADER */}
           <div className="flex flex-col gap-4 border-b border-[#e0eaff] bg-gradient-to-r from-[#f1f6ff] via-[#f8fbff] to-[#f1f6ff] px-7 py-6 sm:flex-row sm:items-center sm:justify-between">
@@ -939,105 +952,190 @@ export const CourseLessonsPage: React.FC = () => {
 
               <div>
                 <h2 className="text-lg font-extrabold text-slate-900">
-                  Bài tập nói (Speaking Assignment) Tổng khóa học
+                  Quản lý Bài tập luyện nói (Speaking Assignments)
                 </h2>
-
                 <p className="mt-0.5 text-xs text-slate-500">
-                  Bài thu âm giọng nói dành cho học viên thực hành & nộp điểm cuối khóa (Admin yêu cầu bắt buộc)
+                  Hệ thống bài tập nói 3 cấp độ (Bài học hằng ngày, Theo chương, Tổng cuối khóa).
                 </p>
               </div>
             </div>
 
-            {!lessons.some((l) => l.lessonType === 'ASSIGNMENT') && (
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={() => handleOpenCreateSpeakingAssignment(null)}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#0754ef] px-4 py-2.5 text-xs font-semibold text-white shadow-md shadow-blue-600/20 transition-all hover:bg-[#0644c4] active:scale-95 cursor-pointer"
+                onClick={() =>
+                  navigate('/instructor/speaking-assignments', {
+                    state: { courseId, scope: 'LESSON', autoOpenCreate: true },
+                  })
+                }
+                className="inline-flex items-center gap-1.5 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-bold text-sky-700 hover:bg-sky-100 transition-colors cursor-pointer"
               >
-                <Plus className="h-4 w-4" />
-                Tạo Bài tập nói tổng khóa
+                <Plus className="h-3.5 w-3.5" /> Bài nói bài học
               </button>
-            )}
+              <button
+                type="button"
+                onClick={() =>
+                  navigate('/instructor/speaking-assignments', {
+                    state: { courseId, scope: 'CHAPTER', autoOpenCreate: true },
+                  })
+                }
+                className="inline-flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800 hover:bg-amber-100 transition-colors cursor-pointer"
+              >
+                <Plus className="h-3.5 w-3.5" /> Bài nói theo chương
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  navigate('/instructor/speaking-assignments', {
+                    state: { courseId, scope: 'FINAL', autoOpenCreate: true },
+                  })
+                }
+                className="inline-flex items-center gap-1.5 rounded-xl bg-[#0754ef] px-3.5 py-2 text-xs font-bold text-white shadow-md shadow-blue-600/20 hover:bg-[#0644c4] transition-all cursor-pointer"
+              >
+                <Plus className="h-3.5 w-3.5" /> Bài nói cuối khóa
+              </button>
+            </div>
           </div>
 
-          {/* CONTENT */}
-          {(() => {
-            const assignment = lessons.find((l) => l.lessonType === 'ASSIGNMENT');
-            if (assignment) {
-              return (
-                <div className="p-6">
-                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 rounded-2xl border border-[#e0eaff] bg-[#f8fbff] p-5">
-                    <div className="space-y-1.5 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="inline-flex items-center gap-1 rounded-md bg-[#e8f1ff] px-2.5 py-0.5 text-xs font-extrabold text-[#17448e]">
-                          🎙️ Bài tập nói tổng khóa
-                        </span>
-                        <span className="text-xs font-semibold text-slate-500">
-                          • {assignment.durationMinutes} phút dự kiến
-                        </span>
-                      </div>
-                      <h3 className="text-lg font-extrabold text-slate-900">{assignment.title}</h3>
-                      {assignment.description && (
-                        <p className="text-xs text-slate-600 leading-relaxed max-w-3xl">
-                          {assignment.description}
-                        </p>
-                      )}
-                      {assignment.videoUrl && (
-                        <div className="pt-1">
-                          <a
-                            href={assignment.videoUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-xs font-semibold text-[#0754ef] hover:underline"
-                          >
-                            <ExternalLink className="h-3.5 w-3.5" />
-                            <span>Link Audio mẫu / Hướng dẫn đề bài</span>
-                          </a>
-                        </div>
-                      )}
-                    </div>
+          {/* SCOPE FILTER TABS */}
+          <div className="flex items-center gap-2 border-b border-slate-100 bg-white px-7 py-3">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider mr-2">Lọc theo:</span>
+            {(
+              [
+                { key: 'ALL', label: `Tất cả (${courseSpeakingScripts.length})` },
+                { key: 'LESSON', label: `Bài học (${courseSpeakingScripts.filter((s) => s.scope === 'LESSON').length})` },
+                { key: 'CHAPTER', label: `Theo chương (${courseSpeakingScripts.filter((s) => s.scope === 'CHAPTER').length})` },
+                { key: 'FINAL', label: `Tổng cuối khóa (${courseSpeakingScripts.filter((s) => s.scope === 'FINAL').length})` },
+              ] as const
+            ).map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => setSpeakingScopeFilter(t.key)}
+                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                  speakingScopeFilter === t.key
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
 
-                    <div className="flex items-center gap-2 self-end md:self-center shrink-0">
+          {/* SPEAKING ASSIGNMENTS LIST */}
+          <div className="p-6">
+            {(() => {
+              const displayScripts = courseSpeakingScripts.filter(
+                (s) => speakingScopeFilter === 'ALL' || s.scope === speakingScopeFilter
+              );
+
+              // Also check legacy assignment lesson
+              const legacyAssignment = lessons.find((l) => l.lessonType === 'ASSIGNMENT');
+
+              if (displayScripts.length === 0 && !legacyAssignment) {
+                return (
+                  <div className="flex flex-col items-center justify-center px-6 py-8 text-center bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
+                    <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                      <Mic2 className="h-6 w-6" />
+                    </div>
+                    <h4 className="text-sm font-bold text-slate-800">Chưa có bài tập nói nào cho khóa học</h4>
+                    <p className="mt-1 max-w-lg text-xs leading-relaxed text-slate-500">
+                      Khóa học cần có bài tập nói để học viên thu âm giọng nói nộp cho Giảng viên chấm điểm. Hãy tạo bài tập theo bài học, theo chương hoặc cuối khóa.
+                    </p>
+                    <div className="mt-3 flex items-center gap-2">
                       <button
-                        onClick={() => handleOpenEditLesson(assignment)}
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-[#cfe0ff] bg-white px-3.5 py-2 text-xs font-bold text-[#17448e] shadow-xs hover:bg-[#f1f6ff] active:scale-95 transition-all duration-300 hover:-translate-y-0.5 active:scale-95 cursor-pointer"
+                        type="button"
+                        onClick={() =>
+                          navigate('/instructor/speaking-assignments', {
+                            state: { courseId, scope: 'FINAL', autoOpenCreate: true },
+                          })
+                        }
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-[#0754ef] px-4 py-2 text-xs font-bold text-white shadow-md shadow-blue-500/20 hover:bg-[#0644c4] transition-all cursor-pointer"
                       >
-                        <Edit2 className="h-4 w-4" />
-                        <span>Chỉnh sửa</span>
-                      </button>
-                      <button
-                        onClick={() => setLessonToDelete(assignment)}
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-red-200 bg-white px-3.5 py-2 text-xs font-bold text-red-600 shadow-xs hover:bg-red-50 active:scale-95 transition-all duration-300 hover:-translate-y-0.5 active:scale-95 cursor-pointer"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        <span>Xóa</span>
+                        <Plus className="h-4 w-4" /> Tạo bài tập nói cuối khóa ngay
                       </button>
                     </div>
                   </div>
+                );
+              }
+
+              return (
+                <div className="space-y-3">
+                  {displayScripts.map((script) => {
+                    const scopeInfo = getSpeakingScopeInfo(script.scope);
+                    return (
+                      <div
+                        key={script.scriptId}
+                        className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 rounded-2xl border border-[#e0eaff] bg-[#f8fbff] p-4 hover:border-blue-300 transition-all"
+                      >
+                        <div className="space-y-1 flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md border ${scopeInfo.badgeClass}`}>
+                              {scopeInfo.shortLabel}
+                            </span>
+                            <span className="text-xs font-bold text-slate-400">#{script.scriptId}</span>
+                            <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                              Điểm đạt ≥ {script.passingScore || 80}
+                            </span>
+                          </div>
+                          <h3 className="text-sm font-extrabold text-slate-900 truncate">{script.title}</h3>
+                          {(script.moduleTitle || script.lessonTitle) && (
+                            <p className="text-[11px] text-slate-500">
+                              {script.moduleTitle ? `Chương: ${script.moduleTitle}` : ''}
+                              {script.moduleTitle && script.lessonTitle ? ' • ' : ''}
+                              {script.lessonTitle ? `Bài: ${script.lessonTitle}` : ''}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2 self-end md:self-center shrink-0">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              navigate('/instructor/speaking-assignments', {
+                                state: { courseId, scope: script.scope },
+                              })
+                            }
+                            className="inline-flex items-center gap-1.5 rounded-xl border border-[#cfe0ff] bg-white px-3.5 py-2 text-xs font-bold text-[#17448e] shadow-xs hover:bg-[#f1f6ff] transition-all cursor-pointer"
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
+                            <span>Quản lý kịch bản</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* Render legacy assignment lesson if not covered */}
+                  {legacyAssignment &&
+                    !courseSpeakingScripts.some((s) => s.lessonId === legacyAssignment.lessonId) &&
+                    (speakingScopeFilter === 'ALL' || speakingScopeFilter === 'FINAL') && (
+                      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 rounded-2xl border border-purple-200 bg-purple-50/40 p-4">
+                        <div className="space-y-1 flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md border border-purple-300 bg-purple-100 text-purple-800">
+                              Tổng cuối khóa (Legacy)
+                            </span>
+                            <span className="text-xs font-semibold text-slate-500">• {legacyAssignment.durationMinutes} phút dự kiến</span>
+                          </div>
+                          <h3 className="text-sm font-extrabold text-slate-900">{legacyAssignment.title}</h3>
+                        </div>
+                        <div className="flex items-center gap-2 self-end md:self-center shrink-0">
+                          <button
+                            onClick={() => handleOpenEditLesson(legacyAssignment)}
+                            className="inline-flex items-center gap-1.5 rounded-xl border border-[#cfe0ff] bg-white px-3.5 py-2 text-xs font-bold text-[#17448e] shadow-xs hover:bg-[#f1f6ff] transition-all cursor-pointer"
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
+                            <span>Chỉnh sửa</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
                 </div>
               );
-            }
-
-            return (
-              <div className="flex flex-col items-center justify-center px-6 py-7 text-center">
-                <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-xl bg-[#f1f6ff] text-[#b58a40]">
-                  <Mic2 className="h-6 w-6" />
-                </div>
-                <h4 className="text-sm font-bold text-slate-800">Chưa tạo Bài tập nói tổng khóa</h4>
-                <p className="mt-1 max-w-lg text-xs leading-relaxed text-slate-500">
-                  Mỗi khóa học cần có 1 Bài tập nói tổng cuối khóa để học viên nộp bản thu âm cho Giảng viên chấm điểm. Khóa học chỉ có thể gửi Admin duyệt khi đã tạo bài tập này.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => handleOpenCreateSpeakingAssignment(null)}
-                  className="mt-3 inline-flex items-center gap-2 rounded-xl bg-[#0754ef] px-4 py-2 text-xs font-bold text-white shadow-md shadow-blue-500/20 hover:bg-[#0644c4] transition-all duration-300 hover:-translate-y-0.5 active:scale-95 cursor-pointer"
-                >
-                  <Plus className="h-4 w-4" />
-                  Tạo Bài tập nói ngay
-                </button>
-              </div>
-            );
-          })()}
+            })()}
+          </div>
         </div>
       </div>
 

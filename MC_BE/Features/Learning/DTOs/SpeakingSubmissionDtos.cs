@@ -5,8 +5,8 @@ namespace MC_BE.Features.Learning.DTOs;
 
 public class CreateSpeakingSubmissionRequest
 {
-    [Required(ErrorMessage = "LessonId is required.")]
-    public int LessonId { get; set; }
+    public int? LessonId { get; set; }
+    public int? ScriptId { get; set; }
 
     [Required(ErrorMessage = "Audio file (.mp3 or .wav) is required.")]
     public IFormFile AudioFile { get; set; } = null!;
@@ -25,7 +25,10 @@ public class GradeSpeakingSubmissionRequest
 public class SpeakingSubmissionResponseDto
 {
     public int SubmissionId { get; set; }
-    public int LessonId { get; set; }
+    public int? ScriptId { get; set; }
+    public string? ScriptTitle { get; set; }
+    public string Scope { get; set; } = "FINAL";
+    public int? LessonId { get; set; }
     public string LessonTitle { get; set; } = string.Empty;
     public int CourseId { get; set; }
     public string CourseTitle { get; set; } = string.Empty;
@@ -47,4 +50,17 @@ public class SpeakingSubmissionResponseDto
     public DateTime? GradedAt { get; set; }
     public DateTime SubmittedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+
+    // Logic Pass/Fail và Xếp loại
+    public bool? IsPassed => Score.HasValue ? Score.Value >= 80 : null;
+    public string? GradeTier => Score.HasValue ? GetGradeTier(Score.Value) : null;
+
+    public static string GetGradeTier(decimal score)
+    {
+        if (score >= 95) return "Xuất sắc";
+        if (score >= 80) return "Giỏi";
+        if (score >= 50) return "Cần cải thiện";
+        if (score >= 30) return "Trung bình";
+        return "Yếu";
+    }
 }

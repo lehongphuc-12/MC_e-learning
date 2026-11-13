@@ -404,7 +404,11 @@ using (var scope = app.Services.CreateScope())
             ALTER TABLE IF EXISTS lessons ADD COLUMN IF NOT EXISTS ""TranscriptStatus"" integer NOT NULL DEFAULT 0;
             CREATE TABLE IF NOT EXISTS speaking_scripts (
                 ""ScriptID"" SERIAL PRIMARY KEY,
-                ""LessonID"" integer NOT NULL UNIQUE,
+                ""CourseID"" integer NOT NULL DEFAULT 0,
+                ""ModuleID"" integer,
+                ""LessonID"" integer,
+                ""Scope"" character varying(20) NOT NULL DEFAULT 'FINAL',
+                ""PassingScore"" numeric(5,2) NOT NULL DEFAULT 80.00,
                 ""Title"" character varying(500) NOT NULL,
                 ""OriginalContent"" text,
                 ""CreatedBy"" integer,
@@ -413,6 +417,15 @@ using (var scope = app.Services.CreateScope())
                 CONSTRAINT fk_speaking_scripts_lesson FOREIGN KEY (""LessonID"") REFERENCES lessons(""LessonID"") ON DELETE CASCADE,
                 CONSTRAINT fk_speaking_scripts_user FOREIGN KEY (""CreatedBy"") REFERENCES users(""UserID"") ON DELETE SET NULL
             );
+            ALTER TABLE IF EXISTS speaking_scripts ADD COLUMN IF NOT EXISTS ""CourseID"" integer NOT NULL DEFAULT 0;
+            ALTER TABLE IF EXISTS speaking_scripts ADD COLUMN IF NOT EXISTS ""ModuleID"" integer;
+            ALTER TABLE IF EXISTS speaking_scripts ADD COLUMN IF NOT EXISTS ""Scope"" character varying(20) NOT NULL DEFAULT 'FINAL';
+            ALTER TABLE IF EXISTS speaking_scripts ADD COLUMN IF NOT EXISTS ""PassingScore"" numeric(5,2) NOT NULL DEFAULT 80.00;
+            ALTER TABLE IF EXISTS speaking_scripts ALTER COLUMN ""LessonID"" DROP NOT NULL;
+            ALTER TABLE IF EXISTS speaking_submissions ADD COLUMN IF NOT EXISTS ""ScriptID"" integer;
+            ALTER TABLE IF EXISTS speaking_submissions ALTER COLUMN ""LessonID"" DROP NOT NULL;
+            UPDATE speaking_scripts s SET ""CourseID"" = l.""CourseID"" FROM lessons l WHERE s.""LessonID"" = l.""LessonID"" AND (s.""CourseID"" IS NULL OR s.""CourseID"" = 0);
+            UPDATE speaking_submissions sub SET ""ScriptID"" = s.""ScriptID"" FROM speaking_scripts s WHERE sub.""LessonID"" = s.""LessonID"" AND sub.""ScriptID"" IS NULL;
             CREATE TABLE IF NOT EXISTS speaking_script_levels (
                 ""LevelID"" SERIAL PRIMARY KEY,
                 ""ScriptID"" integer NOT NULL,

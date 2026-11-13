@@ -10,4 +10,5 @@ public interface ISpeakingSubmissionRepository : IGenericRepository<SpeakingSubm
     Task<IEnumerable<SpeakingSubmission>> GetSubmissionsByInstructorAsync(int instructorId);
     Task<IEnumerable<SpeakingSubmission>> GetSubmissionsByCourseAsync(int courseId);
     Task<SpeakingSubmission?> GetLatestByLearnerAndLessonAsync(int learnerId, int lessonId);
+    Task<SpeakingSubmission?> GetLatestByLearnerAndScriptAsync(int learnerId, int scriptId);
 }
