@@ -128,6 +128,38 @@ public class SpeakingSubmissionsController : ControllerBase
     }
 
     /// <summary>
+    /// GET /api/speaking-submissions/script/{scriptId}
+    /// Get the latest speaking submission of current learner for a specific speaking script
+    /// </summary>
+    [HttpGet("script/{scriptId:int}")]
+    public async Task<ActionResult<ApiResponse<SpeakingSubmissionResponseDto>>> GetLatestSubmissionByScript(int scriptId)
+    {
+        var learnerId = GetCurrentUserId();
+        if (learnerId == null)
+        {
+            return Unauthorized(ApiResponse<SpeakingSubmissionResponseDto>.FailureResponse("Unauthorized."));
+        }
+
+        try
+        {
+            var submission = await _submissionService.GetLatestSubmissionByScriptAsync(learnerId.Value, scriptId);
+            if (submission == null)
+            {
+                return NotFound(ApiResponse<SpeakingSubmissionResponseDto>.FailureResponse("No submission found for this script."));
+            }
+
+            return Ok(ApiResponse<SpeakingSubmissionResponseDto>.SuccessResponse(submission, "Submission retrieved successfully."));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting submission for Script ID {ScriptId}", scriptId);
+            Console.WriteLine($"[GetLatestSubmissionByScript Error] {ex.Message}\n{ex.StackTrace}");
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                ApiResponse<SpeakingSubmissionResponseDto>.FailureResponse("Failed to retrieve speaking submission."));
+        }
+    }
+
+    /// <summary>
     /// GET /api/speaking-submissions/my-submissions
     /// Get all speaking submissions submitted by current learner
     /// </summary>

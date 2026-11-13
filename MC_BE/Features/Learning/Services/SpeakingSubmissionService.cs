@@ -12,23 +12,29 @@ namespace MC_BE.Features.Learning.Services;
 public class SpeakingSubmissionService : ISpeakingSubmissionService
 {
     private readonly ISpeakingSubmissionRepository _submissionRepository;
+    private readonly ISpeakingScriptRepository _scriptRepository;
     private readonly IGenericRepository<Lesson> _lessonRepository;
     private readonly IGenericRepository<Enrollment> _enrollmentRepository;
+    private readonly IGenericRepository<LessonProgress> _lessonProgressRepository;
     private readonly ICloudinaryService _cloudinaryService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<SpeakingSubmissionService> _logger;
 
     public SpeakingSubmissionService(
         ISpeakingSubmissionRepository submissionRepository,
+        ISpeakingScriptRepository scriptRepository,
         IGenericRepository<Lesson> lessonRepository,
         IGenericRepository<Enrollment> enrollmentRepository,
+        IGenericRepository<LessonProgress> lessonProgressRepository,
         ICloudinaryService cloudinaryService,
         IUnitOfWork unitOfWork,
         ILogger<SpeakingSubmissionService> logger)
     {
         _submissionRepository = submissionRepository;
+        _scriptRepository = scriptRepository;
         _lessonRepository = lessonRepository;
         _enrollmentRepository = enrollmentRepository;
+        _lessonProgressRepository = lessonProgressRepository;
         _cloudinaryService = cloudinaryService;
         _unitOfWork = unitOfWork;
         _logger = logger;
@@ -43,7 +49,6 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
             {
                 var errMsg = "Error: Audio file is empty or missing.";
                 _logger.LogError(errMsg);
-                Console.WriteLine(errMsg);
                 throw new ArgumentException("Audio file is required.");
             }
 
@@ -53,71 +58,136 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
             {
                 var errMsg = $"Error: Invalid audio file format '{extension}'. Only .mp3 and .wav files are allowed.";
                 _logger.LogError(errMsg);
-                Console.WriteLine(errMsg);
                 throw new ArgumentException("Invalid audio file format. Only .mp3 and .wav formats are allowed.");
             }
 
-            // 2. Validate Lesson existence via Repository
-            var lessons = await _lessonRepository.FindAsync(
-                l => l.LessonId == request.LessonId,
-                l => l.Course);
-            var lesson = lessons.FirstOrDefault();
+            int courseId = 0;
+            int? scriptId = request.ScriptId;
+            int? lessonId = request.LessonId;
+            SpeakingScript? script = null;
+            Lesson? lesson = null;
 
-            if (lesson == null)
+            if (scriptId.HasValue && scriptId.Value > 0)
             {
-                var errMsg = $"Error: Lesson with ID {request.LessonId} not found.";
-                _logger.LogError(errMsg);
-                Console.WriteLine(errMsg);
-                throw new KeyNotFoundException($"Lesson with ID {request.LessonId} was not found.");
+                script = await _scriptRepository.GetByIdWithDetailsAsync(scriptId.Value);
+                if (script == null)
+                {
+                    throw new KeyNotFoundException($"Không tìm thấy bài tập nói với ID {scriptId.Value}.");
+                }
+                courseId = script.CourseId != 0 ? script.CourseId : (script.Lesson?.CourseId ?? 0);
+                lessonId = script.LessonId ?? lessonId;
+            }
+            else if (lessonId.HasValue && lessonId.Value > 0)
+            {
+                var lessons = await _lessonRepository.FindAsync(
+                    l => l.LessonId == lessonId.Value,
+                    l => l.Course);
+                lesson = lessons.FirstOrDefault();
+                if (lesson == null)
+                {
+                    throw new KeyNotFoundException($"Lesson with ID {lessonId.Value} was not found.");
+                }
+                courseId = lesson.CourseId;
+                script = await _scriptRepository.GetByLessonIdAsync(lessonId.Value);
+                if (script != null)
+                {
+                    scriptId = script.ScriptId;
+                }
+            }
+            else
+            {
+                throw new ArgumentException("Vui lòng cung cấp LessonId hoặc ScriptId để nộp bài nói.");
             }
 
-            // 3. Check learner enrollment in the course via Repository
+            // 3. Check learner enrollment in the course
             var enrollments = await _enrollmentRepository.FindAsync(
-                e => e.LearnerId == learnerId && e.CourseId == lesson.CourseId);
+                e => e.LearnerId == learnerId && e.CourseId == courseId);
             if (!enrollments.Any())
             {
-                var errMsg = $"Error: Learner ID {learnerId} is not enrolled in Course ID {lesson.CourseId}.";
+                var errMsg = $"Error: Learner ID {learnerId} is not enrolled in Course ID {courseId}.";
                 _logger.LogError(errMsg);
-                Console.WriteLine(errMsg);
                 throw new InvalidOperationException("You must be enrolled in this course to submit assignments.");
             }
 
-            // 4. Upload audio to Cloudinary
-            _logger.LogInformation("Uploading speaking audio for Learner {LearnerId} on Lesson {LessonId} to Cloudinary...", learnerId, request.LessonId);
-            Console.WriteLine($"Uploading speaking audio for Learner {learnerId} on Lesson {request.LessonId} to Cloudinary...");
+            // Check if learner has already submitted
+            SpeakingSubmission? existingSubmission = null;
+            if (scriptId.HasValue)
+            {
+                existingSubmission = await _submissionRepository.GetLatestByLearnerAndScriptAsync(learnerId, scriptId.Value);
+            }
+            if (existingSubmission == null && lessonId.HasValue)
+            {
+                existingSubmission = await _submissionRepository.GetLatestByLearnerAndLessonAsync(learnerId, lessonId.Value);
+            }
 
+            if (existingSubmission != null)
+            {
+                if (existingSubmission.Score == null || existingSubmission.Status == SpeakingSubmissionStatus.SUBMITTED)
+                {
+                    var errMsg = "Bài nộp của bạn đang chờ giảng viên chấm, không thể nộp lại lúc này.";
+                    _logger.LogWarning("Duplicate speaking submission attempt: Learner {LearnerId} on Script {ScriptId} / Lesson {LessonId}", learnerId, scriptId, lessonId);
+                    throw new InvalidOperationException(errMsg);
+                }
+
+                if (existingSubmission.Score >= 80)
+                {
+                    var errMsg = "Bạn đã đạt yêu cầu bài thi nói này (≥ 80 điểm), không cần nộp lại.";
+                    _logger.LogWarning("Learner {LearnerId} already passed Script {ScriptId} / Lesson {LessonId} with score {Score}", learnerId, scriptId, lessonId, existingSubmission.Score);
+                    throw new InvalidOperationException(errMsg);
+                }
+            }
+
+            // 4. Upload audio to Cloudinary
             var uploadResult = await _cloudinaryService.UploadVideoAsync(request.AudioFile, "speaking_submissions");
             if (uploadResult == null || string.IsNullOrEmpty(uploadResult.SecureUrl?.ToString()))
             {
                 var errMsg = "Error: Failed to upload audio file to Cloudinary.";
                 _logger.LogError(errMsg);
-                Console.WriteLine(errMsg);
                 throw new InvalidOperationException("Failed to upload audio file to storage.");
             }
 
             var audioUrl = uploadResult.SecureUrl.ToString();
-            _logger.LogInformation("Cloudinary upload successful. AudioUrl: {AudioUrl}", audioUrl);
-            Console.WriteLine($"Cloudinary upload successful. AudioUrl: {audioUrl}");
 
-            // 5. Create and save submission record via Repository
-            var submission = new SpeakingSubmission
+            // 5. Create new or Overwrite existing submission record
+            SpeakingSubmission submission;
+            if (existingSubmission != null)
             {
-                LessonId = request.LessonId,
-                LearnerId = learnerId,
-                AudioUrl = audioUrl,
-                Note = request.Note,
-                Status = SpeakingSubmissionStatus.SUBMITTED,
-                SubmittedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
+                existingSubmission.AudioUrl = audioUrl;
+                existingSubmission.Note = request.Note;
+                existingSubmission.Status = SpeakingSubmissionStatus.SUBMITTED;
+                existingSubmission.Score = null;
+                existingSubmission.Feedback = null;
+                existingSubmission.GradedById = null;
+                existingSubmission.GradedAt = null;
+                existingSubmission.SubmittedAt = DateTime.UtcNow;
+                existingSubmission.UpdatedAt = DateTime.UtcNow;
+                if (scriptId.HasValue && !existingSubmission.ScriptId.HasValue)
+                {
+                    existingSubmission.ScriptId = scriptId.Value;
+                }
 
-            await _submissionRepository.AddAsync(submission);
+                _submissionRepository.Update(existingSubmission);
+                submission = existingSubmission;
+            }
+            else
+            {
+                submission = new SpeakingSubmission
+                {
+                    ScriptId = scriptId,
+                    LessonId = lessonId,
+                    LearnerId = learnerId,
+                    AudioUrl = audioUrl,
+                    Note = request.Note,
+                    Status = SpeakingSubmissionStatus.SUBMITTED,
+                    SubmittedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                await _submissionRepository.AddAsync(submission);
+            }
+
             await _unitOfWork.SaveChangesAsync();
 
-            _logger.LogInformation("Saved SpeakingSubmission record (ID: {SubmissionId}) to PostgreSQL.", submission.SubmissionId);
-            Console.WriteLine($"Saved SpeakingSubmission record (ID: {submission.SubmissionId}) to PostgreSQL.");
-
-            // 6. Fetch full details for response
             var fullSubmission = await _submissionRepository.GetByIdWithDetailsAsync(submission.SubmissionId);
             return MapToResponseDto(fullSubmission ?? submission);
         }
@@ -125,7 +195,6 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
         {
             var errMsg = $"Error in SubmitSpeakingAssignmentAsync: {ex.Message}";
             _logger.LogError(ex, errMsg);
-            Console.WriteLine($"{errMsg}\n{ex.StackTrace}");
             throw;
         }
     }
@@ -141,7 +210,21 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
         {
             var errMsg = $"Error in GetLatestSubmissionByLessonAsync: {ex.Message}";
             _logger.LogError(ex, errMsg);
-            Console.WriteLine($"{errMsg}\n{ex.StackTrace}");
+            throw;
+        }
+    }
+
+    public async Task<SpeakingSubmissionResponseDto?> GetLatestSubmissionByScriptAsync(int learnerId, int scriptId)
+    {
+        try
+        {
+            var submission = await _submissionRepository.GetLatestByLearnerAndScriptAsync(learnerId, scriptId);
+            return submission != null ? MapToResponseDto(submission) : null;
+        }
+        catch (Exception ex)
+        {
+            var errMsg = $"Error in GetLatestSubmissionByScriptAsync: {ex.Message}";
+            _logger.LogError(ex, errMsg);
             throw;
         }
     }
@@ -157,7 +240,6 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
         {
             var errMsg = $"Error in GetMySubmissionsAsync: {ex.Message}";
             _logger.LogError(ex, errMsg);
-            Console.WriteLine($"{errMsg}\n{ex.StackTrace}");
             throw;
         }
     }
@@ -173,7 +255,6 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
         {
             var errMsg = $"Error in GetSubmissionsForInstructorAsync: {ex.Message}";
             _logger.LogError(ex, errMsg);
-            Console.WriteLine($"{errMsg}\n{ex.StackTrace}");
             throw;
         }
     }
@@ -183,15 +264,15 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
         try
         {
             var submissions = await _submissionRepository.GetSubmissionsByCourseAsync(courseId);
-            // Security check: ensure course belongs to instructor
-            var filtered = submissions.Where(s => s.Lesson?.Course?.InstructorId == instructorId);
+            var filtered = submissions.Where(s =>
+                (s.Lesson?.Course?.InstructorId == instructorId) ||
+                (s.SpeakingScript?.Course?.InstructorId == instructorId));
             return filtered.Select(MapToResponseDto);
         }
         catch (Exception ex)
         {
             var errMsg = $"Error in GetSubmissionsByCourseForInstructorAsync: {ex.Message}";
             _logger.LogError(ex, errMsg);
-            Console.WriteLine($"{errMsg}\n{ex.StackTrace}");
             throw;
         }
     }
@@ -200,36 +281,76 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
     {
         try
         {
+            if (request.Score < 0 || request.Score > 100)
+            {
+                throw new ArgumentException("Score must be between 0 and 100.");
+            }
+
             var submission = await _submissionRepository.GetByIdWithDetailsAsync(submissionId);
             if (submission == null)
             {
-                var errMsg = $"Error: Submission with ID {submissionId} not found.";
-                _logger.LogError(errMsg);
-                Console.WriteLine(errMsg);
                 return null;
             }
 
-            // Verify instructor owns the course
-            if (submission.Lesson?.Course?.InstructorId != instructorId)
+            var courseInstructorId = submission.Lesson?.Course?.InstructorId
+                ?? submission.SpeakingScript?.Course?.InstructorId;
+
+            if (courseInstructorId != instructorId)
             {
-                var errMsg = $"Error: Instructor ID {instructorId} is not authorized to grade submission ID {submissionId}.";
-                _logger.LogError(errMsg);
-                Console.WriteLine(errMsg);
                 throw new UnauthorizedAccessException("You are not authorized to grade this submission.");
             }
 
+            var isPassed = request.Score >= 80;
+
             submission.Score = request.Score;
             submission.Feedback = request.Feedback;
-            submission.Status = SpeakingSubmissionStatus.GRADED;
             submission.GradedById = instructorId;
             submission.GradedAt = DateTime.UtcNow;
+            submission.Status = isPassed ? SpeakingSubmissionStatus.GRADED : SpeakingSubmissionStatus.NEEDS_RESUBMISSION;
             submission.UpdatedAt = DateTime.UtcNow;
 
             _submissionRepository.Update(submission);
-            await _unitOfWork.SaveChangesAsync();
 
-            _logger.LogInformation("Submission ID {SubmissionId} successfully graded by Instructor ID {InstructorId}.", submissionId, instructorId);
-            Console.WriteLine($"Submission ID {submissionId} successfully graded by Instructor ID {instructorId}.");
+            // Cập nhật tiến độ hoàn thành bài học (LessonProgress) nếu có gắn bài học
+            if (submission.Lesson != null && submission.LessonId.HasValue)
+            {
+                var enrollments = await _enrollmentRepository.FindAsync(
+                    e => e.LearnerId == submission.LearnerId && e.CourseId == submission.Lesson.CourseId);
+                var enrollment = enrollments.FirstOrDefault();
+                if (enrollment != null)
+                {
+                    var progresses = await _lessonProgressRepository.FindAsync(
+                        lp => lp.EnrollmentId == enrollment.EnrollmentId && lp.LessonId == submission.LessonId.Value);
+                    var progress = progresses.FirstOrDefault();
+                    if (progress == null)
+                    {
+                        progress = new LessonProgress
+                        {
+                            EnrollmentId = enrollment.EnrollmentId,
+                            LessonId = submission.LessonId.Value,
+                            Status = isPassed ? LessonProgressStatus.COMPLETED : LessonProgressStatus.IN_PROGRESS,
+                            IsCompleted = isPassed,
+                            CompletedAt = isPassed ? DateTime.UtcNow : null,
+                            LastPositionSeconds = 0,
+                            TimeSpentSeconds = 0,
+                            TimeSpentMinutes = 0,
+                            LastAccessedAt = DateTime.UtcNow,
+                            UpdatedAt = DateTime.UtcNow
+                        };
+                        await _lessonProgressRepository.AddAsync(progress);
+                    }
+                    else
+                    {
+                        progress.IsCompleted = isPassed;
+                        progress.Status = isPassed ? LessonProgressStatus.COMPLETED : LessonProgressStatus.IN_PROGRESS;
+                        progress.CompletedAt = isPassed ? (progress.CompletedAt ?? DateTime.UtcNow) : null;
+                        progress.UpdatedAt = DateTime.UtcNow;
+                        _lessonProgressRepository.Update(progress);
+                    }
+                }
+            }
+
+            await _unitOfWork.SaveChangesAsync();
 
             return MapToResponseDto(submission);
         }
@@ -237,25 +358,34 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
         {
             var errMsg = $"Error in GradeSubmissionAsync: {ex.Message}";
             _logger.LogError(ex, errMsg);
-            Console.WriteLine($"{errMsg}\n{ex.StackTrace}");
             throw;
         }
     }
 
     private static SpeakingSubmissionResponseDto MapToResponseDto(SpeakingSubmission submission)
     {
+        var script = submission.SpeakingScript ?? submission.Lesson?.SpeakingScript;
         var lesson = submission.Lesson;
-        var course = lesson?.Course;
-        var module = lesson?.Module;
+        var course = script?.Course ?? lesson?.Course;
+        var module = script?.Module ?? lesson?.Module;
         var learner = submission.Learner;
         var instructor = course?.Instructor;
         var gradedBy = submission.GradedBy;
 
+        var title = !string.IsNullOrWhiteSpace(script?.Title)
+            ? script.Title
+            : (!string.IsNullOrWhiteSpace(lesson?.Title) ? lesson.Title : "Bài tập nói");
+
+        var scope = script?.Scope.ToString() ?? "FINAL";
+
         return new SpeakingSubmissionResponseDto
         {
             SubmissionId = submission.SubmissionId,
+            ScriptId = submission.ScriptId ?? script?.ScriptId,
+            ScriptTitle = title,
+            Scope = scope,
             LessonId = submission.LessonId,
-            LessonTitle = lesson?.Title ?? string.Empty,
+            LessonTitle = title,
             CourseId = course?.CourseId ?? 0,
             CourseTitle = course?.Title ?? string.Empty,
             CourseSlug = course?.Slug,
