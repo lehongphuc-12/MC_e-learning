@@ -741,24 +741,10 @@ export const MyCoursesScreen: React.FC<MyCoursesScreenProps> = ({ onNavigate }) 
         ) : (
           <div className="flex flex-col gap-5">
             {paginatedCourses.map((item) => {
-              let localCount = 0;
-              try {
-                const storageKey = user?.id 
-                  ? `mc_completed_lessons_${user.id}_${item.course.id}`
-                  : `mc_completed_lessons_${item.course.id}`;
-                const stored = localStorage.getItem(storageKey);
-                if (stored) {
-                  const arr = JSON.parse(stored);
-                  if (Array.isArray(arr)) localCount = arr.length;
-                }
-              } catch (_) {}
-
               const totalCount = item.totalLecturesCount || 9;
-              const displayCompletedCount = Math.max(item.completedLecturesCount || 0, localCount);
-              const displayProgressPercent = totalCount > 0
-                ? Math.round((displayCompletedCount / totalCount) * 100)
-                : item.progressPercent;
-              const isItemCompleted = displayProgressPercent >= 100 || item.status === 'completed';
+              const displayCompletedCount = item.completedLecturesCount || 0;
+              const displayProgressPercent = Math.round(item.progressPercent ?? 0);
+              const isItemCompleted = item.status === 'completed' && displayProgressPercent >= 100;
 
               return (
               <div

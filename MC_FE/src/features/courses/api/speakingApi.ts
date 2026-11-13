@@ -1,8 +1,11 @@
 import { request } from '../../../services/api';
 import {
   SpeakingLevel,
+  SpeakingScope,
   ParsePreviewDto,
   SaveScriptRequest,
+  CreateSpeakingScriptRequest,
+  UpdateSpeakingScriptRequest,
   SpeakingScriptDto,
   SpeakingScriptLevelDto,
   UpdateLevelContentRequest,
@@ -12,12 +15,15 @@ import {
 
 export interface SpeakingSubmissionDto {
   submissionId: number;
-  lessonId: number;
+  scriptId?: number | null;
+  scriptTitle?: string;
+  scope?: SpeakingScope | string;
+  lessonId?: number | null;
   lessonTitle: string;
   courseId: number;
   courseTitle: string;
   courseSlug?: string;
-  moduleId?: number;
+  moduleId?: number | null;
   moduleTitle?: string;
   learnerId: number;
   learnerName: string;
@@ -34,6 +40,8 @@ export interface SpeakingSubmissionDto {
   gradedAt?: string;
   submittedAt: string;
   updatedAt: string;
+  isPassed?: boolean;
+  gradeTier?: string;
 }
 
 export interface GradeSpeakingSubmissionRequest {
@@ -48,7 +56,81 @@ export interface ApiResponse<T> {
   errors: string[];
 }
 
+export interface GetSpeakingScriptsParams {
+  courseId?: number;
+  scope?: SpeakingScope;
+  moduleId?: number;
+  lessonId?: number;
+  search?: string;
+}
+
 export const speakingApi = {
+  /**
+   * GET /api/speaking-scripts
+   * Filter speaking scripts by course, scope, module, lesson, and search keyword
+   */
+  async getSpeakingScripts(params?: GetSpeakingScriptsParams): Promise<ApiResponse<SpeakingScriptDto[]>> {
+    const query = new URLSearchParams();
+    if (params?.courseId) query.append('courseId', params.courseId.toString());
+    if (params?.scope) query.append('scope', params.scope);
+    if (params?.moduleId) query.append('moduleId', params.moduleId.toString());
+    if (params?.lessonId) query.append('lessonId', params.lessonId.toString());
+    if (params?.search) query.append('search', params.search);
+
+    const queryString = query.toString();
+    const endpoint = queryString ? `/speaking-scripts?${queryString}` : '/speaking-scripts';
+    return request(endpoint, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * GET /api/speaking-scripts/{id}
+   */
+  async getSpeakingScriptById(scriptId: number): Promise<ApiResponse<SpeakingScriptDto>> {
+    return request(`/speaking-scripts/${scriptId}`, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * GET /api/speaking-scripts/course/{courseId}
+   */
+  async getSpeakingScriptsByCourse(courseId: number): Promise<ApiResponse<SpeakingScriptDto[]>> {
+    return request(`/speaking-scripts/course/${courseId}`, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * POST /api/speaking-scripts
+   */
+  async createSpeakingScript(data: CreateSpeakingScriptRequest): Promise<ApiResponse<SpeakingScriptDto>> {
+    return request('/speaking-scripts', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * PUT /api/speaking-scripts/{id}
+   */
+  async updateSpeakingScript(scriptId: number, data: UpdateSpeakingScriptRequest): Promise<ApiResponse<SpeakingScriptDto>> {
+    return request(`/speaking-scripts/${scriptId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * DELETE /api/speaking-scripts/{id}
+   */
+  async deleteSpeakingScript(scriptId: number): Promise<ApiResponse<boolean>> {
+    return request(`/speaking-scripts/${scriptId}`, {
+      method: 'DELETE',
+    });
+  },
+
   /**
    * GET /api/speaking-submissions/instructor
    * Instructor retrieves all speaking submissions for courses they teach
@@ -100,6 +182,16 @@ export const speakingApi = {
    */
   async getLatestSubmissionByLesson(lessonId: number): Promise<ApiResponse<SpeakingSubmissionDto>> {
     return request(`/speaking-submissions/lesson/${lessonId}`, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * GET /api/speaking-submissions/script/{scriptId}
+   * Get latest submission of current learner for a specific script
+   */
+  async getLatestSubmissionByScript(scriptId: number): Promise<ApiResponse<SpeakingSubmissionDto>> {
+    return request(`/speaking-submissions/script/${scriptId}`, {
       method: 'GET',
     });
   },
@@ -243,6 +335,7 @@ export const speakingApi = {
       method: 'DELETE',
     });
   },
+
   /**
    * POST /api/speaking-scripts/musics/pre-upload
    * Pre-upload custom background music to Cloudinary in background

@@ -29,6 +29,7 @@ import {
   Check,
 } from 'lucide-react';
 import { speakingApi, SpeakingSubmissionDto } from '../../api/speakingApi';
+import { getSpeakingGradeInfo, SpeakingGradeInfo, getSpeakingSubmissionCategory, getSpeakingScopeInfo } from '../../types/speakingTypes';
 import { courseApi } from '../../api/courseApi';
 import { moduleApi } from '../../api/moduleApi';
 import { lessonApi } from '../../api/lessonApi';
@@ -63,7 +64,7 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
 
   // Filters
   const [selectedCourseId, setSelectedCourseId] = useState<string>(courseIdParam || 'ALL');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'SUBMITTED' | 'GRADED'>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'SUBMITTED' | 'PASSED' | 'FAILED' | 'GRADED'>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Active grading modal state
@@ -71,6 +72,11 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
   const [scoreInput, setScoreInput] = useState<number | ''>(85);
   const [feedbackInput, setFeedbackInput] = useState<string>('');
   const [isSubmittingGrade, setIsSubmittingGrade] = useState<boolean>(false);
+
+  // Real-time calculated grade tier & pass status for active modal
+  const currentScoreGradeInfo = useMemo(() => {
+    return getSpeakingGradeInfo(typeof scoreInput === 'number' ? scoreInput : 0);
+  }, [scoreInput]);
 
   // Audio Playback state
   const [playingAudioId, setPlayingAudioId] = useState<number | null>(null);
@@ -233,33 +239,53 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
     loadSubmissions();
   }, [selectedCourseId]);
 
-  // Derived Statistics
+  // Derived Statistics (Sử dụng chung helper getSpeakingSubmissionCategory)
   const stats = useMemo(() => {
     const totalAssignments = speakingAssignments.length;
     const total = submissions.length;
-    const pending = submissions.filter((s) => s.status === 'SUBMITTED').length;
-    const graded = submissions.filter((s) => s.status === 'GRADED').length;
-    const gradedList = submissions.filter((s) => s.score !== null && s.score !== undefined);
+    let pending = 0;
+    let passed = 0;
+    let failed = 0;
+    const gradedScores: number[] = [];
+
+    submissions.forEach((s) => {
+      const cat = getSpeakingSubmissionCategory(s);
+      if (cat === 'SUBMITTED') {
+        pending++;
+      } else if (cat === 'PASSED') {
+        passed++;
+        gradedScores.push(Number(s.score));
+      } else if (cat === 'FAILED') {
+        failed++;
+        gradedScores.push(Number(s.score));
+      }
+    });
+
+    const graded = passed + failed;
     const avgScore =
-      gradedList.length > 0
-        ? Math.round(gradedList.reduce((acc, curr) => acc + (curr.score || 0), 0) / gradedList.length)
+      gradedScores.length > 0
+        ? Math.round(gradedScores.reduce((acc, curr) => acc + curr, 0) / gradedScores.length)
         : 0;
 
-    return { totalAssignments, total, pending, graded, avgScore };
+    return { totalAssignments, total, pending, passed, failed, graded, avgScore };
   }, [speakingAssignments, submissions]);
 
-  // Filtered List
+  // Filtered List (Nhất quán 100% với hàm helper getSpeakingSubmissionCategory)
   const filteredSubmissions = useMemo(() => {
     return submissions.filter((s) => {
+      const cat = getSpeakingSubmissionCategory(s);
+
       // Status filter
-      if (statusFilter === 'SUBMITTED' && s.status !== 'SUBMITTED') return false;
-      if (statusFilter === 'GRADED' && s.status !== 'GRADED') return false;
+      if (statusFilter === 'SUBMITTED' && cat !== 'SUBMITTED') return false;
+      if (statusFilter === 'PASSED' && cat !== 'PASSED') return false;
+      if (statusFilter === 'FAILED' && cat !== 'FAILED') return false;
+      if (statusFilter === 'GRADED' && cat === 'SUBMITTED') return false;
 
       // Search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const matchLearner = s.learnerName.toLowerCase().includes(q) || s.learnerEmail.toLowerCase().includes(q);
-        const matchLesson = s.lessonTitle.toLowerCase().includes(q);
+        const matchLesson = (s.scriptTitle || s.lessonTitle || '').toLowerCase().includes(q);
         const matchCourse = s.courseTitle.toLowerCase().includes(q);
         if (!matchLearner && !matchLesson && !matchCourse) return false;
       }
@@ -293,7 +319,14 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
       });
 
       if (res.success && res.data) {
-        if (onToast) onToast('Chấm điểm thành công!', `Đã lưu kết quả cho ${res.data.learnerName}.`, 'success');
+        const gradeInfo = getSpeakingGradeInfo(res.data.score);
+        if (onToast) {
+          onToast(
+            'Chấm điểm thành công!',
+            `Đã lưu kết quả cho ${res.data.learnerName}: ${res.data.score} điểm (${gradeInfo.tier} - ${gradeInfo.isPassed ? 'Đạt' : 'Chưa đạt'}).`,
+            gradeInfo.isPassed ? 'success' : 'warning'
+          );
+        }
         
         // Update local state
         setSubmissions((prev) =>
@@ -350,7 +383,7 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
                 className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold border border-blue-400/30 flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-lg shadow-blue-600/25"
               >
                 <Plus className="w-4 h-4" />
-                <span>+ Tạo Bài tập nói mới</span>
+                <span>Tạo Bài tập nói mới</span>
               </button>
 
               <button
@@ -365,10 +398,10 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
           </div>
 
           {/* ── Quick Stats Grid ── */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mt-6">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 sm:gap-4 mt-6">
             <div className="bg-slate-800/60 backdrop-blur-md rounded-2xl p-4 border border-slate-700/60">
               <div className="text-xs font-medium text-slate-400 flex items-center justify-between">
-                <span>Tổng bài đã nộp</span>
+                <span>Tổng bài nộp</span>
                 <FileAudio className="w-4 h-4 text-blue-400" />
               </div>
               <div className="text-2xl font-black text-white mt-1">{stats.total}</div>
@@ -376,7 +409,7 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
 
             <div className="bg-amber-500/10 backdrop-blur-md rounded-2xl p-4 border border-amber-500/20">
               <div className="text-xs font-medium text-amber-300 flex items-center justify-between">
-                <span>Cần chấm ngay</span>
+                <span>Chờ chấm</span>
                 <Clock className="w-4 h-4 text-amber-400" />
               </div>
               <div className="text-2xl font-black text-amber-400 mt-1">{stats.pending}</div>
@@ -384,10 +417,18 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
 
             <div className="bg-emerald-500/10 backdrop-blur-md rounded-2xl p-4 border border-emerald-500/20">
               <div className="text-xs font-medium text-emerald-300 flex items-center justify-between">
-                <span>Đã chấm xong</span>
+                <span>Đã đạt (≥ 80)</span>
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" />
               </div>
-              <div className="text-2xl font-black text-emerald-400 mt-1">{stats.graded}</div>
+              <div className="text-2xl font-black text-emerald-400 mt-1">{stats.passed}</div>
+            </div>
+
+            <div className="bg-rose-500/10 backdrop-blur-md rounded-2xl p-4 border border-rose-500/20">
+              <div className="text-xs font-medium text-rose-300 flex items-center justify-between">
+                <span>Chưa đạt (&lt; 80)</span>
+                <AlertCircle className="w-4 h-4 text-rose-400" />
+              </div>
+              <div className="text-2xl font-black text-rose-400 mt-1">{stats.failed}</div>
             </div>
 
             <div className="bg-indigo-500/10 backdrop-blur-md rounded-2xl p-4 border border-indigo-500/20">
@@ -425,7 +466,7 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
               className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm shadow-blue-500/20 self-start sm:self-auto"
             >
               <Plus className="w-4 h-4" />
-              <span>+ Tạo Bài tập nói mới</span>
+              <span>Tạo Bài tập nói mới</span>
             </button>
           </div>
 
@@ -438,7 +479,7 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
               <Mic2 className="w-8 h-8 text-blue-500 mx-auto mb-2" />
               <h3 className="text-sm font-bold text-slate-800">Chưa có Bài tập nói nào</h3>
               <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
-                Bạn chưa khởi tạo Bài tập nói tổng khóa nào. Bấm nút "+ Tạo Bài tập nói mới" ở trên để khởi tạo bài tập thu âm cho học viên.
+                Bạn chưa khởi tạo Bài tập nói tổng khóa nào. Bấm nút "Tạo Bài tập nói mới" ở trên để khởi tạo bài tập thu âm cho học viên.
               </p>
             </div>
           ) : (
@@ -505,10 +546,10 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
         {/* Filter Controls Bar */}
         <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 mb-6">
           {/* Left: Status Filter Tabs */}
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+          <div className="flex flex-wrap items-center gap-1 bg-slate-100 p-1 rounded-xl">
             <button
               onClick={() => setStatusFilter('ALL')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 statusFilter === 'ALL'
                   ? 'bg-white text-slate-900 shadow-sm'
                   : 'text-slate-600 hover:text-slate-900'
@@ -519,7 +560,7 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
 
             <button
               onClick={() => setStatusFilter('SUBMITTED')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                 statusFilter === 'SUBMITTED'
                   ? 'bg-amber-500 text-white shadow-sm'
                   : 'text-amber-700 hover:bg-amber-50'
@@ -530,15 +571,27 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
             </button>
 
             <button
-              onClick={() => setStatusFilter('GRADED')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                statusFilter === 'GRADED'
+              onClick={() => setStatusFilter('PASSED')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                statusFilter === 'PASSED'
                   ? 'bg-emerald-600 text-white shadow-sm'
                   : 'text-emerald-700 hover:bg-emerald-50'
               }`}
             >
               <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>Đã chấm ({stats.graded})</span>
+              <span>Đạt ≥ 80 ({stats.passed})</span>
+            </button>
+
+            <button
+              onClick={() => setStatusFilter('FAILED')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                statusFilter === 'FAILED'
+                  ? 'bg-rose-600 text-white shadow-sm'
+                  : 'text-rose-700 hover:bg-rose-50'
+              }`}
+            >
+              <AlertCircle className="w-3.5 h-3.5" />
+              <span>Chưa đạt &lt; 80 ({stats.failed})</span>
             </button>
           </div>
 
@@ -626,8 +679,11 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs">
                   {filteredSubmissions.map((sub) => {
-                    const isGraded = sub.status === 'GRADED';
-                    const isPending = sub.status === 'SUBMITTED';
+                    const category = getSpeakingSubmissionCategory(sub);
+                    const isGraded = category !== 'SUBMITTED';
+                    const gradeInfo = isGraded && sub.score !== null && sub.score !== undefined
+                      ? getSpeakingGradeInfo(sub.score)
+                      : null;
 
                     return (
                       <tr key={sub.submissionId} className="hover:bg-slate-50/80 transition-colors">
@@ -646,10 +702,16 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
 
                         {/* Course & Lesson */}
                         <td className="py-4 px-4">
-                          <div className="font-bold text-slate-800">{sub.lessonTitle}</div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-bold text-slate-800">{sub.scriptTitle || sub.lessonTitle || 'Bài tập nói'}</span>
+                            <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded border ${getSpeakingScopeInfo(sub.scope).badgeClass}`}>
+                              {getSpeakingScopeInfo(sub.scope).shortLabel}
+                            </span>
+                          </div>
                           <div className="text-[11px] text-slate-500 font-medium flex items-center gap-1 mt-0.5">
                             <BookOpen className="w-3 h-3 text-blue-500" />
                             <span>{sub.courseTitle}</span>
+                            {sub.moduleTitle && <span>• Chương: {sub.moduleTitle}</span>}
                           </div>
                         </td>
 
@@ -672,16 +734,35 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
 
                         {/* Status & Score */}
                         <td className="py-4 px-4">
-                          {isGraded ? (
-                            <div className="flex items-center gap-2">
-                              <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-extrabold text-[11px] flex items-center gap-1">
-                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                                {sub.score} / 100
+                          {isGraded && gradeInfo ? (
+                            <div className="space-y-1">
+                              <span
+                                className={`px-2.5 py-1 rounded-full border font-black text-[11px] inline-flex items-center gap-1.5 shadow-2xs ${
+                                  gradeInfo.isPassed
+                                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                    : 'bg-rose-50 text-rose-800 border-rose-300'
+                                }`}
+                              >
+                                {gradeInfo.isPassed ? (
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                ) : (
+                                  <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+                                )}
+                                <span>{sub.score} / 100</span>
                               </span>
+                              <div
+                                className={`text-[10px] font-extrabold flex items-center gap-1 ${
+                                  gradeInfo.isPassed ? 'text-emerald-700' : 'text-rose-700'
+                                }`}
+                              >
+                                <span>{gradeInfo.tier}</span>
+                                <span>•</span>
+                                <span>{gradeInfo.isPassed ? 'Đạt' : 'Chưa đạt (Cần ≥ 80)'}</span>
+                              </div>
                             </div>
                           ) : (
-                            <span className="px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-bold text-[11px] flex items-center gap-1">
-                              <Clock className="w-3 h-3 text-amber-600" />
+                            <span className="px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-300 font-bold text-[11px] inline-flex items-center gap-1.5">
+                              <Clock className="w-3.5 h-3.5 text-amber-600" />
                               Chờ chấm
                             </span>
                           )}
@@ -734,7 +815,12 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-white leading-tight">Chấm điểm Bài nói Speaking</h3>
-                  <p className="text-xs text-slate-400 mt-0.5">{activeSubmission.lessonTitle}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <p className="text-xs text-slate-300 font-semibold">{activeSubmission.scriptTitle || activeSubmission.lessonTitle}</p>
+                    <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded border ${getSpeakingScopeInfo(activeSubmission.scope).badgeClass}`}>
+                      {getSpeakingScopeInfo(activeSubmission.scope).shortLabel}
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -792,10 +878,32 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
               </div>
 
               {/* Score Input & Slider */}
-              <div>
-                <label className="block text-xs font-bold uppercase text-slate-600 tracking-wider mb-2">
-                  Điểm số (Thang điểm 100) <span className="text-rose-500">*</span>
-                </label>
+              <div className="bg-slate-50/80 rounded-2xl p-4 border border-slate-200">
+                <div className="flex items-center justify-between mb-2.5">
+                  <label className="text-xs font-bold uppercase text-slate-700 tracking-wider">
+                    Điểm số (Thang điểm 100) <span className="text-rose-500">*</span>
+                  </label>
+
+                  {/* Real-time Dynamic Status Badge */}
+                  <div
+                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black border transition-all shadow-2xs ${
+                      currentScoreGradeInfo.isPassed
+                        ? currentScoreGradeInfo.score >= 95
+                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                          : 'bg-blue-100 text-blue-800 border-blue-300'
+                        : currentScoreGradeInfo.score >= 50
+                        ? 'bg-amber-100 text-amber-900 border-amber-300'
+                        : currentScoreGradeInfo.score >= 30
+                        ? 'bg-orange-100 text-orange-900 border-orange-300'
+                        : 'bg-rose-100 text-rose-900 border-rose-300'
+                    }`}
+                  >
+                    <span className={`w-2 h-2 rounded-full ${currentScoreGradeInfo.dotColor} animate-pulse`} />
+                    <span>
+                      {currentScoreGradeInfo.tier} — {currentScoreGradeInfo.isPassed ? 'Đạt' : 'Chưa đạt (Yêu cầu ≥ 80)'}
+                    </span>
+                  </div>
+                </div>
 
                 <div className="flex items-center gap-4">
                   <input
@@ -804,52 +912,123 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
                     max={100}
                     required
                     value={scoreInput}
-                    onChange={(e) => setScoreInput(e.target.value === '' ? '' : Number(e.target.value))}
-                    className="w-28 px-4 py-2.5 text-xl font-black text-center bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white text-slate-900"
+                    onChange={(e) => {
+                      const val = e.target.value === '' ? '' : Math.min(100, Math.max(0, Number(e.target.value)));
+                      setScoreInput(val);
+                    }}
+                    className={`w-28 px-4 py-2.5 text-2xl font-black text-center bg-white border rounded-xl focus:ring-2 focus:ring-blue-500 transition-all ${
+                      currentScoreGradeInfo.isPassed
+                        ? 'border-emerald-400 text-emerald-700'
+                        : 'border-amber-400 text-amber-700'
+                    }`}
                   />
 
-                  {/* Range Slider */}
-                  <input
-                    type="range"
-                    min={0}
-                    max={100}
-                    value={scoreInput === '' ? 0 : scoreInput}
-                    onChange={(e) => setScoreInput(Number(e.target.value))}
-                    className="flex-1 accent-blue-600 h-2 bg-slate-200 rounded-lg cursor-pointer"
-                  />
+                  {/* Range Slider with 80-mark threshold indicator */}
+                  <div className="flex-1 relative py-1">
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      value={scoreInput === '' ? 0 : scoreInput}
+                      onChange={(e) => setScoreInput(Number(e.target.value))}
+                      className="w-full accent-blue-600 h-2.5 bg-slate-200 rounded-lg cursor-pointer"
+                    />
+                    <div className="flex justify-between text-[10px] font-bold text-slate-400 mt-1">
+                      <span>0 (Yếu)</span>
+                      <span>30 (TB)</span>
+                      <span>50 (Cần cải thiện)</span>
+                      <span className="text-blue-600 font-black">| 80 (Đạt)</span>
+                      <span className="text-emerald-600 font-black">95+ (Xuất sắc)</span>
+                    </div>
+                  </div>
                 </div>
 
-                {/* Score Presets */}
-                <div className="flex items-center gap-2 mt-3">
-                  <span className="text-[11px] font-semibold text-slate-400">Chọn nhanh:</span>
-                  <button
-                    type="button"
-                    onClick={() => setScorePreset(95, 'Phát âm chuẩn xác, ngữ điệu tự nhiên, từ vựng phong phú!')}
-                    className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold hover:bg-emerald-100 transition-colors"
-                  >
-                    95 (Xuất sắc)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setScorePreset(85, 'Phát âm tốt, bài nói lưu khoát, cần chú ý một vài trọng âm.')}
-                    className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 text-xs font-bold hover:bg-blue-100 transition-colors"
-                  >
-                    85 (Giỏi)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setScorePreset(75, 'Đã hoàn thành bài nói, tuy nhiên còn ngập ngừng một vài chỗ.')}
-                    className="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-bold hover:bg-indigo-100 transition-colors"
-                  >
-                    75 (Khá)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setScorePreset(60, 'Đạt yêu cầu tối thiểu. Cần luyện tập thêm về phát âm âm đuôi.')}
-                    className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 text-xs font-bold hover:bg-amber-100 transition-colors"
-                  >
-                    60 (Đạt)
-                  </button>
+                {/* Score Presets: 5 tiers separated into Pass vs Not-Pass */}
+                <div className="mt-4 pt-3 border-t border-slate-200/80 space-y-2">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="font-bold text-slate-500">Chọn nhanh mức điểm:</span>
+                    <span className="font-semibold text-slate-400 italic">Mức tối thiểu để Đạt: 80 điểm</span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* Nhóm Đạt (>= 80) */}
+                    <div className="inline-flex items-center gap-1.5 p-1 rounded-xl bg-emerald-50/70 border border-emerald-200">
+                      <span className="text-[10px] font-extrabold text-emerald-700 uppercase px-1">ĐẠT:</span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setScorePreset(95, 'Phát âm chuẩn xác, ngữ điệu tự nhiên, phong thái tự tin và làm chủ sân khấu rất tốt!')
+                        }
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border cursor-pointer ${
+                          scoreInput === 95
+                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                            : 'bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                        }`}
+                      >
+                        ✓ 95 (Xuất sắc)
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setScorePreset(85, 'Phát âm tốt, bài nói lưu loát, đạt yêu cầu hoàn thành bài học. Cần chú ý thêm một vài trọng âm.')
+                        }
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border cursor-pointer ${
+                          scoreInput === 85
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                            : 'bg-white text-blue-700 border-blue-200 hover:bg-blue-100'
+                        }`}
+                      >
+                        ✓ 85 (Giỏi)
+                      </button>
+                    </div>
+
+                    {/* Nhóm Chưa đạt (< 80) */}
+                    <div className="inline-flex items-center gap-1.5 p-1 rounded-xl bg-rose-50/70 border border-rose-200">
+                      <span className="text-[10px] font-extrabold text-rose-700 uppercase px-1">CHƯA ĐẠT:</span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setScorePreset(65, 'Đã hoàn thành bài nói nhưng ngữ điệu và phát âm còn hạn chế, chưa đạt mức 80 để hoàn thành bài học. Cần luyện tập và thu âm lại.')
+                        }
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border cursor-pointer ${
+                          scoreInput === 65
+                            ? 'bg-amber-600 text-white border-amber-600 shadow-sm'
+                            : 'bg-white text-amber-700 border-amber-200 hover:bg-amber-100'
+                        }`}
+                      >
+                        ✕ 65 (Cần cải thiện)
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setScorePreset(40, 'Bài nói còn ngập ngừng nhiều, phát âm và ngắt câu chưa đúng nhịp. Cần nghe kỹ bài mẫu và nộp lại.')
+                        }
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border cursor-pointer ${
+                          scoreInput === 40
+                            ? 'bg-orange-600 text-white border-orange-600 shadow-sm'
+                            : 'bg-white text-orange-700 border-orange-200 hover:bg-orange-100'
+                        }`}
+                      >
+                        ✕ 40 (Trung bình)
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setScorePreset(20, 'Chưa đạt yêu cầu tối thiểu của bài nói. Cần học kỹ lại phần phát âm và luyện tập theo kịch bản trước khi ghi âm nộp lại.')
+                        }
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border cursor-pointer ${
+                          scoreInput === 20
+                            ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
+                            : 'bg-white text-rose-700 border-rose-200 hover:bg-rose-100'
+                        }`}
+                      >
+                        ✕ 20 (Yếu)
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
 

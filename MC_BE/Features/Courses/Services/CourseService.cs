@@ -2,6 +2,7 @@ using MC_BE.Core.Entities;
 using MC_BE.Core.Enums;
 using MC_BE.Features.Courses.DTOs;
 using MC_BE.Features.Courses.Services.Interfaces;
+using MC_BE.Features.Learning.Services.Interfaces;
 using MC_BE.Shared.Repositories.Interfaces;
 using MC_BE.Shared.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -34,6 +35,8 @@ public class CourseService : ICourseService
     private readonly IUnitOfWork _unitOfWork;
     private readonly IR2StorageService _r2;
     private readonly ICourseGiftAccessService _giftAccess;
+    private readonly ILearningProgressService _learningProgressService;
+
 
     public CourseService(
         IGenericRepository<Course> courseRepository,
@@ -853,9 +856,12 @@ public class CourseService : ICourseService
             var completedProgresses = progressList.Where(p => p.IsCompleted || p.Status == LessonProgressStatus.COMPLETED).ToList();
             var completedCount = completedProgresses.Count;
 
-            decimal progressPercent = totalLessonsCount > 0
+            // Lấy tiến độ chuẩn xác từ ILearningProgressService (tính đồng bộ Lessons + Quizzes)
+            var progress = await _learningProgressService.GetCourseProgressAsync(learnerId, enrollment.CourseId);
+
+            decimal progressPercent = progress?.CompletionPercentage ?? (totalLessonsCount > 0
                 ? Math.Round((decimal)completedCount / totalLessonsCount * 100, 2)
-                : Convert.ToDecimal(enrollment.CompletionPercentage);
+                : Convert.ToDecimal(enrollment.CompletionPercentage));
 
             var lastProgress = progressList.OrderByDescending(p => p.LastAccessedAt ?? p.UpdatedAt).FirstOrDefault();
             string? lastLectureTitle = null;
@@ -868,7 +874,7 @@ public class CourseService : ICourseService
             var certs = await _certificateRepository.FindAsync(c => c.EnrollmentId == enrollment.EnrollmentId);
             var cert = certs.FirstOrDefault();
 
-            bool isCompleted = progressPercent >= 100m || enrollment.Status == "COMPLETED";
+            bool isCompleted = progress?.IsCompleted ?? (progressPercent >= 100m && cert != null);
 
             result.Add(new LearnedCourseDto
             {
@@ -876,13 +882,13 @@ public class CourseService : ICourseService
                 CourseId = enrollment.CourseId,
                 Course = courseDto,
                 ProgressPercent = progressPercent,
-                CompletedLecturesCount = completedCount,
-                TotalLecturesCount = totalLessonsCount,
+                CompletedLecturesCount = progress?.CompletedLessonsCount ?? completedCount,
+                TotalLecturesCount = progress?.TotalLessonsCount ?? totalLessonsCount,
                 LastAccessedAt = lastProgress?.LastAccessedAt ?? enrollment.UpdatedAt,
                 LastLectureTitle = lastLectureTitle,
                 Status = isCompleted ? "completed" : "in-progress",
                 EnrolledDate = enrollment.EnrolledAt ?? enrollment.CreatedAt,
-                CertificateId = cert?.CertificateId
+                CertificateId = cert?.CertificateId ?? progress?.CertificateId
             });
         }
 

@@ -3185,17 +3185,39 @@ namespace MC_BE.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("ScriptId"));
 
+                    b.Property<int>("CourseId")
+                        .HasColumnType("integer")
+                        .HasColumnName("CourseID");
+
                     b.Property<int?>("CreatedBy")
                         .HasColumnType("integer")
                         .HasColumnName("CreatedBy");
 
-                    b.Property<int>("LessonId")
+                    b.Property<int?>("LessonId")
                         .HasColumnType("integer")
                         .HasColumnName("LessonID");
+
+                    b.Property<int?>("ModuleId")
+                        .HasColumnType("integer")
+                        .HasColumnName("ModuleID");
 
                     b.Property<string>("OriginalContent")
                         .HasColumnType("text")
                         .HasColumnName("OriginalContent");
+
+                    b.Property<decimal>("PassingScore")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)")
+                        .HasDefaultValue(80.00m)
+                        .HasColumnName("PassingScore");
+
+                    b.Property<string>("Scope")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("FINAL")
+                        .HasColumnName("Scope");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -3218,10 +3240,15 @@ namespace MC_BE.Migrations
 
                     b.HasKey("ScriptId");
 
+                    b.HasIndex("CourseId");
+
                     b.HasIndex("CreatedBy");
 
                     b.HasIndex("LessonId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"LessonID\" IS NOT NULL");
+
+                    b.HasIndex("ModuleId");
 
                     b.ToTable("speaking_scripts", (string)null);
                 });
@@ -3298,7 +3325,7 @@ namespace MC_BE.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("LearnerID");
 
-                    b.Property<int>("LessonId")
+                    b.Property<int?>("LessonId")
                         .HasColumnType("integer")
                         .HasColumnName("LessonID");
 
@@ -3309,6 +3336,10 @@ namespace MC_BE.Migrations
                     b.Property<decimal?>("Score")
                         .HasColumnType("decimal(5,2)")
                         .HasColumnName("Score");
+
+                    b.Property<int?>("ScriptId")
+                        .HasColumnType("integer")
+                        .HasColumnName("ScriptID");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -3335,9 +3366,13 @@ namespace MC_BE.Migrations
 
                     b.HasIndex("LessonId");
 
+                    b.HasIndex("ScriptId");
+
                     b.HasIndex("Status");
 
                     b.HasIndex("LearnerId", "LessonId");
+
+                    b.HasIndex("LearnerId", "ScriptId");
 
                     b.ToTable("speaking_submissions", (string)null);
                 });
@@ -4399,6 +4434,12 @@ namespace MC_BE.Migrations
 
             modelBuilder.Entity("MC_BE.Core.Entities.SpeakingScript", b =>
                 {
+                    b.HasOne("MC_BE.Core.Entities.Course", "Course")
+                        .WithMany()
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("MC_BE.Core.Entities.User", "CreatedByUser")
                         .WithMany()
                         .HasForeignKey("CreatedBy")
@@ -4407,12 +4448,20 @@ namespace MC_BE.Migrations
                     b.HasOne("MC_BE.Core.Entities.Lesson", "Lesson")
                         .WithOne("SpeakingScript")
                         .HasForeignKey("MC_BE.Core.Entities.SpeakingScript", "LessonId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("MC_BE.Core.Entities.Module", "Module")
+                        .WithMany()
+                        .HasForeignKey("ModuleId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Course");
 
                     b.Navigation("CreatedByUser");
 
                     b.Navigation("Lesson");
+
+                    b.Navigation("Module");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.SpeakingScriptLevel", b =>
@@ -4442,14 +4491,20 @@ namespace MC_BE.Migrations
                     b.HasOne("MC_BE.Core.Entities.Lesson", "Lesson")
                         .WithMany()
                         .HasForeignKey("LessonId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("MC_BE.Core.Entities.SpeakingScript", "SpeakingScript")
+                        .WithMany()
+                        .HasForeignKey("ScriptId")
+                        .OnDelete(DeleteBehavior.Cascade);
 
                     b.Navigation("GradedBy");
 
                     b.Navigation("Learner");
 
                     b.Navigation("Lesson");
+
+                    b.Navigation("SpeakingScript");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.User", b =>
