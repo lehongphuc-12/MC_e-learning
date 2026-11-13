@@ -25,6 +25,7 @@ public class LearningProgressService : ILearningProgressService
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICertificateService _certificateService;
     private readonly ICourseLearningAccessService _courseAccess;
+    private readonly ILearningAccessService _access;
 
     public LearningProgressService(
         IGenericRepository<Enrollment> enrollmentRepository,
@@ -37,7 +38,8 @@ public class LearningProgressService : ILearningProgressService
         IGenericRepository<SpeakingSubmission> submissionRepository,
         IUnitOfWork unitOfWork,
         ICertificateService certificateService,
-        ICourseLearningAccessService courseAccess)
+        ICourseLearningAccessService courseAccess,
+        ILearningAccessService access)
     {
         _enrollmentRepository = enrollmentRepository;
         _lessonRepository = lessonRepository;
@@ -50,6 +52,7 @@ public class LearningProgressService : ILearningProgressService
         _unitOfWork = unitOfWork;
         _certificateService = certificateService;
         _courseAccess = courseAccess;
+        _access = access;
     }
 
     public async Task<CourseLearningProgressDto?> GetCourseProgressAsync(int learnerId, int courseId)

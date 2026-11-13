@@ -20,6 +20,7 @@ public class CertificateService : ICertificateService
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICourseGiftAccessService _courseGiftAccess;
     private readonly ICourseLearningAccessService _courseAccess;
+    private readonly ILearningAccessService _access;
 
     public CertificateService(
         IGenericRepository<Certificate> certificateRepository,
@@ -29,7 +30,8 @@ public class CertificateService : ICertificateService
         IGenericRepository<User> userRepository,
         IUnitOfWork unitOfWork,
         ICourseGiftAccessService courseGiftAccess,
-        ICourseLearningAccessService courseAccess)
+        ICourseLearningAccessService courseAccess,
+        ILearningAccessService access)
     {
         _certificateRepository = certificateRepository;
         _enrollmentRepository = enrollmentRepository;
@@ -39,6 +41,7 @@ public class CertificateService : ICertificateService
         _unitOfWork = unitOfWork;
         _courseGiftAccess = courseGiftAccess;
         _courseAccess = courseAccess;
+        _access = access;
     }
 
     public async Task<List<CertificateDto>> GetMyCertificatesAsync(int learnerId)
