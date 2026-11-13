@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Literal, Optional
 from pydantic import BaseModel, Field
 
 # --- Dành cho Endpoint Hỏi Đáp (Chat) ---
@@ -7,6 +7,10 @@ class ChatRequest(BaseModel):
     message: str = Field(..., description="Nội dung câu hỏi của học viên")
     lesson_id: Optional[int] = Field(default=None, description="ID bài học cụ thể nếu muốn hỏi riêng trong bài đó")
     top_k: int = Field(default=4, description="Số lượng đoạn kiến thức liên quan cần trích xuất")
+    provider: Optional[Literal["aiportalapi", "portal", "gemini", "hybrid"]] = Field(
+        default=None,
+        description="Ghi đè LLM provider cho request này. None → dùng LLM_PROVIDER trong .env"
+    )
 
 class SourceItem(BaseModel):
     source_type: str = Field(..., description="'video_transcript' hoặc 'document'")

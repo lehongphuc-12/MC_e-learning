@@ -4,7 +4,7 @@ from app.rag.chunker import chunk_text
 from app.rag.embeddings import generate_embeddings_batch
 from app.rag.qdrant_service import upsert_chunks
 from app.rag.retriever import retrieve_course_chunks
-from app.services.gemini_service import generate_rag_answer
+from app.services.llm_service import generate_rag_answer
 from app.models.schemas import ChatResponse, SourceItem
 
 logger = logging.getLogger("mentorchat.rag_service")
@@ -93,11 +93,17 @@ class RAGService:
         return len(chunks)
 
     @staticmethod
-    def anwer_question(course_id: int, question: str, lesson_id: Optional[int] = None, top_k: int = 4) -> ChatResponse:
-        """Truy xuất nội dung trong khóa và gọi Gemini trả lời."""
+    def answer_question(
+        course_id: int,
+        question: str,
+        lesson_id: Optional[int] = None,
+        top_k: int = 4,
+        provider: Optional[str] = None,
+    ) -> ChatResponse:
+        """Truy xuất nội dung trong khóa và gọi LLM (aiportalapi/gemini/hybrid) trả lời."""
         logger.info(
-            "[RAGService/AnswerQuestion] course_id=%s lesson_id=%s top_k=%s — đang truy xuất chunks liên quan...",
-            course_id, lesson_id, top_k,
+            "[RAGService/AnswerQuestion] course_id=%s lesson_id=%s top_k=%s provider=%s — đang truy xuất chunks liên quan...",
+            course_id, lesson_id, top_k, provider,
         )
 
         try:
@@ -121,15 +127,15 @@ class RAGService:
             )
         else:
             logger.info(
-                "[RAGService/AnswerQuestion] course_id=%s — tìm thấy %d chunks, top score=%.3f. Đang gọi Gemini...",
-                course_id, len(chunks), chunks[0].get("score", 0.0),
+                "[RAGService/AnswerQuestion] course_id=%s — tìm thấy %d chunks, top score=%.3f. Đang gọi LLM provider='%s'...",
+                course_id, len(chunks), chunks[0].get("score", 0.0), provider,
             )
 
         try:
-            answer = generate_rag_answer(query=question, context_chunks=chunks)
+            answer = generate_rag_answer(query=question, context_chunks=chunks, provider=provider)
         except Exception as e:
             logger.error(
-                "[RAGService/AnswerQuestion] course_id=%s — LỖI gọi Gemini để tạo câu trả lời: %s",
+                "[RAGService/AnswerQuestion] course_id=%s — LỖI gọi LLM để tạo câu trả lời: %s",
                 course_id, e, exc_info=True,
             )
             raise

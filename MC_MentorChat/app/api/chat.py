@@ -2,6 +2,7 @@ import logging
 import traceback
 from typing import Optional
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from fastapi.concurrency import run_in_threadpool
 from app.models.schemas import ChatRequest, ChatResponse, TranscriptIngestRequest, IngestResponse
 from app.services.document_service import extract_text_from_pdf, extract_text_from_txt
 from app.rag.rag_service import RAGService
@@ -26,11 +27,15 @@ async def chat_in_course(req: ChatRequest):
         raise HTTPException(status_code=422, detail="Câu hỏi không được để trống.")
 
     try:
-        result = RAGService.anwer_question(
-            course_id=req.course_id,
-            question=req.message,
-            lesson_id=req.lesson_id,
-            top_k=req.top_k
+        # run_in_threadpool: đẩy toàn bộ pipeline RAG (Qdrant query + LLM call)
+        # sang thread pool — event loop không bị block, các request khác vẫn được xử lý song song
+        result = await run_in_threadpool(
+            RAGService.answer_question,
+            req.course_id,
+            req.message,
+            req.lesson_id,
+            req.top_k,
+            req.provider,
         )
         logger.info(
             "[Chat] course_id=%s — trả lời thành công, %d nguồn được trích dẫn.",
@@ -68,11 +73,13 @@ async def ingest_transcript(req: TranscriptIngestRequest):
         raise HTTPException(status_code=422, detail="Nội dung transcript không được để trống.")
 
     try:
-        total = RAGService.ingest_video_transcript(
-            course_id=req.course_id,
-            lesson_id=req.lesson_id,
-            lesson_title=req.lesson_title,
-            transcript_text=req.transcript_text
+        # Embedding + Qdrant upsert đều là blocking I/O → chạy trong thread pool
+        total = await run_in_threadpool(
+            RAGService.ingest_video_transcript,
+            req.course_id,
+            req.lesson_id,
+            req.lesson_title,
+            req.transcript_text,
         )
         logger.info(
             "[Ingest/Transcript] course_id=%s lesson_id=%s — đã lập chỉ mục %d đoạn.",
@@ -173,11 +180,13 @@ async def upload_document(
 
     # --- Lập chỉ mục vào Qdrant ---
     try:
-        total = RAGService.ingest_document(
-            course_id=course_id,
-            filename=file.filename,
-            content_text=extracted_text,
-            lesson_id=lesson_id
+        # Embedding + Qdrant upsert đều là blocking I/O → chạy trong thread pool
+        total = await run_in_threadpool(
+            RAGService.ingest_document,
+            course_id,
+            file.filename,
+            extracted_text,
+            lesson_id,
         )
         logger.info(
             "[Ingest/Document] course_id=%s — đã lập chỉ mục %d đoạn từ '%s'.",
