@@ -57,7 +57,8 @@ public class CourseService : ICourseService
         IGenericRepository<CourseDeletionRequest> courseDeletionRequestRepository,
         IUnitOfWork unitOfWork,
         IR2StorageService r2,
-        ICourseGiftAccessService giftAccess)
+        ICourseGiftAccessService giftAccess,
+        ILearningProgressService learningProgressService)
     {
         _courseRepository = courseRepository;
         _categoryRepository = categoryRepository;
@@ -78,6 +79,8 @@ public class CourseService : ICourseService
         _unitOfWork = unitOfWork;
         _r2 = r2;
         _giftAccess = giftAccess;
+        _learningProgressService = learningProgressService;
+
     }
 
 
