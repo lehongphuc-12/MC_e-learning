@@ -83,6 +83,11 @@ public interface ICourseService
     Task<CourseDto?> RejectCourseAsync(int courseId, int adminId, string reason);
 
     /// <summary>
+    /// Restores an archived course to draft so its instructor can update it and submit it for approval again.
+    /// </summary>
+    Task<CourseDto?> RestoreArchivedCourseAsync(int courseId, int adminId);
+
+    /// <summary>
     /// Bulk creates multiple courses in one operation.
     /// </summary>
     Task<List<CourseDto>> CreateCoursesBulkAsync(int instructorId, List<CreateCourseRequest> requests);

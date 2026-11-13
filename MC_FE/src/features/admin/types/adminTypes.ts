@@ -19,7 +19,7 @@ export interface AdminUser {
   lastActive?: string;
 }
 
-export type CourseModerationStatus = 'published' | 'pending' | 'rejected' | 'draft';
+export type CourseModerationStatus = 'published' | 'pending' | 'rejected' | 'draft' | 'archived';
 
 export interface AdminCourse {
   id: string;
