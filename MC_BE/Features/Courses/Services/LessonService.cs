@@ -25,29 +25,29 @@ public class LessonService : ILessonService
     private readonly IGenericRepository<Course> _courseRepository;
     private readonly IGenericRepository<CourseMaterial> _materialRepository;
     private readonly IGenericRepository<VideoUploadSession> _uploadSessionRepository;
-    private readonly IGenericRepository<Enrollment> _enrollmentRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IR2StorageService _r2;
     private readonly ITranscriptionQueue _transcriptionQueue;
+    private readonly ICourseLearningAccessService _courseAccess;
 
     public LessonService(
         IGenericRepository<Lesson> lessonRepository,
         IGenericRepository<Course> courseRepository,
         IGenericRepository<CourseMaterial> materialRepository,
         IGenericRepository<VideoUploadSession> uploadSessionRepository,
-        IGenericRepository<Enrollment> enrollmentRepository,
         IUnitOfWork unitOfWork,
         IR2StorageService r2,
-        ITranscriptionQueue transcriptionQueue)
+        ITranscriptionQueue transcriptionQueue,
+        ICourseLearningAccessService courseAccess)
     {
         _lessonRepository = lessonRepository;
         _courseRepository = courseRepository;
         _materialRepository = materialRepository;
         _uploadSessionRepository = uploadSessionRepository;
-        _enrollmentRepository = enrollmentRepository;
         _unitOfWork = unitOfWork;
         _r2 = r2;
         _transcriptionQueue = transcriptionQueue;
+        _courseAccess = courseAccess;
     }
 
     private LessonDto MapToDto(Lesson lesson)
@@ -97,17 +97,8 @@ public class LessonService : ILessonService
         if (lesson?.Course is null || lesson.Status != LessonStatus.ACTIVE)
             return null;
 
-        var isInstructor = lesson.Course.InstructorId == userId;
-        if (!isAdmin && !isInstructor && !lesson.IsPreview)
-        {
-            var now = DateTime.UtcNow;
-            var hasValidEnrollment = await _enrollmentRepository.GetQueryable().AnyAsync(e =>
-                e.CourseId == lesson.CourseId && e.LearnerId == userId &&
-                (e.Status == "ACTIVE" || e.Status == "COMPLETED") &&
-                (!e.ExpiresAt.HasValue || e.ExpiresAt.Value > now));
-            if (!hasValidEnrollment)
-                return null;
-        }
+        if (!lesson.IsPreview && !await _courseAccess.CanAccessCourseAsync(lesson.CourseId, userId, isAdmin))
+            return null;
 
         // A lesson may still contain legacy Drive rows alongside its new R2 material.
         // Select a playable R2 object across all video materials instead of trusting row order.

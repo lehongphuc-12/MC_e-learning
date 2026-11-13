@@ -14,6 +14,8 @@ public class EnrollmentDto
     public DateTime? EnrolledAt { get; set; }
     public DateTime? ExpiresAt { get; set; }
     public DateTime CreatedAt { get; set; }
+    public bool IsAccessGranted { get; set; }
+    public bool CanPurchaseDirectly { get; set; }
 }
 
 public class RevokeEnrollmentRequest

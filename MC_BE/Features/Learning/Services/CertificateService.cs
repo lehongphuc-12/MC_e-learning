@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using MC_BE.Core.Entities;
+using MC_BE.Features.Courses.Services.Interfaces;
 using MC_BE.Features.Learning.DTOs;
 using MC_BE.Features.Learning.Services.Interfaces;
 using MC_BE.Shared.Repositories.Interfaces;
@@ -17,6 +18,8 @@ public class CertificateService : ICertificateService
     private readonly IGenericRepository<LessonProgress> _progressRepository;
     private readonly IGenericRepository<User> _userRepository;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly ICourseGiftAccessService _courseGiftAccess;
+    private readonly ICourseLearningAccessService _courseAccess;
     private readonly ILearningAccessService _access;
 
     public CertificateService(
@@ -26,6 +29,8 @@ public class CertificateService : ICertificateService
         IGenericRepository<LessonProgress> progressRepository,
         IGenericRepository<User> userRepository,
         IUnitOfWork unitOfWork,
+        ICourseGiftAccessService courseGiftAccess,
+        ICourseLearningAccessService courseAccess,
         ILearningAccessService access)
     {
         _certificateRepository = certificateRepository;
@@ -34,6 +39,8 @@ public class CertificateService : ICertificateService
         _progressRepository = progressRepository;
         _userRepository = userRepository;
         _unitOfWork = unitOfWork;
+        _courseGiftAccess = courseGiftAccess;
+        _courseAccess = courseAccess;
         _access = access;
     }
 
@@ -125,6 +132,8 @@ public class CertificateService : ICertificateService
 
     public async Task<CertificateDto?> IssueCertificateAsync(int learnerId, int courseId)
     {
+        if (!await _courseAccess.CanAccessCourseAsync(courseId, learnerId, isAdmin: false))
+            throw new InvalidOperationException("Learner does not currently have access to this course.");
         var enrollments = await _enrollmentRepository.FindAsync(
             e => e.LearnerId == learnerId && e.CourseId == courseId,
             e => e.Course,
@@ -185,6 +194,8 @@ public class CertificateService : ICertificateService
         };
 
         await _certificateRepository.AddAsync(certificate);
+        // The gift is tied to this specific paid-course enrollment, not to the learner globally.
+        await _courseGiftAccess.RevokeGiftGrantsForCompletedEnrollmentAsync(enrollment.EnrollmentId, DateTime.UtcNow);
         await _unitOfWork.SaveChangesAsync();
 
         certificate.Enrollment = enrollment;

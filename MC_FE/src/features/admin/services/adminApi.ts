@@ -8,6 +8,8 @@ import {
   PayoutRequest,
   SystemLog,
   PlatformSettings,
+  CourseGiftPolicy,
+  CourseGiftCandidate,
   UserRole,
   CourseModerationStatus,
   RevenueDataPoint,
@@ -16,6 +18,25 @@ import {
 } from '../types/adminTypes';
 
 export const adminApi = {
+  async getCourseGiftPolicy(): Promise<CourseGiftPolicy> {
+    const res = await request<{ success: boolean; data: CourseGiftPolicy }>('/admin/courses/gift-policy');
+    return res.data ?? { giftCourseId: null, giftCourseTitle: null, isActive: false };
+  },
+
+  async getCourseGiftCandidates(): Promise<CourseGiftCandidate[]> {
+    const res = await request<{ success: boolean; data: { items: CourseGiftCandidate[] } }>('/admin/courses/gift-candidates?page=1&pageSize=100');
+    return res.data?.items ?? [];
+  },
+
+  async updateCourseGiftPolicy(policy: Pick<CourseGiftPolicy, 'giftCourseId' | 'isActive'>): Promise<CourseGiftPolicy> {
+    const res = await request<{ success: boolean; data: CourseGiftPolicy }>('/admin/courses/gift-policy', {
+      method: 'PUT',
+      body: JSON.stringify(policy),
+    });
+    if (!res.success || !res.data) throw new Error('Không thể lưu chính sách khóa học tặng.');
+    return res.data;
+  },
+
   async getPendingCourseDeletionRequests(): Promise<CourseDeletionRequest[]> {
     const response = await request<{ success: boolean; data: { items: CourseDeletionRequest[] } }>(
       '/admin/courses/deletion-requests?page=1&pageSize=100'

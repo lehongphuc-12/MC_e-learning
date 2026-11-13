@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using MC_BE.Core.Entities;
 using MC_BE.Core.Enums;
 using MC_BE.Features.Learning.DTOs;
+using MC_BE.Features.Courses.Services.Interfaces;
 using MC_BE.Features.Learning.Services.Interfaces;
 using MC_BE.Shared.Data;
 using MC_BE.Shared.Repositories.Interfaces;
@@ -24,6 +25,7 @@ public class LearningProgressService : ILearningProgressService
     private readonly IGenericRepository<SpeakingSubmission> _submissionRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICertificateService _certificateService;
+    private readonly ICourseLearningAccessService _courseAccess;
     private readonly ILearningAccessService _access;
     private readonly SmartMcDbContext _db;
 
@@ -38,8 +40,8 @@ public class LearningProgressService : ILearningProgressService
         IGenericRepository<SpeakingSubmission> submissionRepository,
         IUnitOfWork unitOfWork,
         ICertificateService certificateService,
-        ILearningAccessService access,
-        SmartMcDbContext db)
+        ICourseLearningAccessService courseAccess,
+        ILearningAccessService access)
     {
         _enrollmentRepository = enrollmentRepository;
         _lessonRepository = lessonRepository;
@@ -51,26 +53,20 @@ public class LearningProgressService : ILearningProgressService
         _submissionRepository = submissionRepository;
         _unitOfWork = unitOfWork;
         _certificateService = certificateService;
+        _courseAccess = courseAccess;
         _access = access;
         _db = db;
     }
 
     public async Task<CourseLearningProgressDto?> GetCourseProgressAsync(int learnerId, int courseId)
     {
-        var now = DateTime.UtcNow;
-        var enrollment = await _enrollmentRepository.GetQueryable()
-            .AsNoTracking()
-            .Include(e => e.Course)
-            .Include(e => e.LessonProgresses)
-            .Where(e =>
-                e.LearnerId == learnerId &&
-                e.CourseId == courseId &&
-                (e.Status == "ACTIVE" || e.Status == "COMPLETED") &&
-                (!e.ExpiresAt.HasValue || e.ExpiresAt.Value > now))
-            .OrderByDescending(e => e.Status == "ACTIVE")
-            .ThenByDescending(e => e.EnrolledAt ?? e.CreatedAt)
-            .ThenByDescending(e => e.EnrollmentId)
-            .FirstOrDefaultAsync();
+        if (!await _courseAccess.CanAccessCourseAsync(courseId, learnerId, isAdmin: false)) return null;
+        var enrollments = await _enrollmentRepository.FindAsync(
+            e => e.LearnerId == learnerId && e.CourseId == courseId,
+            e => e.Course,
+            e => e.LessonProgresses);
+
+        var enrollment = enrollments.FirstOrDefault();
 
         if (enrollment == null)
         {
@@ -237,6 +233,7 @@ public class LearningProgressService : ILearningProgressService
     {
         var lesson = await _lessonRepository.GetByIdAsync(lessonId);
         if (lesson == null) return null;
+        if (!await _courseAccess.CanAccessCourseAsync(lesson.CourseId, learnerId, isAdmin: false)) return null;
 
         var now = DateTime.UtcNow;
         var enrollment = await _enrollmentRepository.GetQueryable()

@@ -240,7 +240,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
       if (
         isFreeCourse ||
-        enrollment.status === 'ACTIVE'
+        (enrollment.status === 'ACTIVE' && !enrollment.canPurchaseDirectly)
       ) {
         setIsProcessing(false);
         setIsComplete(true);

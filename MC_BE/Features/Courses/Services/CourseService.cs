@@ -34,7 +34,9 @@ public class CourseService : ICourseService
     private readonly IGenericRepository<VideoUploadSession> _videoUploadSessionRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IR2StorageService _r2;
+    private readonly ICourseGiftAccessService _giftAccess;
     private readonly ILearningProgressService _learningProgressService;
+
 
     public CourseService(
         IGenericRepository<Course> courseRepository,
@@ -55,7 +57,7 @@ public class CourseService : ICourseService
         IGenericRepository<CourseDeletionRequest> courseDeletionRequestRepository,
         IUnitOfWork unitOfWork,
         IR2StorageService r2,
-        ILearningProgressService learningProgressService)
+        ICourseGiftAccessService giftAccess)
     {
         _courseRepository = courseRepository;
         _categoryRepository = categoryRepository;
@@ -75,7 +77,7 @@ public class CourseService : ICourseService
         _courseDeletionRequestRepository = courseDeletionRequestRepository;
         _unitOfWork = unitOfWork;
         _r2 = r2;
-        _learningProgressService = learningProgressService;
+        _giftAccess = giftAccess;
     }
 
 
@@ -835,10 +837,14 @@ public class CourseService : ICourseService
             e => e.LessonProgresses);
 
         var result = new List<LearnedCourseDto>();
+        var giftManagedAccess = await _giftAccess.GetManagedCourseAccessAsync(
+            learnerId, enrollments.Select(e => e.CourseId).Distinct().ToArray(), DateTime.UtcNow);
 
         foreach (var enrollment in enrollments.OrderByDescending(e => e.UpdatedAt))
         {
             if (enrollment.Course == null) continue;
+            if (giftManagedAccess.TryGetValue(enrollment.CourseId, out var hasGiftManagedAccess) && !hasGiftManagedAccess)
+                continue;
 
             var courseDto = MapToDto(enrollment.Course);
 

@@ -214,7 +214,7 @@ export default function App() {
           enrollmentResult.data;
 
         if (
-          enrollment.status === 'ACTIVE'
+          enrollment.status === 'ACTIVE' && !enrollment.canPurchaseDirectly
         ) {
           store.handleRemoveFromCart(
             course.id
@@ -223,8 +223,7 @@ export default function App() {
         }
 
         if (
-          enrollment.status !==
-          'PENDING_PAYMENT'
+          enrollment.status !== 'PENDING_PAYMENT' && !enrollment.canPurchaseDirectly
         ) {
           throw new Error(
             `Course "${course.title}" cannot be checked out because enrollment status is ${enrollment.status}.`

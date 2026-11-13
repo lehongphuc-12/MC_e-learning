@@ -1,5 +1,6 @@
 using MC_BE.Core.DTOs;
 using MC_BE.Core.Entities;
+using MC_BE.Features.Courses.Services.Interfaces;
 using MC_BE.Shared.Data;
 using MC_BE.Shared.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -11,12 +12,14 @@ public class AdminPaymentService : IAdminPaymentService
     private readonly SmartMcDbContext _context;
     private readonly IPayOsService _payOsService;
     private readonly ICourseCatalogService _courseCatalog;
+    private readonly ICourseGiftAccessService _courseGiftAccess;
 
-    public AdminPaymentService(SmartMcDbContext context, IPayOsService payOsService, ICourseCatalogService courseCatalog)
+    public AdminPaymentService(SmartMcDbContext context, IPayOsService payOsService, ICourseCatalogService courseCatalog, ICourseGiftAccessService courseGiftAccess)
     {
         _context = context;
         _payOsService = payOsService;
         _courseCatalog = courseCatalog;
+        _courseGiftAccess = courseGiftAccess;
     }
 
     public async Task<ApiResponse<PagedResult<PaymentDetailsDto>>> SearchPaymentsAsync(int currentUserId, PaymentFilterRequest filter)
@@ -175,9 +178,13 @@ public class AdminPaymentService : IAdminPaymentService
 
                     item.Enrollment.Status = "ACTIVE";
                     item.Enrollment.EnrolledAt ??= now;
-                    item.Enrollment.ExpiresAt ??= now.AddDays(90);
+                    var paidAccessExpiry = now.AddDays(90);
+                    if (!item.Enrollment.ExpiresAt.HasValue || item.Enrollment.ExpiresAt.Value < paidAccessExpiry)
+                        item.Enrollment.ExpiresAt = paidAccessExpiry;
                     item.Enrollment.UpdatedAt = now;
                 }
+
+                await _courseGiftAccess.IssuePaymentGrantsAsync(payment.Items, now);
 
                 var exists = !string.IsNullOrWhiteSpace(payOs.Reference) &&
                     await _context.PaymentTransactions.AnyAsync(t =>

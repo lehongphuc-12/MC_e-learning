@@ -51,6 +51,8 @@ public class SmartMcDbContext : DbContext
     public DbSet<VideoUploadSession> VideoUploadSessions { get; set; } = null!;
     public DbSet<R2ObjectDeletionJob> R2ObjectDeletionJobs { get; set; } = null!;
     public DbSet<CourseDeletionRequest> CourseDeletionRequests { get; set; } = null!;
+    public DbSet<CourseGiftPolicy> CourseGiftPolicies { get; set; } = null!;
+    public DbSet<CourseAccessGrant> CourseAccessGrants { get; set; } = null!;
 
     // ============================================================
     // Section 3: Payment
@@ -248,6 +250,35 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
                 .WithMany(p => p.InstructedCourses)
                 .HasForeignKey(d => d.InstructorId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<CourseGiftPolicy>(entity =>
+        {
+            entity.ToTable("course_gift_policies");
+            entity.HasKey(e => e.PolicyId);
+            entity.HasIndex(e => e.GiftCourseId).IsUnique();
+            entity.Property(e => e.IsActive).HasDefaultValue(false);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasOne(e => e.GiftCourse).WithMany().HasForeignKey(e => e.GiftCourseId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(e => e.UpdatedByAdmin).WithMany().HasForeignKey(e => e.UpdatedByAdminId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<CourseAccessGrant>(entity =>
+        {
+            entity.ToTable("course_access_grants");
+            entity.HasKey(e => e.GrantId);
+            entity.HasIndex(e => new { e.LearnerId, e.CourseId, e.Status });
+            entity.HasIndex(e => new { e.SourcePaymentItemId, e.CourseId, e.SourceType })
+                .IsUnique()
+                .HasFilter("\"SourcePaymentItemId\" IS NOT NULL");
+            entity.Property(e => e.SourceType).HasMaxLength(30).IsRequired();
+            entity.Property(e => e.Status).HasMaxLength(20).HasDefaultValue("ACTIVE");
+            entity.Property(e => e.GrantedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasOne(e => e.Learner).WithMany().HasForeignKey(e => e.LearnerId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(e => e.Course).WithMany().HasForeignKey(e => e.CourseId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.SourcePaymentItem).WithMany().HasForeignKey(e => e.SourcePaymentItemId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(e => e.SourceEnrollment).WithMany().HasForeignKey(e => e.SourceEnrollmentId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<Module>(entity =>

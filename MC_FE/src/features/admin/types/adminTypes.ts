@@ -44,6 +44,19 @@ export interface AdminCourse {
   lecturesCount?: number;
 }
 
+export interface CourseGiftPolicy {
+  giftCourseId: number | null;
+  giftCourseTitle: string | null;
+  isActive: boolean;
+}
+
+export interface CourseGiftCandidate {
+  courseId: number;
+  title: string;
+  price: number;
+  instructorName: string;
+}
+
 export interface CourseDeletionRequest {
   requestId: number;
   courseId: number;

@@ -1,6 +1,7 @@
 using MC_BE.Core.Entities;
 using MC_BE.Core.Enums;
 using MC_BE.Features.Learning.DTOs;
+using MC_BE.Features.Courses.Services.Interfaces;
 using MC_BE.Features.Learning.Repositories.Interfaces;
 using MC_BE.Features.Learning.Services.Interfaces;
 using MC_BE.Shared.Repositories.Interfaces;
@@ -19,6 +20,7 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
     private readonly ICloudinaryService _cloudinaryService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<SpeakingSubmissionService> _logger;
+    private readonly ICourseLearningAccessService _courseAccess;
 
     public SpeakingSubmissionService(
         ISpeakingSubmissionRepository submissionRepository,
@@ -28,7 +30,8 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
         IGenericRepository<LessonProgress> lessonProgressRepository,
         ICloudinaryService cloudinaryService,
         IUnitOfWork unitOfWork,
-        ILogger<SpeakingSubmissionService> logger)
+        ILogger<SpeakingSubmissionService> logger,
+        ICourseLearningAccessService courseAccess)
     {
         _submissionRepository = submissionRepository;
         _scriptRepository = scriptRepository;
@@ -38,6 +41,7 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
         _cloudinaryService = cloudinaryService;
         _unitOfWork = unitOfWork;
         _logger = logger;
+        _courseAccess = courseAccess;
     }
 
     public async Task<SpeakingSubmissionResponseDto> SubmitSpeakingAssignmentAsync(int learnerId, CreateSpeakingSubmissionRequest request)
@@ -99,7 +103,10 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
                 throw new ArgumentException("Vui lòng cung cấp LessonId hoặc ScriptId để nộp bài nói.");
             }
 
-            // 3. Check learner enrollment in the course
+            if (!await _courseAccess.CanAccessCourseAsync(lesson.CourseId, learnerId, isAdmin: false))
+                throw new InvalidOperationException("Bạn không có quyền truy cập khóa học này.");
+
+            // 3. Check learner enrollment in the course via Repository
             var enrollments = await _enrollmentRepository.FindAsync(
                 e => e.LearnerId == learnerId && e.CourseId == courseId);
             if (!enrollments.Any())
