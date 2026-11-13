@@ -16,14 +16,22 @@ public class PaymentService : IPaymentService
     private readonly ICourseCatalogService _courseCatalog;
     private readonly ILogger<PaymentService> _logger;
     private readonly ICourseGiftAccessService _courseGiftAccess;
+    private readonly IPayOsTransactionRecorder _payOsTransactionRecorder;
 
-    public PaymentService(SmartMcDbContext context, IPayOsService payOsService, ICourseCatalogService courseCatalog, ILogger<PaymentService> logger, ICourseGiftAccessService courseGiftAccess)
+    public PaymentService(
+        SmartMcDbContext context,
+        IPayOsService payOsService,
+        ICourseCatalogService courseCatalog,
+        ILogger<PaymentService> logger,
+        ICourseGiftAccessService courseGiftAccess,
+        IPayOsTransactionRecorder payOsTransactionRecorder)
     {
         _context = context;
         _payOsService = payOsService;
         _courseCatalog = courseCatalog;
         _logger = logger;
         _courseGiftAccess = courseGiftAccess;
+        _payOsTransactionRecorder = payOsTransactionRecorder;
     }
 
     // ============================================================
@@ -315,17 +323,9 @@ public class PaymentService : IPaymentService
         if (string.Equals(payment.Status, "SUCCESS", StringComparison.OrdinalIgnoreCase))
             return true;
 
-        var transactionExists = false;
         var providerReference = string.IsNullOrWhiteSpace(data.Reference)
             ? null
             : data.Reference.Trim();
-
-        if (!string.IsNullOrWhiteSpace(providerReference))
-        {
-            transactionExists = await _context.PaymentTransactions.AnyAsync(t =>
-                t.Provider == "PAYOS" &&
-                t.ProviderTransactionNo == providerReference);
-        }
 
         await using var dbTransaction = await _context.Database.BeginTransactionAsync();
 
@@ -333,27 +333,31 @@ public class PaymentService : IPaymentService
         {
             var now = DateTime.UtcNow;
 
+            var transactionRecord = await _payOsTransactionRecorder.RecordSuccessfulAsync(
+                payment.PaymentId,
+                providerReference,
+                data.Amount,
+                data.Code,
+                data.CounterAccountBankId,
+                signatureValid: true,
+                processedAt: now);
+
+            if (!transactionRecord.IsAccepted)
+            {
+                await dbTransaction.RollbackAsync();
+                _logger.LogError(
+                    "PayOS webhook reference is already associated with another payment. PaymentId={PaymentId}, ExistingPaymentId={ExistingPaymentId}, OrderCode={OrderCode}",
+                    payment.PaymentId,
+                    transactionRecord.ExistingPaymentId,
+                    orderCode);
+                // The webhook is authentic but its reference conflicts with another payment.
+                // Acknowledge it to PayOS and leave the current payment untouched for manual review.
+                return true;
+            }
+
             payment.Status = "SUCCESS";
             payment.PaymentMethod = "PAYOS";
             payment.UpdatedAt = now;
-
-            if (!transactionExists && !string.IsNullOrWhiteSpace(providerReference))
-            {
-                _context.PaymentTransactions.Add(new PaymentTransaction
-                {
-                    PaymentId = payment.PaymentId,
-                    Provider = "PAYOS",
-                    ProviderTransactionNo = providerReference,
-                    ResponseCode = data.Code,
-                    TransactionStatus = "PAID",
-                    BankCode = data.CounterAccountBankId,
-                    Amount = data.Amount,
-                    Status = "SUCCESS",
-                    SignatureValid = true,
-                    ProcessedAt = now,
-                    CreatedAt = now
-                });
-            }
 
             foreach (var item in payment.Items)
             {
@@ -614,6 +618,29 @@ public class PaymentService : IPaymentService
                 {
                     var now = DateTime.UtcNow;
 
+                    var providerReference = string.IsNullOrWhiteSpace(payOsResult.Reference)
+                        ? null
+                        : payOsResult.Reference.Trim();
+                    var transactionRecord = await _payOsTransactionRecorder.RecordSuccessfulAsync(
+                        payment.PaymentId,
+                        providerReference,
+                        payment.Amount,
+                        responseCode: "00",
+                        bankCode: null,
+                        signatureValid: false,
+                        processedAt: now);
+
+                    if (!transactionRecord.IsAccepted)
+                    {
+                        await dbTransaction.RollbackAsync();
+                        _logger.LogError(
+                            "PayOS sync reference is already associated with another payment. PaymentId={PaymentId}, ExistingPaymentId={ExistingPaymentId}",
+                            payment.PaymentId,
+                            transactionRecord.ExistingPaymentId);
+                        return ApiResponse<PaymentDetailsDto>.FailureResponse(
+                            "Mã giao dịch PayOS đã được liên kết với một thanh toán khác. Giao dịch cần được Admin đối soát.");
+                    }
+
                     payment.Status = "SUCCESS";
                     payment.UpdatedAt = now;
 
@@ -628,42 +655,8 @@ public class PaymentService : IPaymentService
                         item.Enrollment.UpdatedAt = now;
                     }
 
-                    var providerReference = string.IsNullOrWhiteSpace(payOsResult.Reference)
-                        ? null
-                        : payOsResult.Reference.Trim();
-
-                    if (!string.IsNullOrWhiteSpace(providerReference))
-                    {
-                        var existingTransaction = await _context.PaymentTransactions
-                            .FirstOrDefaultAsync(t =>
-                                t.Provider == "PAYOS" &&
-                                t.ProviderTransactionNo == providerReference);
-
-                        if (existingTransaction == null)
-                        {
-                            _context.PaymentTransactions.Add(new PaymentTransaction
-                            {
-                                PaymentId = payment.PaymentId,
-                                Provider = "PAYOS",
-                                ProviderTransactionNo = providerReference,
-                                ResponseCode = "00",
-                                TransactionStatus = "PAID",
-                                Amount = payment.Amount,
-                                Status = "SUCCESS",
-                                SignatureValid = false,
-                                ProcessedAt = now,
-                                CreatedAt = now
-                            });
-                        }
-                        else if (existingTransaction.PaymentId != payment.PaymentId)
-                        {
-                            _logger.LogWarning(
-                                "PayOS Reference={Reference} đã tồn tại ở PaymentId={ExistingPaymentId}, payment hiện tại={PaymentId}. Không tạo transaction trùng.",
-                                providerReference,
-                                existingTransaction.PaymentId,
-                                payment.PaymentId);
-                        }
-                    }
+                    // Recovery through learner sync must grant the same course access as the webhook path.
+                    await _courseGiftAccess.IssuePaymentGrantsAsync(payment.Items, now);
 
                     await _context.SaveChangesAsync();
                     await dbTransaction.CommitAsync();

@@ -327,6 +327,21 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     );
   };
 
+  const handleRestoreCourse = async (courseId: string) => {
+    try {
+      await adminApi.restoreArchivedCourse(courseId);
+      await refreshCoursesData();
+      onToast?.(
+        'Đã khôi phục khóa học',
+        'Khóa học đã về bản nháp. Giảng viên có thể chỉnh sửa và gửi Admin duyệt lại.',
+        'success'
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Không thể khôi phục khóa học.';
+      onToast?.('Khôi phục thất bại', message, 'error');
+    }
+  };
+
   const refreshCategoriesData = async () => {
     try {
       const categoriesRes = await adminApi.getCategories();
@@ -467,6 +482,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
               onApproveCourse={handleApproveCourse}
               onRejectCourse={handleRejectCourse}
               onToggleFeatured={handleToggleFeatured}
+              onRestoreCourse={handleRestoreCourse}
               onRefresh={refreshCoursesData}
             />
           )}

@@ -195,4 +195,27 @@ public class AdminCoursesController : ControllerBase
 
         return Ok(ApiResponse<CourseDto>.SuccessResponse(result, "Đã từ chối khóa học và gửi lý do cho Giảng viên."));
     }
+
+    [HttpPost("{id:int}/restore")]
+    public async Task<ActionResult<ApiResponse<CourseDto>>> RestoreArchivedCourse(int id)
+    {
+        var adminId = GetCurrentAdminId();
+        if (adminId is null)
+            return Unauthorized(ApiResponse<CourseDto>.FailureResponse("Unauthorized."));
+
+        try
+        {
+            var result = await _courseService.RestoreArchivedCourseAsync(id, adminId.Value);
+            if (result is null)
+                return NotFound(ApiResponse<CourseDto>.FailureResponse("Khóa học không tồn tại."));
+
+            return Ok(ApiResponse<CourseDto>.SuccessResponse(
+                result,
+                "Đã khôi phục khóa học về bản nháp. Giảng viên có thể cập nhật và gửi duyệt lại."));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(ApiResponse<CourseDto>.FailureResponse(ex.Message));
+        }
+    }
 }

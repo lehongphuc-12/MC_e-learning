@@ -41,7 +41,8 @@ public class LearningProgressService : ILearningProgressService
         IUnitOfWork unitOfWork,
         ICertificateService certificateService,
         ICourseLearningAccessService courseAccess,
-        ILearningAccessService access)
+        ILearningAccessService access,
+        SmartMcDbContext db)
     {
         _enrollmentRepository = enrollmentRepository;
         _lessonRepository = lessonRepository;

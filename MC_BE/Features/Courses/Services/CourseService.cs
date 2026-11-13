@@ -57,7 +57,8 @@ public class CourseService : ICourseService
         IGenericRepository<CourseDeletionRequest> courseDeletionRequestRepository,
         IUnitOfWork unitOfWork,
         IR2StorageService r2,
-        ICourseGiftAccessService giftAccess)
+        ICourseGiftAccessService giftAccess,
+        ILearningProgressService learningProgressService)
     {
         _courseRepository = courseRepository;
         _categoryRepository = categoryRepository;
@@ -78,6 +79,8 @@ public class CourseService : ICourseService
         _unitOfWork = unitOfWork;
         _r2 = r2;
         _giftAccess = giftAccess;
+        _learningProgressService = learningProgressService;
+
     }
 
 
@@ -266,12 +269,18 @@ public class CourseService : ICourseService
 
         var lessons = await _lessonRepository.GetQueryable()
             .Where(lesson => lesson.CourseId == courseId)
-            .Select(lesson => new { lesson.LessonId, lesson.Title })
+            .Select(lesson => new { lesson.LessonId, lesson.Title, lesson.LessonType })
             .ToListAsync();
 
-        if (lessons.Count > 0)
+        // Speaking assignments are learner-submitted exercises, not video lessons.
+        // They must not require an instructor-uploaded lesson video to submit the course for approval.
+        var videoLessons = lessons
+            .Where(lesson => lesson.LessonType != LessonType.ASSIGNMENT)
+            .ToList();
+
+        if (videoLessons.Count > 0)
         {
-            var lessonIds = lessons.Select(lesson => lesson.LessonId).ToList();
+            var lessonIds = videoLessons.Select(lesson => lesson.LessonId).ToList();
             var lessonsWithVideo = await _materialRepository.GetQueryable()
                 .Where(material => material.LessonId.HasValue
                     && lessonIds.Contains(material.LessonId.Value)
@@ -282,7 +291,7 @@ public class CourseService : ICourseService
                 .Distinct()
                 .ToListAsync();
 
-            var missingVideos = lessons
+            var missingVideos = videoLessons
                 .Where(lesson => !lessonsWithVideo.Contains(lesson.LessonId))
                 .Select(lesson => lesson.Title)
                 .ToList();
@@ -803,6 +812,45 @@ public class CourseService : ICourseService
         _courseRepository.Update(course);
         await _unitOfWork.SaveChangesAsync();
         return await GetCourseByIdAsync(courseId);
+    }
+
+    /// <summary>
+    /// Reopens an archived course as a draft. Archived courses can originate from different prior
+    /// statuses, so restoring to draft avoids accidentally republishing unreviewed content.
+    /// Any pending deletion request is closed as rejected in the same transaction.
+    /// </summary>
+    public async Task<CourseDto?> RestoreArchivedCourseAsync(int courseId, int adminId)
+    {
+        CourseDto? result = null;
+        await _unitOfWork.ExecuteInTransactionAsync(async () =>
+        {
+            var course = await _courseRepository.GetByIdAsync(courseId);
+            if (course is null)
+                return;
+
+            if (course.Status != CourseStatus.ARCHIVED)
+                throw new InvalidOperationException("Chỉ có thể khôi phục khóa học đang lưu trữ.");
+
+            var pendingDeletionRequest = await _courseDeletionRequestRepository.GetQueryable()
+                .FirstOrDefaultAsync(request => request.CourseId == courseId && request.Status == "PENDING");
+            if (pendingDeletionRequest is not null)
+            {
+                pendingDeletionRequest.Status = "REJECTED";
+                pendingDeletionRequest.AdminNote = "Admin đã khôi phục khóa học về bản nháp.";
+                pendingDeletionRequest.ReviewedById = adminId;
+                pendingDeletionRequest.ReviewedAt = DateTime.UtcNow;
+                _courseDeletionRequestRepository.Update(pendingDeletionRequest);
+            }
+
+            course.Status = CourseStatus.DRAFT;
+            course.UpdatedAt = DateTime.UtcNow;
+            _courseRepository.Update(course);
+            await _unitOfWork.SaveChangesAsync();
+
+            result = await GetCourseByIdAsync(courseId);
+        });
+
+        return result;
     }
 
     // -------------------------------------------------------------------------

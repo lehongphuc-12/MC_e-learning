@@ -189,6 +189,7 @@ export const adminApi = {
           if (st === 'PUBLISHED') moderationStatus = 'published';
           else if (st === 'PENDING_APPROVAL' || st === 'PENDING') moderationStatus = 'pending';
           else if (st === 'REJECTED') moderationStatus = 'rejected';
+          else if (st === 'ARCHIVED') moderationStatus = 'archived';
 
           return {
             id: String(c.courseId || c.id || Date.now()),
@@ -236,6 +237,16 @@ export const adminApi = {
     } catch (err) {
       console.error('Failed to update course status:', err);
       return false;
+    }
+  },
+
+  async restoreArchivedCourse(courseId: string): Promise<boolean> {
+    try {
+      await request(`/admin/courses/${courseId}/restore`, { method: 'POST' });
+      return true;
+    } catch (err) {
+      console.error('Failed to restore archived course:', err);
+      throw err;
     }
   },
 

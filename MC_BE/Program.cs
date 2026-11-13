@@ -212,6 +212,7 @@ builder.Services.AddScoped<ICourseCatalogService, CourseCatalogService>();
 builder.Services.AddScoped<IEnrollmentService, EnrollmentService>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddScoped<IAdminPaymentService, AdminPaymentService>();
+builder.Services.AddScoped<IPayOsTransactionRecorder, PayOsTransactionRecorder>();
 builder.Services.AddScoped<IPayOsService, PayOsService>();
 builder.Services.AddHostedService<EnrollmentExpirationWorker>();
 

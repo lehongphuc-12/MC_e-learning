@@ -13,13 +13,20 @@ public class AdminPaymentService : IAdminPaymentService
     private readonly IPayOsService _payOsService;
     private readonly ICourseCatalogService _courseCatalog;
     private readonly ICourseGiftAccessService _courseGiftAccess;
+    private readonly IPayOsTransactionRecorder _payOsTransactionRecorder;
 
-    public AdminPaymentService(SmartMcDbContext context, IPayOsService payOsService, ICourseCatalogService courseCatalog, ICourseGiftAccessService courseGiftAccess)
+    public AdminPaymentService(
+        SmartMcDbContext context,
+        IPayOsService payOsService,
+        ICourseCatalogService courseCatalog,
+        ICourseGiftAccessService courseGiftAccess,
+        IPayOsTransactionRecorder payOsTransactionRecorder)
     {
         _context = context;
         _payOsService = payOsService;
         _courseCatalog = courseCatalog;
         _courseGiftAccess = courseGiftAccess;
+        _payOsTransactionRecorder = payOsTransactionRecorder;
     }
 
     public async Task<ApiResponse<PagedResult<PaymentDetailsDto>>> SearchPaymentsAsync(int currentUserId, PaymentFilterRequest filter)
@@ -167,6 +174,22 @@ public class AdminPaymentService : IAdminPaymentService
             {
                 var now = DateTime.UtcNow;
 
+                var transactionRecord = await _payOsTransactionRecorder.RecordSuccessfulAsync(
+                    payment.PaymentId,
+                    payOs.Reference,
+                    payment.Amount,
+                    responseCode: "00",
+                    bankCode: null,
+                    signatureValid: false,
+                    processedAt: now);
+
+                if (!transactionRecord.IsAccepted)
+                {
+                    await transaction.RollbackAsync();
+                    return ApiResponse<VerifyPaymentResultDto>.FailureResponse(
+                        "Mã giao dịch PayOS đã được liên kết với một thanh toán khác. Giao dịch cần được đối soát thủ công.");
+                }
+
                 payment.Status = "SUCCESS";
                 payment.PaymentMethod = "PAYOS";
                 payment.UpdatedAt = now;
@@ -185,28 +208,6 @@ public class AdminPaymentService : IAdminPaymentService
                 }
 
                 await _courseGiftAccess.IssuePaymentGrantsAsync(payment.Items, now);
-
-                var exists = !string.IsNullOrWhiteSpace(payOs.Reference) &&
-                    await _context.PaymentTransactions.AnyAsync(t =>
-                        t.Provider == "PAYOS" &&
-                        t.ProviderTransactionNo == payOs.Reference);
-
-                if (!exists)
-                {
-                    _context.PaymentTransactions.Add(new PaymentTransaction
-                    {
-                        PaymentId = payment.PaymentId,
-                        Provider = "PAYOS",
-                        ProviderTransactionNo = payOs.Reference,
-                        ResponseCode = "00",
-                        TransactionStatus = "PAID",
-                        Amount = payment.Amount,
-                        Status = "SUCCESS",
-                        SignatureValid = false,
-                        ProcessedAt = now,
-                        CreatedAt = now
-                    });
-                }
 
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();

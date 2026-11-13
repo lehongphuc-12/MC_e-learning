@@ -13,6 +13,8 @@ import {
   AlertCircle,
   Send,
   RefreshCw,
+  Archive,
+  RotateCcw,
 } from 'lucide-react';
 import { AdminCourse, CourseDeletionRequest, CourseModerationStatus } from '../types/adminTypes';
 
@@ -24,6 +26,7 @@ interface AdminCoursesTabProps {
   onApproveCourse: (courseId: string) => void;
   onRejectCourse: (courseId: string, reason: string) => void;
   onToggleFeatured: (courseId: string, currentFeatured: boolean) => void;
+  onRestoreCourse: (courseId: string) => void;
   onRefresh?: () => void;
 }
 
@@ -35,9 +38,10 @@ export const AdminCoursesTab: React.FC<AdminCoursesTabProps> = ({
   onApproveCourse,
   onRejectCourse,
   onToggleFeatured,
+  onRestoreCourse,
   onRefresh,
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'pending' | 'approved'>('pending');
+  const [activeSubTab, setActiveSubTab] = useState<'pending' | 'approved' | 'archived'>('pending');
   const [searchTerm, setSearchTerm] = useState('');
   const [rejectingCourseId, setRejectingCourseId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
@@ -56,6 +60,7 @@ export const AdminCoursesTab: React.FC<AdminCoursesTabProps> = ({
 
   const pendingCourses = courses.filter((c) => c.status === 'pending');
   const approvedCourses = courses.filter((c) => c.status === 'published');
+  const archivedCourses = courses.filter((c) => c.status === 'archived');
 
   const filteredCourses = courses.filter((c) => {
     const matchesSearch =
@@ -66,7 +71,10 @@ export const AdminCoursesTab: React.FC<AdminCoursesTabProps> = ({
     if (activeSubTab === 'pending') {
       return matchesSearch && c.status === 'pending';
     }
-    return matchesSearch && c.status === 'published';
+    if (activeSubTab === 'approved') {
+      return matchesSearch && c.status === 'published';
+    }
+    return matchesSearch && c.status === 'archived';
   });
 
   const formatDate = (iso?: string) => {
@@ -187,6 +195,21 @@ export const AdminCoursesTab: React.FC<AdminCoursesTabProps> = ({
             {approvedCourses.length}
           </span>
         </button>
+
+        <button
+          onClick={() => setActiveSubTab('archived')}
+          className={`flex items-center space-x-2 px-5 py-3 border-b-2 font-semibold text-sm transition cursor-pointer ${
+            activeSubTab === 'archived'
+              ? 'border-slate-400 text-slate-200 bg-slate-500/10 rounded-t-xl'
+              : 'border-transparent text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <Archive className="w-4 h-4" />
+          <span>Khóa học Đã Lưu trữ</span>
+          <span className="px-2 py-0.5 text-xs rounded-full bg-slate-700 text-slate-200 font-bold">
+            {archivedCourses.length}
+          </span>
+        </button>
       </div>
 
       {/* Search Bar */}
@@ -220,8 +243,10 @@ export const AdminCoursesTab: React.FC<AdminCoursesTabProps> = ({
             <tbody className="divide-y divide-slate-800/60">
               {filteredCourses.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-slate-500">
-                    Chưa có khóa học nào trong danh mục này.
+                  <td colSpan={activeSubTab === 'approved' ? 6 : 5} className="px-6 py-12 text-center text-slate-500">
+                    {activeSubTab === 'archived'
+                      ? 'Chưa có khóa học nào được lưu trữ.'
+                      : 'Chưa có khóa học nào trong danh mục này.'}
                   </td>
                 </tr>
               ) : (
@@ -230,9 +255,16 @@ export const AdminCoursesTab: React.FC<AdminCoursesTabProps> = ({
                     {/* Course Title & Category */}
                     <td className="px-6 py-4 max-w-xs">
                       <div>
-                        <span className="text-[10px] font-bold text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-md border border-purple-500/20">
-                          {course.category}
-                        </span>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="text-[10px] font-bold text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-md border border-purple-500/20">
+                            {course.category}
+                          </span>
+                          {activeSubTab === 'archived' && (
+                            <span className="text-[10px] font-bold text-slate-300 bg-slate-800 px-2 py-0.5 rounded-md border border-slate-700">
+                              Đã lưu trữ
+                            </span>
+                          )}
+                        </div>
                         <p className="font-semibold text-white text-sm line-clamp-2 mt-1">
                           {course.title}
                         </p>
@@ -268,8 +300,8 @@ export const AdminCoursesTab: React.FC<AdminCoursesTabProps> = ({
                     {/* Timestamps */}
                     <td className="px-6 py-4 space-y-1">
                       <div className="flex items-center space-x-1 text-slate-400">
-                        <Calendar className="w-3 h-3 text-slate-500" />
-                        <span>Gửi: {formatDate(course.submittedAt || course.submittedDate)}</span>
+                        {activeSubTab === 'archived' ? <Archive className="w-3 h-3 text-slate-500" /> : <Calendar className="w-3 h-3 text-slate-500" />}
+                        <span>{activeSubTab === 'archived' ? 'Lưu trữ/cập nhật:' : 'Gửi:'} {formatDate(activeSubTab === 'archived' ? course.updatedAt : course.submittedAt || course.submittedDate)}</span>
                       </div>
                       {course.approvedAt && (
                         <div className="flex items-center space-x-1 text-emerald-400 font-semibold">
@@ -331,6 +363,21 @@ export const AdminCoursesTab: React.FC<AdminCoursesTabProps> = ({
                               <span>Từ chối</span>
                             </button>
                           </>
+                        )}
+
+                        {course.status === 'archived' && (
+                          <button
+                            onClick={() => {
+                              if (window.confirm(`Khôi phục “${course.title}” về bản nháp? Khóa học sẽ chưa được hiển thị công khai; giảng viên cần cập nhật và gửi duyệt lại.`)) {
+                                onRestoreCourse(course.id);
+                              }
+                            }}
+                            className="flex items-center space-x-1 px-3 py-1.5 rounded-lg text-blue-200 bg-blue-500/15 hover:bg-blue-500/25 border border-blue-500/30 text-xs font-bold transition cursor-pointer"
+                            title="Khôi phục về bản nháp để giảng viên chỉnh sửa và gửi duyệt lại"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            <span>Khôi phục bản nháp</span>
+                          </button>
                         )}
                       </div>
                     </td>
