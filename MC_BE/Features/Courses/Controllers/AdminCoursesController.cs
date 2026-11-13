@@ -18,10 +18,49 @@ namespace MC_BE.Features.Courses.Controllers;
 public class AdminCoursesController : ControllerBase
 {
     private readonly ICourseService _courseService;
+    private readonly ICourseGiftAccessService _courseGiftAccessService;
 
-    public AdminCoursesController(ICourseService courseService)
+    public AdminCoursesController(ICourseService courseService, ICourseGiftAccessService courseGiftAccessService)
     {
         _courseService = courseService;
+        _courseGiftAccessService = courseGiftAccessService;
+    }
+
+    [HttpGet("gift-policy")]
+    public async Task<ActionResult<ApiResponse<CourseGiftPolicyDto>>> GetGiftPolicy(CancellationToken cancellationToken)
+    {
+        var policy = await _courseGiftAccessService.GetPolicyAsync(cancellationToken);
+        return Ok(ApiResponse<CourseGiftPolicyDto>.SuccessResponse(policy));
+    }
+
+    [HttpGet("gift-candidates")]
+    public async Task<ActionResult<ApiResponse<CourseGiftCandidatesPageDto>>> GetGiftCandidates(
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 100, CancellationToken cancellationToken = default)
+    {
+        var candidates = await _courseGiftAccessService.GetCandidatesAsync(page, pageSize, cancellationToken);
+        return Ok(ApiResponse<CourseGiftCandidatesPageDto>.SuccessResponse(candidates));
+    }
+
+    [HttpPut("gift-policy")]
+    public async Task<ActionResult<ApiResponse<CourseGiftPolicyDto>>> UpdateGiftPolicy(
+        [FromBody] UpdateCourseGiftPolicyRequest request, CancellationToken cancellationToken)
+    {
+        var adminId = GetCurrentAdminId();
+        if (adminId is null)
+            return Unauthorized(ApiResponse<CourseGiftPolicyDto>.FailureResponse("Unauthorized."));
+        try
+        {
+            var policy = await _courseGiftAccessService.UpdatePolicyAsync(request, adminId.Value, cancellationToken);
+            return Ok(ApiResponse<CourseGiftPolicyDto>.SuccessResponse(policy, "Đã cập nhật chính sách tặng khóa AI."));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<CourseGiftPolicyDto>.FailureResponse(ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(ApiResponse<CourseGiftPolicyDto>.FailureResponse(ex.Message));
+        }
     }
 
     private int? GetCurrentAdminId()

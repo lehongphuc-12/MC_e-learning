@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using MC_BE.Core.DTOs;
 using MC_BE.Core.Entities;
+using MC_BE.Features.Courses.Services.Interfaces;
 using MC_BE.Shared.Data;
 using MC_BE.Shared.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -14,13 +15,16 @@ public class EnrollmentService : IEnrollmentService
 {
     private readonly SmartMcDbContext _context;
     private readonly ICourseCatalogService _courseCatalog;
+    private readonly ICourseGiftAccessService _giftAccess;
 
     public EnrollmentService(
         SmartMcDbContext context,
-        ICourseCatalogService courseCatalog)
+        ICourseCatalogService courseCatalog,
+        ICourseGiftAccessService giftAccess)
     {
         _context = context;
         _courseCatalog = courseCatalog;
+        _giftAccess = giftAccess;
     }
 
     public async Task<ApiResponse<EnrollmentDto>> EnrollCourseAsync(
@@ -102,6 +106,17 @@ public class EnrollmentService : IEnrollmentService
                 }
                 else
                 {
+                    var giftOnlyAccess = await _giftAccess.IsGiftOnlyAccessAsync(courseId, learnerId, now);
+                    if (giftOnlyAccess && await _giftAccess.IsGiftCourseAsync(courseId))
+                    {
+                        var giftedDto = MapToDto(latestEnrollment);
+                        giftedDto.IsAccessGranted = true;
+                        giftedDto.CanPurchaseDirectly = true;
+                        return ApiResponse<EnrollmentDto>.SuccessResponse(
+                            giftedDto,
+                            "Bạn đang được tặng khóa AI. Bạn có thể mua riêng để giữ quyền truy cập độc lập.");
+                    }
+
                     var daysRemaining =
                         latestEnrollment.ExpiresAt.HasValue
                             ? (int)Math.Max(
@@ -238,9 +253,41 @@ public class EnrollmentService : IEnrollmentService
             await _context.SaveChangesAsync();
         }
 
-        var result = enrollments
-            .Select(MapToDto)
-            .ToList();
+        var result = enrollments.Select(MapToDto).ToList();
+
+        var enrollmentCourseIds = enrollments.Select(e => e.CourseId).Distinct().ToList();
+        var managedCourseIds = await _context.CourseGiftPolicies
+            .Where(p => enrollmentCourseIds.Contains(p.GiftCourseId))
+            .Select(p => p.GiftCourseId)
+            .Union(_context.CourseAccessGrants.Where(g => enrollmentCourseIds.Contains(g.CourseId)).Select(g => g.CourseId))
+            .Distinct()
+            .ToListAsync();
+        var activeGrantCourseIds = await _context.CourseAccessGrants
+            .Where(g => enrollmentCourseIds.Contains(g.CourseId) && g.LearnerId == learnerId && g.Status == "ACTIVE" &&
+                (!g.ExpiresAt.HasValue || g.ExpiresAt.Value > now))
+            .Select(g => g.CourseId)
+            .Distinct()
+            .ToListAsync();
+        var activeGiftGrantCourseIds = await _context.CourseAccessGrants
+            .Where(g => enrollmentCourseIds.Contains(g.CourseId) && g.LearnerId == learnerId && g.Status == "ACTIVE" &&
+                g.SourceType == "GIFT" && (!g.ExpiresAt.HasValue || g.ExpiresAt.Value > now))
+            .Select(g => g.CourseId).Distinct().ToListAsync();
+        var activePurchaseGrantCourseIds = await _context.CourseAccessGrants
+            .Where(g => enrollmentCourseIds.Contains(g.CourseId) && g.LearnerId == learnerId && g.Status == "ACTIVE" &&
+                g.SourceType == "DIRECT_PURCHASE" && (!g.ExpiresAt.HasValue || g.ExpiresAt.Value > now))
+            .Select(g => g.CourseId).Distinct().ToListAsync();
+        var managed = managedCourseIds.ToHashSet();
+        var activeGrants = activeGrantCourseIds.ToHashSet();
+        var activeGiftGrants = activeGiftGrantCourseIds.ToHashSet();
+        var activePurchaseGrants = activePurchaseGrantCourseIds.ToHashSet();
+        foreach (var dto in result)
+        {
+            dto.IsAccessGranted = managed.Contains(dto.CourseId)
+                ? activeGrants.Contains(dto.CourseId)
+                : (dto.Status == "ACTIVE" || dto.Status == "COMPLETED") && (!dto.ExpiresAt.HasValue || dto.ExpiresAt.Value > now);
+            dto.CanPurchaseDirectly = managed.Contains(dto.CourseId) && activeGiftGrants.Contains(dto.CourseId) &&
+                !activePurchaseGrants.Contains(dto.CourseId);
+        }
 
         return ApiResponse<List<EnrollmentDto>>.SuccessResponse(
             result
@@ -453,7 +500,9 @@ public class EnrollmentService : IEnrollmentService
                 ),
             EnrolledAt = enrollment.EnrolledAt,
             ExpiresAt = enrollment.ExpiresAt,
-            CreatedAt = enrollment.CreatedAt
+            CreatedAt = enrollment.CreatedAt,
+            IsAccessGranted = (enrollment.Status == "ACTIVE" || enrollment.Status == "COMPLETED") &&
+                (!enrollment.ExpiresAt.HasValue || enrollment.ExpiresAt.Value > DateTime.UtcNow)
         };
     }
 }

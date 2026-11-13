@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using MC_BE.Core.DTOs;
 using MC_BE.Core.Entities;
+using MC_BE.Features.Courses.Services.Interfaces;
 using MC_BE.Shared.Data;
 using MC_BE.Shared.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -14,13 +15,15 @@ public class PaymentService : IPaymentService
     private readonly IPayOsService _payOsService;
     private readonly ICourseCatalogService _courseCatalog;
     private readonly ILogger<PaymentService> _logger;
+    private readonly ICourseGiftAccessService _courseGiftAccess;
 
-    public PaymentService(SmartMcDbContext context, IPayOsService payOsService, ICourseCatalogService courseCatalog, ILogger<PaymentService> logger)
+    public PaymentService(SmartMcDbContext context, IPayOsService payOsService, ICourseCatalogService courseCatalog, ILogger<PaymentService> logger, ICourseGiftAccessService courseGiftAccess)
     {
         _context = context;
         _payOsService = payOsService;
         _courseCatalog = courseCatalog;
         _logger = logger;
+        _courseGiftAccess = courseGiftAccess;
     }
 
     // ============================================================
@@ -39,7 +42,10 @@ public class PaymentService : IPaymentService
         if (enrollment.LearnerId != currentUserId)
             return ApiResponse<CreatePaymentResponseDto>.FailureResponse("Bạn không có quyền thanh toán cho ghi danh này.");
 
-        if (!string.Equals(enrollment.Status, "PENDING_PAYMENT", StringComparison.OrdinalIgnoreCase))
+        var isGiftOnlyAccess = await _courseGiftAccess.IsGiftOnlyAccessAsync(enrollment.CourseId, currentUserId, DateTime.UtcNow);
+        var isGiftTarget = await _courseGiftAccess.IsGiftCourseAsync(enrollment.CourseId);
+        if (!string.Equals(enrollment.Status, "PENDING_PAYMENT", StringComparison.OrdinalIgnoreCase) &&
+            !(isGiftTarget && isGiftOnlyAccess && string.Equals(enrollment.Status, "ACTIVE", StringComparison.OrdinalIgnoreCase)))
             return ApiResponse<CreatePaymentResponseDto>.FailureResponse(
                 string.Equals(enrollment.Status, "ACTIVE", StringComparison.OrdinalIgnoreCase)
                     ? "Khóa học đã được kích hoạt."
@@ -59,12 +65,18 @@ public class PaymentService : IPaymentService
         if (course.Price != decimal.Truncate(course.Price))
             return ApiResponse<CreatePaymentResponseDto>.FailureResponse("Số tiền VND phải là số nguyên.");
 
-        var alreadyPaid = await _context.PaymentItems
+        var alreadyPaid = !isGiftOnlyAccess && await _context.PaymentItems
             .Include(i => i.Payment)
             .AnyAsync(i => i.EnrollmentId == enrollment.EnrollmentId && i.Payment.Status == "SUCCESS");
 
         if (alreadyPaid)
             return ApiResponse<CreatePaymentResponseDto>.FailureResponse("Ghi danh này đã được thanh toán.");
+
+        var paymentAlreadyPending = await _context.PaymentItems
+            .Include(i => i.Payment)
+            .AnyAsync(i => i.EnrollmentId == enrollment.EnrollmentId && i.Payment.Status == "PENDING");
+        if (paymentAlreadyPending)
+            return ApiResponse<CreatePaymentResponseDto>.FailureResponse("Đã có yêu cầu thanh toán đang chờ xử lý cho khóa học này.");
 
         var now = DateTime.UtcNow;
         var orderCode = await GenerateUniqueOrderCodeAsync();
@@ -122,14 +134,16 @@ public class PaymentService : IPaymentService
         if (enrollments.Any(e => e.LearnerId != currentUserId))
             return ApiResponse<CreatePaymentResponseDto>.FailureResponse("Bạn không có quyền thanh toán một hoặc nhiều ghi danh trong giỏ hàng.");
 
-        var activeEnrollment = enrollments.FirstOrDefault(e =>
-            string.Equals(e.Status, "ACTIVE", StringComparison.OrdinalIgnoreCase));
-
-        if (activeEnrollment != null)
-            return ApiResponse<CreatePaymentResponseDto>.FailureResponse($"Khóa học #{activeEnrollment.CourseId} đã được kích hoạt.");
-
-        var invalidEnrollment = enrollments.FirstOrDefault(e =>
-            !string.Equals(e.Status, "PENDING_PAYMENT", StringComparison.OrdinalIgnoreCase));
+        Enrollment? invalidEnrollment = null;
+        foreach (var candidate in enrollments)
+        {
+            if (string.Equals(candidate.Status, "PENDING_PAYMENT", StringComparison.OrdinalIgnoreCase)) continue;
+            if (string.Equals(candidate.Status, "ACTIVE", StringComparison.OrdinalIgnoreCase) &&
+                await _courseGiftAccess.IsGiftOnlyAccessAsync(candidate.CourseId, currentUserId, DateTime.UtcNow) &&
+                await _courseGiftAccess.IsGiftCourseAsync(candidate.CourseId)) continue;
+            invalidEnrollment = candidate;
+            break;
+        }
 
         if (invalidEnrollment != null)
             return ApiResponse<CreatePaymentResponseDto>.FailureResponse(
@@ -156,12 +170,27 @@ public class PaymentService : IPaymentService
             courseData.Add((enrollment, course));
         }
 
-        var alreadyPaid = await _context.PaymentItems
+        var alreadyPaidEnrollmentIds = await _context.PaymentItems
             .Include(i => i.Payment)
-            .AnyAsync(i => ids.Contains(i.EnrollmentId) && i.Payment.Status == "SUCCESS");
+            .Where(i => ids.Contains(i.EnrollmentId) && i.Payment.Status == "SUCCESS")
+            .Select(i => i.EnrollmentId)
+            .Distinct()
+            .ToListAsync();
+        foreach (var paidEnrollmentId in alreadyPaidEnrollmentIds)
+        {
+            var paidEnrollment = enrollments.First(e => e.EnrollmentId == paidEnrollmentId);
+            var mayRepurchaseGiftTarget = string.Equals(paidEnrollment.Status, "ACTIVE", StringComparison.OrdinalIgnoreCase) &&
+                await _courseGiftAccess.IsGiftCourseAsync(paidEnrollment.CourseId) &&
+                await _courseGiftAccess.IsGiftOnlyAccessAsync(paidEnrollment.CourseId, currentUserId, DateTime.UtcNow);
+            if (!mayRepurchaseGiftTarget)
+                return ApiResponse<CreatePaymentResponseDto>.FailureResponse("Một hoặc nhiều khóa học trong giỏ đã được thanh toán.");
+        }
 
-        if (alreadyPaid)
-            return ApiResponse<CreatePaymentResponseDto>.FailureResponse("Một hoặc nhiều khóa học trong giỏ đã được thanh toán.");
+        var alreadyPending = await _context.PaymentItems
+            .Include(i => i.Payment)
+            .AnyAsync(i => ids.Contains(i.EnrollmentId) && i.Payment.Status == "PENDING");
+        if (alreadyPending)
+            return ApiResponse<CreatePaymentResponseDto>.FailureResponse("Một hoặc nhiều khóa học trong giỏ đã có yêu cầu thanh toán đang chờ xử lý.");
 
         var totalAmount = courseData.Sum(x => x.Course.Price);
 
@@ -333,9 +362,13 @@ public class PaymentService : IPaymentService
 
                 item.Enrollment.Status = "ACTIVE";
                 item.Enrollment.EnrolledAt ??= now;
-                item.Enrollment.ExpiresAt ??= now.AddDays(90);
+                var paidAccessExpiry = now.AddDays(90);
+                if (!item.Enrollment.ExpiresAt.HasValue || item.Enrollment.ExpiresAt.Value < paidAccessExpiry)
+                    item.Enrollment.ExpiresAt = paidAccessExpiry;
                 item.Enrollment.UpdatedAt = now;
             }
+
+            await _courseGiftAccess.IssuePaymentGrantsAsync(payment.Items, now);
 
             await _context.SaveChangesAsync();
             await dbTransaction.CommitAsync();

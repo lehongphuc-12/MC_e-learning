@@ -835,6 +835,68 @@ namespace MC_BE.Migrations
                         });
                 });
 
+            modelBuilder.Entity("MC_BE.Core.Entities.CourseAccessGrant", b =>
+                {
+                    b.Property<long>("GrantId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("GrantId"));
+
+                    b.Property<int>("CourseId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("GrantedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<int>("LearnerId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("RevocationReason")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("SourceEnrollmentId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("SourcePaymentItemId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SourceType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("ACTIVE");
+
+                    b.HasKey("GrantId");
+
+                    b.HasIndex("CourseId");
+
+                    b.HasIndex("SourceEnrollmentId");
+
+                    b.HasIndex("LearnerId", "CourseId", "Status");
+
+                    b.HasIndex("SourcePaymentItemId", "CourseId", "SourceType")
+                        .IsUnique()
+                        .HasFilter("\"SourcePaymentItemId\" IS NOT NULL");
+
+                    b.ToTable("course_access_grants", (string)null);
+                });
+
             modelBuilder.Entity("MC_BE.Core.Entities.CourseDeletionRequest", b =>
                 {
                     b.Property<long>("RequestId")
@@ -906,6 +968,45 @@ namespace MC_BE.Migrations
                     b.HasIndex("Status", "RequestedAt");
 
                     b.ToTable("course_deletion_requests", (string)null);
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.CourseGiftPolicy", b =>
+                {
+                    b.Property<int>("PolicyId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("PolicyId"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<int>("GiftCourseId")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<int?>("UpdatedByAdminId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("PolicyId");
+
+                    b.HasIndex("GiftCourseId")
+                        .IsUnique();
+
+                    b.HasIndex("UpdatedByAdminId");
+
+                    b.ToTable("course_gift_policies", (string)null);
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.CourseMaterial", b =>
@@ -3271,6 +3372,57 @@ namespace MC_BE.Migrations
                     b.Navigation("Category");
 
                     b.Navigation("Instructor");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.CourseAccessGrant", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.Course", "Course")
+                        .WithMany()
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MC_BE.Core.Entities.User", "Learner")
+                        .WithMany()
+                        .HasForeignKey("LearnerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MC_BE.Core.Entities.Enrollment", "SourceEnrollment")
+                        .WithMany()
+                        .HasForeignKey("SourceEnrollmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MC_BE.Core.Entities.PaymentItem", "SourcePaymentItem")
+                        .WithMany()
+                        .HasForeignKey("SourcePaymentItemId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Course");
+
+                    b.Navigation("Learner");
+
+                    b.Navigation("SourceEnrollment");
+
+                    b.Navigation("SourcePaymentItem");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.CourseGiftPolicy", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.Course", "GiftCourse")
+                        .WithMany()
+                        .HasForeignKey("GiftCourseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MC_BE.Core.Entities.User", "UpdatedByAdmin")
+                        .WithMany()
+                        .HasForeignKey("UpdatedByAdminId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("GiftCourse");
+
+                    b.Navigation("UpdatedByAdmin");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.CourseMaterial", b =>

@@ -12,6 +12,8 @@ using MC_BE.Features.Auth.Services;
 using MC_BE.Features.Auth.Services.Interfaces;
 using MC_BE.Features.Courses.Services;
 using MC_BE.Features.Courses.Services.Interfaces;
+using MC_BE.Features.Courses.Repositories;
+using MC_BE.Features.Courses.Repositories.Interfaces;
 using MC_BE.Features.Users.Services;
 using MC_BE.Features.Users.Services.Interfaces;
 using MC_BE.Features.Learning.Repositories;
@@ -138,7 +140,10 @@ builder.Services.AddScoped<IAdminStatsService, AdminStatsService>();
 // COURSE MANAGEMENT
 // ============================================================
 builder.Services.AddScoped<ICourseService, CourseService>();
+builder.Services.AddScoped<ICourseMaterialsReadRepository, CourseMaterialsReadRepository>();
+builder.Services.AddScoped<ICourseMaterialsReadService, CourseMaterialsReadService>();
 builder.Services.AddScoped<ICourseLearningAccessService, CourseLearningAccessService>();
+builder.Services.AddScoped<ICourseGiftAccessService, CourseGiftAccessService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<IModuleService, ModuleService>();
 builder.Services.AddScoped<ILessonService, LessonService>();

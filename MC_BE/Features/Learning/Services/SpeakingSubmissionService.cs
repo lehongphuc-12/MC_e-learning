@@ -1,6 +1,7 @@
 using MC_BE.Core.Entities;
 using MC_BE.Core.Enums;
 using MC_BE.Features.Learning.DTOs;
+using MC_BE.Features.Courses.Services.Interfaces;
 using MC_BE.Features.Learning.Repositories.Interfaces;
 using MC_BE.Features.Learning.Services.Interfaces;
 using MC_BE.Shared.Repositories.Interfaces;
@@ -17,6 +18,7 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
     private readonly ICloudinaryService _cloudinaryService;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<SpeakingSubmissionService> _logger;
+    private readonly ICourseLearningAccessService _courseAccess;
 
     public SpeakingSubmissionService(
         ISpeakingSubmissionRepository submissionRepository,
@@ -24,7 +26,8 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
         IGenericRepository<Enrollment> enrollmentRepository,
         ICloudinaryService cloudinaryService,
         IUnitOfWork unitOfWork,
-        ILogger<SpeakingSubmissionService> logger)
+        ILogger<SpeakingSubmissionService> logger,
+        ICourseLearningAccessService courseAccess)
     {
         _submissionRepository = submissionRepository;
         _lessonRepository = lessonRepository;
@@ -32,6 +35,7 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
         _cloudinaryService = cloudinaryService;
         _unitOfWork = unitOfWork;
         _logger = logger;
+        _courseAccess = courseAccess;
     }
 
     public async Task<SpeakingSubmissionResponseDto> SubmitSpeakingAssignmentAsync(int learnerId, CreateSpeakingSubmissionRequest request)
@@ -70,6 +74,9 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
                 Console.WriteLine(errMsg);
                 throw new KeyNotFoundException($"Lesson with ID {request.LessonId} was not found.");
             }
+
+            if (!await _courseAccess.CanAccessCourseAsync(lesson.CourseId, learnerId, isAdmin: false))
+                throw new InvalidOperationException("Bạn không có quyền truy cập khóa học này.");
 
             // 3. Check learner enrollment in the course via Repository
             var enrollments = await _enrollmentRepository.FindAsync(

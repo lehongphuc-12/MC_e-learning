@@ -9,13 +9,16 @@ public sealed class CourseLearningAccessService : ICourseLearningAccessService
 {
     private readonly IGenericRepository<Course> _courseRepository;
     private readonly IGenericRepository<Enrollment> _enrollmentRepository;
+    private readonly ICourseGiftAccessService _giftAccess;
 
     public CourseLearningAccessService(
         IGenericRepository<Course> courseRepository,
-        IGenericRepository<Enrollment> enrollmentRepository)
+        IGenericRepository<Enrollment> enrollmentRepository,
+        ICourseGiftAccessService giftAccess)
     {
         _courseRepository = courseRepository;
         _enrollmentRepository = enrollmentRepository;
+        _giftAccess = giftAccess;
     }
 
     public async Task<bool> CanAccessCourseAsync(int courseId, int userId, bool isAdmin)
@@ -30,6 +33,9 @@ public sealed class CourseLearningAccessService : ICourseLearningAccessService
         if (isAdmin || course.InstructorId == userId) return true;
 
         var now = DateTime.UtcNow;
+        if (await _giftAccess.IsGiftManagedCourseAsync(courseId))
+            return await _giftAccess.HasActiveGrantAsync(courseId, userId, now);
+
         return await _enrollmentRepository.GetQueryable().AnyAsync(e =>
             e.CourseId == courseId &&
             e.LearnerId == userId &&

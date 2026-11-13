@@ -153,7 +153,10 @@ export function useAppStore(user: User | null) {
   const activeCourseIds = useMemo(() => {
     return new Set(
       enrollments
-        .filter((enrollment) => String(enrollment.status).toUpperCase() === 'ACTIVE')
+        .filter((enrollment) =>
+          (enrollment.isAccessGranted ?? String(enrollment.status).toUpperCase() === 'ACTIVE') &&
+          !enrollment.canPurchaseDirectly
+        )
         .map((enrollment) => String(enrollment.courseId))
     );
   }, [enrollments]);

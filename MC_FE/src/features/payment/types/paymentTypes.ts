@@ -12,6 +12,7 @@ export interface EnrollmentDto {
   paymentId?: number | null;
   status:
     | 'ACTIVE'
+    | 'COMPLETED'
     | 'PENDING_PAYMENT'
     | 'CANCELLED'
     | 'EXPIRED'
@@ -21,6 +22,8 @@ export interface EnrollmentDto {
   enrolledAt?: string | null;
   expiresAt?: string | null;
   createdAt: string;
+  isAccessGranted?: boolean;
+  canPurchaseDirectly?: boolean;
 }
 export interface CourseEnrolledStudentDto {
   enrollmentId: number;

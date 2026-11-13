@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using MC_BE.Core.Entities;
 using MC_BE.Core.Enums;
 using MC_BE.Features.Learning.DTOs;
+using MC_BE.Features.Courses.Services.Interfaces;
 using MC_BE.Features.Learning.Services.Interfaces;
 using MC_BE.Shared.Repositories.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -23,6 +24,7 @@ public class LearningProgressService : ILearningProgressService
     private readonly IGenericRepository<SpeakingSubmission> _submissionRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICertificateService _certificateService;
+    private readonly ICourseLearningAccessService _courseAccess;
 
     public LearningProgressService(
         IGenericRepository<Enrollment> enrollmentRepository,
@@ -34,7 +36,8 @@ public class LearningProgressService : ILearningProgressService
         IGenericRepository<ForumReaction> forumReactionRepository,
         IGenericRepository<SpeakingSubmission> submissionRepository,
         IUnitOfWork unitOfWork,
-        ICertificateService certificateService)
+        ICertificateService certificateService,
+        ICourseLearningAccessService courseAccess)
     {
         _enrollmentRepository = enrollmentRepository;
         _lessonRepository = lessonRepository;
@@ -46,10 +49,12 @@ public class LearningProgressService : ILearningProgressService
         _submissionRepository = submissionRepository;
         _unitOfWork = unitOfWork;
         _certificateService = certificateService;
+        _courseAccess = courseAccess;
     }
 
     public async Task<CourseLearningProgressDto?> GetCourseProgressAsync(int learnerId, int courseId)
     {
+        if (!await _courseAccess.CanAccessCourseAsync(courseId, learnerId, isAdmin: false)) return null;
         var enrollments = await _enrollmentRepository.FindAsync(
             e => e.LearnerId == learnerId && e.CourseId == courseId,
             e => e.Course,
@@ -139,6 +144,7 @@ public class LearningProgressService : ILearningProgressService
     {
         var lesson = await _lessonRepository.GetByIdAsync(lessonId);
         if (lesson == null) return null;
+        if (!await _courseAccess.CanAccessCourseAsync(lesson.CourseId, learnerId, isAdmin: false)) return null;
 
         var enrollments = await _enrollmentRepository.FindAsync(
             e => e.LearnerId == learnerId && e.CourseId == lesson.CourseId,

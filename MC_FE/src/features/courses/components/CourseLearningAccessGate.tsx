@@ -100,8 +100,10 @@ export const CourseLearningAccessGate: React.FC<CourseLearningAccessGateProps> =
   const hasValidEnrollment = enrollmentsQuery.data?.some((enrollment) => {
     const status = String(enrollment.status).toUpperCase();
     const notExpired = !enrollment.expiresAt || Date.parse(enrollment.expiresAt) > now;
+    const backendConfirmed = enrollment.isAccessGranted;
     return Number(enrollment.courseId) === courseId &&
-      (status === 'ACTIVE' || status === 'COMPLETED') && notExpired;
+      (backendConfirmed ?? (status === 'ACTIVE' || status === 'COMPLETED')) &&
+      notExpired;
   });
 
   if (!hasValidEnrollment) {

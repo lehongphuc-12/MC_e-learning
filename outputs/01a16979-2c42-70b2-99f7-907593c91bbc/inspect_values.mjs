@@ -1,0 +1,5 @@
+import { pathToFileURL } from 'node:url';
+const {FileBlob,SpreadsheetFile}=await import(pathToFileURL('C:/Program Files/WindowsApps/OpenAI.CodexPrimaryRuntime.v26-1111-570-0_26.1111.570.0_x64__3k8sg7r9htsxt/dependencies/node/node_modules/@oai/artifact-tool/dist/artifact_tool.mjs'));
+const wb=await SpreadsheetFile.importXlsx(await FileBlob.load('D:/Đồ_Án_Tốt_Nghiệp/REPORT_V1/Report5_Unit Test_V2.xlsx'));
+for(const n of ['Functions','Statistics','Create Course','Update Course','Delete Course','View Module','Create Module','Update Module','Delete Module','View Lesson','Create Lesson','Update Lesson','Delete Lesson']) { const s=wb.worksheets.getItem(n); console.log('\n'+n); let r=n==='Functions'?'A10:H34':n==='Statistics'?'A11:I30':'A1:T42'; console.log((await wb.inspect({kind:'table',sheetId:n,range:r,include:'values,formulas',tableMaxRows:45,tableMaxCols:20,maxChars:10000})).ndjson); }
+console.log('HELP',wb.help('worksheet row insert',{include:'index,examples,notes',maxChars:3000}).ndjson);
