@@ -146,13 +146,22 @@ public class LearningProgressService : ILearningProgressService
         if (lesson == null) return null;
         if (!await _courseAccess.CanAccessCourseAsync(lesson.CourseId, learnerId, isAdmin: false)) return null;
 
-        var enrollments = await _enrollmentRepository.FindAsync(
-            e => e.LearnerId == learnerId && e.CourseId == lesson.CourseId,
-            e => e.LessonProgresses);
-
-        var enrollment = enrollments.FirstOrDefault();
+        var now = DateTime.UtcNow;
+        var enrollment = await _enrollmentRepository.GetQueryable()
+            .Include(e => e.LessonProgresses)
+            .Where(e =>
+                e.LearnerId == learnerId &&
+                e.CourseId == lesson.CourseId &&
+                (e.Status == "ACTIVE" || e.Status == "COMPLETED") &&
+                (!e.ExpiresAt.HasValue || e.ExpiresAt.Value > now))
+            .OrderByDescending(e => e.Status == "ACTIVE")
+            .ThenByDescending(e => e.EnrolledAt ?? e.CreatedAt)
+            .ThenByDescending(e => e.EnrollmentId)
+            .FirstOrDefaultAsync();
 
         if (enrollment == null) return null;
+        var decision = await _access.CheckLessonAsync(learnerId, lessonId);
+        if (!decision.Allowed) throw new InvalidOperationException(decision.Reason ?? "Lesson locked.");
 
         var existingProgresses = await _progressRepository.FindAsync(
             lp => lp.EnrollmentId == enrollment.EnrollmentId && lp.LessonId == lessonId);

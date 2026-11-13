@@ -11,7 +11,7 @@ using ConversationRead = MC_BE.Core.Entities.Chat.ConversationRead;
 using StickerPack = MC_BE.Core.Entities.Chat.StickerPack;
 using Sticker = MC_BE.Core.Entities.Chat.Sticker;
 using ChatCall = MC_BE.Core.Entities.Chat.ChatCall;
-
+using MC_BE.Core.Entities;
 namespace MC_BE.Shared.Data;
 
 public class SmartMcDbContext : DbContext
@@ -45,6 +45,9 @@ public class SmartMcDbContext : DbContext
     public DbSet<LessonProgress> LessonProgresses { get; set; } = null!;
     public DbSet<Certificate> Certificates { get; set; } = null!;
     public DbSet<SpeakingSubmission> SpeakingSubmissions { get; set; } = null!;
+    public DbSet<SpeakingScript> SpeakingScripts { get; set; } = null!;
+    public DbSet<SpeakingScriptLevel> SpeakingScriptLevels { get; set; } = null!;
+    public DbSet<BackgroundMusic> BackgroundMusics { get; set; } = null!;
     public DbSet<VideoUploadSession> VideoUploadSessions { get; set; } = null!;
     public DbSet<R2ObjectDeletionJob> R2ObjectDeletionJobs { get; set; } = null!;
     public DbSet<CourseDeletionRequest> CourseDeletionRequests { get; set; } = null!;
@@ -109,7 +112,12 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
     public DbSet<ForumComment> ForumComments { get; set; } = null!;
     public DbSet<ForumReaction> ForumReactions { get; set; } = null!;
     public DbSet<ForumReport> ForumReports { get; set; } = null!;
+    // AI PRACTICE (bảng riêng, không thay đổi bảng feedback cũ)
+    public DbSet<AIPracticeSession> AIPracticeSessions { get; set; } = null!;
+    public DbSet<AIPracticeFeedback> AIPracticeFeedbacks { get; set; } = null!;
 
+    public DbSet<AIPronunciationFeedback> AIPronunciationFeedbacks
+    { get; set; } = null!;
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -494,6 +502,104 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
                 .WithMany()
                 .HasForeignKey(d => d.EnrollmentId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+                modelBuilder.Entity<SpeakingScript>(entity =>
+        {
+            entity.ToTable("speaking_scripts");
+            entity.HasKey(e => e.ScriptId);
+            entity.HasIndex(e => e.LessonId).IsUnique();
+
+            entity.Property(e => e.Status)
+                .HasConversion<string>()
+                .HasDefaultValue(SpeakingScriptStatus.DRAFT);
+
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasOne(d => d.Lesson)
+                .WithOne(l => l.SpeakingScript)
+                .HasForeignKey<SpeakingScript>(d => d.LessonId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(d => d.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(d => d.CreatedBy)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<SpeakingScriptLevel>(entity =>
+        {
+            entity.ToTable("speaking_script_levels");
+            entity.HasKey(e => e.LevelId);
+            entity.HasIndex(e => new { e.ScriptId, e.Level }).IsUnique();
+
+            entity.Property(e => e.Level)
+                .HasConversion<string>();
+
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasOne(d => d.Script)
+                .WithMany(s => s.Levels)
+                .HasForeignKey(d => d.ScriptId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<BackgroundMusic>(entity =>
+        {
+            entity.ToTable("background_musics");
+            entity.HasKey(e => e.MusicId);
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasOne(d => d.Lesson)
+                .WithMany()
+                .HasForeignKey(d => d.LessonId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasData(
+                new BackgroundMusic
+                {
+                    MusicId = 1,
+                    Title = "Lãng mạn",
+                    AudioUrl = "https://res.cloudinary.com/dsbhtgduv/video/upload/v1794227349/background-music/system/lang_man.mp3",
+                    CloudinaryPublicId = "background-music/system/lang_man",
+                    IsSystemDefault = true,
+                    LessonId = null,
+                    CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+                },
+                new BackgroundMusic
+                {
+                    MusicId = 2,
+                    Title = "Sang trọng",
+                    AudioUrl = "https://res.cloudinary.com/dsbhtgduv/video/upload/v1794227354/background-music/system/sang_trong.mp3",
+                    CloudinaryPublicId = "background-music/system/sang_trong",
+                    IsSystemDefault = true,
+                    LessonId = null,
+                    CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+                },
+                new BackgroundMusic
+                {
+                    MusicId = 3,
+                    Title = "Sôi động",
+                    AudioUrl = "https://res.cloudinary.com/dsbhtgduv/video/upload/v1794227356/background-music/system/soi_dong.mp3",
+                    CloudinaryPublicId = "background-music/system/soi_dong",
+                    IsSystemDefault = true,
+                    LessonId = null,
+                    CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+                },
+                new BackgroundMusic
+                {
+                    MusicId = 4,
+                    Title = "Truyền cảm hứng",
+                    AudioUrl = "https://res.cloudinary.com/dsbhtgduv/video/upload/v1794227359/background-music/system/truyen_cam_hung.mp3",
+                    CloudinaryPublicId = "background-music/system/truyen_cam_hung",
+                    IsSystemDefault = true,
+                    LessonId = null,
+                    CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+                }
+            );
         });
 
         modelBuilder.Entity<SpeakingSubmission>(entity =>
@@ -1346,6 +1452,79 @@ modelBuilder.Entity<QuizAnswerScenarioPath>(entity =>
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
+        // AI PRACTICE: cấu hình mới, không chỉnh sửa AIPronunciationFeedback
+        modelBuilder.Entity<AIPracticeSession>(e =>
+        {
+            e.ToTable("ai_practice_sessions");
+            e.HasKey(x => x.PracticeSessionId);
+            e.HasIndex(x => new { x.LearnerId, x.CreatedAt });
+            e.HasIndex(x => new { x.CourseId, x.LessonId, x.CreatedAt });
+            e.HasOne<User>().WithMany().HasForeignKey(x => x.LearnerId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Course>().WithMany().HasForeignKey(x => x.CourseId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne<Lesson>().WithMany().HasForeignKey(x => x.LessonId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<AIPracticeFeedback>(e =>
+        {
+            e.ToTable("ai_practice_feedbacks");
+            e.HasKey(x => x.PracticeFeedbackId);
+            e.HasIndex(x => x.PracticeSessionId).IsUnique();
+            e.HasOne<AIPracticeSession>().WithMany().HasForeignKey(x => x.PracticeSessionId)
+                .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<User>().WithMany().HasForeignKey(x => x.LearnerId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+        
+        // KHÔNG thay block modelBuilder.Entity<AIPronunciationFeedback> cũ.
+
+        modelBuilder.Entity<AIPronunciationFeedback>(entity =>
+{
+    entity.ToTable("ai_pronunciation_feedbacks");
+
+    entity.HasKey(e => e.FeedbackId);
+
+    entity.HasIndex(e => new
+    {
+        e.SubmissionId,
+        e.LearnerId
+    }).IsUnique();
+
+    entity.Property(e => e.ModelVersion)
+        .HasMaxLength(50)
+        .IsRequired();
+
+    entity.Property(e => e.LLMProvider)
+        .HasMaxLength(100)
+        .IsRequired();
+
+    entity.Property(e => e.LLMModel)
+        .HasMaxLength(100)
+        .IsRequired();
+
+    entity.Property(e => e.PredictionJson)
+        .HasColumnType("text");
+
+    entity.Property(e => e.FeedbackJson)
+        .HasColumnType("text");
+
+    entity.Property(e => e.Summary)
+        .HasColumnType("text");
+
+    entity.Property(e => e.CreatedAt)
+        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+    entity.Property(e => e.UpdatedAt)
+        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+    entity.HasOne<SpeakingSubmission>()
+        .WithMany()
+        .HasForeignKey(e => e.SubmissionId)
+        .OnDelete(DeleteBehavior.Cascade);
+
+    entity.HasOne<User>()
+        .WithMany()
+        .HasForeignKey(e => e.LearnerId)
+        .OnDelete(DeleteBehavior.Restrict);
+});
         modelBuilder.Entity<ForumReport>(entity =>
         {
             entity.ToTable("forum_reports");

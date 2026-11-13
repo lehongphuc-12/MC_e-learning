@@ -38,7 +38,11 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-
+using MC_BE.Features.VoiceAssessment.Services;
+using MC_BE.Features.VoiceAssessment.Services.Interfaces;
+using MC_BE.Features.VoiceAssessment.Providers;
+using MC_BE.Features.VoiceAssessment.Providers.Interfaces;
+using Microsoft.Extensions.Options;
 var builder = WebApplication.CreateBuilder(args);
 
 // ============================================================
@@ -72,6 +76,7 @@ builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("Emai
 builder.Services.Configure<PayOsSettings>(builder.Configuration.GetSection("PayOS"));
 builder.Services.Configure<R2Settings>(builder.Configuration.GetSection("CloudflareR2"));
 builder.Services.Configure<GroqSettings>(builder.Configuration.GetSection("Groq"));
+builder.Services.Configure<MentorChatSettings>(builder.Configuration.GetSection("MentorChat"));
 
 // ============================================================
 // CORS — restrict to known origins only (never wildcard + credentials)
@@ -173,8 +178,13 @@ builder.Services.AddScoped<IAdminForumService, AdminForumService>();
 // ============================================================
 builder.Services.AddScoped<ICertificateService, CertificateService>();
 builder.Services.AddScoped<ILearningProgressService, LearningProgressService>();
+builder.Services.AddScoped<ILearningAccessService, LearningAccessService>();
 builder.Services.AddScoped<ISpeakingSubmissionRepository, SpeakingSubmissionRepository>();
 builder.Services.AddScoped<ISpeakingSubmissionService, SpeakingSubmissionService>();
+builder.Services.AddScoped<ISpeakingScriptRepository, SpeakingScriptRepository>();
+builder.Services.AddScoped<ISpeakingScriptService, SpeakingScriptService>();
+builder.Services.AddScoped<SpeakingScriptParserService>();
+builder.Services.AddScoped<IBackgroundMusicService, BackgroundMusicService>();
 
 // ============================================================
 // EMAIL / CLOUDINARY
@@ -187,6 +197,7 @@ builder.Services.AddScoped<IR2StorageService, R2StorageService>();
 // AI SPEECH-TO-TEXT & TRANSCRIPTION
 // ============================================================
 builder.Services.AddHttpClient<IGroqWhisperService, GroqWhisperService>();
+builder.Services.AddHttpClient<IMentorChatService, MentorChatService>();
 builder.Services.AddSingleton<IAudioExtractorService, AudioExtractorService>();
 builder.Services.AddSingleton<ITranscriptionQueue, TranscriptionQueue>();
 builder.Services.AddHostedService<TranscriptionWorker>();
@@ -209,7 +220,14 @@ builder.Services.AddHostedService<EnrollmentExpirationWorker>();
 // ============================================================
 builder.Services.AddScoped<IChatService, ChatService>();
 builder.Services.AddScoped<ICallService, CallService>();
+// ============================================================
+// Model AI
+// ============================================================
+builder.Services.Configure<OpenAISettings>(
+    builder.Configuration.GetSection("OpenAI"));
 
+builder.Services.Configure<VoiceAssessmentAISettings>(
+    builder.Configuration.GetSection("VoiceAssessmentAI"));
 // ============================================================
 // SIGNALR
 // ============================================================
@@ -265,7 +283,60 @@ builder.Services.AddControllers()
     {
         options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
     });
+// ============================================================
+// VOICE ASSESSMENT - AI FEEDBACK
+// ============================================================
 
+builder.Services.AddScoped<
+    IAIResponseService,
+    AIResponseService>();
+
+// AI PRACTICE (bổ sung độc lập, giữ nguyên AIResponseService)
+builder.Services.AddScoped<IAIPracticeService, AIPracticeService>();
+
+builder.Services.AddHttpClient<
+    ILLMProvider,
+    OpenAIProvider>();
+
+builder.Services.AddHttpClient(
+    "VoiceAssessmentAI",
+    (serviceProvider, client) =>
+    {
+        var settings = serviceProvider
+            .GetRequiredService<
+                Microsoft.Extensions.Options.IOptions<VoiceAssessmentAISettings>>()
+            .Value;
+
+        if (!Uri.TryCreate(
+                settings.BaseUrl,
+                UriKind.Absolute,
+                out var baseUri) ||
+            (baseUri.Scheme != Uri.UriSchemeHttp &&
+             baseUri.Scheme != Uri.UriSchemeHttps))
+        {
+            throw new InvalidOperationException(
+                "Địa chỉ dịch vụ AI không hợp lệ.");
+        }
+
+        if (settings.TimeoutSeconds <= 0)
+        {
+            throw new InvalidOperationException(
+                "Thời gian chờ dịch vụ AI phải lớn hơn 0.");
+        }
+
+        client.BaseAddress = new Uri(
+            settings.BaseUrl.TrimEnd('/') + "/");
+
+        client.Timeout = TimeSpan.FromSeconds(
+            settings.TimeoutSeconds);
+    });
+
+builder.Services.AddHttpClient(
+    "AudioSource",
+    client =>
+    {
+        client.Timeout = TimeSpan.FromSeconds(60);
+    });
 // ============================================================
 // OPEN API / SWAGGER (always registered so dev tools work; UI gated below)
 // ============================================================
@@ -336,6 +407,27 @@ using (var scope = app.Services.CreateScope())
             ALTER TABLE IF EXISTS lessons ADD COLUMN IF NOT EXISTS ""Transcript"" text;
             ALTER TABLE IF EXISTS lessons ADD COLUMN IF NOT EXISTS ""SubtitleUrl"" text;
             ALTER TABLE IF EXISTS lessons ADD COLUMN IF NOT EXISTS ""TranscriptStatus"" integer NOT NULL DEFAULT 0;
+            CREATE TABLE IF NOT EXISTS speaking_scripts (
+                ""ScriptID"" SERIAL PRIMARY KEY,
+                ""LessonID"" integer NOT NULL UNIQUE,
+                ""Title"" character varying(500) NOT NULL,
+                ""OriginalContent"" text,
+                ""CreatedBy"" integer,
+                ""UpdatedAt"" timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+                ""Status"" character varying(20) DEFAULT 'DRAFT',
+                CONSTRAINT fk_speaking_scripts_lesson FOREIGN KEY (""LessonID"") REFERENCES lessons(""LessonID"") ON DELETE CASCADE,
+                CONSTRAINT fk_speaking_scripts_user FOREIGN KEY (""CreatedBy"") REFERENCES users(""UserID"") ON DELETE SET NULL
+            );
+            CREATE TABLE IF NOT EXISTS speaking_script_levels (
+                ""LevelID"" SERIAL PRIMARY KEY,
+                ""ScriptID"" integer NOT NULL,
+                ""Level"" character varying(20) NOT NULL,
+                ""Content"" text NOT NULL,
+                ""CleanScriptForScoring"" text,
+                ""UpdatedAt"" timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+                CONSTRAINT fk_speaking_script_levels_script FOREIGN KEY (""ScriptID"") REFERENCES speaking_scripts(""ScriptID"") ON DELETE CASCADE,
+                CONSTRAINT uq_script_level UNIQUE (""ScriptID"", ""Level"")
+            );
         ");
     }
     catch (Exception ex)

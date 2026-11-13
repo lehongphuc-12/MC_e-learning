@@ -41,13 +41,14 @@ import {
   GitCompareArrows,
   CloudUpload,
   ShieldCheck,
-  Video, FileText, MoreVertical, LayoutGrid, List, CheckCircle2, Menu, BarChart3, Upload, SlidersHorizontal,
+  Video, FileText, MoreVertical, LayoutGrid, List, CheckCircle2, Menu, BarChart3, Upload, SlidersHorizontal, CalendarDays, GraduationCap,
 } from 'lucide-react';
 import { CourseStudentsModal } from './CourseStudentsModal';
 import { IncompleteCourseModal } from './IncompleteCourseModal';
 
 import { useCourseDetail } from '../../hooks/useInstructorCourses';
 import { useSubmitForApproval } from '../../hooks/useCourseMutations';
+import { speakingApi } from '../../api/speakingApi';
 
 import { useQuizzesByCourse } from '../../../quizzes/hooks/useQuiz';
 
@@ -604,6 +605,8 @@ export const CourseLessonsPage: React.FC = () => {
     dto: CreateLessonDto,
     file?: File | null,
     onUploadProgress?: (percent: number) => void,
+    scriptLevels?: { BEGINNER: string; INTERMEDIATE: string; ADVANCED: string } | null,
+    customMusics?: Array<{ title: string; audioUrl: string; cloudinaryPublicId?: string }> | null,
   ) => {
     setIsSavingLesson(true);
     try {
@@ -612,6 +615,41 @@ export const CourseLessonsPage: React.FC = () => {
           lessonId: editingLesson.lessonId,
           dto,
         });
+
+        if (scriptLevels && dto.lessonType === 'ASSIGNMENT' && editingLesson.lessonId) {
+          const fallbackContent =
+            scriptLevels.BEGINNER?.trim() ||
+            scriptLevels.INTERMEDIATE?.trim() ||
+            scriptLevels.ADVANCED?.trim() ||
+            dto.description?.trim() ||
+            '';
+
+          const beginnerContent = scriptLevels.BEGINNER?.trim() || fallbackContent;
+          const intermediateContent = scriptLevels.INTERMEDIATE?.trim() || fallbackContent;
+          const advancedContent = scriptLevels.ADVANCED?.trim() || fallbackContent;
+
+          try {
+            await speakingApi.publishScript(editingLesson.lessonId, {
+              title: dto.title,
+              levels: [
+                { level: 'BEGINNER', content: beginnerContent },
+                { level: 'INTERMEDIATE', content: intermediateContent },
+                { level: 'ADVANCED', content: advancedContent },
+              ],
+            });
+          } catch (scriptErr) {
+            console.error('Failed to publish speaking script:', scriptErr);
+          }
+        }
+
+        const musicsToUploadEdit = customMusics || [];
+        if (musicsToUploadEdit.length > 0 && editingLesson.lessonId) {
+          try {
+            await speakingApi.linkMusicsToLesson(editingLesson.lessonId, musicsToUploadEdit);
+          } catch (musicErr) {
+            console.error('Failed to link pre-uploaded background music:', musicErr);
+          }
+        }
 
         if (file && editingLesson.lessonId) {
           const uploadedLesson = await lessonApi.uploadVideo(editingLesson.lessonId, file, onUploadProgress);
@@ -633,6 +671,41 @@ export const CourseLessonsPage: React.FC = () => {
         });
       } else {
         const createdLesson = await createLessonAsync(dto);
+
+        if (scriptLevels && dto.lessonType === 'ASSIGNMENT' && createdLesson?.lessonId) {
+          const fallbackContent =
+            scriptLevels.BEGINNER?.trim() ||
+            scriptLevels.INTERMEDIATE?.trim() ||
+            scriptLevels.ADVANCED?.trim() ||
+            dto.description?.trim() ||
+            '';
+
+          const beginnerContent = scriptLevels.BEGINNER?.trim() || fallbackContent;
+          const intermediateContent = scriptLevels.INTERMEDIATE?.trim() || fallbackContent;
+          const advancedContent = scriptLevels.ADVANCED?.trim() || fallbackContent;
+
+          try {
+            await speakingApi.publishScript(createdLesson.lessonId, {
+              title: dto.title,
+              levels: [
+                { level: 'BEGINNER', content: beginnerContent },
+                { level: 'INTERMEDIATE', content: intermediateContent },
+                { level: 'ADVANCED', content: advancedContent },
+              ],
+            });
+          } catch (scriptErr) {
+            console.error('Failed to publish speaking script:', scriptErr);
+          }
+        }
+
+        const musicsToUploadCreate = customMusics || [];
+        if (musicsToUploadCreate.length > 0 && createdLesson?.lessonId) {
+          try {
+            await speakingApi.linkMusicsToLesson(createdLesson.lessonId, musicsToUploadCreate);
+          } catch (musicErr) {
+            console.error('Failed to link pre-uploaded background music:', musicErr);
+          }
+        }
 
         if (file && createdLesson?.lessonId) {
           try {
@@ -797,6 +870,13 @@ export const CourseLessonsPage: React.FC = () => {
     }
 
     return lessons.find((lesson) => lesson.lessonId === quiz.lessonId);
+  };
+
+  const getQuizModule = (quiz: (typeof quizzes)[number]) =>
+    modules.find((module) => module.moduleId === quiz.moduleId);
+
+  const navigateToQuizCreation = (purpose: 'PRACTICE' | 'CHAPTER_ASSESSMENT' | 'FINAL_ASSESSMENT' | 'DAILY_PRACTICE') => {
+    navigate(`/instructor/quizzes/new?courseId=${courseId}&purpose=${purpose}`);
   };
 
   // ===========================================================================
@@ -986,18 +1066,18 @@ export const CourseLessonsPage: React.FC = () => {
               </div>
             </div>
 
-            {/* CREATE OVERALL COURSE QUIZ */}
-
-            <button
-              type="button"
-              onClick={() =>
-                navigate(`/instructor/quizzes/new?courseId=${courseId}`)
-              }
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#0754ef] px-5 py-3 text-xs font-extrabold text-white shadow-lg shadow-blue-600/25 transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#0644c4] active:scale-95"
-            >
-              <Plus className="h-4 w-4" />
-              Tạo Quiz tổng khóa học
-            </button>
+            {/* THREE QUIZ / PRACTICE TYPES */}
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" onClick={() => navigateToQuizCreation('CHAPTER_ASSESSMENT')} className="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-3 text-xs font-extrabold text-blue-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-blue-50">
+                <BookOpen className="h-4 w-4" /> Quiz theo chương
+              </button>
+              <button type="button" onClick={() => navigateToQuizCreation('DAILY_PRACTICE')} className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-extrabold text-emerald-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-emerald-100">
+                <CalendarDays className="h-4 w-4" /> Bài tập hằng ngày
+              </button>
+              <button type="button" onClick={() => navigateToQuizCreation('FINAL_ASSESSMENT')} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#0754ef] px-4 py-3 text-xs font-extrabold text-white shadow-lg shadow-blue-600/25 transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#0644c4] active:scale-95">
+                <GraduationCap className="h-4 w-4" /> Quiz tổng khóa học
+              </button>
+            </div>
           </div>
 
           {/* IMPORT / SEARCH: luôn hiển thị, kể cả khi chưa có Quiz */}
@@ -1036,16 +1116,11 @@ export const CourseLessonsPage: React.FC = () => {
                 học này.
               </p>
 
-              <button
-                type="button"
-                onClick={() =>
-                  navigate(`/instructor/quizzes/new?courseId=${courseId}`)
-                }
-                className="mt-3 inline-flex items-center gap-2 rounded-xl bg-[#0754ef] px-4 py-2.5 text-xs font-semibold text-white shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#0644c4] active:scale-95"
-              >
-                <Plus className="h-4 w-4" />
-                Tạo Quiz tổng khóa học
-              </button>
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                <button type="button" onClick={() => navigateToQuizCreation('CHAPTER_ASSESSMENT')} className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-xs font-bold text-blue-700 hover:bg-blue-50"><BookOpen size={15}/> Quiz theo chương</button>
+                <button type="button" onClick={() => navigateToQuizCreation('DAILY_PRACTICE')} className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100"><CalendarDays size={15}/> Bài tập hằng ngày</button>
+                <button type="button" onClick={() => navigateToQuizCreation('FINAL_ASSESSMENT')} className="inline-flex items-center gap-2 rounded-xl bg-[#0754ef] px-4 py-2.5 text-xs font-bold text-white hover:bg-blue-700"><GraduationCap size={15}/> Quiz tổng khóa học</button>
+              </div>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -1090,43 +1165,21 @@ export const CourseLessonsPage: React.FC = () => {
                         {/* QUIZ SCOPE */}
 
                         <td className="px-6 py-4">
-                          {quiz.lessonId == null ? (
-                            /* OVERALL COURSE QUIZ */
-
-                            <div className="inline-flex items-center gap-2 rounded-xl bg-[#f1f6ff] px-3 py-2 text-[11px] font-semibold text-[#17448e]">
-                              <ClipboardList className="h-3.5 w-3.5" />
-                              <span>Quiz tổng khóa học</span>
-                            </div>
-                          ) : lesson ? (
-                            /* LESSON QUIZ */
-
+                          {quiz.purpose === 'CHAPTER_ASSESSMENT' ? (
                             <div className="max-w-xs">
-                              <div className="flex items-center gap-2">
-                                <BookOpen className="h-3.5 w-3.5 shrink-0 text-[#0754ef]" />
-
-                                <span className="font-semibold text-[#17448e]">
-                                  Bài học
-                                </span>
-                              </div>
-
-                              <p
-                                className="mt-1 line-clamp-2 text-xs font-medium text-slate-700"
-                                title={lesson.title}
-                              >
-                                {lesson.title}
-                              </p>
-
-                              <p className="mt-0.5 text-[10px] text-slate-400">
-                                Lesson ID: {lesson.lessonId}
-                              </p>
+                              <div className="flex items-center gap-2 text-blue-700"><BookOpen className="h-3.5 w-3.5"/><span className="font-semibold">Quiz theo chương</span></div>
+                              <p className="mt-1 line-clamp-2 text-xs font-medium text-slate-700">{getQuizModule(quiz)?.title ?? `Chương #${quiz.moduleId ?? 'chưa gán'}`}</p>
+                              <p className="mt-0.5 text-[10px] text-slate-400">Cooldown sau 3 lần FAIL: 1 giờ</p>
+                            </div>
+                          ) : quiz.purpose === 'FINAL_ASSESSMENT' ? (
+                            <div className="inline-flex items-center gap-2 rounded-xl bg-violet-50 px-3 py-2 text-[11px] font-semibold text-violet-700"><GraduationCap className="h-3.5 w-3.5"/><span>Quiz tổng khóa học · Cooldown 6 giờ</span></div>
+                          ) : quiz.purpose === 'DAILY_PRACTICE' ? (
+                            <div className="max-w-xs">
+                              <div className="flex items-center gap-2 text-emerald-700"><CalendarDays className="h-3.5 w-3.5"/><span className="font-semibold">Bài tập hằng ngày</span></div>
+                              <p className="mt-1 text-xs text-slate-600">{quiz.availableFrom ? new Date(quiz.availableFrom).toLocaleDateString('vi-VN') : 'Chưa đặt ngày mở'}</p>
                             </div>
                           ) : (
-                            /* LESSON NOT FOUND */
-
-                            <div className="inline-flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-700">
-                              <BookOpen className="h-3.5 w-3.5" />
-                              <span>Lesson #{quiz.lessonId}</span>
-                            </div>
+                            <div className="inline-flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2 text-[11px] font-semibold text-slate-600"><BookOpen className="h-3.5 w-3.5"/><span>Quiz thực hành theo bài học</span></div>
                           )}
                         </td>
 

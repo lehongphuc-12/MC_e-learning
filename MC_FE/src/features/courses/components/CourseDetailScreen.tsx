@@ -1,6 +1,6 @@
 
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Star, 
@@ -55,6 +55,10 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
   onOpenCart,
 }) => {
   const navigate = useNavigate();
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [initialCourse?.id]);
 
   // ============================================================
   // COURSE ID

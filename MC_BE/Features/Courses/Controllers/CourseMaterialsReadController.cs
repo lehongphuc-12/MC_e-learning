@@ -6,7 +6,7 @@ using MC_BE.Features.Courses.Services.Results;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace MC_BE.Features.Courses.Controllers;
+    namespace MC_BE.Features.Courses.Controllers;
 
 [ApiController]
 [Route("api/courses/{courseId:int}/materials")]

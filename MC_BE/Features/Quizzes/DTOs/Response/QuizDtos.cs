@@ -7,6 +7,10 @@ public class QuizDto
     public int QuizId { get; set; }
     public int? CourseId { get; set; }
     public int? LessonId { get; set; }
+    public int? ModuleId { get; set; }
+    public QuizPurpose Purpose { get; set; }
+    public DateTime? AvailableFrom { get; set; }
+    public DateTime? AvailableUntil { get; set; }
     public int CreatedById { get; set; }
     public string Title { get; set; } = string.Empty;
     public string? Description { get; set; }

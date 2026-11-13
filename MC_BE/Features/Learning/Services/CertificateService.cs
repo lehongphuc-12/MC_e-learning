@@ -174,6 +174,9 @@ public class CertificateService : ICertificateService
             throw new InvalidOperationException($"Cannot issue certificate. Course completion is only {completionPercentage}%.");
         }
 
+        var access = await _access.CheckCertificateAsync(learnerId, courseId);
+        if (!access.Allowed) throw new InvalidOperationException(access.Reason ?? "Course requirements are incomplete.");
+
         // Generate unique certificate code: CERT-YYYY-XXXXXX
         string code = GenerateUniqueCertificateCode();
 

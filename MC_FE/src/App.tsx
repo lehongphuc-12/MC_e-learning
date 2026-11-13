@@ -10,6 +10,7 @@ import { Course, User } from './types';
 import { mockCourses } from './data/mockData';
 
 import { AppRouter } from './components/AppRouter';
+import { ScrollToTop } from './components/common/ScrollToTop';
 import { Toast } from './components/common/Toast';
 import { CartDrawer } from './components/modals/CartDrawer';
 import { CheckoutModal } from './components/modals/CheckoutModal';
@@ -464,6 +465,11 @@ export default function App() {
         selection:text-white
       "
     >
+      {/* ======================================================
+          SCROLL RESTORATION
+      ====================================================== */}
+      <ScrollToTop />
+
       {/* ======================================================
           TOAST
       ====================================================== */}

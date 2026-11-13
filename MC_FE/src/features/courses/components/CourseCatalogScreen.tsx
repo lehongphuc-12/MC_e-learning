@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Search, 
   SlidersHorizontal, 
@@ -54,6 +54,10 @@ export const CourseCatalogScreen: React.FC<CourseCatalogScreenProps> = ({
   const itemsPerPage = 6;
 
   const navigate = useNavigate();
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, []);
 
   const onNavigateToLearning = (course: Course) => {
     navigate(`/courses/${course.id}/learn`);
@@ -371,7 +375,10 @@ export const CourseCatalogScreen: React.FC<CourseCatalogScreenProps> = ({
               {[...Array(totalPages)].map((_, i) => (
                 <button
                   key={i}
-                  onClick={() => setCurrentPage(i + 1)}
+                  onClick={() => {
+                    setCurrentPage(i + 1);
+                    window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+                  }}
                   className={`w-9 h-9 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                     currentPage === i + 1
                       ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
