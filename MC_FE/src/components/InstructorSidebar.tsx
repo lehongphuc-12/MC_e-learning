@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { label: 'Quản lý khóa học', icon: BookOpen, path: '/instructor/courses', exact: false, color: 'text-emerald-400' },
   { label: 'Quản lý Quiz', icon: ClipboardList, path: '/instructor/quizzes', exact: true, color: 'text-violet-400' },
   { label: 'Chấm bài Quiz', icon: ClipboardCheck, path: '/instructor/quiz-grading', exact: false, color: 'text-fuchsia-400' },
+  { label: 'Quản lý bài luyện nói', icon: Mic2, path: '/instructor/speaking-assignments', exact: false, color: 'text-amber-400' },
   { label: 'Chấm bài nói', icon: Mic2, path: '/instructor/speaking-submissions', exact: false, color: 'text-cyan-400' },
   { label: 'Tạo khóa học mới', icon: PlusCircle, path: '/instructor/courses/new', exact: true, color: 'text-violet-400' },
 ];
@@ -31,6 +32,7 @@ export const InstructorSidebar: React.FC<InstructorSidebarProps> = ({ user, onLo
     if (item.path === '/instructor/courses') return path.startsWith('/instructor/courses') && path !== '/instructor/courses/new';
     if (item.path === '/instructor/quizzes') return path === '/instructor/quizzes' || /^\/instructor\/quizzes\/(?:new|\d+(?:\/edit)?)$/.test(path);
     if (item.path === '/instructor/quiz-grading') return path.startsWith('/instructor/quiz-grading') || /^\/instructor\/quizzes\/\d+\/grading$/.test(path);
+    if (item.path === '/instructor/speaking-assignments') return path.startsWith('/instructor/speaking-assignments');
     if (item.exact) return path === item.path;
     return path.startsWith(item.path);
   };

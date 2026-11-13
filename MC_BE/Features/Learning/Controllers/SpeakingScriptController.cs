@@ -34,6 +34,180 @@ public class SpeakingScriptController : ControllerBase
     }
 
     /// <summary>
+    /// GET /api/speaking-scripts
+    /// Filter speaking scripts by course, scope, module, lesson, and search keyword
+    /// </summary>
+    [HttpGet]
+    public async Task<ActionResult<ApiResponse<IEnumerable<SpeakingScriptDto>>>> GetScripts(
+        [FromQuery] int? courseId,
+        [FromQuery] SpeakingScope? scope,
+        [FromQuery] int? moduleId,
+        [FromQuery] int? lessonId,
+        [FromQuery] string? search)
+    {
+        try
+        {
+            var scripts = await _scriptService.GetAllScriptsAsync(courseId, scope, moduleId, lessonId, search);
+            return Ok(ApiResponse<IEnumerable<SpeakingScriptDto>>.SuccessResponse(scripts));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting speaking scripts");
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                ApiResponse<IEnumerable<SpeakingScriptDto>>.FailureResponse("Không thể tải danh sách kịch bản bài tập nói."));
+        }
+    }
+
+    /// <summary>
+    /// GET /api/speaking-scripts/{id:int}
+    /// Get script details by ID
+    /// </summary>
+    [HttpGet("{id:int}")]
+    public async Task<ActionResult<ApiResponse<SpeakingScriptDto>>> GetScriptById(int id)
+    {
+        try
+        {
+            var script = await _scriptService.GetScriptByIdAsync(id);
+            if (script == null)
+            {
+                return NotFound(ApiResponse<SpeakingScriptDto>.FailureResponse("Không tìm thấy kịch bản nói."));
+            }
+
+            return Ok(ApiResponse<SpeakingScriptDto>.SuccessResponse(script));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting speaking script {Id}", id);
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                ApiResponse<SpeakingScriptDto>.FailureResponse("Không thể tải chi tiết kịch bản nói."));
+        }
+    }
+
+    /// <summary>
+    /// GET /api/speaking-scripts/course/{courseId:int}
+    /// Get all speaking scripts of a course
+    /// </summary>
+    [HttpGet("course/{courseId:int}")]
+    public async Task<ActionResult<ApiResponse<IEnumerable<SpeakingScriptDto>>>> GetScriptsByCourse(int courseId)
+    {
+        try
+        {
+            var scripts = await _scriptService.GetScriptsByCourseAsync(courseId);
+            return Ok(ApiResponse<IEnumerable<SpeakingScriptDto>>.SuccessResponse(scripts));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting speaking scripts for Course {CourseId}", courseId);
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                ApiResponse<IEnumerable<SpeakingScriptDto>>.FailureResponse("Không thể tải kịch bản nói của khóa học."));
+        }
+    }
+
+    /// <summary>
+    /// POST /api/speaking-scripts
+    /// Create new speaking script with 3 levels and scope (Lesson / Chapter / Final)
+    /// </summary>
+    [HttpPost]
+    [Authorize(Roles = "Instructor,Admin")]
+    public async Task<ActionResult<ApiResponse<SpeakingScriptDto>>> CreateScript([FromBody] CreateSpeakingScriptRequest request)
+    {
+        var instructorId = GetCurrentUserId();
+        if (instructorId == null)
+            return Unauthorized(ApiResponse<SpeakingScriptDto>.FailureResponse("Unauthorized"));
+
+        try
+        {
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState.Values.SelectMany(v => v.Errors).Select(e => e.ErrorMessage).ToList();
+                return BadRequest(ApiResponse<SpeakingScriptDto>.FailureResponse("Dữ liệu không hợp lệ.", errors));
+            }
+
+            var result = await _scriptService.CreateScriptAsync(request, instructorId.Value);
+            return Ok(ApiResponse<SpeakingScriptDto>.SuccessResponse(result, "Tạo bài tập nói thành công."));
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ApiResponse<SpeakingScriptDto>.FailureResponse(ex.Message));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<SpeakingScriptDto>.FailureResponse(ex.Message));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating speaking script");
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                ApiResponse<SpeakingScriptDto>.FailureResponse("Đã xảy ra lỗi khi tạo bài tập nói."));
+        }
+    }
+
+    /// <summary>
+    /// PUT /api/speaking-scripts/{id:int}
+    /// Update speaking script
+    /// </summary>
+    [HttpPut("{id:int}")]
+    [Authorize(Roles = "Instructor,Admin")]
+    public async Task<ActionResult<ApiResponse<SpeakingScriptDto>>> UpdateScript(int id, [FromBody] UpdateSpeakingScriptRequest request)
+    {
+        var instructorId = GetCurrentUserId();
+        if (instructorId == null)
+            return Unauthorized(ApiResponse<SpeakingScriptDto>.FailureResponse("Unauthorized"));
+
+        try
+        {
+            var result = await _scriptService.UpdateScriptAsync(id, request, instructorId.Value);
+            return Ok(ApiResponse<SpeakingScriptDto>.SuccessResponse(result, "Cập nhật bài tập nói thành công."));
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ApiResponse<SpeakingScriptDto>.FailureResponse(ex.Message));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<SpeakingScriptDto>.FailureResponse(ex.Message));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating speaking script {Id}", id);
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                ApiResponse<SpeakingScriptDto>.FailureResponse("Đã xảy ra lỗi khi cập nhật bài tập nói."));
+        }
+    }
+
+    /// <summary>
+    /// DELETE /api/speaking-scripts/{id:int}
+    /// Delete speaking script by ID
+    /// </summary>
+    [HttpDelete("{id:int}")]
+    [Authorize(Roles = "Instructor,Admin")]
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteScriptById(int id)
+    {
+        var instructorId = GetCurrentUserId();
+        if (instructorId == null)
+            return Unauthorized(ApiResponse<bool>.FailureResponse("Unauthorized"));
+
+        try
+        {
+            var success = await _scriptService.DeleteScriptByIdAsync(id, instructorId.Value);
+            if (!success)
+                return NotFound(ApiResponse<bool>.FailureResponse("Không tìm thấy kịch bản để xóa."));
+
+            return Ok(ApiResponse<bool>.SuccessResponse(true, "Đã xóa bài tập nói thành công."));
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, ApiResponse<bool>.FailureResponse(ex.Message));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting speaking script {Id}", id);
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                ApiResponse<bool>.FailureResponse("Đã xảy ra lỗi khi xóa bài tập nói."));
+        }
+    }
+
+    /// <summary>
     /// POST /api/speaking-scripts/parse-file
     /// Parse script document (.docx, .txt, .md) in-memory before lesson is created
     /// </summary>

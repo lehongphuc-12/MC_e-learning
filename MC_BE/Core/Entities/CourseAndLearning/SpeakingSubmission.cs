@@ -12,9 +12,11 @@ public class SpeakingSubmission
     [Column("SubmissionID")]
     public int SubmissionId { get; set; }
 
-    [Required]
+    [Column("ScriptID")]
+    public int? ScriptId { get; set; }
+
     [Column("LessonID")]
-    public int LessonId { get; set; }
+    public int? LessonId { get; set; }
 
     [Required]
     [Column("LearnerID")]
@@ -50,8 +52,11 @@ public class SpeakingSubmission
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     // Navigation properties
+    [ForeignKey("ScriptId")]
+    public virtual SpeakingScript? SpeakingScript { get; set; }
+
     [ForeignKey("LessonId")]
-    public virtual Lesson Lesson { get; set; } = null!;
+    public virtual Lesson? Lesson { get; set; }
 
     [ForeignKey("LearnerId")]
     public virtual User Learner { get; set; } = null!;

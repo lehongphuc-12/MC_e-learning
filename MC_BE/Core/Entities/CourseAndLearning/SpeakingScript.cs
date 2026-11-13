@@ -12,9 +12,17 @@ public class SpeakingScript
     [Column("ScriptID")]
     public int ScriptId { get; set; }
 
-    [Required]
+    [Column("CourseID")]
+    public int CourseId { get; set; }
+
+    [Column("ModuleID")]
+    public int? ModuleId { get; set; }
+
     [Column("LessonID")]
-    public int LessonId { get; set; }
+    public int? LessonId { get; set; }
+
+    [Column("Scope")]
+    public SpeakingScope Scope { get; set; } = SpeakingScope.FINAL;
 
     [Required]
     [MaxLength(500)]
@@ -23,6 +31,9 @@ public class SpeakingScript
 
     [Column("OriginalContent")]
     public string? OriginalContent { get; set; }
+
+    [Column("PassingScore", TypeName = "decimal(5,2)")]
+    public decimal PassingScore { get; set; } = 80.00m;
 
     [Column("CreatedBy")]
     public int? CreatedBy { get; set; }
@@ -34,8 +45,14 @@ public class SpeakingScript
     public SpeakingScriptStatus Status { get; set; } = SpeakingScriptStatus.DRAFT;
 
     // Navigation properties
+    [ForeignKey("CourseId")]
+    public virtual Course Course { get; set; } = null!;
+
+    [ForeignKey("ModuleId")]
+    public virtual Module? Module { get; set; }
+
     [ForeignKey("LessonId")]
-    public virtual Lesson Lesson { get; set; } = null!;
+    public virtual Lesson? Lesson { get; set; }
 
     [ForeignKey("CreatedBy")]
     public virtual User? CreatedByUser { get; set; }

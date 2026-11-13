@@ -44,9 +44,61 @@ public class SaveScriptRequest
 
     public string? OriginalContent { get; set; }
 
+    public SpeakingScope Scope { get; set; } = SpeakingScope.FINAL;
+
+    public int? ModuleId { get; set; }
+
+    public int? CourseId { get; set; }
+
+    public decimal PassingScore { get; set; } = 80.00m;
+
     [Required(ErrorMessage = "Phải cung cấp đủ nội dung các cấp độ.")]
     [MinLength(3, ErrorMessage = "Phải cung cấp đủ 3 cấp độ (BEGINNER, INTERMEDIATE, ADVANCED).")]
     public List<SaveLevelDto> Levels { get; set; } = new();
+}
+
+public class CreateSpeakingScriptRequest
+{
+    [Required(ErrorMessage = "Khóa học là bắt buộc.")]
+    public int CourseId { get; set; }
+
+    public SpeakingScope Scope { get; set; } = SpeakingScope.FINAL;
+
+    public int? ModuleId { get; set; }
+
+    public int? LessonId { get; set; }
+
+    [Required(ErrorMessage = "Tiêu đề kịch bản không được để trống.")]
+    [MaxLength(500)]
+    public string Title { get; set; } = string.Empty;
+
+    public string? OriginalContent { get; set; }
+
+    public decimal PassingScore { get; set; } = 80.00m;
+
+    [Required(ErrorMessage = "Phải cung cấp đủ nội dung các cấp độ.")]
+    [MinLength(3, ErrorMessage = "Phải cung cấp đủ 3 cấp độ (BEGINNER, INTERMEDIATE, ADVANCED).")]
+    public List<SaveLevelDto> Levels { get; set; } = new();
+}
+
+public class UpdateSpeakingScriptRequest
+{
+    public int? CourseId { get; set; }
+
+    public SpeakingScope? Scope { get; set; }
+
+    public int? ModuleId { get; set; }
+
+    public int? LessonId { get; set; }
+
+    [MaxLength(500)]
+    public string? Title { get; set; }
+
+    public string? OriginalContent { get; set; }
+
+    public decimal? PassingScore { get; set; }
+
+    public List<SaveLevelDto>? Levels { get; set; }
 }
 
 public class UpdateLevelContentRequest
@@ -70,12 +122,16 @@ public class SpeakingScriptLevelDto
 public class SpeakingScriptDto
 {
     public int ScriptId { get; set; }
-    public int LessonId { get; set; }
-    public string LessonTitle { get; set; } = string.Empty;
+    public int? LessonId { get; set; }
+    public string? LessonTitle { get; set; }
+    public int? ModuleId { get; set; }
+    public string? ModuleTitle { get; set; }
     public int CourseId { get; set; }
     public string CourseTitle { get; set; } = string.Empty;
+    public string Scope { get; set; } = "FINAL";
     public string Title { get; set; } = string.Empty;
     public string? OriginalContent { get; set; }
+    public decimal PassingScore { get; set; } = 80.00m;
     public int? CreatedBy { get; set; }
     public string? CreatedByName { get; set; }
     public string Status { get; set; } = string.Empty;

@@ -504,11 +504,22 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
-                modelBuilder.Entity<SpeakingScript>(entity =>
+        modelBuilder.Entity<SpeakingScript>(entity =>
         {
             entity.ToTable("speaking_scripts");
             entity.HasKey(e => e.ScriptId);
-            entity.HasIndex(e => e.LessonId).IsUnique();
+
+            entity.HasIndex(e => e.CourseId);
+            entity.HasIndex(e => e.ModuleId);
+            entity.HasIndex(e => e.LessonId).IsUnique().HasFilter("\"LessonID\" IS NOT NULL");
+
+            entity.Property(e => e.Scope)
+                .HasConversion<string>()
+                .HasDefaultValue(SpeakingScope.FINAL);
+
+            entity.Property(e => e.PassingScore)
+                .HasPrecision(5, 2)
+                .HasDefaultValue(80.00m);
 
             entity.Property(e => e.Status)
                 .HasConversion<string>()
@@ -517,10 +528,21 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
+            entity.HasOne(d => d.Course)
+                .WithMany()
+                .HasForeignKey(d => d.CourseId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(d => d.Module)
+                .WithMany()
+                .HasForeignKey(d => d.ModuleId)
+                .OnDelete(DeleteBehavior.SetNull);
+
             entity.HasOne(d => d.Lesson)
                 .WithOne(l => l.SpeakingScript)
                 .HasForeignKey<SpeakingScript>(d => d.LessonId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
 
             entity.HasOne(d => d.CreatedByUser)
                 .WithMany()
@@ -608,6 +630,7 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
             entity.HasKey(e => e.SubmissionId);
 
             entity.HasIndex(e => new { e.LearnerId, e.LessonId });
+            entity.HasIndex(e => new { e.LearnerId, e.ScriptId });
             entity.HasIndex(e => e.Status);
 
             entity.Property(e => e.Status)
@@ -617,9 +640,16 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
             entity.Property(e => e.SubmittedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             entity.Property(e => e.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
 
+            entity.HasOne(d => d.SpeakingScript)
+                .WithMany()
+                .HasForeignKey(d => d.ScriptId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Cascade);
+
             entity.HasOne(d => d.Lesson)
                 .WithMany()
                 .HasForeignKey(d => d.LessonId)
+                .IsRequired(false)
                 .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasOne(d => d.Learner)

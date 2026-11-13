@@ -7,6 +7,7 @@ using MC_BE.Core.Enums;
 using MC_BE.Features.Learning.DTOs;
 using MC_BE.Features.Courses.Services.Interfaces;
 using MC_BE.Features.Learning.Services.Interfaces;
+using MC_BE.Shared.Data;
 using MC_BE.Shared.Repositories.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
@@ -26,6 +27,7 @@ public class LearningProgressService : ILearningProgressService
     private readonly ICertificateService _certificateService;
     private readonly ICourseLearningAccessService _courseAccess;
     private readonly ILearningAccessService _access;
+    private readonly SmartMcDbContext _db;
 
     public LearningProgressService(
         IGenericRepository<Enrollment> enrollmentRepository,
@@ -53,6 +55,7 @@ public class LearningProgressService : ILearningProgressService
         _certificateService = certificateService;
         _courseAccess = courseAccess;
         _access = access;
+        _db = db;
     }
 
     public async Task<CourseLearningProgressDto?> GetCourseProgressAsync(int learnerId, int courseId)
@@ -117,9 +120,77 @@ public class LearningProgressService : ILearningProgressService
             }
         }
 
-        decimal completionPercentage = totalLessons > 0
-            ? Math.Round((decimal)completedCount / totalLessons * 100, 2)
+        // Lấy danh sách ModuleId của khóa học để lọc chính xác Chapter Quiz
+        var moduleIds = await _db.Modules.AsNoTracking()
+            .Where(m => m.CourseId == courseId)
+            .Select(m => m.ModuleId)
+            .ToListAsync();
+
+        var lessonIds = lessons.Select(l => l.LessonId).ToList();
+
+        // Lấy các bài đánh giá chương (CHAPTER_ASSESSMENT) ACTIVE
+        var activeChapterQuizzes = await _db.Quizzes.AsNoTracking()
+            .Where(q =>
+                q.Purpose == QuizPurpose.CHAPTER_ASSESSMENT &&
+                q.Status == QuizStatus.ACTIVE &&
+                ((q.CourseId == courseId) || (q.ModuleId.HasValue && moduleIds.Contains(q.ModuleId.Value))))
+            .Select(q => q.QuizId)
+            .Distinct()
+            .ToListAsync();
+
+        // Lấy bài Quiz tổng kết cuối khóa (FINAL_ASSESSMENT) ACTIVE
+        var activeFinalQuizzes = await _db.Quizzes.AsNoTracking()
+            .Where(q =>
+                q.Purpose == QuizPurpose.FINAL_ASSESSMENT &&
+                q.Status == QuizStatus.ACTIVE &&
+                (q.CourseId == courseId || (q.LessonId.HasValue && lessonIds.Contains(q.LessonId.Value))))
+            .Select(q => q.QuizId)
+            .Distinct()
+            .ToListAsync();
+
+        // Lấy danh sách các QuizId mà học viên đã làm và ĐẠT (PASSED)
+        var requiredQuizIds = activeChapterQuizzes.Concat(activeFinalQuizzes).Distinct().ToList();
+        var passedQuizIds = requiredQuizIds.Count == 0
+            ? new HashSet<int>()
+            : (await _db.QuizAttempts.AsNoTracking()
+                .Where(a =>
+                    a.UserId == learnerId &&
+                    requiredQuizIds.Contains(a.QuizId) &&
+                    a.ResultStatus == QuizAttemptStatus.PASSED)
+                .Select(a => a.QuizId)
+                .Distinct()
+                .ToListAsync()).ToHashSet();
+
+        int passedChapterCount = activeChapterQuizzes.Count(id => passedQuizIds.Contains(id));
+        int passedFinalCount = activeFinalQuizzes.Count(id => passedQuizIds.Contains(id));
+
+        // Lấy các bài tập nói độc lập (Scope CHAPTER hoặc FINAL) chưa gắn vào Lesson
+        var standaloneSpeakingScripts = await _db.SpeakingScripts.AsNoTracking()
+            .Where(s => s.CourseId == courseId && s.LessonId == null)
+            .Select(s => s.ScriptId)
+            .Distinct()
+            .ToListAsync();
+
+        var passedSpeakingIds = standaloneSpeakingScripts.Count == 0
+            ? new HashSet<int>()
+            : (await _db.SpeakingSubmissions.AsNoTracking()
+                .Where(s => s.LearnerId == learnerId && s.ScriptId.HasValue && standaloneSpeakingScripts.Contains(s.ScriptId.Value) && s.Score.HasValue && s.Score.Value >= 80)
+                .Select(s => s.ScriptId!.Value)
+                .Distinct()
+                .ToListAsync()).ToHashSet();
+
+        int passedSpeakingCount = standaloneSpeakingScripts.Count(id => passedSpeakingIds.Contains(id));
+
+        // Tổng số đầu mục bắt buộc = số bài học ACTIVE + số Chapter Quiz ACTIVE + số Final Quiz ACTIVE + số bài nói độc lập
+        int totalRequiredItems = totalLessons + activeChapterQuizzes.Count + activeFinalQuizzes.Count + standaloneSpeakingScripts.Count;
+        int completedRequiredItems = completedCount + passedChapterCount + passedFinalCount + passedSpeakingCount;
+
+        decimal completionPercentage = totalRequiredItems > 0
+            ? Math.Round((decimal)completedRequiredItems / totalRequiredItems * 100, 2)
             : 0m;
+
+        // Thẩm định điều kiện nhận chứng chỉ từ LearningAccessService (yêu cầu PASS cả bài thi cuối khóa)
+        var certAccess = await _access.CheckCertificateAsync(learnerId, courseId);
 
         // Check if certificate exists
         var certs = await _certificateRepository.FindAsync(
@@ -127,13 +198,28 @@ public class LearningProgressService : ILearningProgressService
 
         var certificate = certs.FirstOrDefault();
 
+        bool isCompleted = (completionPercentage >= 100.00m && certAccess.Allowed) || certificate != null;
+
+        // Đồng bộ CompletionPercentage vào Enrollment nếu có thay đổi
+        if (enrollment.CompletionPercentage != completionPercentage)
+        {
+            var trackedEnrollment = await _enrollmentRepository.GetByIdAsync(enrollment.EnrollmentId);
+            if (trackedEnrollment != null)
+            {
+                trackedEnrollment.CompletionPercentage = completionPercentage;
+                trackedEnrollment.UpdatedAt = DateTime.UtcNow;
+                _enrollmentRepository.Update(trackedEnrollment);
+                await _unitOfWork.SaveChangesAsync();
+            }
+        }
+
         return new CourseLearningProgressDto
         {
             CourseId = courseId,
             CourseTitle = enrollment.Course?.Title ?? string.Empty,
             EnrollmentId = enrollment.EnrollmentId,
             CompletionPercentage = completionPercentage,
-            IsCompleted = completionPercentage >= 100.00m,
+            IsCompleted = isCompleted,
             CompletedLessonsCount = completedCount,
             TotalLessonsCount = totalLessons,
             CertificateId = certificate?.CertificateId,
@@ -243,8 +329,66 @@ public class LearningProgressService : ILearningProgressService
         int completedCount = completedProgresses.Count();
         int totalLessons = allLessonIds.Count;
 
-        decimal newPercentage = totalLessons > 0
-            ? Math.Round((decimal)completedCount / totalLessons * 100, 2)
+        // Quizzes
+        var moduleIds = await _db.Modules.AsNoTracking()
+            .Where(m => m.CourseId == lesson.CourseId)
+            .Select(m => m.ModuleId)
+            .ToListAsync();
+
+        var activeChapterQuizzes = await _db.Quizzes.AsNoTracking()
+            .Where(q =>
+                q.Purpose == QuizPurpose.CHAPTER_ASSESSMENT &&
+                q.Status == QuizStatus.ACTIVE &&
+                ((q.CourseId == lesson.CourseId) || (q.ModuleId.HasValue && moduleIds.Contains(q.ModuleId.Value))))
+            .Select(q => q.QuizId)
+            .Distinct()
+            .ToListAsync();
+
+        var activeFinalQuizzes = await _db.Quizzes.AsNoTracking()
+            .Where(q =>
+                q.Purpose == QuizPurpose.FINAL_ASSESSMENT &&
+                q.Status == QuizStatus.ACTIVE &&
+                (q.CourseId == lesson.CourseId || (q.LessonId.HasValue && allLessonIds.Contains(q.LessonId.Value))))
+            .Select(q => q.QuizId)
+            .Distinct()
+            .ToListAsync();
+
+        var requiredQuizIds = activeChapterQuizzes.Concat(activeFinalQuizzes).Distinct().ToList();
+        var passedQuizIds = requiredQuizIds.Count == 0
+            ? new HashSet<int>()
+            : (await _db.QuizAttempts.AsNoTracking()
+                .Where(a =>
+                    a.UserId == learnerId &&
+                    requiredQuizIds.Contains(a.QuizId) &&
+                    a.ResultStatus == QuizAttemptStatus.PASSED)
+                .Select(a => a.QuizId)
+                .Distinct()
+                .ToListAsync()).ToHashSet();
+
+        int passedChapterCount = activeChapterQuizzes.Count(id => passedQuizIds.Contains(id));
+        int passedFinalCount = activeFinalQuizzes.Count(id => passedQuizIds.Contains(id));
+
+        var standaloneSpeakingScripts = await _db.SpeakingScripts.AsNoTracking()
+            .Where(s => s.CourseId == lesson.CourseId && s.LessonId == null)
+            .Select(s => s.ScriptId)
+            .Distinct()
+            .ToListAsync();
+
+        var passedSpeakingIds = standaloneSpeakingScripts.Count == 0
+            ? new HashSet<int>()
+            : (await _db.SpeakingSubmissions.AsNoTracking()
+                .Where(s => s.LearnerId == learnerId && s.ScriptId.HasValue && standaloneSpeakingScripts.Contains(s.ScriptId.Value) && s.Score.HasValue && s.Score.Value >= 80)
+                .Select(s => s.ScriptId!.Value)
+                .Distinct()
+                .ToListAsync()).ToHashSet();
+
+        int passedSpeakingCount = standaloneSpeakingScripts.Count(id => passedSpeakingIds.Contains(id));
+
+        int totalRequiredItems = totalLessons + activeChapterQuizzes.Count + activeFinalQuizzes.Count + standaloneSpeakingScripts.Count;
+        int completedRequiredItems = completedCount + passedChapterCount + passedFinalCount + passedSpeakingCount;
+
+        decimal newPercentage = totalRequiredItems > 0
+            ? Math.Round((decimal)completedRequiredItems / totalRequiredItems * 100, 2)
             : 0m;
 
         enrollment.CompletionPercentage = newPercentage;
@@ -253,16 +397,20 @@ public class LearningProgressService : ILearningProgressService
         // EF Core tracks this entity so we don't need to call Update() explicitly
         await _unitOfWork.SaveChangesAsync();
 
-        // Auto-issue certificate if 100% completed
+        // Auto-issue certificate ONLY if 100% completed AND CheckCertificateAsync is Allowed
         if (newPercentage >= 100.00m)
         {
-            try
+            var certAccess = await _access.CheckCertificateAsync(learnerId, lesson.CourseId);
+            if (certAccess.Allowed)
             {
-                await _certificateService.IssueCertificateAsync(learnerId, lesson.CourseId);
-            }
-            catch (Exception)
-            {
-                // Suppress if already issued or concurrent
+                try
+                {
+                    await _certificateService.IssueCertificateAsync(learnerId, lesson.CourseId);
+                }
+                catch (Exception)
+                {
+                    // Suppress if already issued or concurrent
+                }
             }
         }
 
