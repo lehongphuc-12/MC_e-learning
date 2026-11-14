@@ -1124,7 +1124,7 @@ namespace MC_BE.Migrations
                     b.Property<int>("SyllabusVersionId")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")
-                        .HasColumnName("SyllabusVersionID");
+                        .HasColumnName("SyllabusVersionId");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("SyllabusVersionId"));
 

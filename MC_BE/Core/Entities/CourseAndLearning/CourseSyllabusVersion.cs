@@ -13,7 +13,9 @@ public class CourseSyllabusVersion
 {
     [Key]
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
-    [Column("SyllabusVersionID")]
+    // Keep the mapped identifier aligned with the column name created by the initial
+    // versioning migration ("SyllabusVersionId"). PostgreSQL treats quoted casing as exact.
+    [Column("SyllabusVersionId")]
     public int SyllabusVersionId { get; set; }
 
     [Required]

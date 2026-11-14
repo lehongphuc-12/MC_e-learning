@@ -38,8 +38,15 @@ interface Envelope<T> { success: boolean; data: T; message?: string }
 const root = (courseId: number) => `/courses/${courseId}/syllabus`;
 
 export const courseSyllabusApi = {
-  getCurrent: async (courseId: number) =>
-    (await request<Envelope<SyllabusVersion>>(`${root(courseId)}/current`)).data,
+  getCurrent: async (courseId: number): Promise<SyllabusVersion | null> => {
+    try {
+      return (await request<Envelope<SyllabusVersion>>(`${root(courseId)}/current`)).data;
+    } catch (error) {
+      if (typeof error === 'object' && error !== null && 'status' in error && error.status === 404)
+        return null;
+      throw error;
+    }
+  },
 
   getSubmitted: async (courseId: number) =>
     (await request<Envelope<SyllabusVersion>>(`${root(courseId)}/submitted`)).data,

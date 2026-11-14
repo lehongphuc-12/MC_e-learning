@@ -78,6 +78,7 @@ import { ModuleFormModal } from './ModuleFormModal';
 import { ImportModuleModal } from './ImportModuleModal';
 import { CourseMaterialModal } from './CourseMaterialModal';
 import { CourseStatusBadge } from './CourseStatusBadge';
+import { InstructorSyllabusModal } from './InstructorSyllabusModal';
 
 import type { Lesson, CreateLessonDto } from '../../types/lessonTypes';
 import type { CourseModule, CreateModuleDto } from '../../types/moduleTypes';
@@ -206,6 +207,7 @@ export const CourseLessonsPage: React.FC = () => {
   // ===========================================================================
 
   const [isStudentsModalOpen, setIsStudentsModalOpen] = useState(false);
+  const [isSyllabusModalOpen, setIsSyllabusModalOpen] = useState(false);
 
   // Status Notification Modal State
   const [statusModal, setStatusModal] = useState<{
@@ -915,7 +917,8 @@ export const CourseLessonsPage: React.FC = () => {
         {/* NAVIGATION TABS */}
         <div className="mt-4 flex flex-wrap items-center gap-2 rounded-2xl border border-blue-100 bg-white p-3 shadow-sm">
           {([{key:'lessons',label:'Bài giảng',count:lessons.filter(l=>l.lessonType!=='ASSIGNMENT').length,icon:PlayCircle},{key:'quizzes',label:'Quiz',count:quizzes.length,icon:ClipboardList},{key:'materials',label:'Tài liệu',icon:FileText},{key:'assignments',label:'Bài tập nói',count:lessons.filter(l=>l.lessonType==='ASSIGNMENT').length,icon:Mic2}] as const).map(tab=><button key={tab.key} onClick={()=>{setContentTab(tab.key);if(tab.key==='quizzes')document.getElementById('quiz-management')?.scrollIntoView({behavior:'smooth',block:'start'});if(tab.key==='assignments')document.getElementById('speaking-assignment-management')?.scrollIntoView({behavior:'smooth',block:'start'});if(tab.key==='materials')setMaterialTarget({lessonId:null});}} className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition ${contentTab===tab.key?'bg-[#0754ef] text-white shadow-lg shadow-blue-600/20':'bg-[#f4f8ff] text-[#173c81] hover:bg-blue-100'}`}><tab.icon size={16}/>{tab.label}{'count' in tab && <span className="opacity-75">({tab.count})</span>}</button>)}
-          <button onClick={()=>navigate(`/courses/${courseId}/learn`)} className="ml-auto inline-flex items-center gap-2 rounded-xl border border-blue-100 bg-white px-4 py-2.5 text-xs font-bold text-blue-700 hover:bg-blue-50"><Eye size={16}/> Xem trước khóa học</button>
+          <button onClick={()=>setIsSyllabusModalOpen(true)} className="ml-auto inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-xs font-bold text-blue-700 hover:bg-blue-50"><FileText size={16}/> Syllabus</button>
+          <button onClick={()=>navigate(`/courses/${courseId}/learn`)} className="inline-flex items-center gap-2 rounded-xl border border-blue-100 bg-white px-4 py-2.5 text-xs font-bold text-blue-700 hover:bg-blue-50"><Eye size={16}/> Xem trước khóa học</button>
         </div>
         <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_330px]">
           <main className="min-w-0 space-y-4">
@@ -1563,6 +1566,13 @@ export const CourseLessonsPage: React.FC = () => {
         onClose={() => setIsStudentsModalOpen(false)}
         courseTitle={course?.title}
         courseId={courseId}
+      />
+
+      <InstructorSyllabusModal
+        isOpen={isSyllabusModalOpen}
+        courseId={courseId}
+        courseTitle={course?.title || 'Khóa học'}
+        onClose={() => setIsSyllabusModalOpen(false)}
       />
 
       {/* INCOMPLETE COURSE */}
