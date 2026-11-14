@@ -268,7 +268,31 @@ async function processFile(file, currentIdx, totalFiles) {
 
   // Compute simulated chunks and pages based on file size
   const estimatedPages = Math.max(1, Math.round(file.size / (1024 * 60)));
-  const estimatedChunks = Math.max(2, Math.round(file.size / (1024 * 25)));
+  let actualChunks = Math.max(2, Math.round(file.size / (1024 * 25)));
+
+  if (state.apiMode === 'api') {
+    try {
+      updateProgress(90, `[${currentIdx}/${totalFiles}] Đang gửi tệp tới FastAPI backend...`);
+      const formData = new FormData();
+      formData.append('course_id', '1');
+      formData.append('file', file);
+      formData.append('title', file.name);
+
+      const upRes = await fetch(`${state.apiBaseUrl}/api/documents/upload`, {
+        method: 'POST',
+        headers: {
+          'X-Internal-Api-Key': 'mc-internal-secret-key-2026'
+        },
+        body: formData
+      });
+      if (upRes.ok) {
+        const upData = await upRes.json();
+        actualChunks = upData.total_chunks || actualChunks;
+      }
+    } catch (apiErr) {
+      console.warn('Lỗi khi gọi API upload tài liệu:', apiErr);
+    }
+  }
 
   const newDoc = {
     id: 'doc-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
@@ -276,7 +300,7 @@ async function processFile(file, currentIdx, totalFiles) {
     type: fileType,
     size: file.size,
     pages: estimatedPages,
-    chunks: estimatedChunks,
+    chunks: actualChunks,
     date: 'Vừa xong',
     selected: true,
     textPreview: previewText
@@ -455,10 +479,14 @@ async function handleSendMessage() {
       // Live API Call to FastAPI Backend
       const response = await fetch(`${state.apiBaseUrl}/api/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Internal-Api-Key': 'mc-internal-secret-key-2026'
+        },
         body: JSON.stringify({
+          course_id: 1,
           message: text,
-          document_ids: state.documents.map(d => d.id)
+          top_k: 4
         })
       });
 

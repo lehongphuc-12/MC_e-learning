@@ -1,32 +1,39 @@
 import io
 import logging
+from typing import List, Dict, Any
 from pypdf import PdfReader
 
 logger = logging.getLogger("mentorchat.document_service")
 
 
-def extract_text_from_pdf(file_bytes: bytes) -> str:
-    """Trích xuất toàn bộ nội dung văn bản từ tệp PDF tải lên."""
+def extract_pages_from_pdf(file_bytes: bytes) -> List[Dict[str, Any]]:
+    """
+    Trích xuất danh sách các trang từ PDF kèm page_number (bắt đầu từ trang 1).
+    Trả về: [{"page_number": 1, "text": "..."}, ...]
+    """
     if not file_bytes:
-        logger.warning("[DocumentService] extract_text_from_pdf — file_bytes rỗng.")
-        return ""
+        logger.warning("[DocumentService] extract_pages_from_pdf — file_bytes rỗng.")
+        return []
 
-    logger.info("[DocumentService] Đang trích xuất PDF (%d bytes)...", len(file_bytes))
+    logger.info("[DocumentService] Đang trích xuất từng trang PDF (%d bytes)...", len(file_bytes))
     try:
         reader = PdfReader(io.BytesIO(file_bytes))
         total_pages = len(reader.pages)
-        full_text = []
+        pages: List[Dict[str, Any]] = []
         empty_pages = 0
 
         for page_num, page in enumerate(reader.pages, start=1):
             try:
                 page_text = page.extract_text()
                 if page_text and page_text.strip():
-                    full_text.append(page_text.strip())
+                    pages.append({
+                        "page_number": page_num,
+                        "text": page_text.strip(),
+                    })
                 else:
                     empty_pages += 1
                     logger.debug(
-                        "[DocumentService] Trang %d/%d không có văn bản (có thể là ảnh scan).",
+                        "[DocumentService] Trang %d/%d không có văn bản (ảnh scan?).",
                         page_num, total_pages,
                     )
             except Exception as page_err:
@@ -36,24 +43,23 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
                     page_num, total_pages, page_err,
                 )
 
-        result = "\n\n".join(full_text)
         logger.info(
-            "[DocumentService] PDF trích xuất xong: %d/%d trang có văn bản, %d trang trống/lỗi, tổng %d ký tự.",
-            total_pages - empty_pages, total_pages, empty_pages, len(result),
+            "[DocumentService] PDF trích xuất xong: %d/%d trang có văn bản, %d trang trống/lỗi.",
+            len(pages), total_pages, empty_pages,
         )
-        if not result.strip():
-            logger.warning(
-                "[DocumentService] PDF (%d bytes) không chứa văn bản nào có thể trích xuất (PDF scan?).",
-                len(file_bytes),
-            )
-        return result
-
+        return pages
     except Exception as e:
         logger.error(
             "[DocumentService] LỖI khi đọc PDF (%d bytes): %s",
             len(file_bytes), e, exc_info=True,
         )
         raise ValueError(f"Không thể đọc file PDF: {e}") from e
+
+
+def extract_text_from_pdf(file_bytes: bytes) -> str:
+    """Trích xuất toàn bộ nội dung văn bản từ tệp PDF tải lên (ghép các trang)."""
+    pages = extract_pages_from_pdf(file_bytes)
+    return "\n\n".join(p["text"] for p in pages)
 
 
 def extract_text_from_txt(file_bytes: bytes) -> str:

@@ -79,6 +79,7 @@ import { ImportModuleModal } from './ImportModuleModal';
 import { CourseMaterialModal } from './CourseMaterialModal';
 import { CourseStatusBadge } from './CourseStatusBadge';
 import { InstructorSyllabusModal } from './InstructorSyllabusModal';
+import { mentorChatApi } from '../../api/mentorChatApi';
 
 import type { Lesson, CreateLessonDto } from '../../types/lessonTypes';
 import type { CourseModule, CreateModuleDto } from '../../types/moduleTypes';
@@ -415,6 +416,33 @@ export const CourseLessonsPage: React.FC = () => {
       });
     } finally {
       setIsSyncingDurations(false);
+    }
+  };
+
+  const [isSyncingMentorChat, setIsSyncingMentorChat] = useState(false);
+
+  const handleSyncMentorChat = async () => {
+    if (!courseId) return;
+    setIsSyncingMentorChat(true);
+    try {
+      const res = await mentorChatApi.syncCourseTranscripts(courseId);
+      setStatusModal({
+        isOpen: true,
+        type: 'success',
+        title: 'Đồng bộ AI Mentor thành công',
+        message:
+          res?.message ||
+          `Đã đồng bộ ${res?.totalSuccess || 0}/${res?.totalLessonsProcessed || 0} bài học vào Vector Store của AI Mentor.`,
+      });
+    } catch (err: any) {
+      setStatusModal({
+        isOpen: true,
+        type: 'error',
+        title: 'Đồng bộ AI Mentor thất bại',
+        message: err?.message || 'Có lỗi xảy ra khi đồng bộ dữ liệu bài học vào AI Mentor.',
+      });
+    } finally {
+      setIsSyncingMentorChat(false);
     }
   };
 
@@ -935,7 +963,7 @@ export const CourseLessonsPage: React.FC = () => {
           <aside className="space-y-4">
             <div className="rounded-2xl border border-[#e8effb] bg-white p-4 shadow-sm"><div className="relative"><button onClick={()=>setAddMenuOpen(!addMenuOpen)} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0754ef] px-4 py-3 text-sm font-bold text-white shadow-md shadow-blue-600/20 hover:bg-blue-700"><Plus size={18}/> Thêm nội dung <ChevronDown size={16}/></button>{addMenuOpen&&<div className="absolute left-0 right-0 top-[calc(100%+6px)] z-30 rounded-xl border border-blue-100 bg-white p-2 shadow-xl">{[{label:'Thêm chương',action:handleOpenCreateModule},{label:'Thêm bài giảng',action:()=>handleOpenCreateLesson(modules[0]?.moduleId)},{label:'Thêm Quiz',action:()=>navigate(`/instructor/quizzes/new?courseId=${courseId}`)},{label:'Thêm tài liệu',action:()=>setMaterialTarget({lessonId:null})},{label:'Thêm bài tập nói',action:()=>handleOpenCreateSpeakingAssignment(null)},{label:'Nhập từ CSV',action:()=>setIsModuleImportModalOpen(true)}].map(item=><button key={item.label} onClick={()=>{setAddMenuOpen(false);item.action()}} className="block w-full rounded-lg px-3 py-2.5 text-left text-xs font-semibold text-[#15376f] hover:bg-blue-50">{item.label}</button>)}</div>}</div><h3 className="mb-3 mt-5 text-sm font-extrabold text-[#0a245c]">Thao tác nhanh</h3><div className="grid grid-cols-2 gap-2">{[{label:'Thêm chương',icon:FolderPlus,action:handleOpenCreateModule},{label:'Thêm bài học',icon:PlusCircle,action:()=>handleOpenCreateLesson(modules[0]?.moduleId)},{label:'Tải video hàng loạt',icon:CloudUpload,action:()=>setIsBulkVideoUploadOpen(true)},{label:'Nhập CSV',icon:FileSpreadsheet,action:()=>setIsModuleImportModalOpen(true)},{label:'Đồng bộ Quiz',icon:GitCompareArrows,action:()=>document.getElementById('quiz-management')?.scrollIntoView({behavior:'smooth'})},{label:'Chấm bài nói',icon:Mic2,action:()=>navigate(`/instructor/courses/${courseId}/speaking`)},{label:'Học viên',icon:Users,action:()=>setIsStudentsModalOpen(true)}].map(item=><button key={item.label} onClick={item.action} className="flex items-center justify-center gap-2 rounded-xl border border-[#dce8fb] bg-[#f9fbff] px-2 py-3 text-[11px] font-semibold text-[#17448e] hover:bg-blue-50"><item.icon size={15}/>{item.label}</button>)}</div></div>
             <div className="rounded-2xl border border-[#e8effb] bg-white p-4 shadow-sm"><h3 className="mb-4 text-sm font-extrabold text-[#0a245c]">Thông tin khóa học</h3><div className="flex gap-3">{course?.thumbnailUrl?<img src={course.thumbnailUrl} alt={course.title} className="h-20 w-20 rounded-xl object-cover"/>:<div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl bg-blue-100"><Mic2 size={30} className="text-blue-600"/></div>}<div className="min-w-0"><p className="line-clamp-3 text-sm font-bold text-[#0a245c]">{course?.title}</p>{course?.status&&<div className="mt-2"><CourseStatusBadge status={course.status} size="sm"/></div>}</div></div><div className="mt-4 space-y-3 border-t border-blue-50 pt-4 text-xs text-[#52709f]"><p className="flex justify-between"><span>Chương học</span><strong className="text-[#0a245c]">{modules.length}</strong></p><p className="flex justify-between"><span>Bài học</span><strong className="text-[#0a245c]">{lessons.length}</strong></p><p className="flex justify-between"><span>Quiz</span><strong className="text-[#0a245c]">{quizzes.length}</strong></p><p className="flex justify-between"><span>Thời lượng dự kiến</span><strong className="text-[#0a245c]">{totalDuration} phút</strong></p></div><button onClick={()=>navigate('/instructor/courses')} className="mt-4 w-full rounded-xl border border-blue-200 py-2.5 text-xs font-bold text-blue-700 hover:bg-blue-50">Quản lý khóa học</button></div>
-            <div className="rounded-2xl border border-[#e8effb] bg-white p-4 shadow-sm"><h3 className="mb-3 text-sm font-extrabold text-[#0a245c]">Cập nhật & phê duyệt</h3><button onClick={handleSyncAllDurations} disabled={isSyncingDurations} className="mb-2 w-full rounded-xl border border-blue-200 bg-blue-50 py-2.5 text-xs font-bold text-blue-700 hover:bg-blue-100 disabled:opacity-50">{isSyncingDurations?'Đang đồng bộ...':'Đồng bộ thời lượng bài học'}</button>{(course?.status==='DRAFT'||course?.status==='REJECTED')&&<button onClick={handleSendForApproval} disabled={isSubmittingForApproval} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0754ef] py-3 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-50"><Send size={15}/> Gửi duyệt khóa học</button>}<p className="mt-3 rounded-xl bg-[#edf5ff] p-3 text-xs leading-relaxed text-[#4167a1]">Sau khi hoàn thành nội dung, hãy kiểm tra bài học, Quiz và bài tập nói trước khi gửi duyệt.</p></div>
+            <div className="rounded-2xl border border-[#e8effb] bg-white p-4 shadow-sm"><h3 className="mb-3 text-sm font-extrabold text-[#0a245c]">Cập nhật & phê duyệt</h3><button onClick={handleSyncAllDurations} disabled={isSyncingDurations} className="mb-2 w-full rounded-xl border border-blue-200 bg-blue-50 py-2.5 text-xs font-bold text-blue-700 hover:bg-blue-100 disabled:opacity-50">{isSyncingDurations?'Đang đồng bộ...':'Đồng bộ thời lượng bài học'}</button><button onClick={handleSyncMentorChat} disabled={isSyncingMentorChat} className="mb-2 flex w-full items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 py-2.5 text-xs font-bold text-violet-700 hover:bg-violet-100 disabled:opacity-50 transition cursor-pointer"><Sparkles size={15}/>{isSyncingMentorChat?'Đang đồng bộ AI Mentor...':'Đồng bộ AI Mentor'}</button>{(course?.status==='DRAFT'||course?.status==='REJECTED')&&<button onClick={handleSendForApproval} disabled={isSubmittingForApproval} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0754ef] py-3 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-50"><Send size={15}/> Gửi duyệt khóa học</button>}<p className="mt-3 rounded-xl bg-[#edf5ff] p-3 text-xs leading-relaxed text-[#4167a1]">Sau khi hoàn thành nội dung, hãy kiểm tra bài học, Quiz và bài tập nói trước khi gửi duyệt.</p></div>
           </aside>
         </div>
       </div>

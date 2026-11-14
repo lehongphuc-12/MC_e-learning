@@ -29,6 +29,8 @@ public class LessonService : ILessonService
     private readonly IR2StorageService _r2;
     private readonly ITranscriptionQueue _transcriptionQueue;
     private readonly ICourseLearningAccessService _courseAccess;
+    private readonly IMentorChatService _mentorChatService;
+    private readonly ILogger<LessonService> _logger;
 
     public LessonService(
         IGenericRepository<Lesson> lessonRepository,
@@ -38,7 +40,9 @@ public class LessonService : ILessonService
         IUnitOfWork unitOfWork,
         IR2StorageService r2,
         ITranscriptionQueue transcriptionQueue,
-        ICourseLearningAccessService courseAccess)
+        ICourseLearningAccessService courseAccess,
+        IMentorChatService mentorChatService,
+        ILogger<LessonService> logger)
     {
         _lessonRepository = lessonRepository;
         _courseRepository = courseRepository;
@@ -48,6 +52,8 @@ public class LessonService : ILessonService
         _r2 = r2;
         _transcriptionQueue = transcriptionQueue;
         _courseAccess = courseAccess;
+        _mentorChatService = mentorChatService;
+        _logger = logger;
     }
 
     private LessonDto MapToDto(Lesson lesson)
@@ -313,6 +319,16 @@ public class LessonService : ILessonService
         if (lesson is null || lesson.Course == null || lesson.Course.InstructorId != instructorId)
             return false;
 
+        // Dọn dẹp vector trong Vector Store Qdrant trước khi xóa bài học
+        try
+        {
+            await _mentorChatService.DeleteKnowledgeAsync(lesson.CourseId, lessonId: lesson.LessonId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to clean up knowledge vectors for Lesson {LessonId} in Course {CourseId}", lessonId, lesson.CourseId);
+        }
+
         _lessonRepository.Remove(lesson);
         await _unitOfWork.SaveChangesAsync();
         return true;
@@ -569,6 +585,17 @@ public class LessonService : ILessonService
         // Remove the DB record
         _materialRepository.Remove(material);
         await _unitOfWork.SaveChangesAsync();
+
+        // Dọn dẹp vector transcript của video trong Vector Store Qdrant
+        try
+        {
+            await _mentorChatService.DeleteKnowledgeAsync(lesson.CourseId, lessonId: lesson.LessonId, sourceType: "video_transcript");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to clean up video transcript vectors for Lesson {LessonId} in Course {CourseId}", lessonId, lesson.CourseId);
+        }
+
         return true;
     }
 }

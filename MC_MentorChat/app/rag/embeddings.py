@@ -1,85 +1,143 @@
 import logging
-from typing import List
-from google import genai
+import random
+import time
+from typing import List, Optional
 from google.genai import types
 from app.core.config import settings
+from app.services.gemini_pool import gemini_pool
 
 logger = logging.getLogger("mentorchat.embeddings")
 
-client = genai.Client(api_key=settings.GEMINI_API_KEY)
+# Lô batch 20–50 chunks/lần theo khuyến cáo của google-genai
+_DEFAULT_BATCH_SIZE = 32
+_MAX_RETRIES_PER_KEY = 3
+_BASE_BACKOFF_SECONDS = 1.5
 
 
-def generate_embedding(text: str) -> List[float]:
-    """Tạo vector nhúng 768 chiều từ Gemini Embedding API."""
+def _is_rate_limit(err: Exception) -> bool:
+    msg = str(err).lower()
+    return any(k in msg for k in ("429", "quota", "resourceexhausted", "resource_exhausted", "rate limit"))
+
+
+def _is_transient_error(err: Exception) -> bool:
+    msg = str(err).lower()
+    return any(k in msg for k in ("503", "500", "502", "504", "unavailable", "timeout", "deadline", "connection"))
+
+
+def _embed_batch_with_retry(
+    contents: List[str],
+    task_type: str,
+) -> List[List[float]]:
+    """
+    Tạo embeddings cho 1 lô văn bản với Google GenAI.
+    Thực hiện retry exponential backoff đối với 429 và 503/transient.
+    Xoay vòng pool API Key nếu gặp Rate Limit.
+    TUYỆT ĐỐI không fallback zero vector; nếu thất bại sẽ raise exception.
+    """
+    models = list(dict.fromkeys([settings.EMBEDDING_MODEL, "gemini-embedding-001"]))
+    _, _, start_key_num = gemini_pool.get_round_robin_client()
+    clients_to_try = gemini_pool.get_ordered_clients_starting_from(start_key_num)
+
+    last_err: Optional[Exception] = None
+
+    for client, _, key_num in clients_to_try:
+        for model_name in models:
+            for attempt in range(1, _MAX_RETRIES_PER_KEY + 1):
+                try:
+                    response = client.models.embed_content(
+                        model=model_name,
+                        contents=contents,
+                        config=types.EmbedContentConfig(
+                            output_dimensionality=settings.VECTOR_SIZE,
+                            task_type=task_type,
+                        ),
+                    )
+                    vectors = [list(e.values) for e in response.embeddings]
+                    if len(vectors) != len(contents):
+                        raise RuntimeError(
+                            f"Số vector trả về ({len(vectors)}) không khớp số input ({len(contents)})."
+                        )
+
+                    # Kiểm tra tính hợp lệ: tuyệt đối không cho phép zero vector
+                    for idx, vec in enumerate(vectors):
+                        if not vec or all(abs(val) < 1e-9 for val in vec):
+                            raise ValueError(
+                                f"Model trả về zero vector không hợp lệ tại vị trí {idx} cho văn bản: {contents[idx][:60]}..."
+                            )
+
+                    return vectors
+
+                except Exception as err:
+                    last_err = err
+                    if _is_rate_limit(err):
+                        logger.warning(
+                            "[Embeddings] Key #%d bị Rate Limit / 429 (lần thử %d/%d): %s.",
+                            key_num, attempt, _MAX_RETRIES_PER_KEY, err,
+                        )
+                        # Nếu còn Key khác trong pool, chuyển ngay sang Key tiếp theo
+                        if len(clients_to_try) > 1 and attempt == 1:
+                            break
+                        # Nếu đã qua các key hoặc chỉ có 1 key, áp dụng exponential backoff
+                        backoff = _BASE_BACKOFF_SECONDS * (2 ** (attempt - 1)) + random.uniform(0.1, 0.5)
+                        logger.info("[Embeddings] Chờ exponential backoff %.2fs rồi thử lại...", backoff)
+                        time.sleep(backoff)
+                        continue
+
+                    if _is_transient_error(err):
+                        backoff = _BASE_BACKOFF_SECONDS * (2 ** (attempt - 1)) + random.uniform(0.1, 0.5)
+                        logger.warning(
+                            "[Embeddings] Lỗi tạm thời (503/500/timeout) tại Key #%d (lần %d/%d): %s. Backoff %.2fs...",
+                            key_num, attempt, _MAX_RETRIES_PER_KEY, err, backoff,
+                        )
+                        time.sleep(backoff)
+                        continue
+
+                    # Các lỗi khác (cấu hình, auth sai hẳn...)
+                    logger.error("[Embeddings] Lỗi không thể retry tại Key #%d: %s", key_num, err)
+                    break
+
+    raise RuntimeError(
+        f"Không thể tạo embeddings với tất cả các API Key có sẵn (tuyệt đối không lưu zero vector): {last_err}"
+    ) from last_err
+
+
+def generate_embedding(text: str, task_type: str = "RETRIEVAL_QUERY") -> List[float]:
+    """
+    Tạo vector cho câu truy vấn (mặc định task_type='RETRIEVAL_QUERY').
+    """
     if not text or not text.strip():
-        logger.warning("[Embeddings] generate_embedding được gọi với text rỗng, trả về vector 0.")
-        return [0.0] * settings.VECTOR_SIZE
-
-    primary_model = settings.EMBEDDING_MODEL
-    fallback_model = "gemini-embedding-001"
-
-    try:
-        response = client.models.embed_content(
-            model=primary_model,
-            contents=text,
-            config=types.EmbedContentConfig(output_dimensionality=settings.VECTOR_SIZE)
-        )
-        return response.embeddings[0].values
-    except Exception as primary_err:
-        logger.warning(
-            "[Embeddings] Model chính '%s' thất bại: %s. Đang thử fallback sang '%s'...",
-            primary_model, primary_err, fallback_model,
-        )
-        # Fallback tự động sang gemini-embedding-001 nếu model cấu hình lỗi
-        if primary_model != fallback_model:
-            try:
-                response = client.models.embed_content(
-                    model=fallback_model,
-                    contents=text,
-                    config=types.EmbedContentConfig(output_dimensionality=settings.VECTOR_SIZE)
-                )
-                logger.info("[Embeddings] Fallback sang '%s' thành công.", fallback_model)
-                return response.embeddings[0].values
-            except Exception as fallback_err:
-                logger.error(
-                    "[Embeddings] Fallback model '%s' cũng thất bại: %s",
-                    fallback_model, fallback_err, exc_info=True,
-                )
-                raise RuntimeError(
-                    f"Không thể tạo embedding: model chính '{primary_model}' lỗi ({primary_err}), "
-                    f"fallback '{fallback_model}' cũng lỗi ({fallback_err})"
-                ) from fallback_err
-        raise RuntimeError(
-            f"Không thể tạo embedding với model '{primary_model}': {primary_err}"
-        ) from primary_err
+        raise ValueError("Không thể tạo embedding cho chuỗi rỗng.")
+    return _embed_batch_with_retry([text.strip()], task_type=task_type)[0]
 
 
-def generate_embeddings_batch(texts: List[str]) -> List[List[float]]:
-    """Tạo vector nhúng cho danh sách các chunks."""
+def generate_embeddings_batch(
+    texts: List[str],
+    task_type: str = "RETRIEVAL_DOCUMENT",
+    batch_size: int = _DEFAULT_BATCH_SIZE,
+) -> List[List[float]]:
+    """
+    Tạo embeddings hàng loạt theo lô 20–50 chunks (mặc định task_type='RETRIEVAL_DOCUMENT').
+    """
     if not texts:
-        logger.warning("[Embeddings] generate_embeddings_batch được gọi với danh sách rỗng.")
         return []
 
-    logger.info("[Embeddings] Đang tạo embeddings cho %d chunks...", len(texts))
-    results = []
-    failed = 0
-    for idx, text in enumerate(texts):
-        try:
-            vec = generate_embedding(text)
-            results.append(vec)
-        except Exception as e:
-            failed += 1
-            logger.error(
-                "[Embeddings] Chunk #%d/%d thất bại: %s — dùng zero vector thay thế.",
-                idx + 1, len(texts), e,
-            )
-            results.append([0.0] * settings.VECTOR_SIZE)
+    cleaned = [t.strip() for t in texts]
+    if any(not t for t in cleaned):
+        raise ValueError("Danh sách chunks chứa phần tử rỗng.")
 
-    if failed > 0:
-        logger.warning(
-            "[Embeddings] HOÀN TẤT với %d/%d chunk thất bại (zero vector).",
-            failed, len(texts),
-        )
-    else:
-        logger.info("[Embeddings] HOÀN TẤT: %d embeddings tạo thành công.", len(texts))
+    # Đảm bảo batch_size nằm trong khoảng tối ưu 20-50
+    effective_batch_size = max(20, min(50, batch_size))
+    logger.info(
+        "[Embeddings] Bắt đầu batch embedding cho %d chunks (lô %d chunks, task_type=%s)...",
+        len(cleaned), effective_batch_size, task_type,
+    )
+
+    results: List[List[float]] = []
+
+    for start in range(0, len(cleaned), effective_batch_size):
+        batch = cleaned[start:start + effective_batch_size]
+        vectors = _embed_batch_with_retry(batch, task_type=task_type)
+        results.extend(vectors)
+
+    logger.info("[Embeddings] HOÀN TẤT: Đã tạo %d vectors an toàn (không có zero vector).", len(results))
     return results

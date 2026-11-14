@@ -2,8 +2,23 @@
 // CourseMaterialModal.tsx  —  Course & Lesson Material Management Modal
 // =============================================================================
 
-import React, { useState } from 'react';
-import { X, FileText, Upload, Download, Trash2, Paperclip, Plus, Folder, CheckCircle2, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import {
+  X,
+  FileText,
+  Upload,
+  Download,
+  Trash2,
+  Paperclip,
+  Plus,
+  Folder,
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
+  Sparkles,
+  ExternalLink,
+} from 'lucide-react';
+import { mentorChatApi, CourseMaterialItem } from '../../api/mentorChatApi';
 
 interface CourseMaterialModalProps {
   isOpen: boolean;
@@ -12,15 +27,6 @@ interface CourseMaterialModalProps {
   courseTitle?: string;
   lessonId?: number | null;
   lessonTitle?: string | null;
-}
-
-interface MaterialItem {
-  id: number;
-  title: string;
-  fileUrl: string;
-  fileType: string;
-  fileSize: string;
-  createdAt: string;
 }
 
 export const CourseMaterialModal: React.FC<CourseMaterialModalProps> = ({
@@ -33,52 +39,119 @@ export const CourseMaterialModal: React.FC<CourseMaterialModalProps> = ({
 }) => {
   const isLessonLevel = !!lessonId;
 
-  // Mock list for visual preview
-  const [materials, setMaterials] = useState<MaterialItem[]>([
-    {
-      id: 1,
-      title: isLessonLevel
-        ? `Tài liệu hướng dẫn bài học: ${lessonTitle ?? 'Bài 1'}`
-        : `Giáo trình & Slide tổng quan khóa học: ${courseTitle}`,
-      fileUrl: 'https://example.com/tai-lieu-giao-trinh.pdf',
-      fileType: 'PDF',
-      fileSize: '2.4 MB',
-      createdAt: '15/09/2026',
-    },
-  ]);
+  const [materials, setMaterials] = useState<CourseMaterialItem[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const [newTitle, setNewTitle] = useState('');
-  const [newUrl, setNewUrl] = useState('');
-  const [fileType, setFileType] = useState('PDF');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isAdding, setIsAdding] = useState(false);
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
+  const [errorNotice, setErrorNotice] = useState<string | null>(null);
+
+  // Load materials from backend API
+  const fetchMaterials = async () => {
+    if (!courseId) return;
+    setIsLoading(true);
+    setErrorNotice(null);
+    try {
+      const data = await mentorChatApi.getMaterials(courseId);
+      setMaterials(data);
+    } catch (err: any) {
+      console.error('Lỗi khi tải danh sách tài liệu:', err);
+      setErrorNotice(err?.message || 'Không thể tải danh sách tài liệu.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchMaterials();
+      setIsAdding(false);
+      setNewTitle('');
+      setSelectedFile(null);
+      setSuccessNotice(null);
+      setErrorNotice(null);
+    }
+  }, [isOpen, courseId]);
 
   if (!isOpen) return null;
 
-  const handleAddMaterial = (e: React.FormEvent) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      if (!newTitle.trim()) {
+        const defaultName = file.name.replace(/\.[^/.]+$/, '');
+        setNewTitle(defaultName);
+      }
+    }
+  };
+
+  const handleAddMaterial = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTitle.trim()) return;
+    if (!selectedFile) {
+      setErrorNotice('Vui lòng chọn file tài liệu định dạng PDF, TXT hoặc MD.');
+      return;
+    }
 
-    const newItem: MaterialItem = {
-      id: Date.now(),
-      title: newTitle.trim(),
-      fileUrl: newUrl.trim() || 'https://example.com/tai-lieu-sample.pdf',
-      fileType: fileType,
-      fileSize: '1.5 MB',
-      createdAt: new Date().toLocaleDateString('vi-VN'),
-    };
+    setIsUploading(true);
+    setErrorNotice(null);
 
-    setMaterials([...materials, newItem]);
-    setNewTitle('');
-    setNewUrl('');
-    setIsAdding(false);
-    setSuccessNotice('Đã thêm tài liệu mới thành công!');
-    setTimeout(() => setSuccessNotice(null), 3000);
+    try {
+      const res = await mentorChatApi.uploadDocumentMaterial(
+        courseId,
+        selectedFile,
+        newTitle.trim() || selectedFile.name,
+        lessonId || undefined
+      );
+
+      const chunks = res?.indexedChunks ?? 0;
+      setSuccessNotice(
+        `Đã tải lên và lập chỉ mục thành công! (${chunks} đoạn kiến thức đã nạp vào AI Mentor).`
+      );
+      setNewTitle('');
+      setSelectedFile(null);
+      setIsAdding(false);
+      await fetchMaterials();
+      setTimeout(() => setSuccessNotice(null), 4000);
+    } catch (err: any) {
+      console.error('Lỗi khi tải lên tài liệu:', err);
+      setErrorNotice(err?.message || 'Không thể tải lên tài liệu. Vui lòng thử lại.');
+    } finally {
+      setIsUploading(false);
+    }
   };
 
-  const handleDelete = (id: number) => {
-    setMaterials(materials.filter((m) => m.id !== id));
+  const handleDelete = async (materialId: number) => {
+    if (!window.confirm('Bạn có chắc muốn xóa tài liệu này? Vector AI liên quan sẽ được tự động dọn dẹp.')) {
+      return;
+    }
+
+    setDeletingId(materialId);
+    setErrorNotice(null);
+    try {
+      await mentorChatApi.deleteMaterial(courseId, materialId);
+      setMaterials((prev) => prev.filter((m) => m.materialId !== materialId));
+      setSuccessNotice('Đã xóa tài liệu và dọn dẹp vector AI thành công.');
+      setTimeout(() => setSuccessNotice(null), 3000);
+    } catch (err: any) {
+      console.error('Lỗi khi xóa tài liệu:', err);
+      setErrorNotice(err?.message || 'Không thể xóa tài liệu.');
+    } finally {
+      setDeletingId(null);
+    }
   };
+
+  // Filter materials based on current scope
+  const filteredMaterials = materials.filter((m) => {
+    if (isLessonLevel) {
+      return m.lessonId === lessonId;
+    }
+    return !m.lessonId || m.lessonId === null;
+  });
 
   return (
     <div
@@ -97,10 +170,15 @@ export const CourseMaterialModal: React.FC<CourseMaterialModalProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                  isLessonLevel ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
-                }`}>
+                <span
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    isLessonLevel ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
+                  }`}
+                >
                   {isLessonLevel ? 'Tài liệu Bài học' : 'Tài liệu Khóa học (Chung)'}
+                </span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 flex items-center gap-1">
+                  <Sparkles className="h-3 w-3" /> AI Mentor RAG
                 </span>
               </div>
               <h2 className="text-lg font-bold text-slate-900 mt-0.5 line-clamp-1">
@@ -120,21 +198,28 @@ export const CourseMaterialModal: React.FC<CourseMaterialModalProps> = ({
         <div className="flex-1 overflow-y-auto py-5 space-y-4">
           {successNotice && (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-semibold text-emerald-700 flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-              {successNotice}
+              <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+              <span>{successNotice}</span>
             </div>
           )}
 
-          {/* Intro notice regarding CourseMaterial table structure */}
+          {errorNotice && (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-700 flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 text-rose-600 shrink-0" />
+              <span>{errorNotice}</span>
+            </div>
+          )}
+
+          {/* Scope notice */}
           <div className="rounded-2xl border border-amber-200/80 bg-amber-50/60 p-4 text-xs text-amber-900">
             <div className="flex items-start gap-2.5">
               <Folder className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
               <div>
-                <p className="font-bold">Bảng dữ liệu `CourseMaterial`</p>
+                <p className="font-bold">Quản lý Tài liệu Khóa học & Lập chỉ mục RAG</p>
                 <p className="mt-0.5 text-amber-800 leading-relaxed">
                   {isLessonLevel
-                    ? `Tài liệu này được gắn trực tiếp cho LessonID = #${lessonId} trong bảng CourseMaterial.`
-                    : `Tài liệu này áp dụng cho toàn bộ CourseID = #${courseId} (LessonID = NULL).`}
+                    ? `Tài liệu tải lên tại đây sẽ được gắn cho Bài học #${lessonId} và nạp vào Vector Store để học viên tra cứu khi học bài này.`
+                    : `Tài liệu tải lên tại đây sẽ áp dụng cho toàn bộ Khóa học #${courseId} (giáo trình, slide tổng quan).`}
                 </p>
               </div>
             </div>
@@ -147,18 +232,35 @@ export const CourseMaterialModal: React.FC<CourseMaterialModalProps> = ({
               className="w-full flex items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-amber-300 bg-amber-50/30 py-3 text-xs font-bold text-amber-700 hover:bg-amber-50/70 transition-all cursor-pointer"
             >
               <Plus className="h-4 w-4" />
-              {isLessonLevel ? 'Thêm tài liệu cho bài học này' : 'Thêm tài liệu cho toàn bộ khóa học'}
+              {isLessonLevel ? 'Tải lên tài liệu mới cho bài học này' : 'Tải lên tài liệu mới cho toàn bộ khóa học'}
             </button>
           ) : (
             <form onSubmit={handleAddMaterial} className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 space-y-3">
-              <h4 className="text-xs font-bold text-slate-800">Thêm mới tài liệu</h4>
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold text-slate-800">Tải lên tệp tài liệu mới</h4>
+                <span className="text-[11px] text-slate-500">Hỗ trợ: PDF, TXT, MD (Tối đa 100MB)</span>
+              </div>
+
               <div>
                 <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                  Tên tài liệu / Tiêu đề <span className="text-red-500">*</span>
+                  Chọn tệp tài liệu <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="file"
+                  accept=".pdf,.txt,.md"
+                  onChange={handleFileChange}
+                  required
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 file:mr-3 file:rounded-lg file:border-0 file:bg-amber-50 file:px-3 file:py-1 file:text-xs file:font-semibold file:text-amber-700 hover:file:bg-amber-100 cursor-pointer"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  Tiêu đề tài liệu <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
-                  placeholder="Ví dụ: Slide bài giảng PDF / File bài tập Excel"
+                  placeholder="Ví dụ: Giáo trình MC Song ngữ - Bài 1"
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
                   className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs text-slate-800 focus:border-amber-500 focus:outline-none"
@@ -166,47 +268,31 @@ export const CourseMaterialModal: React.FC<CourseMaterialModalProps> = ({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                    Đường dẫn tệp (URL / Cloud Storage)
-                  </label>
-                  <input
-                    type="url"
-                    placeholder="https://... (Drive, Cloudinary, S3)"
-                    value={newUrl}
-                    onChange={(e) => setNewUrl(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs text-slate-800 focus:border-amber-500 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 mb-1">Loại tệp</label>
-                  <select
-                    value={fileType}
-                    onChange={(e) => setFileType(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs text-slate-800 focus:border-amber-500 focus:outline-none"
-                  >
-                    <option value="PDF">Tệp PDF (.pdf)</option>
-                    <option value="PPTX">Slide thuyết trình (.pptx)</option>
-                    <option value="DOCX">Văn bản Word (.docx)</option>
-                    <option value="ZIP">Tệp nén (.zip / .rar)</option>
-                  </select>
-                </div>
-              </div>
-
               <div className="flex items-center justify-end gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setIsAdding(false)}
-                  className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                  disabled={isUploading}
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
-                  className="rounded-xl bg-amber-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 shadow-sm"
+                  disabled={isUploading || !selectedFile}
+                  className="flex items-center gap-1.5 rounded-xl bg-amber-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-amber-700 shadow-sm disabled:opacity-50 cursor-pointer"
                 >
-                  Lưu tài liệu
+                  {isUploading ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <span>Đang nạp AI...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-3.5 w-3.5" />
+                      <span>Tải lên & Lập chỉ mục AI</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>
@@ -214,49 +300,87 @@ export const CourseMaterialModal: React.FC<CourseMaterialModalProps> = ({
 
           {/* List of materials */}
           <div className="space-y-2">
-            <h4 className="text-xs font-bold text-slate-800">Danh sách tài liệu ({materials.length})</h4>
-            {materials.length === 0 ? (
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold text-slate-800">
+                Danh sách tài liệu ({filteredMaterials.length})
+              </h4>
+              <button
+                type="button"
+                onClick={fetchMaterials}
+                className="text-[11px] text-amber-700 hover:underline cursor-pointer font-medium"
+              >
+                Làm mới
+              </button>
+            </div>
+
+            {isLoading ? (
+              <div className="p-8 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin text-amber-600" />
+                <span>Đang tải danh sách tài liệu...</span>
+              </div>
+            ) : filteredMaterials.length === 0 ? (
               <div className="p-8 text-center text-xs text-slate-400 border border-slate-100 rounded-2xl">
-                Chưa có tài liệu đính kèm nào.
+                Chưa có tài liệu nào trong phạm vi này. Hãy nhấn nút phía trên để tải lên.
               </div>
             ) : (
-              materials.map((m) => (
-                <div
-                  key={m.id}
-                  className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-3 hover:bg-slate-50/80 transition-all"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700 font-bold text-xs border border-amber-200/60">
-                      {m.fileType}
-                    </div>
-                    <div>
-                      <p className="font-semibold text-slate-800 text-xs line-clamp-1">{m.title}</p>
-                      <p className="text-[11px] text-slate-400">
-                        {m.fileSize} • Ngày tải lên: {m.createdAt}
-                      </p>
-                    </div>
-                  </div>
+              filteredMaterials.map((m) => {
+                const isDeleting = deletingId === m.materialId;
+                const ext = m.fileUrl?.split('.').pop()?.toUpperCase() || 'DOC';
+                const isRagIndexed = m.ragStatus === 'INDEXED' || !m.ragStatus || m.ragStatus === 'COMPLETED';
 
-                  <div className="flex items-center gap-1">
-                    <a
-                      href={m.fileUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="rounded-xl p-2 text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-all"
-                      title="Tải về tài liệu"
-                    >
-                      <Download className="h-4 w-4" />
-                    </a>
-                    <button
-                      onClick={() => handleDelete(m.id)}
-                      className="rounded-xl p-2 text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all cursor-pointer"
-                      title="Xóa tài liệu"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                return (
+                  <div
+                    key={m.materialId}
+                    className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-3 hover:bg-slate-50/80 transition-all"
+                  >
+                    <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-700 font-bold text-xs border border-amber-200/60">
+                        {ext}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-slate-800 text-xs truncate">{m.title}</p>
+                          {isRagIndexed ? (
+                            <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200/60">
+                              INDEXED
+                            </span>
+                          ) : (
+                            <span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 border border-amber-200/60">
+                              PENDING_INDEX
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          Mã tài liệu: #{m.materialId}
+                          {m.lessonId ? ` · Bài học #${m.lessonId}` : ' · Toàn khóa'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      {m.fileUrl && (
+                        <a
+                          href={m.fileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="rounded-xl p-2 text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-all"
+                          title="Tải về tài liệu"
+                        >
+                          <Download className="h-4 w-4" />
+                        </a>
+                      )}
+                      <button
+                        onClick={() => handleDelete(m.materialId)}
+                        disabled={isDeleting}
+                        className="rounded-xl p-2 text-slate-400 hover:bg-red-50 hover:text-red-500 transition-all cursor-pointer disabled:opacity-50"
+                        title="Xóa tài liệu"
+                      >
+                        {isDeleting ? <Loader2 className="h-4 w-4 animate-spin text-red-500" /> : <Trash2 className="h-4 w-4" />}
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>

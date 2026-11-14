@@ -1,15 +1,13 @@
-import React, { useState, useRef, useEffect } from 'react';
 import {
-  X,
-  Send,
   BookOpen,
-  Video,
-  FileText,
+  MessageSquare,
   RotateCcw,
-  MessageSquare
+  Send,
+  X
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
-import { mentorChatApi } from '../api/mentorChatApi';
+import { AnimatePresence, motion } from 'motion/react';
+import React, { useEffect, useRef, useState } from 'react';
+import { mentorChatApi, MentorSourceCitation } from '../api/mentorChatApi';
 
 export interface CourseChatDrawerProps {
   isOpen: boolean;
@@ -24,25 +22,31 @@ export interface CourseChatDrawerProps {
   onSelectLesson?: (lessonId: number) => void;
 }
 
-interface SourceCitation {
-  source_type: 'video_transcript' | 'document';
-  title: string;
-  lesson_id?: number;
-  snippet: string;
-}
-
 interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   timestamp: string;
-  sources?: SourceCitation[];
+  sources?: MentorSourceCitation[];
+}
+
+function deduplicateSources(sources: MentorSourceCitation[]): MentorSourceCitation[] {
+  const seen = new Set<string>();
+  const unique: MentorSourceCitation[] = [];
+  for (const s of sources) {
+    const key = `${s.source_type}:${s.lesson_id || s.title}:${s.page_number || ''}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      unique.push(s);
+    }
+  }
+  return unique;
 }
 
 const SUGGESTIONS = [
-  'Tóm tắt các ý chính của bài này',
-  'Kỹ thuật lấy hơi và kiểm soát cột hơi',
-  'Cách xử lý khi quên kịch bản dẫn'
+  // 'Tóm tắt các ý chính của bài này',
+  // 'Kỹ thuật lấy hơi và kiểm soát cột hơi',
+  // 'Cách xử lý khi quên kịch bản dẫn'
 ];
 
 /**
@@ -187,6 +191,11 @@ export const CourseChatDrawer: React.FC<CourseChatDrawerProps> = ({
   const [isTyping, setIsTyping] = useState(false);
   const [searchInCurrentLessonOnly, setSearchInCurrentLessonOnly] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [expandedSources, setExpandedSources] = useState<Record<string, boolean>>({});
+
+  const toggleExpandSource = (key: string) => {
+    setExpandedSources((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -215,35 +224,77 @@ export const CourseChatDrawer: React.FC<CourseChatDrawerProps> = ({
       timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    const assistantId = `a-${Date.now()}`;
+    const assistantMsg: Message = {
+      id: assistantId,
+      role: 'assistant',
+      content: '',
+      timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+      sources: []
+    };
+
+    setMessages((prev) => [...prev, userMsg, assistantMsg]);
     setInputValue('');
     setIsTyping(true);
 
+    const cId = Number(courseId);
+    const targetLessonId = searchInCurrentLessonOnly && activeLesson?.lessonId ? activeLesson.lessonId : undefined;
+
     try {
-      const cId = Number(courseId);
-      const targetLessonId = searchInCurrentLessonOnly && activeLesson?.lessonId ? activeLesson.lessonId : undefined;
-      const res = await mentorChatApi.askMentor(cId, text, targetLessonId);
-
-      const assistantMsg: Message = {
-        id: `a-${Date.now()}`,
-        role: 'assistant',
-        content: res.answer,
-        timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-        sources: res.sources || []
-      };
-
-      setMessages((prev) => [...prev, assistantMsg]);
-    } catch (err: any) {
-      console.error('Lỗi khi kết nối AI Mentor:', err);
-      const fallbackMsg: Message = {
-        id: `a-${Date.now()}`,
-        role: 'assistant',
-        content: err?.message?.includes('503')
+      // 1. Thử gọi SSE Streaming để học viên thấy chữ chạy mượt mà ngay lập tức
+      await mentorChatApi.askMentorStream(cId, text, targetLessonId, 4, {
+        onSources: (incomingSources) => {
+          const unique = deduplicateSources(incomingSources);
+          setMessages((prev) =>
+            prev.map((m) => (m.id === assistantId ? { ...m, sources: unique } : m))
+          );
+        },
+        onChunk: (chunk) => {
+          setMessages((prev) =>
+            prev.map((m) => (m.id === assistantId ? { ...m, content: m.content + chunk } : m))
+          );
+        },
+        onError: (err) => {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantId
+                ? {
+                    ...m,
+                    content:
+                      m.content ||
+                      (err.message.includes('503')
+                        ? 'Hệ thống AI Mentor hiện đang chuẩn bị dữ liệu bài giảng. Bạn vui lòng thử lại sau ít phút nhé.'
+                        : err.message || 'Đã có lỗi xảy ra khi trao đổi với AI Mentor.'),
+                  }
+                : m
+            )
+          );
+        }
+      });
+    } catch (streamErr: any) {
+      console.warn('Lỗi khi streaming, tự động chuyển về REST thông thường:', streamErr);
+      try {
+        const res = await mentorChatApi.askMentor(cId, text, targetLessonId);
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId
+              ? {
+                  ...m,
+                  content: res.answer,
+                  sources: deduplicateSources(res.sources || [])
+                }
+              : m
+          )
+        );
+      } catch (fallbackErr: any) {
+        console.error('Lỗi khi kết nối AI Mentor:', fallbackErr);
+        const fallbackText = fallbackErr?.message?.includes('503')
           ? 'Hệ thống AI Mentor hiện đang chuẩn bị dữ liệu bài giảng. Bạn vui lòng thử lại sau ít phút nhé.'
-          : (err?.message || 'Đã có lỗi xảy ra khi trao đổi với AI Mentor. Vui lòng thử lại.'),
-        timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
-      };
-      setMessages((prev) => [...prev, fallbackMsg]);
+          : (fallbackErr?.message || 'Đã có lỗi xảy ra khi trao đổi với AI Mentor. Vui lòng thử lại.');
+        setMessages((prev) =>
+          prev.map((m) => (m.id === assistantId ? { ...m, content: fallbackText } : m))
+        );
+      }
     } finally {
       setIsTyping(false);
     }
@@ -368,35 +419,7 @@ export const CourseChatDrawer: React.FC<CourseChatDrawerProps> = ({
                       <CleanMessageBody text={msg.content} />
                     )}
 
-                    {/* Sources (Footnotes) */}
-                    {msg.sources && msg.sources.length > 0 && (
-                      <div className="mt-2.5 pt-2 border-t border-slate-100 text-[11px]">
-                        <span className="font-semibold text-violet-900 block mb-1">Dẫn chứng:</span>
-                        <div className="space-y-1">
-                          {msg.sources.map((src, i) => (
-                            <div key={i} className="flex items-start justify-between gap-2 text-slate-600">
-                              <span className="flex items-center gap-1.5 truncate">
-                                {src.source_type === 'video_transcript' ? (
-                                  <Video className="h-3 w-3 text-red-500 shrink-0" />
-                                ) : (
-                                  <FileText className="h-3 w-3 text-blue-500 shrink-0" />
-                                )}
-                                <span className="truncate">{src.title}</span>
-                              </span>
-                              {src.lesson_id && onSelectLesson && (
-                                <button
-                                  type="button"
-                                  onClick={() => onSelectLesson(src.lesson_id!)}
-                                  className="text-violet-600 hover:text-violet-800 font-bold shrink-0 text-[11px] hover:underline cursor-pointer"
-                                >
-                                  Mở bài
-                                </button>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                    
                   </div>
 
                   {/* Timestamp & Copy action */}
