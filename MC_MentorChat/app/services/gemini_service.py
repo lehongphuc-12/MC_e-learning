@@ -109,8 +109,9 @@ def generate_rag_answer(
         if c.get("source_type") == "video_transcript":
             label = f"Bài giảng video: {c.get('title', '')}"
         else:
-            page = f" - Trang {c['page']}" if c.get("page") else ""
-            label = f"Tài liệu: {c.get('title', '')}{page}"
+            p_num = c.get("page_number") or c.get("page")
+            page_part = f" - Trang {p_num}" if p_num else ""
+            label = f"Tài liệu: {c.get('title', '')}{page_part}"
         context_blocks.append(f"--- [{idx}. {label}] ---\n{c.get('content', '')}")
 
     history_block = ""

@@ -58,13 +58,13 @@ class Settings:
     VECTOR_SIZE: int = int(os.getenv("VECTOR_SIZE", "768"))
 
     # --- RAG Tuning ---
-    CHUNK_SIZE: int = int(os.getenv("CHUNK_SIZE", "900"))
-    CHUNK_OVERLAP: int = int(os.getenv("CHUNK_OVERLAP", "150"))
+    CHUNK_SIZE: int = int(os.getenv("CHUNK_SIZE", "1000"))
+    CHUNK_OVERLAP: int = int(os.getenv("CHUNK_OVERLAP", "180"))
     MIN_RELEVANCE_SCORE: float = float(os.getenv("MIN_RELEVANCE_SCORE", "0.45"))
     MAX_UPLOAD_SIZE_BYTES: int = int(os.getenv("MAX_UPLOAD_SIZE_MB", "25")) * 1024 * 1024
 
     # --- Security & CORS ---
-    INTERNAL_API_KEY: str = os.getenv("INTERNAL_API_KEY", "")
+    INTERNAL_API_KEY: str = os.getenv("INTERNAL_API_KEY", "mc-internal-secret-key-2026")
     ALLOWED_ORIGINS: List[str] = _parse_list(
         os.getenv(
             "ALLOWED_ORIGINS",

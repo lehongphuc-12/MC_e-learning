@@ -30,7 +30,13 @@ public class MentorChatService : IMentorChatService
 
         var baseUrl = string.IsNullOrWhiteSpace(_settings.BaseUrl) ? "http://localhost:8000" : _settings.BaseUrl.TrimEnd('/');
         _httpClient.BaseAddress = new Uri(baseUrl);
-        _httpClient.Timeout = TimeSpan.FromSeconds(_settings.TimeoutSeconds > 0 ? _settings.TimeoutSeconds : 60);
+        _httpClient.Timeout = TimeSpan.FromSeconds(_settings.TimeoutSeconds > 0 ? _settings.TimeoutSeconds : 120);
+
+        if (!string.IsNullOrWhiteSpace(_settings.ApiKey))
+        {
+            _httpClient.DefaultRequestHeaders.Remove("X-Internal-Api-Key");
+            _httpClient.DefaultRequestHeaders.Add("X-Internal-Api-Key", _settings.ApiKey.Trim());
+        }
     }
 
     public async Task<MentorChatResponseDto> AskQuestionAsync(
@@ -38,18 +44,19 @@ public class MentorChatService : IMentorChatService
         MentorChatRequestDto request, 
         CancellationToken ct = default)
     {
+        var safeTopK = Math.Clamp(request.TopK <= 0 ? 4 : request.TopK, 1, 12);
         var pythonPayload = new PythonChatRequest
         {
             CourseId = courseId,
             Message = request.Message,
             LessonId = request.LessonId,
-            TopK = request.TopK > 0 ? request.TopK : 4
+            TopK = safeTopK
         };
 
         var json = JsonSerializer.Serialize(pythonPayload, JsonOptions);
         using var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-        _logger.LogInformation("Sending chat question for CourseId {CourseId}, LessonId {LessonId} to MentorChat AI...", courseId, request.LessonId);
+        _logger.LogInformation("Sending chat question for CourseId {CourseId}, LessonId {LessonId}, TopK {TopK} to MentorChat AI...", courseId, request.LessonId, safeTopK);
 
         var response = await _httpClient.PostAsync("/api/chat", content, ct);
         var responseBody = await response.Content.ReadAsStringAsync(ct);
@@ -94,8 +101,12 @@ public class MentorChatService : IMentorChatService
 
         _logger.LogInformation("Ingesting transcript for Course {CourseId}, Lesson {LessonId} to MentorChat...", courseId, lessonId);
 
-        var response = await _httpClient.PostAsync("/api/transcripts/ingest", content, ct);
-        var responseBody = await response.Content.ReadAsStringAsync(ct);
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var ingestTimeout = _settings.IngestTimeoutSeconds > 0 ? _settings.IngestTimeoutSeconds : 300;
+        cts.CancelAfter(TimeSpan.FromSeconds(ingestTimeout));
+
+        var response = await _httpClient.PostAsync("/api/transcripts/ingest", content, cts.Token);
+        var responseBody = await response.Content.ReadAsStringAsync(cts.Token);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -111,6 +122,7 @@ public class MentorChatService : IMentorChatService
         string fileName, 
         Stream fileStream, 
         int? lessonId = null, 
+        int? materialId = null,
         CancellationToken ct = default)
     {
         using var form = new MultipartFormDataContent();
@@ -119,6 +131,11 @@ public class MentorChatService : IMentorChatService
         if (lessonId.HasValue)
         {
             form.Add(new StringContent(lessonId.Value.ToString()), "lesson_id");
+        }
+
+        if (materialId.HasValue)
+        {
+            form.Add(new StringContent(materialId.Value.ToString()), "material_id");
         }
 
         var streamContent = new StreamContent(fileStream);
@@ -133,10 +150,16 @@ public class MentorChatService : IMentorChatService
         streamContent.Headers.ContentType = new MediaTypeHeaderValue(mimeType);
         form.Add(streamContent, "file", fileName);
 
-        _logger.LogInformation("Uploading and indexing document {FileName} for Course {CourseId} in MentorChat...", fileName, courseId);
+        _logger.LogInformation("Uploading and indexing document {FileName} for Course {CourseId}, MaterialId {MaterialId} in MentorChat...", 
+            fileName, courseId, materialId);
 
-        var response = await _httpClient.PostAsync("/api/documents/upload", form, ct);
-        var responseBody = await response.Content.ReadAsStringAsync(ct);
+        // Tăng timeout ingest ở .NET cho upload PDF hoặc tệp tài liệu lớn
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var ingestTimeout = _settings.IngestTimeoutSeconds > 0 ? _settings.IngestTimeoutSeconds : 300;
+        cts.CancelAfter(TimeSpan.FromSeconds(ingestTimeout));
+
+        var response = await _httpClient.PostAsync("/api/documents/upload", form, cts.Token);
+        var responseBody = await response.Content.ReadAsStringAsync(cts.Token);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -145,5 +168,50 @@ public class MentorChatService : IMentorChatService
         }
 
         return JsonSerializer.Deserialize<MentorIngestResponseDto>(responseBody, JsonOptions);
+    }
+
+    public async Task<bool> DeleteKnowledgeAsync(
+        int courseId, 
+        int? lessonId = null, 
+        int? materialId = null, 
+        string? sourceType = null, 
+        CancellationToken ct = default)
+    {
+        var sb = new StringBuilder($"/api/knowledge?course_id={courseId}");
+        if (lessonId.HasValue)
+        {
+            sb.Append($"&lesson_id={lessonId.Value}");
+        }
+        if (materialId.HasValue)
+        {
+            sb.Append($"&material_id={materialId.Value}");
+        }
+        if (!string.IsNullOrWhiteSpace(sourceType))
+        {
+            sb.Append($"&source_type={Uri.EscapeDataString(sourceType)}");
+        }
+
+        var requestUri = sb.ToString();
+        _logger.LogInformation("Sending delete knowledge request to MentorChat: {RequestUri}", requestUri);
+
+        try
+        {
+            var response = await _httpClient.DeleteAsync(requestUri, ct);
+            var responseBody = await response.Content.ReadAsStringAsync(ct);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("MentorChat delete knowledge returned non-success code {StatusCode}: {Body}", response.StatusCode, responseBody);
+                return false;
+            }
+
+            _logger.LogInformation("Successfully deleted knowledge points in MentorChat for Course {CourseId}.", courseId);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to call delete knowledge endpoint in MentorChat for Course {CourseId} (service might be down)", courseId);
+            return false;
+        }
     }
 }

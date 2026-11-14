@@ -51,8 +51,12 @@ public class MentorChatController : ControllerBase
         if (course == null) return false;
         if (course.InstructorId == userId) return true;
 
+        var now = DateTime.UtcNow;
         return await _db.Enrollments.AsNoTracking()
-            .AnyAsync(e => e.CourseId == courseId && e.LearnerId == userId && e.Status != "PENDING_PAYMENT", ct);
+            .AnyAsync(e => e.CourseId == courseId 
+                        && e.LearnerId == userId 
+                        && (e.Status == "ACTIVE" || e.Status == "COMPLETED")
+                        && (e.ExpiresAt == null || e.ExpiresAt > now), ct);
     }
 
     private async Task<bool> CanManageCourseAsync(int courseId, int userId, CancellationToken ct)
@@ -187,6 +191,7 @@ public class MentorChatController : ControllerBase
                 file.FileName, 
                 ingestStream, 
                 lessonId, 
+                materialId: material.MaterialId,
                 ct);
         }
         catch (Exception ex)
@@ -205,6 +210,65 @@ public class MentorChatController : ControllerBase
             indexedChunks = ingestResult?.TotalChunks ?? 0,
             ragStatus = ingestResult != null ? "INDEXED" : "PENDING_INDEX"
         }, "Tải lên và lập chỉ mục tài liệu thành công."));
+    }
+
+    /// <summary>
+    /// Xóa tài liệu khóa học và tự động dọn dẹp vector trong Qdrant Vector Store (Lifecycle Sync)
+    /// </summary>
+    [HttpDelete("materials/{materialId:int}")]
+    [Authorize(Roles = "Instructor,Admin")]
+    public async Task<ActionResult<ApiResponse<object>>> DeleteMaterial(
+        int courseId,
+        int materialId,
+        CancellationToken ct)
+    {
+        var userId = GetCurrentUserId();
+        if (userId == null)
+            return Unauthorized(ApiResponse<object>.FailureResponse("Vui lòng đăng nhập."));
+
+        if (!await CanManageCourseAsync(courseId, userId.Value, ct))
+            return Forbid();
+
+        var material = await _db.CourseMaterials
+            .FirstOrDefaultAsync(m => m.MaterialId == materialId && m.CourseId == courseId, ct);
+
+        if (material == null)
+            return NotFound(ApiResponse<object>.FailureResponse("Không tìm thấy tài liệu."));
+
+        // 1. Xóa file trên Cloudflare R2 nếu có
+        var key = material.ObjectKey ?? _r2.ExtractKeyFromUrl(material.FileUrl ?? string.Empty);
+        if (!string.IsNullOrWhiteSpace(key))
+        {
+            try
+            {
+                await _r2.DeleteAsync(key);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Không thể xóa file tài liệu {ObjectKey} trên R2.", key);
+            }
+        }
+
+        // 2. Dọn dẹp vector trong Qdrant Vector Store
+        try
+        {
+            await _mentorChatService.DeleteKnowledgeAsync(courseId, materialId: materialId, sourceType: "document", ct: ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Lỗi khi gọi dọn dẹp vector cho MaterialId {MaterialId}", materialId);
+        }
+
+        // 3. Xóa bản ghi trong Database
+        _db.CourseMaterials.Remove(material);
+        await _db.SaveChangesAsync(ct);
+
+        return Ok(ApiResponse<object>.SuccessResponse(new
+        {
+            materialId,
+            courseId,
+            deleted = true
+        }, "Đã xóa tài liệu và dọn dẹp vector kiến thức thành công."));
     }
 
     /// <summary>
@@ -287,7 +351,13 @@ public class MentorChatController : ControllerBase
         {
             try
             {
-                var ingest = await _mentorChatService.IngestTranscriptAsync(courseId, l.LessonId, l.Title, l.Transcript!, ct);
+                var ingest = await _mentorChatService.IngestTranscriptAsync(
+                    courseId, 
+                    l.LessonId, 
+                    l.Title, 
+                    l.Transcript!, 
+                    ct);
+
                 result.TotalSuccess++;
                 result.Messages.Add($"Bài '{l.Title}' (ID {l.LessonId}): Đã lập chỉ mục {ingest?.TotalChunks ?? 0} đoạn.");
             }

@@ -17,14 +17,18 @@ def retrieve_course_chunks(
     """
     Tìm kiếm đoạn kiến thức tương đồng ngữ nghĩa.
     Khóa cứng bộ lọc course_id để tuyệt đối không lấy nhầm khóa khác.
+    Dùng task_type='RETRIEVAL_QUERY' riêng cho câu truy vấn.
     """
+    # Ép buộc top_k trong khoảng an toàn 1 <= top_k <= 12
+    safe_top_k = max(1, min(12, top_k))
+
     logger.info(
-        "[Retriever] course_id=%s lesson_id=%s top_k=%d — đang tạo query embedding...",
-        course_id, lesson_id, top_k,
+        "[Retriever] course_id=%s lesson_id=%s top_k=%d (requested=%d) — đang tạo query embedding...",
+        course_id, lesson_id, safe_top_k, top_k,
     )
 
     try:
-        query_vector = generate_embedding(query)
+        query_vector = generate_embedding(query, task_type="RETRIEVAL_QUERY")
     except Exception as e:
         logger.error(
             "[Retriever] course_id=%s — LỖI tạo query embedding: %s",
@@ -54,13 +58,12 @@ def retrieve_course_chunks(
 
     logger.info("[Retriever] course_id=%s — đang tìm kiếm vector trong Qdrant...", course_id)
     try:
-        # Hỗ trợ cả query_points (qdrant-client >= 1.10) và search (legacy)
         if hasattr(qdrant_client, "query_points"):
             search_res = qdrant_client.query_points(
                 collection_name=settings.QDRANT_COLLECTION,
                 query=query_vector,
                 query_filter=filter_obj,
-                limit=top_k
+                limit=safe_top_k
             )
             hits = search_res.points
         else:
@@ -68,7 +71,7 @@ def retrieve_course_chunks(
                 collection_name=settings.QDRANT_COLLECTION,
                 query_vector=query_vector,
                 query_filter=filter_obj,
-                limit=top_k
+                limit=safe_top_k
             )
     except Exception as e:
         logger.error(
@@ -85,6 +88,8 @@ def retrieve_course_chunks(
             "title": payload.get("title", ""),
             "source_type": payload.get("source_type", ""),
             "lesson_id": payload.get("lesson_id"),
+            "material_id": payload.get("material_id"),
+            "page_number": payload.get("page_number"),
             "score": round(hit.score, 3) if hit.score is not None else 0.0
         })
 
@@ -95,8 +100,7 @@ def retrieve_course_chunks(
         )
     else:
         logger.warning(
-            "[Retriever] course_id=%s lesson_id=%s — KHÔNG tìm thấy chunk nào. "
-            "Có thể khóa học chưa được lập chỉ mục hoặc câu hỏi quá khác biệt với nội dung.",
+            "[Retriever] course_id=%s lesson_id=%s — KHÔNG tìm thấy chunk nào.",
             course_id, lesson_id,
         )
 
