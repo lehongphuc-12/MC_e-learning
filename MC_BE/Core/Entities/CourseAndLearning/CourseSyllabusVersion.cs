@@ -80,6 +80,23 @@ public class CourseSyllabusVersion
     [Column("ReviewNote", TypeName = "text")]
     public string? ReviewNote { get; set; }
 
+    // Frozen with the revision on submission so public preview never shows content
+    // from a newer, not-yet-approved course edit.
+    [Column("PreviewDescription", TypeName = "text")]
+    public string? PreviewDescription { get; set; }
+
+    [Column("PreviewTargetAudience", TypeName = "text")]
+    public string? PreviewTargetAudience { get; set; }
+
+    [Column("PreviewPrerequisites", TypeName = "text")]
+    public string? PreviewPrerequisites { get; set; }
+
+    [Column("PreviewLearningOutcomes", TypeName = "text")]
+    public string? PreviewLearningOutcomes { get; set; }
+
+    [Column("PreviewAssessmentOverview", TypeName = "text")]
+    public string? PreviewAssessmentOverview { get; set; }
+
     public virtual Course Course { get; set; } = null!;
     public virtual User UploadedBy { get; set; } = null!;
     public virtual User? ReviewedBy { get; set; }

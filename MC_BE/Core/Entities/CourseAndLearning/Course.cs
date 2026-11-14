@@ -32,6 +32,20 @@ public class Course
     [Column("Description")]
     public string? Description { get; set; }
 
+    // Editable instructor draft fields. Public learners only receive the snapshot
+    // attached to the exact syllabus version approved by Admin.
+    [Column("PreviewTargetAudience", TypeName = "text")]
+    public string? PreviewTargetAudience { get; set; }
+
+    [Column("PreviewPrerequisites", TypeName = "text")]
+    public string? PreviewPrerequisites { get; set; }
+
+    [Column("PreviewLearningOutcomes", TypeName = "text")]
+    public string? PreviewLearningOutcomes { get; set; }
+
+    [Column("PreviewAssessmentOverview", TypeName = "text")]
+    public string? PreviewAssessmentOverview { get; set; }
+
     [MaxLength(255)]
     [Column("ThumbnailUrl")]
     public string? ThumbnailUrl { get; set; }

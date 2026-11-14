@@ -31,13 +31,35 @@ public sealed class CourseSyllabusVersionDto
     public DateTime? ReviewedAt { get; set; }
     public int? ReviewedById { get; set; }
     public string? ReviewNote { get; set; }
+    public string? PreviewDescription { get; set; }
+    public string? PreviewTargetAudience { get; set; }
+    public string? PreviewPrerequisites { get; set; }
+    public string? PreviewLearningOutcomes { get; set; }
+    public string? PreviewAssessmentOverview { get; set; }
+}
+
+public sealed class CourseSyllabusPreviewDraftDto
+{
+    public string? Description { get; set; }
+    public string? TargetAudience { get; set; }
+    public string? Prerequisites { get; set; }
+    public string? LearningOutcomes { get; set; }
+    public string? AssessmentOverview { get; set; }
 }
 
 public sealed class CourseSyllabusPublicOutlineDto
 {
     public int CourseId { get; set; }
     public string Description { get; set; } = string.Empty;
+    public string? TargetAudience { get; set; }
+    public string? Prerequisites { get; set; }
+    public string? LearningOutcomes { get; set; }
+    public string? AssessmentOverview { get; set; }
     public List<CourseSyllabusPublicModuleDto> Modules { get; set; } = [];
+    public int TotalModuleCount { get; set; }
+    public int TotalLessonCount { get; set; }
+    public int TotalDurationMinutes { get; set; }
+    public bool HasFullCurriculum { get; set; }
     public string? FullSyllabusFileName { get; set; }
     public int? FullSyllabusVersionId { get; set; }
     public string? FullSyllabusContentType { get; set; }

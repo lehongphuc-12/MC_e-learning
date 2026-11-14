@@ -30,7 +30,7 @@ public sealed class CourseSyllabusController : ControllerBase
     [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<CourseSyllabusPublicOutlineDto>>> GetPublicOutline(int courseId)
     {
-        var result = await _syllabus.GetPublicOutlineAsync(courseId);
+        var result = await _syllabus.GetPublicOutlineAsync(courseId, CurrentUserId(), User.IsInRole("Admin"));
         return result is null
             ? NotFound(ApiResponse<CourseSyllabusPublicOutlineDto>.FailureResponse("Khóa học không tồn tại hoặc chưa được xuất bản."))
             : Ok(ApiResponse<CourseSyllabusPublicOutlineDto>.SuccessResponse(result));
@@ -101,6 +101,19 @@ public sealed class CourseSyllabusController : ControllerBase
         return result is null
             ? NotFound(ApiResponse<CourseSyllabusVersionDto>.FailureResponse("Chưa có syllabus."))
             : Ok(ApiResponse<CourseSyllabusVersionDto>.SuccessResponse(result));
+    }
+
+    [HttpGet("preview-draft")]
+    [Authorize(Roles = "Instructor")]
+    public async Task<ActionResult<ApiResponse<CourseSyllabusPreviewDraftDto>>> GetInstructorPreviewDraft(int courseId)
+    {
+        var instructorId = CurrentUserId();
+        if (instructorId is null)
+            return Unauthorized(ApiResponse<CourseSyllabusPreviewDraftDto>.FailureResponse("Unauthorized."));
+        var result = await _syllabus.GetInstructorPreviewDraftAsync(courseId, instructorId.Value);
+        return result is null
+            ? NotFound(ApiResponse<CourseSyllabusPreviewDraftDto>.FailureResponse("Không tìm thấy khóa học hoặc bạn không sở hữu khóa học này."))
+            : Ok(ApiResponse<CourseSyllabusPreviewDraftDto>.SuccessResponse(result));
     }
 
     [HttpGet("submitted")]

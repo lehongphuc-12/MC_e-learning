@@ -344,6 +344,11 @@ public class CourseService : ICourseService
         current.SubmittedAt = DateTime.UtcNow;
         current.ReviewNote = null;
         current.WasPublishedBeforeSubmission = wasPublishedBeforeSubmission;
+        current.PreviewDescription = course.Description;
+        current.PreviewTargetAudience = course.PreviewTargetAudience;
+        current.PreviewPrerequisites = course.PreviewPrerequisites;
+        current.PreviewLearningOutcomes = course.PreviewLearningOutcomes;
+        current.PreviewAssessmentOverview = course.PreviewAssessmentOverview;
         course.SubmittedSyllabusVersionId = current.SyllabusVersionId;
         _syllabusVersionRepository.Update(current);
     }
@@ -382,6 +387,10 @@ public class CourseService : ICourseService
             Title = request.Title,
             Slug = GenerateSlug(request.Title),
             Description = request.Description,
+            PreviewTargetAudience = request.PreviewTargetAudience,
+            PreviewPrerequisites = request.PreviewPrerequisites,
+            PreviewLearningOutcomes = request.PreviewLearningOutcomes,
+            PreviewAssessmentOverview = request.PreviewAssessmentOverview,
             ThumbnailUrl = request.ThumbnailUrl,
             Price = price,
             IsFree = isFree,
@@ -423,6 +432,8 @@ public class CourseService : ICourseService
         if (wasPublished && request.Status.HasValue && request.Status.Value != CourseStatus.PUBLISHED && !isSubmitting)
             throw new InvalidOperationException("Khóa học đã xuất bản chỉ có thể được lưu trữ qua thao tác quản lý trạng thái.");
         if (wasPublished && !isSubmitting && (request.Title is not null || request.Description is not null
+            || request.PreviewTargetAudience is not null || request.PreviewPrerequisites is not null
+            || request.PreviewLearningOutcomes is not null || request.PreviewAssessmentOverview is not null
             || request.CategoryId.HasValue || request.ThumbnailUrl is not null || request.Price.HasValue
             || request.IsFree.HasValue || request.Level.HasValue))
             throw new InvalidOperationException("Khóa học đã xuất bản cần được gửi Admin duyệt lại trước khi cập nhật nội dung.");
@@ -437,6 +448,10 @@ public class CourseService : ICourseService
             course.Slug = GenerateSlug(request.Title); // Re-generate slug when title changes
         }
         if (request.Description is not null) course.Description = request.Description;
+        if (request.PreviewTargetAudience is not null) course.PreviewTargetAudience = request.PreviewTargetAudience;
+        if (request.PreviewPrerequisites is not null) course.PreviewPrerequisites = request.PreviewPrerequisites;
+        if (request.PreviewLearningOutcomes is not null) course.PreviewLearningOutcomes = request.PreviewLearningOutcomes;
+        if (request.PreviewAssessmentOverview is not null) course.PreviewAssessmentOverview = request.PreviewAssessmentOverview;
         if (request.CategoryId.HasValue) course.CategoryId = request.CategoryId;
         if (request.ThumbnailUrl is not null) course.ThumbnailUrl = request.ThumbnailUrl;
         if (request.Price.HasValue) course.Price = request.Price.Value;
@@ -853,6 +868,12 @@ public class CourseService : ICourseService
         submittedVersion.ReviewedById = adminId;
         submittedVersion.ReviewNote = null;
         course.ApprovedSyllabusVersionId = submittedVersion.SyllabusVersionId;
+        // Apply only the exact preview snapshot that Admin approved.
+        course.Description = submittedVersion.PreviewDescription;
+        course.PreviewTargetAudience = submittedVersion.PreviewTargetAudience;
+        course.PreviewPrerequisites = submittedVersion.PreviewPrerequisites;
+        course.PreviewLearningOutcomes = submittedVersion.PreviewLearningOutcomes;
+        course.PreviewAssessmentOverview = submittedVersion.PreviewAssessmentOverview;
         _syllabusVersionRepository.Update(submittedVersion);
         course.ApprovedAt = DateTime.UtcNow;
         course.ApprovedById = adminId;

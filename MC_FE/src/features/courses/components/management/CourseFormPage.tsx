@@ -95,6 +95,10 @@ export const CourseFormPage: React.FC = () => {
     const dto = {
       title: formData.title,
       description: formData.description,
+      previewTargetAudience: formData.previewTargetAudience?.trim() || '',
+      previewPrerequisites: formData.previewPrerequisites?.trim() || '',
+      previewLearningOutcomes: formData.previewLearningOutcomes?.trim() || '',
+      previewAssessmentOverview: formData.previewAssessmentOverview?.trim() || '',
       categoryId: formData.categoryId,
       thumbnailUrl: formData.thumbnailUrl || undefined,
       price: formData.price,

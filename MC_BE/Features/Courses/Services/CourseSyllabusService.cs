@@ -185,6 +185,22 @@ public sealed class CourseSyllabusService : ICourseSyllabusService
         return current is null ? null : Map(current);
     }
 
+    public async Task<CourseSyllabusPreviewDraftDto?> GetInstructorPreviewDraftAsync(int courseId, int instructorId)
+    {
+        var course = await _courses.GetByIdAsync(courseId);
+        if (course is null || course.InstructorId != instructorId)
+            return null;
+
+        return new CourseSyllabusPreviewDraftDto
+        {
+            Description = course.Description,
+            TargetAudience = course.PreviewTargetAudience,
+            Prerequisites = course.PreviewPrerequisites,
+            LearningOutcomes = course.PreviewLearningOutcomes,
+            AssessmentOverview = course.PreviewAssessmentOverview,
+        };
+    }
+
     public async Task<CourseSyllabusVersionDto?> GetSubmittedVersionAsync(int courseId)
     {
         var course = await _courses.GetByIdAsync(courseId);
@@ -196,22 +212,54 @@ public sealed class CourseSyllabusService : ICourseSyllabusService
         return version is null ? null : Map(version);
     }
 
-    public async Task<CourseSyllabusPublicOutlineDto?> GetPublicOutlineAsync(int courseId)
+    public async Task<CourseSyllabusPublicOutlineDto?> GetPublicOutlineAsync(int courseId, int? userId, bool isAdmin)
     {
         var course = await _courses.GetQueryable()
             .AsNoTracking()
             .Where(item => item.CourseId == courseId
                 && (item.Status == CourseStatus.PUBLISHED
                     || (item.Status == CourseStatus.PENDING_APPROVAL && item.ApprovedSyllabusVersionId != null)))
-            .Select(item => new { item.CourseId, item.Description, item.ApprovedSyllabusVersionId })
+            .Select(item => new
+            {
+                item.CourseId,
+                item.InstructorId,
+                item.Description,
+                item.PreviewTargetAudience,
+                item.PreviewPrerequisites,
+                item.PreviewLearningOutcomes,
+                item.PreviewAssessmentOverview,
+                item.ApprovedSyllabusVersionId,
+            })
             .FirstOrDefaultAsync();
         if (course is null)
             return null;
 
-        var modules = await _modules.GetQueryable()
+        // The outline endpoint is anonymous for prospective learners. Decide curriculum visibility
+        // from the same entitlement service used by lesson playback, never from a client flag.
+        var hasFullCurriculum = isAdmin || (userId.HasValue &&
+            (course.InstructorId == userId.Value ||
+             await _courseAccess.CanAccessCourseAsync(courseId, userId.Value, isAdmin: false)));
+
+        var moduleQuery = _modules.GetQueryable()
             .AsNoTracking()
-            .Where(module => module.CourseId == courseId)
-            .OrderBy(module => module.OrderIndex)
+            .Where(module => module.CourseId == courseId);
+        var totalModuleCount = await moduleQuery.CountAsync();
+        var totals = await moduleQuery
+            .SelectMany(module => module.Lessons.Where(lesson => lesson.Status == LessonStatus.ACTIVE))
+            .GroupBy(_ => 1)
+            .Select(group => new
+            {
+                LessonCount = group.Count(),
+                DurationMinutes = group.Sum(lesson => lesson.DurationMinutes),
+            })
+            .FirstOrDefaultAsync();
+
+        IQueryable<Module> visibleModulesQuery = moduleQuery
+            .OrderBy(module => module.OrderIndex);
+        if (!hasFullCurriculum)
+            visibleModulesQuery = visibleModulesQuery.Take(1);
+
+        var modules = await visibleModulesQuery
             .Select(module => new CourseSyllabusPublicModuleDto
             {
                 ModuleId = module.ModuleId,
@@ -233,7 +281,16 @@ public sealed class CourseSyllabusService : ICourseSyllabusService
         var approvedVersion = course.ApprovedSyllabusVersionId.HasValue
             ? await _versions.GetQueryable()
                 .Where(version => version.SyllabusVersionId == course.ApprovedSyllabusVersionId.Value)
-                .Select(version => new { version.OriginalFileName, version.ContentType })
+                .Select(version => new
+                {
+                    version.OriginalFileName,
+                    version.ContentType,
+                    version.PreviewDescription,
+                    version.PreviewTargetAudience,
+                    version.PreviewPrerequisites,
+                    version.PreviewLearningOutcomes,
+                    version.PreviewAssessmentOverview,
+                })
                 .FirstOrDefaultAsync()
             : null;
 
@@ -243,8 +300,18 @@ public sealed class CourseSyllabusService : ICourseSyllabusService
         return new CourseSyllabusPublicOutlineDto
         {
             CourseId = course.CourseId,
-            Description = course.Description ?? string.Empty,
+            // While an existing course is awaiting re-review, return the last approved
+            // snapshot rather than the instructor's pending edits.
+            Description = approvedVersion?.PreviewDescription ?? course.Description ?? string.Empty,
+            TargetAudience = approvedVersion?.PreviewTargetAudience ?? course.PreviewTargetAudience,
+            Prerequisites = approvedVersion?.PreviewPrerequisites ?? course.PreviewPrerequisites,
+            LearningOutcomes = approvedVersion?.PreviewLearningOutcomes ?? course.PreviewLearningOutcomes,
+            AssessmentOverview = approvedVersion?.PreviewAssessmentOverview ?? course.PreviewAssessmentOverview,
             Modules = modules,
+            TotalModuleCount = totalModuleCount,
+            TotalLessonCount = totals?.LessonCount ?? 0,
+            TotalDurationMinutes = totals?.DurationMinutes ?? 0,
+            HasFullCurriculum = hasFullCurriculum,
             FullSyllabusFileName = approvedVersion?.OriginalFileName,
             FullSyllabusVersionId = course.ApprovedSyllabusVersionId,
             FullSyllabusContentType = approvedVersion?.ContentType,
@@ -357,5 +424,10 @@ public sealed class CourseSyllabusService : ICourseSyllabusService
         ReviewedAt = version.ReviewedAt,
         ReviewedById = version.ReviewedById,
         ReviewNote = version.ReviewNote,
+        PreviewDescription = version.PreviewDescription,
+        PreviewTargetAudience = version.PreviewTargetAudience,
+        PreviewPrerequisites = version.PreviewPrerequisites,
+        PreviewLearningOutcomes = version.PreviewLearningOutcomes,
+        PreviewAssessmentOverview = version.PreviewAssessmentOverview,
     };
 }

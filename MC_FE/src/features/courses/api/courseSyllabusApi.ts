@@ -15,11 +15,20 @@ export interface SyllabusVersion {
   reviewedAt?: string | null;
   reviewedById?: number | null;
   reviewNote?: string | null;
+  previewDescription?: string | null;
+  previewTargetAudience?: string | null;
+  previewPrerequisites?: string | null;
+  previewLearningOutcomes?: string | null;
+  previewAssessmentOverview?: string | null;
 }
 
 export interface SyllabusOutline {
   courseId: number;
   description: string;
+  targetAudience?: string | null;
+  prerequisites?: string | null;
+  learningOutcomes?: string | null;
+  assessmentOverview?: string | null;
   modules: Array<{
     moduleId: number;
     title: string;
@@ -27,10 +36,22 @@ export interface SyllabusOutline {
     totalDurationMinutes: number;
     lessons: Array<{ lessonId: number; title: string; durationMinutes: number; isPreview: boolean }>;
   }>;
+  totalModuleCount: number;
+  totalLessonCount: number;
+  totalDurationMinutes: number;
+  hasFullCurriculum: boolean;
   fullSyllabusFileName?: string | null;
   fullSyllabusVersionId?: number | null;
   fullSyllabusContentType?: string | null;
   hasFullSyllabus: boolean;
+}
+
+export interface SyllabusPreviewDraft {
+  description?: string | null;
+  targetAudience?: string | null;
+  prerequisites?: string | null;
+  learningOutcomes?: string | null;
+  assessmentOverview?: string | null;
 }
 
 interface Envelope<T> { success: boolean; data: T; message?: string }
@@ -41,6 +62,16 @@ export const courseSyllabusApi = {
   getCurrent: async (courseId: number): Promise<SyllabusVersion | null> => {
     try {
       return (await request<Envelope<SyllabusVersion>>(`${root(courseId)}/current`)).data;
+    } catch (error) {
+      if (typeof error === 'object' && error !== null && 'status' in error && error.status === 404)
+        return null;
+      throw error;
+    }
+  },
+
+  getPreviewDraft: async (courseId: number): Promise<SyllabusPreviewDraft | null> => {
+    try {
+      return (await request<Envelope<SyllabusPreviewDraft>>(`${root(courseId)}/preview-draft`)).data;
     } catch (error) {
       if (typeof error === 'object' && error !== null && 'status' in error && error.status === 404)
         return null;
