@@ -1,6 +1,7 @@
 
 
 import React, { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { 
   Star, 
@@ -26,6 +27,8 @@ import { AnimatedTabs, TabItem } from '@/components/ui/animated-tabs';
 import { Course, ScreenType } from '../../../types';
 import { mockCourses } from '../../../data/mockData';
 import { useCourseDetailQuery, useLearnedCoursesQuery } from '../hooks/useCoursesQuery';
+import { courseSyllabusApi } from '../api/courseSyllabusApi';
+import { CourseSyllabusDocumentViewer } from './CourseSyllabusDocumentViewer';
 
 interface CourseDetailScreenProps {
   course: Course | null;
@@ -94,10 +97,36 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
   //
   // QUAN TRỌNG:
   // mock course KHÔNG được dùng làm ID gọi backend.
-  const course =
+  const baseCourse =
     courseQuery.data ||
     initialCourse ||
     mockCourses[0];
+
+  const syllabusOutlineQuery = useQuery({
+    queryKey: ['courseSyllabus', 'publicOutline', validCourseId],
+    queryFn: () => courseSyllabusApi.getOutline(Number(validCourseId)),
+    enabled: Boolean(validCourseId),
+    staleTime: 60_000,
+  });
+  const outline = syllabusOutlineQuery.data;
+  const course: Course = outline ? {
+    ...baseCourse,
+    description: outline.description || baseCourse.description,
+    curriculum: outline.modules.map((module) => ({
+      id: String(module.moduleId),
+      title: module.title,
+      lecturesCount: module.lessons.length,
+      totalDuration: `${module.totalDurationMinutes} phút`,
+      lectures: module.lessons.map((lesson) => ({
+        id: String(lesson.lessonId),
+        title: lesson.title,
+        duration: `${lesson.durationMinutes} phút`,
+        previewAvailable: lesson.isPreview,
+      })),
+    })),
+    lecturesCount: outline.modules.reduce((sum, item) => sum + item.lessons.length, 0),
+    durationHours: Number((outline.modules.reduce((sum, item) => sum + item.totalDurationMinutes, 0) / 60).toFixed(1)),
+  } : baseCourse;
 
   const { data: learnedCourses } = useLearnedCoursesQuery();
 
@@ -108,6 +137,9 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
         String(item.course.id) ===
         String(course.id)
     );
+
+  const [showFullSyllabus, setShowFullSyllabus] = useState(false);
+  useEffect(() => { setShowFullSyllabus(false); }, [course.id]);
 
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     'sec-1': true,
@@ -233,6 +265,7 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
                   </div>
                 ))}
               </div>
+
             </section>
 
             <section id="course-description" className="space-y-4">
@@ -343,6 +376,23 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
                   </div>
                 ))}
               </div>
+
+              {outline?.hasFullSyllabus && outline.fullSyllabusVersionId && outline.fullSyllabusContentType && (
+                <div className="rounded-2xl border border-indigo-100 bg-indigo-50/60 p-5">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h3 className="flex items-center gap-2 text-sm font-bold text-slate-900"><FileText className="h-4 w-4 text-indigo-600" />Đề cương chi tiết</h3>
+                      <p className="mt-1 text-xs text-slate-600">{outline.fullSyllabusFileName} · Bản đã được Admin duyệt</p>
+                    </div>
+                    {isEnrolled ? (
+                      <button type="button" onClick={() => setShowFullSyllabus((value) => !value)} className="rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-indigo-700">{showFullSyllabus ? 'Ẩn đề cương' : 'Xem đề cương'}</button>
+                    ) : (
+                      <span className="rounded-xl border border-indigo-200 bg-white px-4 py-2.5 text-xs font-semibold text-indigo-700">Mở sau khi đăng ký khóa học</span>
+                    )}
+                  </div>
+                  {showFullSyllabus && isEnrolled && <CourseSyllabusDocumentViewer className="mt-4" courseId={Number(course.id)} version={{ syllabusVersionId: outline.fullSyllabusVersionId, versionNumber: 0, contentType: outline.fullSyllabusContentType }} />}
+                </div>
+              )}
             </section>
 
             <section id="section-requirements" className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-200">

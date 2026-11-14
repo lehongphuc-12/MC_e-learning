@@ -25,9 +25,12 @@ import {
   BarChart,
   Upload,
   Link as LinkIcon,
+  FileText,
 } from 'lucide-react';
 import type { Category, Course } from '../../types/courseTypes';
 import { courseApi } from '../../api/courseApi';
+import { courseSyllabusApi, type SyllabusVersion } from '../../api/courseSyllabusApi';
+import { CourseSyllabusDocumentViewer } from '../CourseSyllabusDocumentViewer';
 
 // ---------------------------------------------------------------------------
 // Zod Schema  — Vietnamese validation messages
@@ -86,7 +89,7 @@ interface CourseFormProps {
   existingCourse?: Course;
   categories: Category[];
   isSubmitting: boolean;
-  onSubmit: (data: CourseFormData) => void;
+  onSubmit: (data: CourseFormData & { syllabusFile?: File; submitForApproval?: boolean }) => void;
   onCancel: () => void;
 }
 
@@ -130,6 +133,10 @@ export const CourseForm: React.FC<CourseFormProps> = ({
   const [isUploadingThumbnail, setIsUploadingThumbnail] = useState(false);
   const [thumbnailUploadError, setThumbnailUploadError] = useState<string | null>(null);
   const [approvalFormError, setApprovalFormError] = useState<string | null>(null);
+  const [syllabusFile, setSyllabusFile] = useState<File | undefined>();
+  const [syllabusFileError, setSyllabusFileError] = useState<string | null>(null);
+  const [currentSyllabus, setCurrentSyllabus] = useState<SyllabusVersion | null>(null);
+  const [showSyllabusPreview, setShowSyllabusPreview] = useState(false);
 
   const {
     register,
@@ -166,6 +173,26 @@ export const CourseForm: React.FC<CourseFormProps> = ({
       });
     }
   }, [existingCourse, reset]);
+
+  useEffect(() => {
+    let active = true;
+    if (!existingCourse) { setCurrentSyllabus(null); return; }
+    courseSyllabusApi.getCurrent(existingCourse.courseId)
+      .then((version) => { if (active) setCurrentSyllabus(version); })
+      .catch(() => { if (active) setCurrentSyllabus(null); });
+    return () => { active = false; };
+  }, [existingCourse?.courseId]);
+
+  const deleteCurrentSyllabus = async () => {
+    if (!existingCourse || !currentSyllabus) return;
+    try {
+      await courseSyllabusApi.deleteDraft(existingCourse.courseId, currentSyllabus.syllabusVersionId);
+      setCurrentSyllabus(null);
+      setShowSyllabusPreview(false);
+    } catch (error) {
+      setSyllabusFileError(error instanceof Error ? error.message : 'Không thể xóa phiên bản syllabus này.');
+    }
+  };
 
   // Real-time live watched values for the interactive preview card
   const watchedValues = watch();
@@ -224,7 +251,7 @@ export const CourseForm: React.FC<CourseFormProps> = ({
   return (
     <form
       id="course-form"
-      onSubmit={handleSubmit(onSubmit as any)}
+      onSubmit={handleSubmit((data) => onSubmit({ ...data, syllabusFile } as unknown as CourseFormData & { syllabusFile?: File }))}
       className="no-validate"
       noValidate
     >
@@ -407,6 +434,39 @@ export const CourseForm: React.FC<CourseFormProps> = ({
             )}
           </FormField>
 
+          <FormField id="course-syllabus-file" label="Đề cương khóa học (PDF/DOCX)" icon={<FileText className="h-4 w-4 text-indigo-600" />}>
+            <label htmlFor="course-syllabus-file" className="flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-indigo-200 bg-indigo-50/50 px-4 py-4 text-sm text-slate-700 hover:border-indigo-400 hover:bg-indigo-50">
+              <FileText className="h-5 w-5 shrink-0 text-indigo-600" />
+              <span className="min-w-0 flex-1">
+                <span className="block font-semibold">{syllabusFile?.name ?? 'Chọn đề cương từ thiết bị'}</span>
+                <span className="block text-xs text-slate-500">Tối đa 20 MB. File chỉ được tải lên R2 sau khi bấm Lưu.</span>
+              </span>
+              <span className="rounded-lg bg-white px-3 py-2 text-xs font-bold text-indigo-700 shadow-sm">Chọn file</span>
+            </label>
+            <input id="course-syllabus-file" className="sr-only" type="file" accept="application/pdf,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx" disabled={isSubmitting} onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = '';
+              if (!file) return;
+              const validType = file.type === 'application/pdf' || file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+              if (!validType || file.size > 20 * 1024 * 1024) {
+                setSyllabusFileError('Chỉ nhận PDF hoặc DOCX, dung lượng không quá 20 MB.');
+                return;
+              }
+              setSyllabusFileError(null);
+              setSyllabusFile(file);
+            }} />
+            {existingCourse && <p className="text-xs text-slate-500">Khi tải bản mới, bản Admin đã duyệt tiếp tục có hiệu lực cho học viên cho đến khi bản mới được duyệt.</p>}
+            {currentSyllabus && <div className="flex flex-wrap items-center gap-2 rounded-lg bg-slate-50 p-3 text-xs">
+              <FileText className="h-4 w-4 text-indigo-600" />
+              <span className="min-w-0 flex-1 truncate font-semibold text-slate-700">Bản hiện tại v{currentSyllabus.versionNumber}: {currentSyllabus.originalFileName} · {currentSyllabus.reviewStatus}</span>
+              <button type="button" onClick={() => setShowSyllabusPreview((value) => !value)} className="font-bold text-blue-700">{showSyllabusPreview ? 'Ẩn xem trước' : 'Xem trước'}</button>
+              {['DRAFT', 'REJECTED'].includes(currentSyllabus.reviewStatus) && <button type="button" onClick={deleteCurrentSyllabus} className="font-bold text-rose-600">Xóa bản nháp</button>}
+            </div>}
+            {showSyllabusPreview && existingCourse && currentSyllabus && <CourseSyllabusDocumentViewer courseId={existingCourse.courseId} version={currentSyllabus} />}
+            {syllabusFileError && <p role="alert" className="text-xs font-semibold text-rose-600">{syllabusFileError}</p>}
+            {syllabusFile && <button type="button" onClick={() => setSyllabusFile(undefined)} className="text-xs font-semibold text-rose-600">Bỏ chọn file</button>}
+          </FormField>
+
           {/* Submission Note for Admin */}
           <FormField
             id="submissionNote"
@@ -450,9 +510,10 @@ export const CourseForm: React.FC<CourseFormProps> = ({
               id="course-form-submit-approval-btn"
               type="button"
               disabled={isSubmitting || isUploadingThumbnail}
-              onClick={handleSubmit((data) => {
+      onClick={handleSubmit((data) => {
                 onSubmit({
                   ...data,
+                  syllabusFile,
                   submitForApproval: true,
                 } as any);
               }, () => {
