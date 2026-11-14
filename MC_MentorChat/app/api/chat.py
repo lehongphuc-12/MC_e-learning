@@ -1,6 +1,8 @@
+import json
 import logging
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Header, Depends
+from fastapi.responses import StreamingResponse
 from starlette.concurrency import run_in_threadpool
 from app.core.config import settings
 from app.models.schemas import (
@@ -87,6 +89,59 @@ async def chat_in_course(
             status_code=500,
             detail=f"Không thể tạo câu trả lời từ AI Mentor: {e}",
         )
+
+
+# ---------------------------------------------------------------------------
+# POST /api/chat/stream  — Server-Sent Events (SSE) streaming cho học viên
+# ---------------------------------------------------------------------------
+@router.post("/chat/stream")
+async def chat_in_course_stream(
+    req: ChatRequest,
+    _ = Depends(verify_internal_api_key),
+):
+    """Endpoint Server-Sent Events (SSE) để stream câu trả lời AI Mentor theo thời gian thực."""
+    logger.info(
+        "[Chat/Stream] course_id=%s lesson_id=%s top_k=%d | câu hỏi: %.120s",
+        req.course_id, req.lesson_id, req.top_k, req.message,
+    )
+
+    if not req.message or not req.message.strip():
+        raise HTTPException(status_code=422, detail="Câu hỏi không được để trống.")
+
+    async def event_generator():
+        try:
+            sources, token_stream = await run_in_threadpool(
+                RAGService.answer_question_stream,
+                req.course_id,
+                req.message,
+                req.lesson_id,
+                req.top_k,
+                req.provider,
+            )
+            # 1. Phát event 'sources' chứa danh sách tài liệu/bài giảng dẫn chứng
+            sources_data = [s.model_dump() for s in sources]
+            yield f"event: sources\ndata: {json.dumps({'sources': sources_data}, ensure_ascii=False)}\n\n"
+
+            # 2. Phát từng token văn bản qua event 'chunk'
+            for token in token_stream:
+                if token:
+                    yield f"event: chunk\ndata: {json.dumps({'text': token}, ensure_ascii=False)}\n\n"
+
+            # 3. Phát event 'done' khi kết thúc
+            yield f"event: done\ndata: {json.dumps({'done': True})}\n\n"
+        except Exception as e:
+            logger.error("[Chat/Stream] Lỗi trong quá trình stream: %s", e, exc_info=True)
+            yield f"event: error\ndata: {json.dumps({'error': str(e)}, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        }
+    )
 
 
 # ---------------------------------------------------------------------------

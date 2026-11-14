@@ -13,7 +13,7 @@ Provider hỗ trợ:
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Iterator
 
 from app.core.config import settings
 
@@ -74,6 +74,33 @@ def generate_rag_answer(
             resolved, portal_err,
         )
         return _rag_via_gemini(query, context_chunks)
+
+
+def stream_rag_answer(
+    query: str,
+    context_chunks: List[Dict[str, Any]],
+    provider: Optional[str] = None,
+) -> Iterator[str]:
+    """
+    Sinh câu trả lời RAG qua stream tokens từ provider được chọn (có failover).
+    """
+    resolved = _resolve_provider(provider)
+    logger.info("[LLMService/Stream] provider='%s' (request=%s, config=%s)", resolved, provider, settings.LLM_PROVIDER)
+
+    if resolved == "gemini":
+        from app.services.gemini_service import stream_rag_answer as _gemini_stream
+        return _gemini_stream(query, context_chunks)
+
+    try:
+        from app.services.portal_service import stream_rag_answer as _portal_stream
+        return _portal_stream(query, context_chunks)
+    except Exception as portal_err:
+        logger.warning(
+            "[LLMService/Stream] Portal stream thất bại (provider='%s'): %s — Tự động fallback sang Gemini...",
+            resolved, portal_err,
+        )
+        from app.services.gemini_service import stream_rag_answer as _gemini_stream
+        return _gemini_stream(query, context_chunks)
 
 
 def rewrite_query_with_history(

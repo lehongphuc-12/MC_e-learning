@@ -75,6 +75,47 @@ public class MentorChatService : IMentorChatService
         };
     }
 
+    public async Task StreamQuestionToResponseAsync(
+        int courseId, 
+        MentorChatRequestDto request, 
+        Stream responseStream, 
+        CancellationToken ct = default)
+    {
+        var safeTopK = Math.Clamp(request.TopK <= 0 ? 4 : request.TopK, 1, 12);
+        var pythonPayload = new PythonChatRequest
+        {
+            CourseId = courseId,
+            Message = request.Message,
+            LessonId = request.LessonId,
+            TopK = safeTopK
+        };
+
+        var json = JsonSerializer.Serialize(pythonPayload, JsonOptions);
+        using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "/api/chat/stream")
+        {
+            Content = new StringContent(json, Encoding.UTF8, "application/json")
+        };
+
+        _logger.LogInformation("Streaming chat question for CourseId {CourseId}, LessonId {LessonId} to MentorChat AI...", courseId, request.LessonId);
+
+        using var response = await _httpClient.SendAsync(httpRequest, HttpCompletionOption.ResponseHeadersRead, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            var err = await response.Content.ReadAsStringAsync(ct);
+            _logger.LogError("MentorChat streaming error ({StatusCode}): {Error}", response.StatusCode, err);
+            throw new HttpRequestException($"MentorChat AI stream failed ({response.StatusCode}): {err}");
+        }
+
+        using var sourceStream = await response.Content.ReadAsStreamAsync(ct);
+        var buffer = new byte[4096];
+        int bytesRead;
+        while ((bytesRead = await sourceStream.ReadAsync(buffer, 0, buffer.Length, ct)) > 0)
+        {
+            await responseStream.WriteAsync(buffer.AsMemory(0, bytesRead), ct);
+            await responseStream.FlushAsync(ct);
+        }
+    }
+
     public async Task<MentorIngestResponseDto?> IngestTranscriptAsync(
         int courseId, 
         int lessonId, 

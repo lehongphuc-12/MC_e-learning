@@ -85,6 +85,7 @@ export interface SpeakingScriptDto {
   createdByName?: string;
   status: SpeakingScriptStatus;
   updatedAt: string;
+  durationMinutes?: number;
   levels: SpeakingScriptLevelDto[];
 }
 

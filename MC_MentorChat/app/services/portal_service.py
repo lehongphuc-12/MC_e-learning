@@ -1,8 +1,14 @@
+import re
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Iterator
 from app.core.config import settings
 
 logger = logging.getLogger("mentorchat.portal")
+
+_GREETINGS_PATTERN = re.compile(
+    r"^(xin chào|chào|hello|hi|hey|chào bạn|bạn là ai|bạn tên gì|khỏe không|tạm biệt|cảm ơn|thanks)[\s.?!]*$",
+    re.IGNORECASE
+)
 
 SYSTEM_PROMPT = """Bạn là Trợ Lý Cố Vấn Học Tập (AI Mentor) cho khóa học trực tuyến.
 Nhiệm vụ của bạn là hỗ trợ học viên giải đáp thắc mắc dựa trên tài liệu bài giảng và video bài học của khóa học.
@@ -145,6 +151,43 @@ def rewrite_query_with_history(query: str, history: List[Dict[str, str]]) -> str
         return query
 
 
+def stream_portal_llm(
+    prompt: str,
+    system_instruction: Optional[str] = None,
+    max_tokens: Optional[int] = None,
+    temperature: float = 0.2,
+) -> Iterator[str]:
+    """Stream token từ AI Portal (OpenAI-compatible) model Claude-Opus-4.5."""
+    if not settings.PORTAL_API_KEY:
+        raise ValueError("PORTAL_API_KEY chưa được cấu hình trong file .env.")
+
+    from openai import OpenAI
+    import httpx
+
+    model = settings.PORTAL_MODEL
+    tokens = max_tokens or settings.PORTAL_MAX_TOKENS
+    messages: List[Dict[str, str]] = []
+    if system_instruction:
+        messages.append({"role": "system", "content": system_instruction})
+    messages.append({"role": "user", "content": prompt})
+
+    client = OpenAI(
+        base_url=settings.PORTAL_BASE_URL,
+        api_key=settings.PORTAL_API_KEY,
+        timeout=httpx.Timeout(connect=5.0, read=25.0, write=5.0, pool=5.0),
+    )
+    response_stream = client.chat.completions.create(
+        model=model,
+        max_tokens=tokens,
+        temperature=temperature,
+        messages=messages,  # type: ignore
+        stream=True,
+    )
+    for chunk in response_stream:
+        if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
+            yield chunk.choices[0].delta.content
+
+
 def generate_rag_answer(
     query: str,
     context_chunks: List[Dict[str, Any]],
@@ -152,6 +195,12 @@ def generate_rag_answer(
 ) -> str:
     """Ghép ngữ cảnh và gửi tới AI Portal (Claude-Opus-4.5) để sinh câu trả lời RAG."""
     if not context_chunks:
+        if _GREETINGS_PATTERN.match(query.strip()):
+            return (
+                "Xin chào bạn! Mình là AI Mentor của khóa học. Mình luôn sẵn sàng giải đáp các câu hỏi "
+                "về bài giảng, kỹ thuật phát âm, điều phối hơi thở và tài liệu trong khóa học. "
+                "Bạn cần hỗ trợ nội dung nào hôm nay?"
+            )
         return (
             "Nội dung này chưa được đề cập trong bài giảng hoặc tài liệu phù hợp của khóa học hiện tại. "
             "Bạn hãy thử đặt câu hỏi cụ thể hơn theo nội dung bài học hoặc chuyển sang chế độ Toàn khóa nhé."
@@ -182,6 +231,57 @@ def generate_rag_answer(
     )
 
     return call_portal_llm(
+        prompt=user_prompt,
+        system_instruction=SYSTEM_PROMPT,
+        temperature=0.2,
+    )
+
+
+def stream_rag_answer(
+    query: str,
+    context_chunks: List[Dict[str, Any]],
+    history: Optional[List[Dict[str, str]]] = None,
+) -> Iterator[str]:
+    """Ghép ngữ cảnh và stream từ AI Portal (Claude-Opus-4.5)."""
+    if not context_chunks:
+        if _GREETINGS_PATTERN.match(query.strip()):
+            yield (
+                "Xin chào bạn! Mình là AI Mentor của khóa học. Mình luôn sẵn sàng giải đáp các câu hỏi "
+                "về bài giảng, kỹ thuật phát âm, điều phối hơi thở và tài liệu trong khóa học. "
+                "Bạn cần hỗ trợ nội dung nào hôm nay?"
+            )
+        else:
+            yield (
+                "Nội dung này chưa được đề cập trong bài giảng hoặc tài liệu phù hợp của khóa học hiện tại. "
+                "Bạn hãy thử đặt câu hỏi cụ thể hơn theo nội dung bài học hoặc chuyển sang chế độ Toàn khóa nhé."
+            )
+        return
+
+    context_blocks = []
+    for idx, c in enumerate(context_chunks, start=1):
+        if c.get("source_type") == "video_transcript":
+            label = f"Bài giảng video: {c.get('title', '')}"
+        else:
+            p_num = c.get("page_number") or c.get("page")
+            page_part = f" - Trang {p_num}" if p_num else ""
+            label = f"Tài liệu: {c.get('title', '')}{page_part}"
+        context_blocks.append(f"--- [{idx}. {label}] ---\n{c.get('content', '')}")
+
+    history_block = ""
+    if history:
+        recent_lines = [
+            f"{'Học viên' if h['role'] == 'user' else 'AI Mentor'}: {h['content'][:500]}"
+            for h in history[-4:]
+        ]
+        history_block = "[LỊCH SỬ HỘI THOẠI GẦN ĐÂY]:\n" + "\n".join(recent_lines) + "\n\n"
+
+    user_prompt = (
+        f"{history_block}"
+        f"[NGỮ CẢNH KHÓA HỌC]:\n" + "\n\n".join(context_blocks) + "\n\n"
+        f"[CÂU HỎI CỦA HỌC VIÊN]:\n{query}"
+    )
+
+    yield from stream_portal_llm(
         prompt=user_prompt,
         system_instruction=SYSTEM_PROMPT,
         temperature=0.2,

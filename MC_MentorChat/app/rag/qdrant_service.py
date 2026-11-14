@@ -11,6 +11,8 @@ from qdrant_client.models import (
     FieldCondition,
     MatchValue,
     FilterSelector,
+    TextIndexParams,
+    TokenizerType,
 )
 from app.core.config import settings
 from app.rag.chunker import ChunkItem
@@ -70,6 +72,25 @@ def ensure_payload_indexes():
                 logger.debug("[Qdrant/Indexes] Payload index field='%s' đã tồn tại sẵn.", field_name)
             else:
                 logger.warning("[Qdrant/Indexes] Thông báo khi tạo payload index '%s': %s", field_name, e)
+
+    # Full-Text Index cho 'content' để phục vụ Hybrid Search (Keyword / BM25)
+    try:
+        qdrant_client.create_payload_index(
+            collection_name=settings.QDRANT_COLLECTION,
+            field_name="content",
+            field_schema=TextIndexParams(
+                type="text",
+                tokenizer=TokenizerType.MULTILINGUAL,
+                lowercase=True,
+            )
+        )
+        logger.info("[Qdrant/Indexes] Tạo/xác nhận Full-Text index cho field='content' (MULTILINGUAL).")
+    except Exception as e:
+        msg = str(e).lower()
+        if "already exists" in msg or "acknowledged" in msg:
+            logger.debug("[Qdrant/Indexes] Full-Text index 'content' đã tồn tại.")
+        else:
+            logger.warning("[Qdrant/Indexes] Thông báo khi tạo Full-Text index 'content': %s", e)
 
 
 def init_qdrant():

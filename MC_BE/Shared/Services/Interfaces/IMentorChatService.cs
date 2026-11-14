@@ -27,4 +27,10 @@ public interface IMentorChatService
         int? materialId = null, 
         string? sourceType = null, 
         CancellationToken ct = default);
+
+    Task StreamQuestionToResponseAsync(
+        int courseId, 
+        MentorChatRequestDto request, 
+        Stream responseStream, 
+        CancellationToken ct = default);
 }

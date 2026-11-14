@@ -6,10 +6,12 @@ import {
   Video,
   FileText,
   RotateCcw,
-  MessageSquare
+  MessageSquare,
+  ChevronDown,
+  Sparkles,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { mentorChatApi } from '../api/mentorChatApi';
+import { mentorChatApi, MentorSourceCitation } from '../api/mentorChatApi';
 
 export interface CourseChatDrawerProps {
   isOpen: boolean;
@@ -24,19 +26,25 @@ export interface CourseChatDrawerProps {
   onSelectLesson?: (lessonId: number) => void;
 }
 
-interface SourceCitation {
-  source_type: 'video_transcript' | 'document';
-  title: string;
-  lesson_id?: number;
-  snippet: string;
-}
-
 interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   timestamp: string;
-  sources?: SourceCitation[];
+  sources?: MentorSourceCitation[];
+}
+
+function deduplicateSources(sources: MentorSourceCitation[]): MentorSourceCitation[] {
+  const seen = new Set<string>();
+  const unique: MentorSourceCitation[] = [];
+  for (const s of sources) {
+    const key = `${s.source_type}:${s.lesson_id || s.title}:${s.page_number || ''}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      unique.push(s);
+    }
+  }
+  return unique;
 }
 
 const SUGGESTIONS = [
@@ -187,6 +195,11 @@ export const CourseChatDrawer: React.FC<CourseChatDrawerProps> = ({
   const [isTyping, setIsTyping] = useState(false);
   const [searchInCurrentLessonOnly, setSearchInCurrentLessonOnly] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [expandedSources, setExpandedSources] = useState<Record<string, boolean>>({});
+
+  const toggleExpandSource = (key: string) => {
+    setExpandedSources((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -215,35 +228,77 @@ export const CourseChatDrawer: React.FC<CourseChatDrawerProps> = ({
       timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    const assistantId = `a-${Date.now()}`;
+    const assistantMsg: Message = {
+      id: assistantId,
+      role: 'assistant',
+      content: '',
+      timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+      sources: []
+    };
+
+    setMessages((prev) => [...prev, userMsg, assistantMsg]);
     setInputValue('');
     setIsTyping(true);
 
+    const cId = Number(courseId);
+    const targetLessonId = searchInCurrentLessonOnly && activeLesson?.lessonId ? activeLesson.lessonId : undefined;
+
     try {
-      const cId = Number(courseId);
-      const targetLessonId = searchInCurrentLessonOnly && activeLesson?.lessonId ? activeLesson.lessonId : undefined;
-      const res = await mentorChatApi.askMentor(cId, text, targetLessonId);
-
-      const assistantMsg: Message = {
-        id: `a-${Date.now()}`,
-        role: 'assistant',
-        content: res.answer,
-        timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-        sources: res.sources || []
-      };
-
-      setMessages((prev) => [...prev, assistantMsg]);
-    } catch (err: any) {
-      console.error('Lỗi khi kết nối AI Mentor:', err);
-      const fallbackMsg: Message = {
-        id: `a-${Date.now()}`,
-        role: 'assistant',
-        content: err?.message?.includes('503')
+      // 1. Thử gọi SSE Streaming để học viên thấy chữ chạy mượt mà ngay lập tức
+      await mentorChatApi.askMentorStream(cId, text, targetLessonId, 4, {
+        onSources: (incomingSources) => {
+          const unique = deduplicateSources(incomingSources);
+          setMessages((prev) =>
+            prev.map((m) => (m.id === assistantId ? { ...m, sources: unique } : m))
+          );
+        },
+        onChunk: (chunk) => {
+          setMessages((prev) =>
+            prev.map((m) => (m.id === assistantId ? { ...m, content: m.content + chunk } : m))
+          );
+        },
+        onError: (err) => {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantId
+                ? {
+                    ...m,
+                    content:
+                      m.content ||
+                      (err.message.includes('503')
+                        ? 'Hệ thống AI Mentor hiện đang chuẩn bị dữ liệu bài giảng. Bạn vui lòng thử lại sau ít phút nhé.'
+                        : err.message || 'Đã có lỗi xảy ra khi trao đổi với AI Mentor.'),
+                  }
+                : m
+            )
+          );
+        }
+      });
+    } catch (streamErr: any) {
+      console.warn('Lỗi khi streaming, tự động chuyển về REST thông thường:', streamErr);
+      try {
+        const res = await mentorChatApi.askMentor(cId, text, targetLessonId);
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId
+              ? {
+                  ...m,
+                  content: res.answer,
+                  sources: deduplicateSources(res.sources || [])
+                }
+              : m
+          )
+        );
+      } catch (fallbackErr: any) {
+        console.error('Lỗi khi kết nối AI Mentor:', fallbackErr);
+        const fallbackText = fallbackErr?.message?.includes('503')
           ? 'Hệ thống AI Mentor hiện đang chuẩn bị dữ liệu bài giảng. Bạn vui lòng thử lại sau ít phút nhé.'
-          : (err?.message || 'Đã có lỗi xảy ra khi trao đổi với AI Mentor. Vui lòng thử lại.'),
-        timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
-      };
-      setMessages((prev) => [...prev, fallbackMsg]);
+          : (fallbackErr?.message || 'Đã có lỗi xảy ra khi trao đổi với AI Mentor. Vui lòng thử lại.');
+        setMessages((prev) =>
+          prev.map((m) => (m.id === assistantId ? { ...m, content: fallbackText } : m))
+        );
+      }
     } finally {
       setIsTyping(false);
     }
@@ -368,32 +423,75 @@ export const CourseChatDrawer: React.FC<CourseChatDrawerProps> = ({
                       <CleanMessageBody text={msg.content} />
                     )}
 
-                    {/* Sources (Footnotes) */}
+                    {/* Sources (Footnotes) & Deep Citations */}
                     {msg.sources && msg.sources.length > 0 && (
                       <div className="mt-2.5 pt-2 border-t border-slate-100 text-[11px]">
-                        <span className="font-semibold text-violet-900 block mb-1">Dẫn chứng:</span>
-                        <div className="space-y-1">
-                          {msg.sources.map((src, i) => (
-                            <div key={i} className="flex items-start justify-between gap-2 text-slate-600">
-                              <span className="flex items-center gap-1.5 truncate">
-                                {src.source_type === 'video_transcript' ? (
-                                  <Video className="h-3 w-3 text-red-500 shrink-0" />
-                                ) : (
-                                  <FileText className="h-3 w-3 text-blue-500 shrink-0" />
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="font-semibold text-violet-900 flex items-center gap-1">
+                            <Sparkles className="h-3 w-3 text-violet-600" /> Dẫn chứng trích xuất ({msg.sources.length}):
+                          </span>
+                        </div>
+                        <div className="space-y-1.5">
+                          {msg.sources.map((src, i) => {
+                            const sourceKey = `${msg.id}-${i}`;
+                            const isExpanded = !!expandedSources[sourceKey];
+                            const isVideo = src.source_type === 'video_transcript';
+
+                            return (
+                              <div
+                                key={i}
+                                className="rounded-xl border border-violet-100/90 bg-violet-50/40 p-2 text-slate-700 transition-all hover:bg-violet-50/70"
+                              >
+                                <div className="flex items-center justify-between gap-1.5">
+                                  <span className="flex items-center gap-1.5 min-w-0 flex-1 font-medium">
+                                    {isVideo ? (
+                                      <Video className="h-3.5 w-3.5 text-rose-500 shrink-0" />
+                                    ) : (
+                                      <FileText className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                                    )}
+                                    <span className="truncate text-slate-800" title={src.title}>
+                                      {src.title}
+                                    </span>
+                                    {src.page_number ? (
+                                      <span className="shrink-0 rounded bg-blue-100/90 px-1.5 py-0.2 text-[10px] font-bold text-blue-700">
+                                        Trang {src.page_number}
+                                      </span>
+                                    ) : null}
+                                  </span>
+
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    {isVideo && src.lesson_id && onSelectLesson && (
+                                      <button
+                                        type="button"
+                                        onClick={() => onSelectLesson(src.lesson_id!)}
+                                        className="text-violet-700 hover:text-violet-900 font-bold text-[11px] px-2 py-0.5 rounded-lg bg-white border border-violet-200 hover:bg-violet-100 transition shadow-2xs cursor-pointer"
+                                      >
+                                        Mở bài
+                                      </button>
+                                    )}
+                                    {src.snippet && (
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleExpandSource(sourceKey)}
+                                        className="text-slate-500 hover:text-violet-700 font-semibold text-[10px] px-1.5 py-0.5 rounded-md hover:bg-violet-100/60 transition cursor-pointer flex items-center gap-0.5"
+                                      >
+                                        <span>{isExpanded ? 'Thu gọn' : 'Xem trích dẫn'}</span>
+                                        <ChevronDown className={`h-3 w-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Expandable snippet accordion */}
+                                {isExpanded && src.snippet && (
+                                  <div className="mt-2 pt-1.5 border-t border-violet-100 text-[10.5px] text-slate-600 bg-white/80 p-2 rounded-lg leading-relaxed border border-violet-50 select-text">
+                                    <p className="font-semibold text-[10px] text-violet-800 mb-0.5">Đoạn trích dẫn:</p>
+                                    <p className="italic">"{src.snippet}"</p>
+                                  </div>
                                 )}
-                                <span className="truncate">{src.title}</span>
-                              </span>
-                              {src.lesson_id && onSelectLesson && (
-                                <button
-                                  type="button"
-                                  onClick={() => onSelectLesson(src.lesson_id!)}
-                                  className="text-violet-600 hover:text-violet-800 font-bold shrink-0 text-[11px] hover:underline cursor-pointer"
-                                >
-                                  Mở bài
-                                </button>
-                              )}
-                            </div>
-                          ))}
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     )}

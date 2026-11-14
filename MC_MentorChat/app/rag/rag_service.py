@@ -8,7 +8,7 @@ from app.rag.chunker import (
 from app.rag.embeddings import generate_embeddings_batch
 from app.rag.qdrant_service import upsert_chunks
 from app.rag.retriever import retrieve_course_chunks
-from app.services.llm_service import generate_rag_answer
+from app.services.llm_service import generate_rag_answer, stream_rag_answer
 from app.models.schemas import ChatResponse, SourceItem
 
 logger = logging.getLogger("mentorchat.rag_service")
@@ -211,3 +211,49 @@ class RAGService:
             course_id=course_id,
             sources=sources
         )
+
+    @staticmethod
+    def answer_question_stream(
+        course_id: int,
+        question: str,
+        lesson_id: Optional[int] = None,
+        top_k: int = 4,
+        provider: Optional[str] = None,
+    ):
+        """
+        Truy xuất ngữ cảnh RAG và trả về (sources, token_stream) phục vụ Server-Sent Events.
+        """
+        safe_top_k = max(1, min(12, top_k))
+
+        logger.info(
+            "[RAGService/AnswerQuestionStream] course_id=%s lesson_id=%s top_k=%s provider=%s — đang truy xuất chunks...",
+            course_id, lesson_id, safe_top_k, provider,
+        )
+
+        chunks = retrieve_course_chunks(
+            course_id=course_id,
+            query=question,
+            lesson_id=lesson_id,
+            top_k=safe_top_k
+        )
+
+        sources = [
+            SourceItem(
+                source_type=c.get("source_type", "document"),
+                title=c.get("title", ""),
+                lesson_id=c.get("lesson_id"),
+                material_id=c.get("material_id"),
+                page_number=c.get("page_number"),
+                snippet=c["content"][:240] + "..." if len(c.get("content", "")) > 240 else c.get("content", ""),
+                score=c.get("score", 0.0)
+            )
+            for c in chunks
+        ]
+
+        logger.info(
+            "[RAGService/AnswerQuestionStream] course_id=%s — chuẩn bị stream tokens (%d nguồn trích dẫn).",
+            course_id, len(sources),
+        )
+
+        token_stream = stream_rag_answer(query=question, context_chunks=chunks, provider=provider)
+        return sources, token_stream
