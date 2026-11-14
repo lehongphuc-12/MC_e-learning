@@ -61,6 +61,11 @@ public class CreateCourseRequest
 
     public string? Description { get; set; }
 
+    [MaxLength(3000)] public string? PreviewTargetAudience { get; set; }
+    [MaxLength(3000)] public string? PreviewPrerequisites { get; set; }
+    [MaxLength(5000)] public string? PreviewLearningOutcomes { get; set; }
+    [MaxLength(3000)] public string? PreviewAssessmentOverview { get; set; }
+
     public int? CategoryId { get; set; }
 
     public string? ThumbnailUrl { get; set; }
@@ -90,6 +95,11 @@ public class UpdateCourseRequest
     public string? Title { get; set; }
 
     public string? Description { get; set; }
+
+    public string? PreviewTargetAudience { get; set; }
+    public string? PreviewPrerequisites { get; set; }
+    public string? PreviewLearningOutcomes { get; set; }
+    public string? PreviewAssessmentOverview { get; set; }
 
     public int? CategoryId { get; set; }
 

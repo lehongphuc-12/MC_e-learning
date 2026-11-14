@@ -20,7 +20,7 @@ import { ToastType } from '../../components/common/Toast';
 interface CourseRoutesProps {
   onNavigate: (screen: ScreenType) => void;
   onSelectCourse: (course: Course) => void;
-  onPreviewVideo: (course: Course) => void;
+  onPreviewVideo: (course: Course, lessonId?: number, lessonTitle?: string) => void;
   onAddToCart: (course: Course) => void;
   onToggleWishlist: (courseId: string) => void;
   onEnrollDirectly: (course: Course) => void;
@@ -28,6 +28,7 @@ interface CourseRoutesProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
   activeCourse: Course | null;
+  courseIdParam?: string | null;
   withMainLayout: (component: React.ReactNode, showFooter?: boolean) => React.ReactNode;
   withInstructorLayout?: (component: React.ReactNode, showFooter?: boolean) => React.ReactNode;
   user: User | null;
@@ -50,6 +51,7 @@ export const renderCourseRoutes = ({
   searchQuery,
   onSearchChange,
   activeCourse,
+  courseIdParam,
   withMainLayout,
   withInstructorLayout = withMainLayout,
   user,
@@ -60,6 +62,8 @@ export const renderCourseRoutes = ({
   isCourseEnrolled,
   isCoursePendingPayment,
 }: CourseRoutesProps) => {
+  const routeCourseId = activeCourse?.id ?? courseIdParam;
+
   return (
     <>
       {/* Public Course & Learning Routes */}
@@ -101,30 +105,27 @@ export const renderCourseRoutes = ({
   element={withMainLayout(
     <CourseDetailScreen
       course={activeCourse}
+      courseId={courseIdParam ?? undefined}
       onNavigate={onNavigate}
       onEnroll={onEnrollDirectly}
       onAddToCart={onAddToCart}
       onToggleWishlist={onToggleWishlist}
       isWishlisted={
-        activeCourse
-          ? wishlistCourseIds.includes(activeCourse.id)
+        routeCourseId
+          ? wishlistCourseIds.includes(routeCourseId)
           : false
       }
       onPreviewVideo={onPreviewVideo}
       isEnrolled={
         activeCourse
           ? isCourseEnrolled(activeCourse.id)
-          : false
+          : undefined
       }
       isInCart={
-        activeCourse
-          ? isCourseInCart(activeCourse.id)
-          : false
+        routeCourseId ? isCourseInCart(routeCourseId) : undefined
       }
       isPendingPayment={
-        activeCourse
-          ? isCoursePendingPayment(activeCourse.id)
-          : false
+        routeCourseId ? isCoursePendingPayment(routeCourseId) : undefined
       }
       onOpenCart={onOpenCart}
     />

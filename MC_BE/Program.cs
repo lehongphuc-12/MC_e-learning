@@ -145,6 +145,7 @@ builder.Services.AddScoped<IAdminStatsService, AdminStatsService>();
 // COURSE MANAGEMENT
 // ============================================================
 builder.Services.AddScoped<ICourseService, CourseService>();
+builder.Services.AddScoped<ICourseSyllabusService, CourseSyllabusService>();
 builder.Services.AddScoped<ICourseMaterialsReadRepository, CourseMaterialsReadRepository>();
 builder.Services.AddScoped<ICourseMaterialsReadService, CourseMaterialsReadService>();
 builder.Services.AddScoped<ICourseLearningAccessService, CourseLearningAccessService>();

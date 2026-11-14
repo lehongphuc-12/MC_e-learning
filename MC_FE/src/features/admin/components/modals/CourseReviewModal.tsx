@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { X, CheckCircle, XCircle, BookOpen, User, Tag, DollarSign, Layers, Video, FileText, Play, Loader2 } from 'lucide-react';
 import { AdminCourse } from '../../types/adminTypes';
 import { useCourseModules } from '../../../courses/hooks/useModuleQueries';
+import { courseSyllabusApi, type SyllabusVersion } from '../../../courses/api/courseSyllabusApi';
+import { CourseSyllabusDocumentViewer } from '../../../courses/components/CourseSyllabusDocumentViewer';
 
 interface CourseReviewModalProps {
   isOpen: boolean;
@@ -20,9 +22,22 @@ export const CourseReviewModal: React.FC<CourseReviewModalProps> = ({
 }) => {
   const [rejectReason, setRejectReason] = useState('');
   const [showRejectForm, setShowRejectForm] = useState(false);
+  const [submittedSyllabus, setSubmittedSyllabus] = useState<SyllabusVersion | null>(null);
+  const [syllabusError, setSyllabusError] = useState<string | null>(null);
 
   const numericCourseId = course ? Number(course.id) : 0;
   const { data: modules, isLoading: isModulesLoading } = useCourseModules(numericCourseId);
+
+  useEffect(() => {
+    let active = true;
+    setSubmittedSyllabus(null);
+    setSyllabusError(null);
+    if (!isOpen || !numericCourseId) return;
+    courseSyllabusApi.getSubmitted(numericCourseId)
+      .then((version) => { if (active) setSubmittedSyllabus(version); })
+      .catch((error: unknown) => { if (active) setSyllabusError(error instanceof Error ? error.message : 'Không tải được syllabus gửi duyệt.'); });
+    return () => { active = false; };
+  }, [isOpen, numericCourseId]);
 
   if (!isOpen || !course) return null;
 
@@ -77,6 +92,28 @@ export const CourseReviewModal: React.FC<CourseReviewModalProps> = ({
               </p>
             </div>
           )}
+
+          <section className="space-y-3 rounded-xl border border-indigo-500/20 bg-indigo-500/5 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h4 className="flex items-center gap-2 text-sm font-semibold text-indigo-300"><FileText className="h-4 w-4" />Đề cương được gửi duyệt</h4>
+                <p className="mt-1 text-xs text-slate-400">{submittedSyllabus ? `Phiên bản v${submittedSyllabus.versionNumber} · ${submittedSyllabus.originalFileName}` : syllabusError || 'Đang tải đúng phiên bản syllabus của lần gửi này…'}</p>
+              </div>
+              {submittedSyllabus && <span className="shrink-0 rounded-full bg-amber-500/10 px-2 py-1 text-[11px] font-bold text-amber-300">{submittedSyllabus.reviewStatus}</span>}
+            </div>
+            {submittedSyllabus && <CourseSyllabusDocumentViewer courseId={numericCourseId} version={submittedSyllabus} />}
+            {submittedSyllabus && (
+              <div className="space-y-3 rounded-xl border border-slate-700 bg-slate-800/60 p-4">
+                <h4 className="text-sm font-semibold text-white">Thông tin xem trước học viên sẽ thấy nếu được duyệt</h4>
+                {submittedSyllabus.previewDescription && <p className="whitespace-pre-line text-xs leading-relaxed text-slate-300">{submittedSyllabus.previewDescription}</p>}
+                {submittedSyllabus.previewTargetAudience && <p className="whitespace-pre-line text-xs leading-relaxed text-slate-300"><strong className="text-indigo-300">Đối tượng:</strong> {submittedSyllabus.previewTargetAudience}</p>}
+                {submittedSyllabus.previewPrerequisites && <p className="whitespace-pre-line text-xs leading-relaxed text-slate-300"><strong className="text-indigo-300">Yêu cầu đầu vào:</strong> {submittedSyllabus.previewPrerequisites}</p>}
+                {submittedSyllabus.previewLearningOutcomes && <p className="whitespace-pre-line text-xs leading-relaxed text-slate-300"><strong className="text-indigo-300">Chuẩn đầu ra:</strong>{'\n'}{submittedSyllabus.previewLearningOutcomes}</p>}
+                {submittedSyllabus.previewAssessmentOverview && <p className="whitespace-pre-line text-xs leading-relaxed text-slate-300"><strong className="text-indigo-300">Đánh giá:</strong>{'\n'}{submittedSyllabus.previewAssessmentOverview}</p>}
+                {!submittedSyllabus.previewDescription && !submittedSyllabus.previewTargetAudience && !submittedSyllabus.previewPrerequisites && !submittedSyllabus.previewLearningOutcomes && !submittedSyllabus.previewAssessmentOverview && <p className="text-xs text-slate-400">Giảng viên chưa nhập thông tin xem trước riêng.</p>}
+              </div>
+            )}
+          </section>
 
           <div className="grid grid-cols-2 gap-4 p-4 bg-slate-800/60 border border-slate-800 rounded-xl text-sm">
             <div className="flex items-center space-x-3">

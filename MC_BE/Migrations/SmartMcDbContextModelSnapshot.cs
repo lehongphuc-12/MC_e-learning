@@ -1014,6 +1014,10 @@ namespace MC_BE.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("ApprovedByID");
 
+                    b.Property<int?>("ApprovedSyllabusVersionId")
+                        .HasColumnType("integer")
+                        .HasColumnName("ApprovedSyllabusVersionID");
+
                     b.Property<int?>("CategoryId")
                         .HasColumnType("integer")
                         .HasColumnName("CategoryID");
@@ -1041,6 +1045,22 @@ namespace MC_BE.Migrations
                     b.Property<string>("Level")
                         .HasColumnType("text")
                         .HasColumnName("Level");
+
+                    b.Property<string>("PreviewAssessmentOverview")
+                        .HasColumnType("text")
+                        .HasColumnName("PreviewAssessmentOverview");
+
+                    b.Property<string>("PreviewLearningOutcomes")
+                        .HasColumnType("text")
+                        .HasColumnName("PreviewLearningOutcomes");
+
+                    b.Property<string>("PreviewPrerequisites")
+                        .HasColumnType("text")
+                        .HasColumnName("PreviewPrerequisites");
+
+                    b.Property<string>("PreviewTargetAudience")
+                        .HasColumnType("text")
+                        .HasColumnName("PreviewTargetAudience");
 
                     b.Property<decimal>("Price")
                         .ValueGeneratedOnAdd()
@@ -1073,6 +1093,10 @@ namespace MC_BE.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("SubmittedAt");
 
+                    b.Property<int?>("SubmittedSyllabusVersionId")
+                        .HasColumnType("integer")
+                        .HasColumnName("SubmittedSyllabusVersionID");
+
                     b.Property<string>("ThumbnailUrl")
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)")
@@ -1094,12 +1118,16 @@ namespace MC_BE.Migrations
 
                     b.HasIndex("ApprovedById");
 
+                    b.HasIndex("ApprovedSyllabusVersionId");
+
                     b.HasIndex("CategoryId");
 
                     b.HasIndex("InstructorId");
 
                     b.HasIndex("Slug")
                         .IsUnique();
+
+                    b.HasIndex("SubmittedSyllabusVersionId");
 
                     b.ToTable("courses", null, t =>
                         {
@@ -1340,6 +1368,213 @@ namespace MC_BE.Migrations
                     b.HasIndex("UploaderId");
 
                     b.ToTable("course_materials", (string)null);
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.CourseSyllabusUploadSession", b =>
+                {
+                    b.Property<Guid>("SessionId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("SessionID");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("CompletedAt");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("ContentType");
+
+                    b.Property<int>("CourseId")
+                        .HasColumnType("integer")
+                        .HasColumnName("CourseID");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("CreatedAt")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<long>("ExpectedSize")
+                        .HasColumnType("bigint")
+                        .HasColumnName("ExpectedSize");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ExpiresAt");
+
+                    b.Property<string>("FileExtension")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("FileExtension");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("FileName");
+
+                    b.Property<int>("InstructorId")
+                        .HasColumnType("integer")
+                        .HasColumnName("InstructorID");
+
+                    b.Property<string>("ObjectKey")
+                        .IsRequired()
+                        .HasMaxLength(700)
+                        .HasColumnType("character varying(700)")
+                        .HasColumnName("ObjectKey");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("PENDING")
+                        .HasColumnName("Status");
+
+                    b.HasKey("SessionId");
+
+                    b.HasIndex("InstructorId");
+
+                    b.HasIndex("ObjectKey")
+                        .IsUnique();
+
+                    b.HasIndex("CourseId", "Status", "ExpiresAt");
+
+                    b.ToTable("course_syllabus_upload_sessions", (string)null);
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.CourseSyllabusVersion", b =>
+                {
+                    b.Property<int>("SyllabusVersionId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("SyllabusVersionId");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("SyllabusVersionId"));
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("ContentType");
+
+                    b.Property<int>("CourseId")
+                        .HasColumnType("integer")
+                        .HasColumnName("CourseID");
+
+                    b.Property<string>("FileExtension")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("FileExtension");
+
+                    b.Property<long>("FileSizeBytes")
+                        .HasColumnType("bigint")
+                        .HasColumnName("FileSizeBytes");
+
+                    b.Property<bool>("IsCurrent")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("IsCurrent");
+
+                    b.Property<string>("ObjectKey")
+                        .IsRequired()
+                        .HasMaxLength(700)
+                        .HasColumnType("character varying(700)")
+                        .HasColumnName("ObjectKey");
+
+                    b.Property<string>("OriginalFileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("OriginalFileName");
+
+                    b.Property<string>("PreviewAssessmentOverview")
+                        .HasColumnType("text")
+                        .HasColumnName("PreviewAssessmentOverview");
+
+                    b.Property<string>("PreviewDescription")
+                        .HasColumnType("text")
+                        .HasColumnName("PreviewDescription");
+
+                    b.Property<string>("PreviewLearningOutcomes")
+                        .HasColumnType("text")
+                        .HasColumnName("PreviewLearningOutcomes");
+
+                    b.Property<string>("PreviewPrerequisites")
+                        .HasColumnType("text")
+                        .HasColumnName("PreviewPrerequisites");
+
+                    b.Property<string>("PreviewTargetAudience")
+                        .HasColumnType("text")
+                        .HasColumnName("PreviewTargetAudience");
+
+                    b.Property<string>("ReviewNote")
+                        .HasColumnType("text")
+                        .HasColumnName("ReviewNote");
+
+                    b.Property<string>("ReviewStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)")
+                        .HasDefaultValue("DRAFT")
+                        .HasColumnName("ReviewStatus");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ReviewedAt");
+
+                    b.Property<int?>("ReviewedById")
+                        .HasColumnType("integer")
+                        .HasColumnName("ReviewedByID");
+
+                    b.Property<DateTime?>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("SubmittedAt");
+
+                    b.Property<DateTime>("UploadedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("UploadedAt")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<int>("UploadedById")
+                        .HasColumnType("integer")
+                        .HasColumnName("UploadedByID");
+
+                    b.Property<int>("VersionNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("VersionNumber");
+
+                    b.Property<bool>("WasPublishedBeforeSubmission")
+                        .HasColumnType("boolean")
+                        .HasColumnName("WasPublishedBeforeSubmission");
+
+                    b.HasKey("SyllabusVersionId");
+
+                    b.HasIndex("ObjectKey")
+                        .IsUnique();
+
+                    b.HasIndex("ReviewedById");
+
+                    b.HasIndex("UploadedById");
+
+                    b.HasIndex("CourseId", "IsCurrent")
+                        .IsUnique()
+                        .HasFilter("\"IsCurrent\" = TRUE");
+
+                    b.HasIndex("CourseId", "ReviewStatus");
+
+                    b.HasIndex("CourseId", "VersionNumber")
+                        .IsUnique();
+
+                    b.ToTable("course_syllabus_versions", (string)null);
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.Enrollment", b =>
@@ -3821,6 +4056,11 @@ namespace MC_BE.Migrations
                         .WithMany()
                         .HasForeignKey("ApprovedById");
 
+                    b.HasOne("MC_BE.Core.Entities.CourseSyllabusVersion", "ApprovedSyllabusVersion")
+                        .WithMany()
+                        .HasForeignKey("ApprovedSyllabusVersionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("MC_BE.Core.Entities.Category", "Category")
                         .WithMany("Courses")
                         .HasForeignKey("CategoryId")
@@ -3832,11 +4072,20 @@ namespace MC_BE.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("MC_BE.Core.Entities.CourseSyllabusVersion", "SubmittedSyllabusVersion")
+                        .WithMany()
+                        .HasForeignKey("SubmittedSyllabusVersionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("ApprovedBy");
+
+                    b.Navigation("ApprovedSyllabusVersion");
 
                     b.Navigation("Category");
 
                     b.Navigation("Instructor");
+
+                    b.Navigation("SubmittedSyllabusVersion");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.CourseAccessGrant", b =>
@@ -3913,6 +4162,51 @@ namespace MC_BE.Migrations
                     b.Navigation("Lesson");
 
                     b.Navigation("Uploader");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.CourseSyllabusUploadSession", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.Course", "Course")
+                        .WithMany()
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MC_BE.Core.Entities.User", "Instructor")
+                        .WithMany()
+                        .HasForeignKey("InstructorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Course");
+
+                    b.Navigation("Instructor");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.CourseSyllabusVersion", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.Course", "Course")
+                        .WithMany("SyllabusVersions")
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MC_BE.Core.Entities.User", "ReviewedBy")
+                        .WithMany()
+                        .HasForeignKey("ReviewedById")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("MC_BE.Core.Entities.User", "UploadedBy")
+                        .WithMany()
+                        .HasForeignKey("UploadedById")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Course");
+
+                    b.Navigation("ReviewedBy");
+
+                    b.Navigation("UploadedBy");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.Enrollment", b =>
@@ -4590,6 +4884,8 @@ namespace MC_BE.Migrations
                     b.Navigation("Modules");
 
                     b.Navigation("Quizzes");
+
+                    b.Navigation("SyllabusVersions");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.Enrollment", b =>

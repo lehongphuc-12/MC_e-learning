@@ -294,6 +294,20 @@ public class LessonsController : ControllerBase
         return Ok(ApiResponse<LessonPlaybackDto>.SuccessResponse(playback, "Playback URL issued."));
     }
 
+    [HttpGet("lessons/{id:int}/preview-playback")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<LessonPlaybackDto>>> GetPreviewPlayback(int id)
+    {
+        var playback = await _lessonService.GetPreviewPlaybackAsync(
+            id,
+            GetCurrentUserId(),
+            User.IsInRole("Admin"));
+        if (playback is null)
+            return NotFound(ApiResponse<LessonPlaybackDto>.FailureResponse("Bài học không cho phép xem trước hoặc chưa có video xem trước."));
+
+        return Ok(ApiResponse<LessonPlaybackDto>.SuccessResponse(playback, "Preview playback URL issued."));
+    }
+
     // DELETE /api/lessons/{id}/video — remove video from R2 + DB
     [HttpDelete("lessons/{id:int}/video")]
     [Authorize(Roles = "Instructor")]

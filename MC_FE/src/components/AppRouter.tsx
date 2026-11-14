@@ -45,7 +45,7 @@ interface AppRouterProps {
   searchQuery: string;
   user: User | null;
   onSearchChange: (query: string) => void;
-  onPreviewVideo: (course: Course) => void;
+  onPreviewVideo: (course: Course, lessonId?: number, lessonTitle?: string) => void;
   onAddToCart: (course: Course) => void;
   onToggleWishlist: (courseId: string) => void;
   onEnrollDirectly: (course: Course) => void;
@@ -203,7 +203,8 @@ export const AppRouter: React.FC<AppRouterProps> = ({
   // Sync selectedCourse from URL params on /course-detail
   const courseIdParam = searchParams.get('id');
   const activeCourse = (location.pathname === '/course-detail' && courseIdParam)
-    ? (mockCourses.find((c) => c.id === courseIdParam) || selectedCourse)
+    ? (mockCourses.find((c) => c.id === courseIdParam) ||
+      (selectedCourse?.id === courseIdParam ? selectedCourse : null))
     : selectedCourse;
 
   return (
@@ -227,6 +228,7 @@ export const AppRouter: React.FC<AppRouterProps> = ({
   searchQuery,
   onSearchChange,
   activeCourse,
+  courseIdParam: location.pathname === '/course-detail' ? courseIdParam : null,
   withMainLayout,
   withInstructorLayout,
   user,

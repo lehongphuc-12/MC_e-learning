@@ -53,6 +53,8 @@ public class SmartMcDbContext : DbContext
     public DbSet<CourseDeletionRequest> CourseDeletionRequests { get; set; } = null!;
     public DbSet<CourseGiftPolicy> CourseGiftPolicies { get; set; } = null!;
     public DbSet<CourseAccessGrant> CourseAccessGrants { get; set; } = null!;
+    public DbSet<CourseSyllabusVersion> CourseSyllabusVersions { get; set; } = null!;
+    public DbSet<CourseSyllabusUploadSession> CourseSyllabusUploadSessions { get; set; } = null!;
 
     // ============================================================
     // Section 3: Payment
@@ -249,6 +251,61 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
             entity.HasOne(d => d.Instructor)
                 .WithMany(p => p.InstructedCourses)
                 .HasForeignKey(d => d.InstructorId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(d => d.SubmittedSyllabusVersion)
+                .WithMany()
+                .HasForeignKey(d => d.SubmittedSyllabusVersionId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(d => d.ApprovedSyllabusVersion)
+                .WithMany()
+                .HasForeignKey(d => d.ApprovedSyllabusVersionId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<CourseSyllabusVersion>(entity =>
+        {
+            entity.ToTable("course_syllabus_versions");
+            entity.HasKey(version => version.SyllabusVersionId);
+            entity.HasIndex(version => new { version.CourseId, version.VersionNumber }).IsUnique();
+            entity.HasIndex(version => new { version.CourseId, version.IsCurrent })
+                .IsUnique()
+                .HasFilter("\"IsCurrent\" = TRUE");
+            entity.HasIndex(version => new { version.CourseId, version.ReviewStatus });
+            entity.HasIndex(version => version.ObjectKey).IsUnique();
+            entity.Property(version => version.ReviewStatus).HasDefaultValue("DRAFT");
+            entity.Property(version => version.IsCurrent).HasDefaultValue(true);
+            entity.Property(version => version.UploadedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasOne(version => version.Course)
+                .WithMany(course => course.SyllabusVersions)
+                .HasForeignKey(version => version.CourseId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(version => version.UploadedBy)
+                .WithMany()
+                .HasForeignKey(version => version.UploadedById)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(version => version.ReviewedBy)
+                .WithMany()
+                .HasForeignKey(version => version.ReviewedById)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<CourseSyllabusUploadSession>(entity =>
+        {
+            entity.ToTable("course_syllabus_upload_sessions");
+            entity.HasKey(session => session.SessionId);
+            entity.HasIndex(session => new { session.CourseId, session.Status, session.ExpiresAt });
+            entity.HasIndex(session => session.ObjectKey).IsUnique();
+            entity.Property(session => session.Status).HasDefaultValue("PENDING");
+            entity.Property(session => session.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasOne(session => session.Course)
+                .WithMany()
+                .HasForeignKey(session => session.CourseId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(session => session.Instructor)
+                .WithMany()
+                .HasForeignKey(session => session.InstructorId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
