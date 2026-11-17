@@ -1,3 +1,28 @@
+// ====================================================================================================
+// [VỊ TRÍ KIẾN TRÚC]:
+// - Thuộc tầng: Service Implementation (Business Logic Layer - Speaking Scripts Domain).
+// - Nằm trong module: Features/Learning/Services.
+// - Triển khai từ: ISpeakingScriptService.
+// - Vai trò: Trung tâm điều phối toàn bộ nghiệp vụ biên soạn, bóc tách tài liệu, cấu hình 3 cấp độ nói
+//   (BEGINNER, INTERMEDIATE, ADVANCED) và quản lý 3 phạm vi đánh giá kịch bản (LESSON, CHAPTER, FINAL).
+//
+// [MỤC ĐÍCH NGHIỆP VỤ]:
+// - Cung cấp bộ công cụ toàn diện cho Giảng viên:
+//   1. Tải file Word/Text (.docx, .txt, .md), tự động bóc tách và xem trước cấu trúc (Direct Preview).
+//   2. Lưu và xuất bản kịch bản cho bài học với cơ chế Fallback thông minh: nếu một cấp độ bị thiếu nội dung,
+//      hệ thống tự động lấy nội dung có sẵn hoặc OriginalContent để bù đắp, không làm gãy giao diện học viên.
+//   3. Tự động sinh CleanScriptForScoring (loại bỏ toàn bộ thẻ cử chỉ/ngắt nghỉ) để cấp cho AI chấm âm thanh.
+//   4. Phân quyền tác giả chặt chẽ (Ownership Verification): Ngăn chặn giảng viên sửa kịch bản của khóa học khác.
+//   5. Quản lý linh hoạt kịch bản ở 3 cấp độ phạm vi: Gắn vào bài học (LESSON), Kiểm tra chương (CHAPTER),
+//      hoặc Thi tốt nghiệp cuối khóa (FINAL).
+//
+// [BẢN ĐỒ LUỒNG DỮ LIỆU & DEPENDENCY]:
+// - Controllers: SpeakingScriptController.
+// - Services phối hợp: SpeakingScriptParserService (Parser Engine in-memory).
+// - Repositories: ISpeakingScriptRepository, IGenericRepository<Lesson>, IUnitOfWork.
+// - Database: Tables SpeakingScripts, SpeakingScriptLevels, Lessons, Courses.
+// ====================================================================================================
+
 using MC_BE.Core.Entities;
 using MC_BE.Core.Enums;
 using MC_BE.Features.Learning.DTOs;
@@ -10,6 +35,9 @@ using Microsoft.Extensions.Logging;
 
 namespace MC_BE.Features.Learning.Services;
 
+/// <summary>
+/// Lớp triển khai dịch vụ quản lý kịch bản luyện nói và bóc tách tài liệu.
+/// </summary>
 public class SpeakingScriptService : ISpeakingScriptService
 {
     private readonly ISpeakingScriptRepository _scriptRepository;
@@ -19,6 +47,9 @@ public class SpeakingScriptService : ISpeakingScriptService
     private readonly SmartMcDbContext _context;
     private readonly ILogger<SpeakingScriptService> _logger;
 
+    /// <summary>
+    /// Khởi tạo Service với các dependency được inject qua Constructor.
+    /// </summary>
     public SpeakingScriptService(
         ISpeakingScriptRepository scriptRepository,
         IGenericRepository<Lesson> lessonRepository,
@@ -35,17 +66,33 @@ public class SpeakingScriptService : ISpeakingScriptService
         _logger = logger;
     }
 
+    /// <summary>
+    /// Hàm bảo vệ phân quyền (Private Guard): Xác minh quyền sở hữu bài học của giảng viên.
+    /// <para>End-to-End Flow: Nạp Lesson kèm Course -> Kiểm tra null -> So khớp Course.InstructorId với instructorId đăng nhập.</para>
+    /// </summary>
+    /// <param name="lessonId">ID bài học.</param>
+    /// <param name="instructorId">ID giảng viên lấy từ JWT Claims.</param>
+    /// <returns>Thực thể Lesson nạp sẵn Course.</returns>
+    /// <exception cref="KeyNotFoundException">Ném khi không tìm thấy bài học.</exception>
+    /// <exception cref="UnauthorizedAccessException">Ném khi giảng viên không phải chủ khóa học.</exception>
     private async Task<Lesson> VerifyLessonOwnershipAsync(int lessonId, int instructorId)
     {
+        // [BƯỚC 1]: Truy vấn bài học kèm thông tin Khóa học
         var lesson = await _context.Lessons
             .Include(l => l.Course)
             .FirstOrDefaultAsync(l => l.LessonId == lessonId);
 
+        // [BƯỚC 2]: Rẽ nhánh kiểm tra sự tồn tại của bài học
+        // - Điều kiện: lesson == null.
+        // - Trường hợp ĐÚNG (TRUE): Ném KeyNotFoundException dừng luồng ngay.
         if (lesson == null)
         {
             throw new KeyNotFoundException($"Không tìm thấy bài học với ID {lessonId}.");
         }
 
+        // [BƯỚC 3]: Rẽ nhánh kiểm tra quyền tác giả (IDOR Protection)
+        // - Điều kiện: lesson.Course.InstructorId != instructorId.
+        // - Trường hợp ĐÚNG (TRUE): Ném UnauthorizedAccessException, ngăn chặn hành vi sửa đổi tài nguyên trái phép.
         if (lesson.Course.InstructorId != instructorId)
         {
             throw new UnauthorizedAccessException("Bạn không có quyền quản lý kịch bản cho khóa học này.");
@@ -54,6 +101,13 @@ public class SpeakingScriptService : ISpeakingScriptService
         return lesson;
     }
 
+    /// <summary>
+    /// Hàm bảo vệ phân quyền (Private Guard): Xác minh quyền sở hữu khóa học của giảng viên.
+    /// </summary>
+    /// <param name="courseId">ID khóa học.</param>
+    /// <param name="instructorId">ID giảng viên.</param>
+    /// <exception cref="KeyNotFoundException">Khi khóa học không tồn tại.</exception>
+    /// <exception cref="UnauthorizedAccessException">Khi không có quyền.</exception>
     private async Task VerifyCourseOwnershipAsync(int courseId, int instructorId)
     {
         var course = await _context.Courses.FirstOrDefaultAsync(c => c.CourseId == courseId);
@@ -68,10 +122,18 @@ public class SpeakingScriptService : ISpeakingScriptService
         }
     }
 
+    /// <summary>
+    /// Bóc tách trực tiếp file kịch bản không gắn với bài học nào, phục vụ công cụ xem trước nhanh.
+    /// <para>End-to-End Flow: Gọi _parserService.ParseFileAsync(file) -> Ánh xạ kết quả sang ParsePreviewDto -> Sắp xếp Levels theo SpeakingLevel -> Trả về kết quả.</para>
+    /// </summary>
+    /// <param name="file">File tải lên (.docx, .txt, .md).</param>
+    /// <returns>ParsePreviewDto xem trước cấu trúc kịch bản.</returns>
     public async Task<ParsePreviewDto> ParseFileDirectAsync(IFormFile file)
     {
+        // [BƯỚC 1]: Gọi Engine bóc tách tài liệu in-memory
         var parseResult = await _parserService.ParseFileAsync(file);
 
+        // [BƯỚC 2]: Ánh xạ kết quả sang DTO xem trước
         return new ParsePreviewDto
         {
             Success = parseResult.Success,
@@ -86,18 +148,43 @@ public class SpeakingScriptService : ISpeakingScriptService
         };
     }
 
+    /// <summary>
+    /// Bóc tách file kịch bản cho một bài học cụ thể có kiểm tra quyền sở hữu của giảng viên.
+    /// </summary>
     public async Task<ParsePreviewDto> ParseScriptFileAsync(int lessonId, IFormFile file, int instructorId)
     {
+        // [BƯỚC 1]: Kiểm tra quyền sở hữu bài học của giảng viên
         await VerifyLessonOwnershipAsync(lessonId, instructorId);
+        // [BƯỚC 2]: Thực hiện bóc tách tài liệu
         return await ParseFileDirectAsync(file);
     }
 
+    /// <summary>
+    /// Lưu chính thức và xuất bản kịch bản cho bài học sau khi giảng viên đã xem trước và tinh chỉnh.
+    /// Hỗ trợ cả trường hợp Tạo mới (Insert) và Cập nhật (Upsert / Update).
+    /// <para>End-to-End Execution Flow:</para>
+    /// <para>Bước 1: Xác minh quyền giảng viên qua VerifyLessonOwnershipAsync.</para>
+    /// <para>Bước 2: Tìm kịch bản hiện có của bài học qua _scriptRepository.GetByLessonIdAsync.</para>
+    /// <para>Bước 3: Rẽ nhánh: Nếu chưa có kịch bản -> Khởi tạo mới SpeakingScript và danh sách Levels.</para>
+    /// <para>Bước 4: Rẽ nhánh: Nếu đã có kịch bản -> Cập nhật các trường thông tin và cập nhật từng cấp độ con.</para>
+    /// <para>Bước 5: Áp dụng cơ chế Fallback thông minh nếu có cấp độ bị để trống.</para>
+    /// <para>Bước 6: Gọi SaveChangesAsync để lưu vào CSDL và trả về DTO đã nạp lại.</para>
+    /// </summary>
+    /// <param name="lessonId">ID bài học.</param>
+    /// <param name="request">Dữ liệu kịch bản và 3 cấp độ.</param>
+    /// <param name="instructorId">ID giảng viên.</param>
+    /// <returns>SpeakingScriptDto sau khi xuất bản.</returns>
     public async Task<SpeakingScriptDto> SaveAndPublishAsync(int lessonId, SaveScriptRequest request, int instructorId)
     {
+        // [BƯỚC 1]: Kiểm tra quyền tác giả của giảng viên trên bài học
         var lesson = await VerifyLessonOwnershipAsync(lessonId, instructorId);
 
+        // [BƯỚC 2]: Kiểm tra bài học đã có kịch bản trước đó chưa
         var existingScript = await _scriptRepository.GetByLessonIdAsync(lessonId);
 
+        // ====================================================================================================
+        // [BƯỚC 3]: RẼ NHÁNH TẠO MỚI KỊCH BẢN (INSERT FLOW - khi existingScript == null)
+        // ====================================================================================================
         if (existingScript == null)
         {
             existingScript = new SpeakingScript
@@ -114,16 +201,19 @@ public class SpeakingScriptService : ISpeakingScriptService
                 UpdatedAt = DateTime.UtcNow
             };
 
+            // Cơ chế dự phòng (Fallback): Lấy nội dung của cấp độ đầu tiên có dữ liệu hoặc OriginalContent
             var validFallback = request.Levels.FirstOrDefault(l => !string.IsNullOrWhiteSpace(l.Content))?.Content
                 ?? request.OriginalContent
                 ?? string.Empty;
 
+            // Duyệt từng cấp độ để khởi tạo thực thể SpeakingScriptLevel
             foreach (var lvlDto in request.Levels)
             {
                 var contentToSave = !string.IsNullOrWhiteSpace(lvlDto.Content)
                     ? lvlDto.Content.Trim()
                     : validFallback.Trim();
 
+                // Nếu client không gửi CleanScriptForScoring, tự động bóc tách bằng Parser Engine
                 var cleanScoring = !string.IsNullOrWhiteSpace(lvlDto.CleanScriptForScoring)
                     ? lvlDto.CleanScriptForScoring
                     : _parserService.ExtractCleanScript(contentToSave);
@@ -139,6 +229,9 @@ public class SpeakingScriptService : ISpeakingScriptService
 
             await _scriptRepository.AddAsync(existingScript);
         }
+        // ====================================================================================================
+        // [BƯỚC 4]: RẼ NHÁNH CẬP NHẬT KỊCH BẢN HIỆN CÓ (UPDATE / UPSERT FLOW - khi existingScript != null)
+        // ====================================================================================================
         else
         {
             existingScript.CourseId = lesson.CourseId;
@@ -172,12 +265,14 @@ public class SpeakingScriptService : ISpeakingScriptService
                     : _parserService.ExtractCleanScript(contentToSave);
 
                 var existingLevel = existingScript.Levels.FirstOrDefault(l => l.Level == lvlDto.Level);
+                // Nếu cấp độ đã tồn tại trong CSDL -> Cập nhật nội dung
                 if (existingLevel != null)
                 {
                     existingLevel.Content = contentToSave;
                     existingLevel.CleanScriptForScoring = cleanScoring;
                     existingLevel.UpdatedAt = DateTime.UtcNow;
                 }
+                // Nếu cấp độ chưa có trong CSDL -> Thêm mới vào tập hợp Levels
                 else
                 {
                     existingScript.Levels.Add(new SpeakingScriptLevel
@@ -194,18 +289,26 @@ public class SpeakingScriptService : ISpeakingScriptService
             _scriptRepository.Update(existingScript);
         }
 
+        // [BƯỚC 5]: Lưu thay đổi vào CSDL
         await _unitOfWork.SaveChangesAsync();
 
+        // [BƯỚC 6]: Tải lại dữ liệu mới nhất kèm đầy đủ quan hệ và trả về DTO
         var refreshed = await _scriptRepository.GetByLessonIdAsync(lessonId);
         return MapToDto(refreshed!);
     }
 
+    /// <summary>
+    /// Lấy kịch bản luyện nói gắn với một bài học cụ thể.
+    /// </summary>
     public async Task<SpeakingScriptDto?> GetScriptByLessonAsync(int lessonId)
     {
         var script = await _scriptRepository.GetByLessonIdAsync(lessonId);
         return script == null ? null : MapToDto(script);
     }
 
+    /// <summary>
+    /// Lấy nội dung chi tiết của một cấp độ luyện nói cụ thể trong bài học (học viên bắt đầu luyện đọc).
+    /// </summary>
     public async Task<SpeakingScriptLevelDto?> GetLevelContentAsync(int lessonId, SpeakingLevel level)
     {
         var scriptLevel = await _scriptRepository.GetLevelByLessonIdAsync(lessonId, level);
@@ -222,6 +325,9 @@ public class SpeakingScriptService : ISpeakingScriptService
         };
     }
 
+    /// <summary>
+    /// Cập nhật riêng lẻ nội dung của một cấp độ kịch bản mà không cần gửi lại toàn bộ kịch bản.
+    /// </summary>
     public async Task<SpeakingScriptDto?> UpdateLevelContentAsync(int scriptId, SpeakingLevel level, UpdateLevelContentRequest request, int instructorId)
     {
         var script = await _scriptRepository.GetByIdWithDetailsAsync(scriptId);
@@ -261,6 +367,9 @@ public class SpeakingScriptService : ISpeakingScriptService
         return MapToDto(refreshed!);
     }
 
+    /// <summary>
+    /// Xóa kịch bản nói gắn với một bài học.
+    /// </summary>
     public async Task<bool> DeleteScriptAsync(int lessonId, int instructorId)
     {
         await VerifyLessonOwnershipAsync(lessonId, instructorId);
@@ -273,6 +382,13 @@ public class SpeakingScriptService : ISpeakingScriptService
         return true;
     }
 
+    // ====================================================================================================
+    // CÁC PHƯƠNG THỨC MỞ RỘNG CHO HỆ THỐNG 3 SCOPE (LESSON, CHAPTER, FINAL)
+    // ====================================================================================================
+
+    /// <summary>
+    /// Lấy danh sách kịch bản lọc theo nhiều tiêu chí động.
+    /// </summary>
     // New 3-scope CRUD
     public async Task<IEnumerable<SpeakingScriptDto>> GetAllScriptsAsync(
         int? courseId,
@@ -285,22 +401,33 @@ public class SpeakingScriptService : ISpeakingScriptService
         return scripts.Select(MapToDto);
     }
 
+    /// <summary>
+    /// Lấy chi tiết kịch bản theo ID.
+    /// </summary>
     public async Task<SpeakingScriptDto?> GetScriptByIdAsync(int scriptId)
     {
         var script = await _scriptRepository.GetByIdWithDetailsAsync(scriptId);
         return script == null ? null : MapToDto(script);
     }
 
+    /// <summary>
+    /// Lấy toàn bộ kịch bản thuộc một khóa học.
+    /// </summary>
     public async Task<IEnumerable<SpeakingScriptDto>> GetScriptsByCourseAsync(int courseId)
     {
         var scripts = await _scriptRepository.GetByCourseIdAsync(courseId);
         return scripts.Select(MapToDto);
     }
 
+    /// <summary>
+    /// Tạo mới một kịch bản luyện nói độc lập (hỗ trợ cả Scope = CHAPTER và Scope = FINAL).
+    /// </summary>
     public async Task<SpeakingScriptDto> CreateScriptAsync(CreateSpeakingScriptRequest request, int instructorId)
     {
+        // Kiểm tra quyền sở hữu khóa học
         await VerifyCourseOwnershipAsync(request.CourseId, instructorId);
 
+        // Khởi tạo thực thể kịch bản với Scope tương ứng
         var script = new SpeakingScript
         {
             CourseId = request.CourseId,
@@ -319,6 +446,7 @@ public class SpeakingScriptService : ISpeakingScriptService
             ?? request.OriginalContent
             ?? string.Empty;
 
+        // Lưu từng cấp độ
         foreach (var lvlDto in request.Levels)
         {
             var contentToSave = !string.IsNullOrWhiteSpace(lvlDto.Content)
@@ -345,6 +473,9 @@ public class SpeakingScriptService : ISpeakingScriptService
         return MapToDto(refreshed!);
     }
 
+    /// <summary>
+    /// Cập nhật thông tin và cấp độ của một kịch bản theo ScriptId.
+    /// </summary>
     public async Task<SpeakingScriptDto> UpdateScriptAsync(int scriptId, UpdateSpeakingScriptRequest request, int instructorId)
     {
         var script = await _scriptRepository.GetByIdWithDetailsAsync(scriptId);
@@ -362,6 +493,7 @@ public class SpeakingScriptService : ISpeakingScriptService
             script.CourseId = request.CourseId.Value;
         }
 
+        // Cập nhật cấu trúc Scope và Module/Lesson tương ứng
         if (request.Scope.HasValue)
         {
             script.Scope = request.Scope.Value;
@@ -448,6 +580,9 @@ public class SpeakingScriptService : ISpeakingScriptService
         return MapToDto(refreshed!);
     }
 
+    /// <summary>
+    /// Xóa kịch bản luyện nói theo ScriptId.
+    /// </summary>
     public async Task<bool> DeleteScriptByIdAsync(int scriptId, int instructorId)
     {
         var script = await _scriptRepository.GetByIdWithDetailsAsync(scriptId);
@@ -461,6 +596,9 @@ public class SpeakingScriptService : ISpeakingScriptService
         return true;
     }
 
+    /// <summary>
+    /// Hàm dùng chung (Private Helper) ánh xạ thực thể SpeakingScript sang SpeakingScriptDto.
+    /// </summary>
     private static SpeakingScriptDto MapToDto(SpeakingScript script)
     {
         var course = script.Course ?? script.Lesson?.Course;
