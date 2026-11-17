@@ -450,6 +450,7 @@ export const CreateQuizPage: React.FC<CreateQuizPageProps> = ({
   const [status, setStatus] = useState<QuizStatus>('DRAFT');
   const [availableFrom, setAvailableFrom] = useState('');
   const [availableUntil, setAvailableUntil] = useState('');
+  const [isRemedial, setIsRemedial] = useState(false);
   const [questions, setQuestions] = useState<CreateQuestionRequest[]>([
     createEmptyQuestion(1),
   ]);
@@ -551,6 +552,7 @@ export const CreateQuizPage: React.FC<CreateQuizPageProps> = ({
       availableUntil: isDailyPractice && dailyDate
         ? new Date(`${dailyDate}T23:59:59`).toISOString()
         : availableUntil ? new Date(availableUntil).toISOString() : null,
+      isRemedial,
       title: title.trim(),
       description: description.trim() || null,
       timeLimitMinutes,
@@ -631,6 +633,7 @@ export const CreateQuizPage: React.FC<CreateQuizPageProps> = ({
                 <label><span className={labelClass}>Điểm đạt (%)</span><input type="number" min={0} max={100} value={80} disabled title="Điểm đạt cố định là 80% theo quy định MSEEK" className={inputClass}/></label>
                 <label><span className={labelClass}>Số lần được làm</span><input type="number" min={0} step={1} value={maxAttempts} onChange={e=>setMaxAttempts(Math.max(0, Number(e.target.value)))} className={inputClass}/><span className="mt-1 block text-[11px] text-slate-500">Nhập 0 để không giới hạn tổng số lượt làm bài.</span></label>
                 {!isDailyPractice && <div className="sm:col-span-2 rounded-2xl border border-[#BDD5F6] bg-[#EDF5FF] p-4 sm:p-5"><div className="mb-4 flex items-center gap-2 text-[#174987]"><CalendarClock className="h-5 w-5"/><h3 className="text-sm font-extrabold">Lịch mở và đóng Quiz</h3></div><div className="grid gap-4 sm:grid-cols-2"><label><span className={labelClass}>Ngày và giờ bắt đầu</span><input type="datetime-local" value={availableFrom} onChange={e=>{setAvailableFrom(e.target.value);setErrorMessage('');}} className={inputClass}/></label><label><span className={labelClass}>Ngày và giờ kết thúc</span><input type="datetime-local" min={availableFrom||undefined} value={availableUntil} onChange={e=>{setAvailableUntil(e.target.value);setErrorMessage('');}} className={inputClass}/></label></div><p className="mt-3 text-xs text-[#607DA4]">Để trống nếu không giới hạn. Giờ theo thiết bị, lưu UTC.</p></div>}
+                <label className="sm:col-span-2 flex cursor-pointer items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4"><input type="checkbox" checked={isRemedial} onChange={e=>setIsRemedial(e.target.checked)} className="mt-0.5 h-4 w-4 rounded border-amber-300 text-amber-600"/><span><b className="block text-sm text-amber-900">Quiz bổ trợ cá nhân</b><span className="mt-1 block text-xs text-amber-800">Không xuất hiện với lớp học chung, không tính vào hoàn thành/chứng chỉ. Chỉ học viên được giao mới truy cập.</span></span></label>
               </div>
             </section>
             <section className="mseek-card rounded-[22px] border border-[#C9D9EF] bg-white p-5 shadow-[0_10px_35px_-22px_rgba(15,56,113,0.35)] sm:p-6"><div className="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-center"><div className="flex items-center gap-3"><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#E8F1FF] text-[#1764E9]"><FileQuestion className="h-5 w-5"/></span><div><h2 className="text-lg font-extrabold">Câu hỏi & bài tập</h2><p className="text-xs text-[#7488A7]">Quiz hiện có {questions.length} câu hỏi/bài tập.</p></div></div><button type="button" onClick={handleAddQuestion} className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#1764E9] px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-[#104DBB]"><Plus className="h-4 w-4"/>Thêm câu hỏi</button></div><div className="space-y-4">{questions.map((question,index)=><QuizQuestionEditor key={index} question={question} questionNumber={index+1} onChange={updatedQuestion=>handleQuestionChange(index,updatedQuestion)} onRemove={()=>handleRemoveQuestion(index)} canRemove={questions.length>1}/>)}</div></section>

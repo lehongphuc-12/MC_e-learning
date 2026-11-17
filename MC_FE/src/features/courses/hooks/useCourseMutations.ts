@@ -169,8 +169,8 @@ export function useSubmitForApproval() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ courseId, note }: { courseId: number; note?: string }) =>
-      courseApi.submitForApproval(courseId, note),
+    mutationFn: ({ courseId, note, keepApprovedSyllabus }: { courseId: number; note?: string; keepApprovedSyllabus?: boolean }) =>
+      courseApi.submitForApproval(courseId, note, keepApprovedSyllabus ?? false),
 
     onSuccess: (updatedCourse) => {
       queryClient.setQueryData(

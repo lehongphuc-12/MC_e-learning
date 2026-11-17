@@ -3,6 +3,7 @@ using MC_BE.Core.DTOs;
 using MC_BE.Core.Enums;
 using MC_BE.Features.Learning.DTOs;
 using MC_BE.Features.Learning.Services.Interfaces;
+using MC_BE.Features.Courses.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -17,13 +18,19 @@ public class SpeakingScriptController : ControllerBase
 {
     private readonly ISpeakingScriptService _scriptService;
     private readonly ILogger<SpeakingScriptController> _logger;
+    private readonly IRemedialAssignmentService _remedialAssignments;
+    private readonly ICourseLearningAccessService _courseAccess;
 
     public SpeakingScriptController(
         ISpeakingScriptService scriptService,
-        ILogger<SpeakingScriptController> logger)
+        ILogger<SpeakingScriptController> logger,
+        IRemedialAssignmentService remedialAssignments,
+        ICourseLearningAccessService courseAccess)
     {
         _scriptService = scriptService;
         _logger = logger;
+        _remedialAssignments = remedialAssignments;
+        _courseAccess = courseAccess;
     }
 
     private int? GetCurrentUserId()
@@ -32,6 +39,12 @@ public class SpeakingScriptController : ControllerBase
                     ?? User.FindFirst("sub")?.Value;
         return int.TryParse(claim, out var id) ? id : null;
     }
+
+    private bool IsLearner => User.IsInRole("Learner");
+
+    private async Task<bool> CanReadForLearnerAsync(SpeakingScriptDto script, int learnerId) =>
+        await _courseAccess.CanAccessCourseAsync(script.CourseId, learnerId, isAdmin: false) &&
+        (!script.IsRemedial || await _remedialAssignments.CanAccessContentAsync(learnerId, "SPEAKING", script.ScriptId));
 
     /// <summary>
     /// GET /api/speaking-scripts
@@ -48,6 +61,15 @@ public class SpeakingScriptController : ControllerBase
         try
         {
             var scripts = await _scriptService.GetAllScriptsAsync(courseId, scope, moduleId, lessonId, search);
+            if (IsLearner)
+            {
+                var learnerId = GetCurrentUserId();
+                if (learnerId == null) return Unauthorized();
+                var allowed = new List<SpeakingScriptDto>();
+                foreach (var item in scripts)
+                    if (await CanReadForLearnerAsync(item, learnerId.Value)) allowed.Add(item);
+                scripts = allowed;
+            }
             return Ok(ApiResponse<IEnumerable<SpeakingScriptDto>>.SuccessResponse(scripts));
         }
         catch (Exception ex)
@@ -72,6 +94,7 @@ public class SpeakingScriptController : ControllerBase
             {
                 return NotFound(ApiResponse<SpeakingScriptDto>.FailureResponse("Không tìm thấy kịch bản nói."));
             }
+            if (IsLearner && (GetCurrentUserId() is not int learnerId || !await CanReadForLearnerAsync(script, learnerId))) return Forbid();
 
             return Ok(ApiResponse<SpeakingScriptDto>.SuccessResponse(script));
         }
@@ -93,6 +116,15 @@ public class SpeakingScriptController : ControllerBase
         try
         {
             var scripts = await _scriptService.GetScriptsByCourseAsync(courseId);
+            if (IsLearner)
+            {
+                var learnerId = GetCurrentUserId();
+                if (learnerId == null) return Unauthorized();
+                var allowed = new List<SpeakingScriptDto>();
+                foreach (var item in scripts)
+                    if (await CanReadForLearnerAsync(item, learnerId.Value)) allowed.Add(item);
+                scripts = allowed;
+            }
             return Ok(ApiResponse<IEnumerable<SpeakingScriptDto>>.SuccessResponse(scripts));
         }
         catch (Exception ex)
@@ -347,6 +379,7 @@ public class SpeakingScriptController : ControllerBase
             {
                 return NotFound(ApiResponse<SpeakingScriptDto>.FailureResponse("Chưa có kịch bản cho bài tập nói này."));
             }
+            if (IsLearner && (GetCurrentUserId() is not int learnerId || !await CanReadForLearnerAsync(script, learnerId))) return Forbid();
 
             return Ok(ApiResponse<SpeakingScriptDto>.SuccessResponse(script));
         }
@@ -367,6 +400,9 @@ public class SpeakingScriptController : ControllerBase
     {
         try
         {
+            var script = await _scriptService.GetScriptByLessonAsync(lessonId);
+            if (script == null) return NotFound(ApiResponse<SpeakingScriptLevelDto>.FailureResponse("Chưa có kịch bản cho bài tập nói này."));
+            if (IsLearner && (GetCurrentUserId() is not int learnerId || !await CanReadForLearnerAsync(script, learnerId))) return Forbid();
             var levelContent = await _scriptService.GetLevelContentAsync(lessonId, level);
             if (levelContent == null)
             {

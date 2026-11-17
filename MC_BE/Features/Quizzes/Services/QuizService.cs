@@ -20,6 +20,7 @@ public class QuizService : IQuizService
     private readonly IGenericRepository<ScenarioNode> _scenarioNodeRepository;
     private readonly IGenericRepository<ScenarioChoice> _scenarioChoiceRepository;
     private readonly IGenericRepository<QuizAttempt> _attemptRepository;
+    private readonly IGenericRepository<RemedialRetakeGrant> _retakeGrantRepository;
     private readonly IGenericRepository<QuizAnswer> _answerRepository;
     private readonly IGenericRepository<QuizAnswerSelectedChoice> _answerSelectedChoiceRepository;
     private readonly IGenericRepository<QuizAnswerErrorRegion> _answerErrorRegionRepository;
@@ -45,6 +46,7 @@ public class QuizService : IQuizService
         IGenericRepository<ScenarioNode> scenarioNodeRepository,
         IGenericRepository<ScenarioChoice> scenarioChoiceRepository,
         IGenericRepository<QuizAttempt> attemptRepository,
+        IGenericRepository<RemedialRetakeGrant> retakeGrantRepository,
         IGenericRepository<QuizAnswer> answerRepository,
         IGenericRepository<QuizAnswerSelectedChoice> answerSelectedChoiceRepository,
         IGenericRepository<QuizAnswerErrorRegion> answerErrorRegionRepository,
@@ -69,6 +71,7 @@ public class QuizService : IQuizService
         _scenarioNodeRepository = scenarioNodeRepository;
         _scenarioChoiceRepository = scenarioChoiceRepository;
         _attemptRepository = attemptRepository;
+        _retakeGrantRepository = retakeGrantRepository;
         _answerRepository = answerRepository;
         _answerSelectedChoiceRepository = answerSelectedChoiceRepository;
         _answerErrorRegionRepository = answerErrorRegionRepository;
@@ -161,6 +164,7 @@ public class QuizService : IQuizService
             AvailableFrom = request.AvailableFrom,
             AvailableUntil = request.AvailableUntil,
             Status = request.Status,
+            IsRemedial = request.IsRemedial,
             CreatedAt = DateTime.UtcNow
         };
         await _quizRepository.AddAsync(quiz);
@@ -264,6 +268,7 @@ public class QuizService : IQuizService
             PassingScore = 80.00m,
             MaxAttempts = quiz.MaxAttempts,
             Status = quiz.Status,
+            IsRemedial = quiz.IsRemedial,
             CreatedAt = quiz.CreatedAt,
             Questions = questions.Select(q => new QuestionDto
             {
@@ -349,6 +354,7 @@ public class QuizService : IQuizService
         quiz.AvailableFrom = request.AvailableFrom;
         quiz.AvailableUntil = request.AvailableUntil;
         quiz.Status = request.Status;
+        quiz.IsRemedial = request.IsRemedial;
         _quizRepository.Update(quiz);
 
         var existingQuestions = (quiz.Questions ?? new List<Question>()).ToList();
@@ -673,11 +679,14 @@ public class QuizService : IQuizService
             await _unitOfWork.SaveChangesAsync();
 
         var attempt = attempts.FirstOrDefault(a => !a.SubmittedAt.HasValue);
-        if (attempts.Any(a => a.ResultStatus == QuizAttemptStatus.PASSED)) throw new ArgumentException("You have already passed this quiz.");
+        var retakeGrants = await _retakeGrantRepository.FindAsync(g => g.LearnerId == learnerId && g.TargetQuizId == quizId && !g.UsedAt.HasValue);
+        var retakeGrant = retakeGrants.OrderBy(g => g.GrantedAt).FirstOrDefault();
+        var hasRetakeGrant = retakeGrant != null;
+        if (attempts.Any(a => a.ResultStatus == QuizAttemptStatus.PASSED) && !hasRetakeGrant) throw new ArgumentException("Bạn đã đạt bài Quiz này; chỉ có lượt làm lại được giảng viên mở mới có thể tiếp tục.");
         if (attempts.Any(a => a.ResultStatus == QuizAttemptStatus.PENDING_GRADING)) throw new ArgumentException("Your previous attempt is awaiting instructor grading.");
         // MaxAttempts = 0 means unlimited. Only enforce a cap when the instructor explicitly sets one.
         var submittedAttemptCount = attempts.Count(a => a.SubmittedAt.HasValue);
-        if (attempt is null && quiz.MaxAttempts > 0 && submittedAttemptCount >= quiz.MaxAttempts)
+        if (attempt is null && quiz.MaxAttempts > 0 && submittedAttemptCount >= quiz.MaxAttempts && !hasRetakeGrant)
             throw new InvalidOperationException($"Bạn đã sử dụng hết {quiz.MaxAttempts} lượt làm bài.");
         if (attempt is null)
         {
@@ -711,6 +720,11 @@ public class QuizService : IQuizService
             }
             attempt = new QuizAttempt { QuizId = quizId, UserId = learnerId, AttemptNumber = attempts.Count == 0 ? 1 : attempts.Max(a => a.AttemptNumber) + 1, StartedAt = DateTime.UtcNow };
             await _attemptRepository.AddAsync(attempt);
+            if (retakeGrant != null)
+            {
+                retakeGrant.UsedAt = DateTime.UtcNow;
+                _retakeGrantRepository.Update(retakeGrant);
+            }
             await _unitOfWork.SaveChangesAsync();
         }
 
@@ -1181,6 +1195,7 @@ public async Task<List<QuizListItemDto>> GetQuizzesByCourseAsync(
             PassingScore =80.00m,
             MaxAttempts =q.MaxAttempts,
             Status =q.Status,
+            IsRemedial = q.IsRemedial,
             CreatedAt =q.CreatedAt,
             QuestionCount =q.Questions?.Count ?? 0
         })

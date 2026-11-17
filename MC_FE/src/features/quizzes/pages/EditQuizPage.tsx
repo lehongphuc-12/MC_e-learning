@@ -443,6 +443,7 @@ export const EditQuizPage: React.FC<EditQuizPageProps> = ({ onToast }) => {
   const [status, setStatus] = useState<QuizStatus>('DRAFT');
   const [availableFrom, setAvailableFrom] = useState('');
   const [availableUntil, setAvailableUntil] = useState('');
+  const [isRemedial, setIsRemedial] = useState(false);
   const [questions, setQuestions] = useState<CreateQuestionRequest[]>([]);
   const [identities, setIdentities] = useState<QuestionIdentity[]>([]);
   const [initializedQuizId, setInitializedQuizId] = useState<number | null>(
@@ -460,6 +461,7 @@ export const EditQuizPage: React.FC<EditQuizPageProps> = ({ onToast }) => {
     setStatus(quiz.status ?? 'DRAFT');
     setAvailableFrom(toLocalDateTimeInput(quiz.availableFrom));
     setAvailableUntil(toLocalDateTimeInput(quiz.availableUntil));
+    setIsRemedial(quiz.isRemedial ?? false);
     const sortedQuestions = [...(quiz.questions ?? [])].sort(
       (a, b) => a.orderIndex - b.orderIndex
     );
@@ -603,6 +605,7 @@ export const EditQuizPage: React.FC<EditQuizPageProps> = ({ onToast }) => {
       status,
       availableFrom: availableFrom ? new Date(availableFrom).toISOString() : null,
       availableUntil: availableUntil ? new Date(availableUntil).toISOString() : null,
+      isRemedial,
       questions: updateQuestions,
     };
     try {
@@ -720,6 +723,7 @@ export const EditQuizPage: React.FC<EditQuizPageProps> = ({ onToast }) => {
                 </div>
                 <div className="md:col-span-2 grid gap-4 sm:grid-cols-2"><label><span className={labelClass}>Điểm đạt (%)</span><input type="number" min={0} max={100} value={80} disabled title="Điểm đạt cố định là 80% theo quy định MSEEK" className={inputClass} /></label><label><span className={labelClass}>Số lần được làm</span><input type="number" min={0} step={1} value={maxAttempts} onChange={e => setMaxAttempts(Math.max(0, Number(e.target.value)))} className={inputClass} /><span className="mt-1 block text-[11px] text-slate-500">Nhập 0 để không giới hạn tổng số lượt làm bài.</span></label></div>
                 <p className="md:col-span-2 -mt-1 flex items-center gap-2 text-[11px] text-slate-400"><CalendarClock className="h-3.5 w-3.5" /> Để trống lịch nếu không giới hạn. Thời gian nhập theo thiết bị và lưu dưới dạng UTC.</p>
+                <label className="md:col-span-2 flex cursor-pointer items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3"><input type="checkbox" checked={isRemedial} onChange={e=>setIsRemedial(e.target.checked)} className="mt-0.5 h-4 w-4 rounded border-amber-300 text-amber-600"/><span><b className="block text-sm text-amber-900">Quiz bổ trợ cá nhân</b><span className="mt-1 block text-xs text-amber-800">Chỉ học viên được giao nhìn thấy; không tính vào hoàn thành khóa học/chứng chỉ.</span></span></label>
               </div>
             </section>
             <section className="eq-rise eq-card rounded-[22px] border border-[#dce8fa] bg-white p-5 shadow-sm sm:p-6" style={{animationDelay:'.08s'}}>

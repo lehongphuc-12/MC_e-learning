@@ -185,6 +185,21 @@ public sealed class CourseSyllabusService : ICourseSyllabusService
         return current is null ? null : Map(current);
     }
 
+    public async Task<CourseSyllabusVersionDto?> GetApprovedVersionAsync(int courseId, int instructorId)
+    {
+        var course = await _courses.GetByIdAsync(courseId);
+        if (course is null || course.InstructorId != instructorId)
+            return null;
+        if (!course.ApprovedSyllabusVersionId.HasValue)
+            return null;
+
+        var approved = await _versions.GetQueryable().AsNoTracking()
+            .FirstOrDefaultAsync(version => version.CourseId == courseId
+                && version.SyllabusVersionId == course.ApprovedSyllabusVersionId.Value
+                && version.ReviewStatus == "APPROVED");
+        return approved is null ? null : Map(approved);
+    }
+
     public async Task<CourseSyllabusPreviewDraftDto?> GetInstructorPreviewDraftAsync(int courseId, int instructorId)
     {
         var course = await _courses.GetByIdAsync(courseId);
@@ -362,14 +377,21 @@ public sealed class CourseSyllabusService : ICourseSyllabusService
 
         await _unitOfWork.ExecuteInTransactionAsync(async () =>
         {
-            await _deletionJobs.AddAsync(new R2ObjectDeletionJob
+            var sharedObjectKey = await _versions.GetQueryable()
+                .AnyAsync(item => item.CourseId == courseId
+                    && item.SyllabusVersionId != versionId
+                    && item.ObjectKey == version.ObjectKey);
+            if (!sharedObjectKey)
             {
-                SourceCourseId = courseId,
-                ObjectKey = version.ObjectKey,
-                Status = "PENDING",
-                CreatedAt = DateTime.UtcNow,
-                NextAttemptAt = DateTime.UtcNow,
-            });
+                await _deletionJobs.AddAsync(new R2ObjectDeletionJob
+                {
+                    SourceCourseId = courseId,
+                    ObjectKey = version.ObjectKey,
+                    Status = "PENDING",
+                    CreatedAt = DateTime.UtcNow,
+                    NextAttemptAt = DateTime.UtcNow,
+                });
+            }
             _versions.Remove(version);
 
             if (version.IsCurrent)

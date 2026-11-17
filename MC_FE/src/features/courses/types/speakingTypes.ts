@@ -30,6 +30,8 @@ export interface SaveScriptRequest {
   moduleId?: number;
   courseId?: number;
   passingScore?: number;
+  dueAt?: string | null;
+  isRemedial?: boolean;
   levels: SaveLevelDto[];
 }
 
@@ -41,6 +43,8 @@ export interface CreateSpeakingScriptRequest {
   title: string;
   originalContent?: string;
   passingScore?: number;
+  dueAt?: string | null;
+  isRemedial?: boolean;
   levels: SaveLevelDto[];
 }
 
@@ -52,6 +56,8 @@ export interface UpdateSpeakingScriptRequest {
   title?: string;
   originalContent?: string;
   passingScore?: number;
+  dueAt?: string | null;
+  isRemedial?: boolean;
   levels?: SaveLevelDto[];
 }
 
@@ -81,6 +87,8 @@ export interface SpeakingScriptDto {
   title: string;
   originalContent?: string;
   passingScore?: number;
+  dueAt?: string | null;
+  isRemedial?: boolean;
   /** Optional UI estimate; current API may omit it for course-level scripts. */
   durationMinutes?: number;
   createdBy?: number;

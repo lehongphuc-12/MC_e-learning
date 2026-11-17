@@ -117,6 +117,7 @@ public class UpdateCourseRequest
     public string? SubmissionNote { get; set; }
 
     public bool SubmitForApproval { get; set; } = false;
+    public bool KeepApprovedSyllabus { get; set; } = false;
 }
 
 // ---------------------------------------------------------------------------
@@ -133,6 +134,7 @@ public class UpdateCourseStatusRequest
 public class SubmitApprovalRequest
 {
     public string? SubmissionNote { get; set; }
+    public bool KeepApprovedSyllabus { get; set; }
 }
 
 public class RejectCourseRequest

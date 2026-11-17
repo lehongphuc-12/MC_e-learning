@@ -60,6 +60,7 @@ import { CourseChatDrawer } from './CourseChatDrawer';
 import { Toast, ToastMessage } from '../../../components/common/Toast';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { lessonApi } from '../api/lessonApi';
+import { remedialAssignmentApi, type RemedialAssignmentDto } from '../api/remedialAssignmentApi';
 
 import type { Lesson } from '../types/lessonTypes';
 import type { Certificate } from '../types/learningTypes';
@@ -1887,12 +1888,22 @@ export const CourseLearningPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const courseId = id ? Number(id) : 0;
+  const [learnerRemedialAssignments, setLearnerRemedialAssignments] = useState<RemedialAssignmentDto[]>([]);
+  const [isRemedialPanelOpen, setIsRemedialPanelOpen] = useState(false);
 
   const initialLessonId = searchParams.get('lessonId')
     ? Number(searchParams.get('lessonId'))
     : null;
 
   const user = useAuthStore((state) => state.user);
+  useEffect(() => {
+    if (!courseId || !user) { setLearnerRemedialAssignments([]); return; }
+    let active = true;
+    remedialAssignmentApi.getForLearner(courseId)
+      .then(response => { if (active) setLearnerRemedialAssignments(response.data ?? []); })
+      .catch(() => { if (active) setLearnerRemedialAssignments([]); });
+    return () => { active = false; };
+  }, [courseId, user]);
 
   // ===========================================================================
   // Data fetching
@@ -2501,7 +2512,7 @@ export const CourseLearningPage: React.FC = () => {
       return <p className="ml-7 mt-1 flex items-center gap-1.5 text-[11px] font-medium text-slate-500"><LockKeyhole size={12}/> Mở khóa bài học để làm Quiz</p>;
     return <div className="ml-7 mt-1 max-w-md space-y-2">{lessonQuizzes.map(quiz => (
       <div key={quiz.quizId} className="rounded-lg border border-slate-100 bg-white p-2">
-        <p className="mb-1 text-[11px] font-semibold text-slate-700">{quiz.title}</p>
+        <p className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold text-slate-700">{quiz.title}{quiz.isRemedial && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold text-amber-800">Bổ trợ</span>}</p>
         {quiz.status === 'ACTIVE' ? <LearnerQuizHistoryActions quizId={quiz.quizId} maxAttempts={quiz.maxAttempts} passingScore={quiz.passingScore} returnTo={getQuizReturnTo(lessonId)} onTake={() => handleTakeQuiz(quiz.quizId, lessonId)} />
           : quiz.status === 'ARCHIVED' ? <p className="text-[11px] text-amber-700">{quiz.availableFrom ? `Đang lên lịch mở: ${new Date(quiz.availableFrom).toLocaleString('vi-VN')}` : 'Quiz đang được lưu trữ.'}</p>
           : <p className="text-[11px] text-slate-500">Quiz hiện đang ngừng hoạt động.</p>}
@@ -2559,7 +2570,7 @@ export const CourseLearningPage: React.FC = () => {
               <div className="flex items-center justify-between gap-1">
                 <p className="text-[11px] font-bold truncate flex items-center gap-1.5">
                   <Mic className="h-3.5 w-3.5 text-purple-600 shrink-0" />
-                  <span className="truncate">{sc.title}</span>
+                  <span className="truncate">{sc.title}</span>{sc.isRemedial && <span className="rounded bg-amber-100 px-1 py-0.5 text-[8px] font-bold text-amber-800">Bổ trợ</span>}
                 </p>
                 <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-purple-200/80 text-purple-800 shrink-0">
                   Bài nói
@@ -3453,6 +3464,18 @@ export const CourseLearningPage: React.FC = () => {
         {/* Right header action */}
 
         <div className="flex items-center gap-3">
+          {learnerRemedialAssignments.length > 0 && <div className="relative">
+            <button type="button" onClick={() => setIsRemedialPanelOpen(value => !value)} className="flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800 hover:bg-amber-100"><Sparkles className="h-3.5 w-3.5"/> Bài bổ trợ <span className="rounded-full bg-amber-200 px-1.5 py-0.5 text-[10px]">{learnerRemedialAssignments.filter(x=>x.status !== 'COMPLETED').length}</span></button>
+            {isRemedialPanelOpen && <div className="absolute right-0 top-[calc(100%+10px)] z-[60] w-[min(90vw,380px)] overflow-hidden rounded-2xl border border-amber-200 bg-white shadow-xl">
+              <div className="border-b border-amber-100 bg-amber-50 px-4 py-3"><p className="text-sm font-extrabold text-amber-950">Lộ trình bổ trợ riêng</p><p className="mt-0.5 text-[11px] text-amber-800">Không ảnh hưởng điều kiện hoàn thành hoặc chứng chỉ.</p></div>
+              <div className="max-h-[55vh] space-y-2 overflow-y-auto p-3">{learnerRemedialAssignments.map(task => <button key={`${task.remedialAssignmentId}-${task.studentId}`} type="button" onClick={() => {
+                setIsRemedialPanelOpen(false);
+                if (task.contentType === 'LESSON') { const target = orderedLessons.find(x => x.lessonId === task.contentId); if (target) handleSelectLesson(target); }
+                else if (task.contentType === 'QUIZ') handleTakeQuiz(task.contentId);
+                else { const target = courseSpeakingScripts.find(x => x.scriptId === task.contentId); if (target) handleSelectSpeakingScript(target); }
+              }} className="block w-full rounded-xl border border-slate-200 p-3 text-left hover:border-amber-300 hover:bg-amber-50/60"><span className="flex items-start justify-between gap-2"><span className="min-w-0"><b className="block truncate text-xs text-slate-900">{task.title}</b><span className="mt-1 block truncate text-[11px] text-slate-600">{task.contentTitle}</span></span><span className={`shrink-0 rounded-full px-2 py-1 text-[9px] font-bold ${task.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'}`}>{task.status === 'COMPLETED' ? 'Hoàn thành' : `${task.attemptsUsed}/${task.maxAttempts} lượt`}</span></span><span className="mt-2 block text-[10px] text-slate-500">{task.reason}{task.dueAt ? ` · Hạn ${new Date(task.dueAt).toLocaleString('vi-VN')}` : ''}</span></button>)}</div>
+            </div>}
+          </div>}
           {/* Progress Badge */}
 
           <div className="hidden sm:flex items-center gap-2 rounded-full bg-slate-100 border border-slate-200 px-3 py-1 text-xs text-slate-700 font-semibold">
@@ -4406,9 +4429,10 @@ export const CourseLearningPage: React.FC = () => {
                                       {
                                         lesson.title
                                       }
-                                    </p>z
+                                    </p>
 
                                     <div className="mt-1 flex items-center gap-2 text-[10px] text-slate-500">
+                                      {lesson.isRemedial && <span className="rounded bg-amber-100 px-1.5 py-0.5 font-bold text-amber-800">Bài bổ trợ</span>}
                                       <span className="flex items-center gap-1">
                                         <Clock className="h-3 w-3 text-slate-400" />
                                         {getLessonDuration(lesson)}

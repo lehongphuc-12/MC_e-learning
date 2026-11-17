@@ -45,6 +45,9 @@ public class Quiz
     [Column("MaxAttempts")]
     public int MaxAttempts { get; set; } = 0; // 0 = unlimited
 
+    [Column("IsRemedial")]
+    public bool IsRemedial { get; set; }
+
     [Column("Status")]
     public QuizStatus Status { get; set; } = QuizStatus.ACTIVE;
 

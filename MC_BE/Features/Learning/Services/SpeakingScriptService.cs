@@ -109,6 +109,8 @@ public class SpeakingScriptService : ISpeakingScriptService
                 Title = request.Title.Trim(),
                 OriginalContent = request.OriginalContent,
                 PassingScore = request.PassingScore,
+                DueAt = request.DueAt,
+                IsRemedial = request.IsRemedial ?? false,
                 CreatedBy = instructorId,
                 Status = SpeakingScriptStatus.PUBLISHED,
                 UpdatedAt = DateTime.UtcNow
@@ -155,6 +157,8 @@ public class SpeakingScriptService : ISpeakingScriptService
             }
             existingScript.Status = SpeakingScriptStatus.PUBLISHED;
             existingScript.UpdatedAt = DateTime.UtcNow;
+            existingScript.DueAt = request.DueAt;
+            if (request.IsRemedial.HasValue) existingScript.IsRemedial = request.IsRemedial.Value;
 
             var validFallback = request.Levels.FirstOrDefault(l => !string.IsNullOrWhiteSpace(l.Content))?.Content
                 ?? existingScript.OriginalContent
@@ -310,6 +314,8 @@ public class SpeakingScriptService : ISpeakingScriptService
             Title = request.Title.Trim(),
             OriginalContent = request.OriginalContent,
             PassingScore = request.PassingScore > 0 ? request.PassingScore : 80.00m,
+            DueAt = request.DueAt,
+            IsRemedial = request.IsRemedial,
             CreatedBy = instructorId,
             Status = SpeakingScriptStatus.PUBLISHED,
             UpdatedAt = DateTime.UtcNow
@@ -403,6 +409,8 @@ public class SpeakingScriptService : ISpeakingScriptService
         }
 
         script.UpdatedAt = DateTime.UtcNow;
+        if (request.DueAt.HasValue) script.DueAt = request.DueAt.Value;
+        if (request.IsRemedial.HasValue) script.IsRemedial = request.IsRemedial.Value;
 
         if (request.Levels != null && request.Levels.Count > 0)
         {
@@ -479,6 +487,8 @@ public class SpeakingScriptService : ISpeakingScriptService
             Title = script.Title,
             OriginalContent = script.OriginalContent,
             PassingScore = script.PassingScore,
+            DueAt = script.DueAt,
+            IsRemedial = script.IsRemedial,
             CreatedBy = script.CreatedBy,
             CreatedByName = script.CreatedByUser?.FullName,
             Status = script.Status.ToString(),

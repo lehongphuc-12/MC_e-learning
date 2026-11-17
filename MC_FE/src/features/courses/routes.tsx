@@ -12,6 +12,7 @@ import { MyCoursesScreen } from './components/MyCoursesScreen';
 import { CourseManagementPage } from './components/management/CourseManagementPage';
 import { CourseFormPage } from './components/management/CourseFormPage';
 import { CourseLessonsPage } from './components/management/CourseLessonsPage';
+import { CourseStudentDashboardPage } from './components/management/CourseStudentDashboardPage';
 import { InstructorSpeakingPage } from './components/management/InstructorSpeakingPage';
 import { InstructorSpeakingAssignmentsPage } from './components/management/InstructorSpeakingAssignmentsPage';
 import { ProtectedRoute } from '../../components/common/ProtectedRoute';
@@ -199,6 +200,14 @@ export const renderCourseRoutes = ({
             onToast={onToast}
           >
             {withInstructorLayout(<CourseLessonsPage />)}
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/instructor/courses/:id/students"
+        element={
+          <ProtectedRoute user={user} allowedRoles={['instructor', 'admin']} currentScreen={currentScreen} onNavigate={onNavigate} onToast={onToast}>
+            {withInstructorLayout(<CourseStudentDashboardPage />)}
           </ProtectedRoute>
         }
       />

@@ -28,6 +28,7 @@ public class LearningProgressService : ILearningProgressService
     private readonly ICourseLearningAccessService _courseAccess;
     private readonly ILearningAccessService _access;
     private readonly SmartMcDbContext _db;
+    private readonly IRemedialAssignmentService _remedialAssignments;
 
     public LearningProgressService(
         IGenericRepository<Enrollment> enrollmentRepository,
@@ -42,7 +43,8 @@ public class LearningProgressService : ILearningProgressService
         ICertificateService certificateService,
         ICourseLearningAccessService courseAccess,
         ILearningAccessService access,
-        SmartMcDbContext db)
+        SmartMcDbContext db,
+        IRemedialAssignmentService remedialAssignments)
     {
         _enrollmentRepository = enrollmentRepository;
         _lessonRepository = lessonRepository;
@@ -57,6 +59,7 @@ public class LearningProgressService : ILearningProgressService
         _courseAccess = courseAccess;
         _access = access;
         _db = db;
+        _remedialAssignments = remedialAssignments;
     }
 
     public async Task<CourseLearningProgressDto?> GetCourseProgressAsync(int learnerId, int courseId)
@@ -75,7 +78,7 @@ public class LearningProgressService : ILearningProgressService
         }
 
         var lessonsList = await _lessonRepository.FindAsync(
-            l => l.CourseId == courseId && l.Status == LessonStatus.ACTIVE);
+            l => l.CourseId == courseId && l.Status == LessonStatus.ACTIVE && !l.IsRemedial);
 
         var lessons = lessonsList
             .OrderBy(l => l.OrderIndex)
@@ -133,6 +136,7 @@ public class LearningProgressService : ILearningProgressService
         var activeChapterQuizzes = await _db.Quizzes.AsNoTracking()
             .Where(q =>
                 q.Purpose == QuizPurpose.CHAPTER_ASSESSMENT &&
+                !q.IsRemedial &&
                 q.Status == QuizStatus.ACTIVE &&
                 ((q.CourseId == courseId) || (q.ModuleId.HasValue && moduleIds.Contains(q.ModuleId.Value))))
             .Select(q => q.QuizId)
@@ -143,6 +147,7 @@ public class LearningProgressService : ILearningProgressService
         var activeFinalQuizzes = await _db.Quizzes.AsNoTracking()
             .Where(q =>
                 q.Purpose == QuizPurpose.FINAL_ASSESSMENT &&
+                !q.IsRemedial &&
                 q.Status == QuizStatus.ACTIVE &&
                 (q.CourseId == courseId || (q.LessonId.HasValue && lessonIds.Contains(q.LessonId.Value))))
             .Select(q => q.QuizId)
@@ -167,7 +172,7 @@ public class LearningProgressService : ILearningProgressService
 
         // Lấy các bài tập nói độc lập (Scope CHAPTER hoặc FINAL) chưa gắn vào Lesson
         var standaloneSpeakingScripts = await _db.SpeakingScripts.AsNoTracking()
-            .Where(s => s.CourseId == courseId && s.LessonId == null)
+            .Where(s => s.CourseId == courseId && s.LessonId == null && !s.IsRemedial)
             .Select(s => s.ScriptId)
             .Distinct()
             .ToListAsync();
@@ -235,6 +240,7 @@ public class LearningProgressService : ILearningProgressService
         var lesson = await _lessonRepository.GetByIdAsync(lessonId);
         if (lesson == null) return null;
         if (!await _courseAccess.CanAccessCourseAsync(lesson.CourseId, learnerId, isAdmin: false)) return null;
+        if (lesson.IsRemedial && !await _remedialAssignments.CanAccessContentAsync(learnerId, "LESSON", lessonId)) return null;
 
         var now = DateTime.UtcNow;
         var enrollment = await _enrollmentRepository.GetQueryable()
@@ -310,6 +316,8 @@ public class LearningProgressService : ILearningProgressService
         try
         {
             await _unitOfWork.SaveChangesAsync();
+            if (lesson.IsRemedial && request.IsCompleted == true)
+                await _remedialAssignments.CompleteLessonAsync(learnerId, lessonId);
         }
         catch (DbUpdateException)
         {
@@ -318,7 +326,7 @@ public class LearningProgressService : ILearningProgressService
 
         // Calculate new course completion rate
         var allLessonsList = await _lessonRepository.FindAsync(
-            l => l.CourseId == lesson.CourseId && l.Status == LessonStatus.ACTIVE);
+            l => l.CourseId == lesson.CourseId && l.Status == LessonStatus.ACTIVE && !l.IsRemedial);
 
         var allLessonIds = allLessonsList.Select(l => l.LessonId).ToList();
 
@@ -339,6 +347,7 @@ public class LearningProgressService : ILearningProgressService
         var activeChapterQuizzes = await _db.Quizzes.AsNoTracking()
             .Where(q =>
                 q.Purpose == QuizPurpose.CHAPTER_ASSESSMENT &&
+                !q.IsRemedial &&
                 q.Status == QuizStatus.ACTIVE &&
                 ((q.CourseId == lesson.CourseId) || (q.ModuleId.HasValue && moduleIds.Contains(q.ModuleId.Value))))
             .Select(q => q.QuizId)
@@ -348,6 +357,7 @@ public class LearningProgressService : ILearningProgressService
         var activeFinalQuizzes = await _db.Quizzes.AsNoTracking()
             .Where(q =>
                 q.Purpose == QuizPurpose.FINAL_ASSESSMENT &&
+                !q.IsRemedial &&
                 q.Status == QuizStatus.ACTIVE &&
                 (q.CourseId == lesson.CourseId || (q.LessonId.HasValue && allLessonIds.Contains(q.LessonId.Value))))
             .Select(q => q.QuizId)
@@ -370,7 +380,7 @@ public class LearningProgressService : ILearningProgressService
         int passedFinalCount = activeFinalQuizzes.Count(id => passedQuizIds.Contains(id));
 
         var standaloneSpeakingScripts = await _db.SpeakingScripts.AsNoTracking()
-            .Where(s => s.CourseId == lesson.CourseId && s.LessonId == null)
+            .Where(s => s.CourseId == lesson.CourseId && s.LessonId == null && !s.IsRemedial)
             .Select(s => s.ScriptId)
             .Distinct()
             .ToListAsync();

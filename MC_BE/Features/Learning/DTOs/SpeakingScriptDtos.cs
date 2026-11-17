@@ -51,6 +51,8 @@ public class SaveScriptRequest
     public int? CourseId { get; set; }
 
     public decimal PassingScore { get; set; } = 80.00m;
+    public DateTime? DueAt { get; set; }
+    public bool? IsRemedial { get; set; }
 
     [Required(ErrorMessage = "Phải cung cấp đủ nội dung các cấp độ.")]
     [MinLength(3, ErrorMessage = "Phải cung cấp đủ 3 cấp độ (BEGINNER, INTERMEDIATE, ADVANCED).")]
@@ -75,6 +77,8 @@ public class CreateSpeakingScriptRequest
     public string? OriginalContent { get; set; }
 
     public decimal PassingScore { get; set; } = 80.00m;
+    public DateTime? DueAt { get; set; }
+    public bool IsRemedial { get; set; }
 
     [Required(ErrorMessage = "Phải cung cấp đủ nội dung các cấp độ.")]
     [MinLength(3, ErrorMessage = "Phải cung cấp đủ 3 cấp độ (BEGINNER, INTERMEDIATE, ADVANCED).")]
@@ -97,6 +101,8 @@ public class UpdateSpeakingScriptRequest
     public string? OriginalContent { get; set; }
 
     public decimal? PassingScore { get; set; }
+    public DateTime? DueAt { get; set; }
+    public bool? IsRemedial { get; set; }
 
     public List<SaveLevelDto>? Levels { get; set; }
 }
@@ -132,6 +138,8 @@ public class SpeakingScriptDto
     public string Title { get; set; } = string.Empty;
     public string? OriginalContent { get; set; }
     public decimal PassingScore { get; set; } = 80.00m;
+    public DateTime? DueAt { get; set; }
+    public bool IsRemedial { get; set; }
     public int? CreatedBy { get; set; }
     public string? CreatedByName { get; set; }
     public string Status { get; set; } = string.Empty;

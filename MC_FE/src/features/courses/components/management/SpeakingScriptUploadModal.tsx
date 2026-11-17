@@ -121,6 +121,8 @@ export const SpeakingScriptUploadModal: React.FC<SpeakingScriptUploadModalProps>
   const [scriptTitle, setScriptTitle] = useState(
     scriptToEdit?.title || lessonTitle || ''
   );
+  const [isRemedial, setIsRemedial] = useState(scriptToEdit?.isRemedial ?? false);
+  const [dueAt, setDueAt] = useState(scriptToEdit?.dueAt ? new Date(scriptToEdit.dueAt).toISOString().slice(0, 16) : '');
   const [originalContent, setOriginalContent] = useState(
     scriptToEdit?.originalContent || ''
   );
@@ -415,6 +417,8 @@ export const SpeakingScriptUploadModal: React.FC<SpeakingScriptUploadModalProps>
           originalContent,
           levels: finalLevels,
           passingScore: 80,
+          dueAt: dueAt ? new Date(dueAt).toISOString() : null,
+          isRemedial,
         });
 
         if (res.success) {
@@ -434,6 +438,8 @@ export const SpeakingScriptUploadModal: React.FC<SpeakingScriptUploadModalProps>
           originalContent,
           levels: finalLevels,
           passingScore: 80,
+          dueAt: dueAt ? new Date(dueAt).toISOString() : null,
+          isRemedial,
         });
 
         if (res.success) {
@@ -675,6 +681,10 @@ export const SpeakingScriptUploadModal: React.FC<SpeakingScriptUploadModalProps>
                 placeholder="VD: Bài thi cuối khóa: Lời dẫn Khai mạc & Nghi thức Rót rượu Champagne"
                 className="w-full text-xs font-medium px-3 py-2 rounded-xl border border-slate-200 bg-white focus:outline-hidden focus:ring-2 focus:ring-blue-500/20"
               />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block text-[11px] font-bold text-slate-600">Hạn nộp (tùy chọn)<input type="datetime-local" value={dueAt} onChange={e=>setDueAt(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium"/></label>
+              <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3"><input type="checkbox" checked={isRemedial} onChange={e=>setIsRemedial(e.target.checked)} className="mt-0.5 h-4 w-4 rounded text-amber-600"/><span><b className="block text-xs text-amber-900">Bài Speaking bổ trợ riêng</b><span className="mt-1 block text-[10px] text-amber-800">Không tính vào chứng chỉ; chỉ người được giao thấy.</span></span></label>
             </div>
           </div>
 
