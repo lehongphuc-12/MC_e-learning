@@ -81,15 +81,16 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
     }
 
     /// <summary>
-    /// Học viên nộp bài tập ghi âm luyện nói theo LessonId hoặc ScriptId.
-    /// <para>End-to-End Execution Flow:</para>
-    /// <para>Bước 1: Validate file ghi âm (tồn tại, không rỗng, đuôi file âm thanh hợp lệ trong whitelist).</para>
-    /// <para>Bước 2: Phân giải CourseId, ScriptId, LessonId từ dữ liệu gửi lên.</para>
-    /// <para>Bước 3: Kiểm tra quyền truy cập khóa học và bản ghi Ghi danh (Enrollment) hợp lệ.</para>
-    /// <para>Bước 4: Tra cứu bài nộp gần nhất (existingSubmission) để áp dụng quy chế Khóa nộp bài.</para>
-    /// <para>Bước 5: Upload file ghi âm lên Cloudinary thư mục 'speaking_submissions'.</para>
-    /// <para>Bước 6: Ghi đè bài nộp cũ (nếu thi lại khi bị trượt) hoặc Tạo mới bản ghi SpeakingSubmission (Status = SUBMITTED).</para>
-    /// <para>Bước 7: Commit transaction qua UnitOfWork và trả về SpeakingSubmissionResponseDto.</para>
+    /// [Dòng này làm gì & Luồng chạy]:
+    /// - Học viên nộp bài tập ghi âm luyện nói theo LessonId hoặc ScriptId.
+    /// - End-to-End Execution Flow:
+    ///   - Bước 1: Validate file ghi âm (tồn tại, không rỗng, đuôi file âm thanh hợp lệ trong whitelist).
+    ///   - Bước 2: Phân giải CourseId, ScriptId, LessonId từ dữ liệu gửi lên.
+    ///   - Bước 3: Kiểm tra quyền truy cập khóa học và bản ghi Ghi danh (Enrollment) hợp lệ.
+    ///   - Bước 4: Tra cứu bài nộp gần nhất (existingSubmission) để áp dụng quy chế Khóa nộp bài.
+    ///   - Bước 5: Upload file ghi âm lên Cloudinary thư mục 'speaking_submissions'.
+    ///   - Bước 6: Ghi đè bài nộp cũ (nếu thi lại khi bị trượt) hoặc Tạo mới bản ghi SpeakingSubmission (Status = SUBMITTED).
+    ///   - Bước 7: Commit transaction qua UnitOfWork và trả về SpeakingSubmissionResponseDto.
     /// </summary>
     /// <param name="learnerId">ID học viên nộp bài.</param>
     /// <param name="request">Dữ liệu nộp bài (file audio, ghi chú, lessonId, scriptId).</param>
@@ -101,11 +102,7 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
             // ====================================================================================================
             // [BƯỚC 1]: KIỂM TRA HỢP LỆ CỦA FILE ÂM THANH ĐẦU VÀO
             // ====================================================================================================
-            // 1. Validate file existence and extension (.mp3, .wav)
             // [BƯỚC 1.1]: Kiểm tra file có bị null hoặc kích thước 0 byte không
-            // - Điều kiện: request.AudioFile == null || request.AudioFile.Length == 0.
-            // - Trường hợp ĐÚNG (TRUE): Ghi log lỗi và ném ArgumentException("Audio file is required.").
-            // - Trường hợp SAI (FALSE): File tồn tại và có dung lượng, tiếp tục kiểm tra định dạng.
             if (request.AudioFile == null || request.AudioFile.Length == 0)
             {
                 var errMsg = "Error: Audio file is empty or missing.";
@@ -116,8 +113,6 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
             // [BƯỚC 1.2]: Kiểm tra danh sách phần mở rộng tập tin âm thanh hợp lệ (Audio Whitelist)
             var extension = Path.GetExtension(request.AudioFile.FileName).ToLowerInvariant();
             var allowedExtensions = new[] { ".mp3", ".wav", ".m4a", ".ogg", ".webm", ".aac" };
-            // - Điều kiện: !allowedExtensions.Contains(extension).
-            // - Trường hợp ĐÚNG (TRUE): Ném ArgumentException cảnh báo định dạng không được hỗ trợ.
             if (!allowedExtensions.Contains(extension))
             {
                 var errMsg = $"Error: Invalid audio file format '{extension}'. Only .mp3 and .wav files are allowed.";
@@ -172,12 +167,9 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
             // ====================================================================================================
             // [BƯỚC 3]: XÁC MINH QUYỀN TRUY CẬP VÀ GHI DANH KHÓA HỌC
             // ====================================================================================================
-            // 3.1: Kiểm tra khóa học còn hạn và học viên có quyền truy cập
             if (!await _courseAccess.CanAccessCourseAsync(courseId, learnerId, isAdmin: false))
                 throw new InvalidOperationException("Bạn không có quyền truy cập khóa học này.");
 
-            // 3.2: Kiểm tra bản ghi Ghi danh (Enrollment) thực tế trong CSDL
-            // 3. Check learner enrollment in the course via Repository
             var enrollments = await _enrollmentRepository.FindAsync(
                 e => e.LearnerId == learnerId && e.CourseId == courseId);
             if (!enrollments.Any())
@@ -190,7 +182,6 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
             // ====================================================================================================
             // [BƯỚC 4]: QUY CHẾ KHÓA NỘP BÀI (RESUBMISSION LOCK BUSINESS RULES)
             // ====================================================================================================
-            // Check if learner has already submitted
             SpeakingSubmission? existingSubmission = null;
             if (scriptId.HasValue)
             {
@@ -205,8 +196,6 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
             if (existingSubmission != null)
             {
                 // [KHÓA 1]: Bài nộp trước đang chờ giảng viên chấm (Score == null hoặc Status == SUBMITTED)
-                // - Ý NGHĨA NGHIỆP VỤ: Ngăn chặn học viên nộp dồn dập nhiều bản ghi âm khi giảng viên chưa kịp nghe,
-                //   tránh làm quá tải hàng đợi chấm bài của giáo viên.
                 if (existingSubmission.Score == null || existingSubmission.Status == SpeakingSubmissionStatus.SUBMITTED)
                 {
                     var errMsg = "Bài nộp của bạn đang chờ giảng viên chấm, không thể nộp lại lúc này.";
@@ -215,8 +204,6 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
                 }
 
                 // [KHÓA 2]: Bài nộp trước ĐÃ ĐẠT CHUẨN ĐẦU RA (Score >= 80 điểm)
-                // - Ý NGHĨA NGHIỆP VỤ: Học viên đã thi đỗ bài nói này (>= 80/100), hệ thống khóa lại để bảo lưu
-                //   kết quả đạt và chuyển sang bài học tiếp theo, không cho nộp đè làm mất điểm đạt.
                 if (existingSubmission.Score >= 80)
                 {
                     var errMsg = "Bạn đã đạt yêu cầu bài thi nói này (≥ 80 điểm), không cần nộp lại.";
@@ -224,14 +211,12 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
                     throw new InvalidOperationException(errMsg);
                 }
 
-                // Nếu Score < 80 và Status != SUBMITTED: Nghĩa là học viên đã bị chấm trượt ở lần trước,
-                // luồng chạy sẽ tiếp tục trôi xuống dưới để cho phép nộp lại (Resubmission Flow)!
+                // Nếu Score < 80 và Status != SUBMITTED: Học viên bị trượt ở lần trước -> Đi tiếp xuống nộp lại
             }
 
             // ====================================================================================================
             // [BƯỚC 5]: TẢI TẬP TIN GHI ÂM LÊN ĐÁM MÂY CLOUDINARY
             // ====================================================================================================
-            // 4. Upload audio to Cloudinary
             var uploadResult = await _cloudinaryService.UploadVideoAsync(request.AudioFile, "speaking_submissions");
             if (uploadResult == null || string.IsNullOrEmpty(uploadResult.SecureUrl?.ToString()))
             {
@@ -245,9 +230,8 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
             // ====================================================================================================
             // [BƯỚC 6]: GHI ĐÈ BẢN GHI CŨ HOẶC TẠO MỚI BÀI NỘP (UPSERT PATTERN)
             // ====================================================================================================
-            // 5. Create new or Overwrite existing submission record
             SpeakingSubmission submission;
-            // Nhánh 6.1: Học viên nộp lại sau khi bị trượt -> Tái sử dụng bản ghi cũ, reset điểm và chuyển về SUBMITTED
+            // Nhánh 6.1: Nộp lại sau khi bị trượt -> Reset điểm, nhận xét và chuyển về trạng thái SUBMITTED
             if (existingSubmission != null)
             {
                 existingSubmission.AudioUrl = audioUrl;
@@ -267,7 +251,7 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
                 _submissionRepository.Update(existingSubmission);
                 submission = existingSubmission;
             }
-            // Nhánh 6.2: Học viên nộp bài lần đầu tiên -> Khởi tạo thực thể SpeakingSubmission mới hoàn toàn
+            // Nhánh 6.2: Nộp lần đầu tiên -> Tạo mới hoàn toàn
             else
             {
                 submission = new SpeakingSubmission
@@ -394,15 +378,16 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
     }
 
     /// <summary>
-    /// Giảng viên thực hiện chấm điểm và viết nhận xét cho bài nộp Speaking.
-    /// Tự động cập nhật tiến độ hoàn thành bài học (LessonProgress) nếu điểm đạt chuẩn (>= 80).
-    /// <para>End-to-End Execution Flow:</para>
-    /// <para>Bước 1: Validate điểm số trong thang điểm 0 - 100.</para>
-    /// <para>Bước 2: Tìm bài nộp kèm thông tin chi tiết qua GetByIdWithDetailsAsync.</para>
-    /// <para>Bước 3: Xác minh quyền giảng viên của khóa học (Authorization Check).</para>
-    /// <para>Bước 4: Cập nhật Score, Feedback, GradedById, GradedAt và trạng thái (GRADED nếu >= 80, ngược lại NEEDS_RESUBMISSION).</para>
-    /// <para>Bước 5: Đồng bộ trạng thái hoàn thành bài học sang bảng LessonProgresses.</para>
-    /// <para>Bước 6: Commit transaction và trả về SpeakingSubmissionResponseDto.</para>
+    /// [Dòng này làm gì & Luồng chạy]:
+    /// - Giảng viên thực hiện chấm điểm và viết nhận xét cho bài nộp Speaking.
+    /// - Tự động cập nhật tiến độ hoàn thành bài học (LessonProgress) nếu điểm đạt chuẩn (>= 80).
+    /// - End-to-End Execution Flow:
+    ///   - Bước 1: Validate điểm số trong thang điểm 0 - 100.
+    ///   - Bước 2: Tìm bài nộp kèm thông tin chi tiết qua GetByIdWithDetailsAsync.
+    ///   - Bước 3: Xác minh quyền giảng viên của khóa học (Authorization Check).
+    ///   - Bước 4: Cập nhật Score, Feedback, GradedById, GradedAt và trạng thái (GRADED nếu >= 80, ngược lại NEEDS_RESUBMISSION).
+    ///   - Bước 5: Đồng bộ trạng thái hoàn thành bài học sang bảng LessonProgresses.
+    ///   - Bước 6: Commit transaction và trả về SpeakingSubmissionResponseDto.
     /// </summary>
     /// <param name="instructorId">ID giảng viên chấm bài.</param>
     /// <param name="submissionId">ID bài nộp.</param>
@@ -426,7 +411,6 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
             }
 
             // [BƯỚC 3]: XÁC MINH QUYỀN HẠN CỦA GIẢNG VIÊN (AUTHORIZATION CHECK)
-            // Lấy InstructorId của khóa học chứa bài nộp này
             var courseInstructorId = submission.Lesson?.Course?.InstructorId
                 ?? submission.SpeakingScript?.Course?.InstructorId;
 
@@ -443,7 +427,6 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
             submission.Feedback = request.Feedback;
             submission.GradedById = instructorId;
             submission.GradedAt = DateTime.UtcNow;
-            // Toán tử 3 ngôi: Điểm >= 80 gán trạng thái GRADED; điểm < 80 gán NEEDS_RESUBMISSION để học viên nộp lại
             submission.Status = isPassed ? SpeakingSubmissionStatus.GRADED : SpeakingSubmissionStatus.NEEDS_RESUBMISSION;
             submission.UpdatedAt = DateTime.UtcNow;
 
@@ -452,7 +435,6 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
             // ====================================================================================================
             // [BƯỚC 5]: ĐỒNG BỘ TRẠNG THÁI TIẾN ĐỘ BÀI HỌC (LESSON PROGRESS SYNCHRONIZATION)
             // ====================================================================================================
-            // Cập nhật tiến độ hoàn thành bài học (LessonProgress) nếu có gắn bài học
             if (submission.Lesson != null && submission.LessonId.HasValue)
             {
                 var enrollments = await _enrollmentRepository.FindAsync(
@@ -509,8 +491,7 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
     }
 
     /// <summary>
-    /// Hàm dùng chung (Private Helper) ánh xạ thực thể SpeakingSubmission sang SpeakingSubmissionResponseDto.
-    /// Tính toán các thuộc tính dự phòng (fallback) để giao diện luôn có tiêu đề và thông tin đầy đủ.
+    /// Ánh xạ thực thể SpeakingSubmission sang SpeakingSubmissionResponseDto.
     /// </summary>
     private static SpeakingSubmissionResponseDto MapToResponseDto(SpeakingSubmission submission)
     {

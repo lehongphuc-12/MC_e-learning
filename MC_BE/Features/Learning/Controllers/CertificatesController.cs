@@ -41,7 +41,7 @@ public class CertificatesController : ControllerBase
     private readonly ICertificateService _certificateService;
 
     /// <summary>
-    /// Khởi tạo Controller với CertificateService được inject qua DI.
+    /// Khởi tạo Controller với CertificateService được inject qua DI Container.
     /// </summary>
     public CertificatesController(ICertificateService certificateService)
     {
@@ -49,12 +49,14 @@ public class CertificatesController : ControllerBase
     }
 
     /// <summary>
-    /// Hàm tiện ích (Private Helper) lấy ID người dùng từ Claims trong JWT Token đã giải mã.
+    /// [Dòng này làm gì & Luồng chạy]:
+    /// - Hàm tiện ích (Private Helper) lấy ID người dùng từ Claims trong JWT Token đã giải mã.
+    /// - Đọc Claim `ClaimTypes.NameIdentifier` từ `HttpContext.User`.
+    /// - Gọi `int.TryParse(claim, out var id)` chuyển chuỗi sang số nguyên; nếu thất bại hoặc null thì trả về null.
     /// </summary>
     /// <returns>UserId kiểu int hoặc null nếu không tìm thấy claim NameIdentifier.</returns>
     private int? GetCurrentUserId()
     {
-        // [BƯỚC 1]: Đọc Claim NameIdentifier từ token
         var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         return int.TryParse(claim, out var id) ? id : null;
     }
@@ -68,25 +70,17 @@ public class CertificatesController : ControllerBase
     /// <para>Bước 3: Trả về HTTP 200 OK kèm danh sách CertificateDto.</para>
     /// </summary>
     /// <returns>ApiResponse chứa danh sách chứng chỉ.</returns>
-    /// <summary>
-    /// GET /api/certificates/my-certificates
-    /// Get all certificates earned by current learner
-    /// </summary>
     [HttpGet("my-certificates")]
     [Authorize]
     public async Task<ActionResult<ApiResponse<List<CertificateDto>>>> GetMyCertificates()
     {
-        // [BƯỚC 1]: Kiểm tra xác thực người dùng
         var learnerId = GetCurrentUserId();
-        // Rẽ nhánh: Nếu chưa đăng nhập hoặc token thiếu claim hợp lệ
         if (learnerId == null)
         {
             return Unauthorized(ApiResponse<List<CertificateDto>>.FailureResponse("Unauthorized."));
         }
 
-        // [BƯỚC 2]: Gọi Service lấy danh sách chứng chỉ
         var certificates = await _certificateService.GetMyCertificatesAsync(learnerId.Value);
-        // [BƯỚC 3]: Trả về HTTP 200 OK
         return Ok(ApiResponse<List<CertificateDto>>.SuccessResponse(certificates, "Certificates retrieved successfully."));
     }
 
@@ -97,10 +91,6 @@ public class CertificatesController : ControllerBase
     /// </summary>
     /// <param name="courseId">ID khóa học.</param>
     /// <returns>ApiResponse chứa CertificateDto.</returns>
-    /// <summary>
-    /// GET /api/certificates/course/{courseId}
-    /// Get certificate for current learner by course ID
-    /// </summary>
     [HttpGet("course/{courseId:int}")]
     [Authorize]
     public async Task<ActionResult<ApiResponse<CertificateDto>>> GetCertificateByCourse(int courseId)
@@ -112,7 +102,6 @@ public class CertificatesController : ControllerBase
         }
 
         var cert = await _certificateService.GetCertificateByCourseAsync(learnerId.Value, courseId);
-        // Rẽ nhánh: Học viên chưa được cấp chứng chỉ trong khóa học này
         if (cert == null)
         {
             return NotFound(ApiResponse<CertificateDto>.FailureResponse("Certificate not found for this course."));
@@ -123,22 +112,17 @@ public class CertificatesController : ControllerBase
 
     /// <summary>
     /// GET /api/certificates/{certificateId}
-    /// Lấy chi tiết thông tin một chứng chỉ theo CertificateId có kiểm tra phân quyền sở hữu.
+    /// Lấy chi tiết thông tin một chứng chỉ theo CertificateId có kiểm tra phân quyền sở hữu (BOLA/IDOR Defense).
     /// <para>End-to-End Flow: Lấy learnerId từ Token -> Gọi Service GetCertificateByIdAsync(certificateId, learnerId) -> Nếu null (không có hoặc không có quyền) trả về 404 Not Found -> Trả về 200 OK.</para>
     /// </summary>
     /// <param name="certificateId">ID chứng chỉ.</param>
     /// <returns>ApiResponse chứa thông tin chi tiết chứng chỉ.</returns>
-    /// <summary>
-    /// GET /api/certificates/{certificateId}
-    /// Get certificate details by certificate ID
-    /// </summary>
     [HttpGet("{certificateId:int}")]
     [Authorize]
     public async Task<ActionResult<ApiResponse<CertificateDto>>> GetCertificateById(int certificateId)
     {
         var learnerId = GetCurrentUserId();
         var cert = await _certificateService.GetCertificateByIdAsync(certificateId, learnerId);
-        // Rẽ nhánh: Không tìm thấy chứng chỉ hoặc người xem không có quyền (không phải chính chủ/giảng viên/admin)
         if (cert == null)
         {
             return NotFound(ApiResponse<CertificateDto>.FailureResponse("Certificate not found or access denied."));
@@ -161,10 +145,6 @@ public class CertificatesController : ControllerBase
     /// </summary>
     /// <param name="courseId">ID khóa học yêu cầu cấp chứng chỉ.</param>
     /// <returns>ApiResponse chứa CertificateDto.</returns>
-    /// <summary>
-    /// POST /api/certificates/issue/{courseId}
-    /// Issue certificate for current learner if 100% completed (Idempotent)
-    /// </summary>
     [HttpPost("issue/{courseId:int}")]
     [Authorize]
     public async Task<ActionResult<ApiResponse<CertificateDto>>> IssueCertificate(int courseId)
@@ -177,9 +157,7 @@ public class CertificatesController : ControllerBase
 
         try
         {
-            // [BƯỚC 1]: Gọi Service kiểm tra điều kiện và thực hiện cấp chứng chỉ
             var cert = await _certificateService.IssueCertificateAsync(learnerId.Value, courseId);
-            // Rẽ nhánh: Không thể tạo được chứng chỉ
             if (cert == null)
             {
                 return BadRequest(ApiResponse<CertificateDto>.FailureResponse("Unable to issue certificate."));
@@ -189,12 +167,10 @@ public class CertificatesController : ControllerBase
         }
         catch (ArgumentException ex)
         {
-            // Bắt lỗi học viên chưa ghi danh khóa học -> Phản hồi 400
             return BadRequest(ApiResponse<CertificateDto>.FailureResponse(ex.Message));
         }
         catch (InvalidOperationException ex)
         {
-            // Bắt lỗi học viên chưa hoàn thành 100% hoặc chưa đạt bài thi cuối khóa -> Phản hồi 400
             return BadRequest(ApiResponse<CertificateDto>.FailureResponse(ex.Message));
         }
         catch (Exception ex)
@@ -212,26 +188,16 @@ public class CertificatesController : ControllerBase
     /// </summary>
     /// <param name="code">Mã chứng chỉ duy nhất dạng chuỗi (ví dụ: CERT-2026-ABCD1234).</param>
     /// <returns>ApiResponse chứa thông tin xác minh CertificateVerificationDto.</returns>
-    /// <summary>
-    /// GET /api/certificates/verify/{code}
-    /// Public endpoint to verify certificate authenticity by code
-    /// </summary>
     [HttpGet("verify/{code}")]
     [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<CertificateVerificationDto>>> VerifyCertificate(string code)
     {
-        // [BƯỚC 1]: Tra cứu chứng chỉ trên Service
         var result = await _certificateService.VerifyCertificateAsync(code);
-        // [BƯỚC 2]: Rẽ nhánh kiểm tra tính hợp lệ
-        // - Điều kiện: result == null || !result.IsValid.
-        // - Trường hợp ĐÚNG (TRUE): Mã chứng chỉ không tồn tại hoặc chứng chỉ đã bị thu hồi (REVOKED).
-        //     + Trả về HTTP 404 Not Found kèm cảnh báo "Certificate not found or invalid.".
         if (result == null || !result.IsValid)
         {
             return NotFound(ApiResponse<CertificateVerificationDto>.FailureResponse("Certificate not found or invalid."));
         }
 
-        // [BƯỚC 3]: Chứng chỉ hợp lệ và còn hiệu lực (ACTIVE) -> Trả về HTTP 200 OK
         return Ok(ApiResponse<CertificateVerificationDto>.SuccessResponse(result, "Certificate is valid."));
     }
 }

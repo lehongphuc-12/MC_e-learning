@@ -50,7 +50,7 @@ public class CertificateService : ICertificateService
     private readonly ILearningAccessService _access;
 
     /// <summary>
-    /// Khởi tạo CertificateService với các phụ thuộc cần thiết.
+    /// Khởi tạo CertificateService với các phụ thuộc cần thiết được tiêm từ DI Container.
     /// </summary>
     public CertificateService(
         IGenericRepository<Certificate> certificateRepository,
@@ -75,27 +75,26 @@ public class CertificateService : ICertificateService
     }
 
     /// <summary>
-    /// Lấy toàn bộ danh sách chứng chỉ đang có hiệu lực (ACTIVE) của học viên hiện tại.
-    /// <para>End-to-End Execution Flow:</para>
-    /// <para>Bước 1: Tìm tất cả chứng chỉ theo LearnerId và Status == 'ACTIVE'.</para>
-    /// <para>Bước 2: Gom danh sách EnrollmentId duy nhất và nạp đầy đủ thông tin Khóa học và Học viên.</para>
-    /// <para>Bước 3: Ghép thông tin Enrollment vào từng Certificate qua Dictionary.</para>
-    /// <para>Bước 4: Sắp xếp theo ngày cấp (IssuedAt) mới nhất và ánh xạ sang CertificateDto.</para>
+    /// [Dòng này làm gì & Luồng chạy]:
+    /// - Lấy toàn bộ danh sách chứng chỉ đang có hiệu lực (ACTIVE) của học viên hiện tại.
+    /// - End-to-End Execution Flow:
+    ///   - Bước 1: Tìm tất cả chứng chỉ theo LearnerId và Status == 'ACTIVE'.
+    ///   - Bước 2: Gom danh sách EnrollmentId duy nhất và nạp đầy đủ thông tin Khóa học và Học viên.
+    ///   - Bước 3: Ghép thông tin Enrollment vào từng Certificate qua Dictionary O(1).
+    ///   - Bước 4: Sắp xếp theo ngày cấp (IssuedAt) mới nhất và ánh xạ sang CertificateDto.
+    /// [Tại sao phải kiểm tra Status == "ACTIVE"]:
+    /// - Nghiệp vụ thu hồi chứng chỉ: Nếu chứng chỉ bị Admin thu hồi vì phát hiện gian lận ("REVOKED"), học viên sẽ không thấy hiển thị trong danh mục chứng chỉ hợp lệ nữa.
     /// </summary>
     /// <param name="learnerId">ID học viên.</param>
     /// <returns>Danh sách CertificateDto của học viên.</returns>
     public async Task<List<CertificateDto>> GetMyCertificatesAsync(int learnerId)
     {
         // [BƯỚC 1]: Truy vấn danh sách chứng chỉ của học viên với điều kiện Status == "ACTIVE"
-        // [TẠI SAO PHẢI CHECK c.Status == "ACTIVE"]:
-        //   - Nghiệp vụ thu hồi chứng chỉ: Nếu chứng chỉ bị Admin thu hồi vì gian lận ("REVOKED"),
-        //     học viên sẽ không thấy hiển thị trong danh mục chứng chỉ hợp lệ nữa.
         var certs = await _certificateRepository.FindAsync(
             c => c.Enrollment.LearnerId == learnerId && c.Status == "ACTIVE",
             c => c.Enrollment);
 
         // [BƯỚC 2]: Tải các quan hệ phụ thuộc cấp 2 (Navigation Properties) để phục vụ Mapping DTO
-        // Load navigation properties for Mapping
         var certList = certs.ToList();
         var enrollmentIds = certList.Select(c => c.EnrollmentId).Distinct().ToList();
         var enrollments = await _enrollmentRepository.FindAsync(
@@ -125,8 +124,9 @@ public class CertificateService : ICertificateService
     }
 
     /// <summary>
-    /// Lấy thông tin chứng chỉ của một học viên trong một khóa học cụ thể.
-    /// <para>End-to-End Flow: Tìm chứng chỉ theo cặp (LearnerId, CourseId, Status = 'ACTIVE') -> Nếu null trả về null -> Nạp quan hệ Course và Learner -> Map sang DTO.</para>
+    /// [Dòng này làm gì & Luồng chạy]:
+    /// - Lấy thông tin chứng chỉ của một học viên trong một khóa học cụ thể.
+    /// - End-to-End Flow: Tìm chứng chỉ theo cặp (LearnerId, CourseId, Status = 'ACTIVE') -> Nếu null trả về null -> Nạp quan hệ Course và Learner -> Map sang DTO.
     /// </summary>
     /// <param name="learnerId">ID học viên.</param>
     /// <param name="courseId">ID khóa học.</param>
@@ -143,7 +143,7 @@ public class CertificateService : ICertificateService
         var cert = certs.FirstOrDefault();
         
         // [BƯỚC 1.1]: Rẽ nhánh kiểm tra sự tồn tại của chứng chỉ
-        // - Điều kiện: cert == null (Học viên chưa hoàn thành khóa học hoặc chưa được cấp chứng chỉ).
+        // - Điều kiện: `cert == null` (Học viên chưa hoàn thành khóa học hoặc chưa được cấp chứng chỉ).
         // - Xử lý: Trả về null ngay lập tức để Controller phản hồi HTTP 404 hoặc thông báo chưa có chứng chỉ.
         if (cert == null) return null;
 
@@ -160,12 +160,13 @@ public class CertificateService : ICertificateService
     }
 
     /// <summary>
-    /// Lấy chi tiết chứng chỉ theo ID kèm theo kiểm tra phân quyền bảo mật (Data Isolation & Access Control).
-    /// <para>End-to-End Execution Flow:</para>
-    /// <para>Bước 1: Tìm Certificate theo certificateId -> Nếu không thấy trả về null.</para>
-    /// <para>Bước 2: Nạp quan hệ Enrollment, Course, Learner.</para>
-    /// <para>Bước 3: Phân quyền truy cập (Nếu truyền currentUserId): Kiểm tra xem người dùng có phải là Chủ sở hữu (LearnerId), hoặc Giảng viên dạy khóa học (InstructorId), hoặc Quản trị viên (Admin) hay không. Nếu không thỏa mãn -> Từ chối truy cập (trả về null).</para>
-    /// <para>Bước 4: Trả về CertificateDto.</para>
+    /// [Dòng này làm gì & Luồng chạy]:
+    /// - Lấy chi tiết chứng chỉ theo ID kèm theo kiểm tra phân quyền bảo mật (Data Isolation & Access Control).
+    /// - End-to-End Execution Flow:
+    ///   - Bước 1: Tìm Certificate theo certificateId -> Nếu không thấy trả về null.
+    ///   - Bước 2: Nạp quan hệ Enrollment, Course, Learner.
+    ///   - Bước 3: Phân quyền truy cập (Nếu truyền currentUserId): Kiểm tra xem người dùng có phải là Chủ sở hữu (LearnerId), hoặc Giảng viên dạy khóa học (InstructorId), hoặc Quản trị viên (Admin) hay không. Nếu không thỏa mãn -> Từ chối truy cập (trả về null).
+    ///   - Bước 4: Trả về CertificateDto.
     /// </summary>
     /// <param name="certificateId">ID chứng chỉ.</param>
     /// <param name="currentUserId">ID người dùng đang đăng nhập gửi yêu cầu (tùy chọn).</param>
@@ -190,19 +191,16 @@ public class CertificateService : ICertificateService
         certificate.Enrollment = enrollments.FirstOrDefault() ?? certificate.Enrollment;
 
         // [BƯỚC 3]: BẢO MẬT & PHÂN QUYỀN TRUY CẬP (ACCESS CONTROL CHECK)
-        // If currentUserId is passed, ensure learner owns certificate or is instructor/admin
-        // - Điều kiện: currentUserId.HasValue && certificate.Enrollment?.LearnerId != currentUserId.Value
+        // - Điều kiện: `currentUserId.HasValue && certificate.Enrollment?.LearnerId != currentUserId.Value`
         //   (Người gửi request KHÔNG PHẢI là học viên sở hữu chứng chỉ này).
         if (currentUserId.HasValue && certificate.Enrollment?.LearnerId != currentUserId.Value)
         {
             // [BƯỚC 3.1]: Kiểm tra người xem có phải là Giảng viên của khóa học này không
-            // Allow if user is instructor of the course
-            // - Điều kiện: certificate.Enrollment?.Course?.InstructorId != currentUserId.Value
+            // - Điều kiện: `certificate.Enrollment?.Course?.InstructorId != currentUserId.Value`
             //   (Cũng không phải là Giảng viên phụ trách khóa học).
             if (certificate.Enrollment?.Course?.InstructorId != currentUserId.Value)
             {
                 // [BƯỚC 3.2]: Kiểm tra người xem có vai trò Quản trị viên (Admin) hay không
-                // Check if user is admin
                 var users = await _userRepository.FindAsync(u => u.UserId == currentUserId.Value, u => u.Role);
                 var user = users.FirstOrDefault();
                 
@@ -220,15 +218,16 @@ public class CertificateService : ICertificateService
     }
 
     /// <summary>
-    /// Kiểm tra điều kiện tốt nghiệp và cấp phát chứng chỉ mới cho học viên.
-    /// <para>End-to-End Execution Flow:</para>
-    /// <para>Bước 1: Kiểm tra quyền truy cập khóa học qua _courseAccess.CanAccessCourseAsync.</para>
-    /// <para>Bước 2: Kiểm tra bản ghi ghi danh (Enrollment) của học viên.</para>
-    /// <para>Bước 3: Đảm bảo tính Idempotent: Nếu đã có chứng chỉ thì trả về chứng chỉ cũ ngay.</para>
-    /// <para>Bước 4: Tính toán tỷ lệ hoàn thành bài học (phải đủ 100% các bài Active).</para>
-    /// <para>Bước 5: Kiểm tra điều kiện tiên quyết (Gatekeeper _access.CheckCertificateAsync) về Quiz và Speaking.</para>
-    /// <para>Bước 6: Sinh mã chứng chỉ duy nhất dạng CERT-YYYY-XXXXXX.</para>
-    /// <para>Bước 7: Tạo Certificate trong CSDL, thu hồi quyền tặng khóa học học thử, lưu Db và trả về DTO.</para>
+    /// [Dòng này làm gì & Luồng chạy]:
+    /// - Kiểm tra điều kiện tốt nghiệp và cấp phát chứng chỉ mới cho học viên.
+    /// - End-to-End Execution Flow:
+    ///   - Bước 1: Kiểm tra quyền truy cập khóa học qua _courseAccess.CanAccessCourseAsync.
+    ///   - Bước 2: Kiểm tra bản ghi ghi danh (Enrollment) của học viên.
+    ///   - Bước 3: Đảm bảo tính Idempotent: Nếu đã có chứng chỉ thì trả về chứng chỉ cũ ngay.
+    ///   - Bước 4: Tính toán tỷ lệ hoàn thành bài học (phải đủ 100% các bài Active).
+    ///   - Bước 5: Kiểm tra điều kiện tiên quyết (Gatekeeper _access.CheckCertificateAsync) về Quiz và Speaking.
+    ///   - Bước 6: Sinh mã chứng chỉ duy nhất dạng CERT-YYYY-XXXXXX.
+    ///   - Bước 7: Tạo Certificate trong CSDL, thu hồi quyền tặng khóa học học thử, lưu Db và trả về DTO.
     /// </summary>
     /// <param name="learnerId">ID học viên.</param>
     /// <param name="courseId">ID khóa học.</param>
@@ -238,9 +237,9 @@ public class CertificateService : ICertificateService
         // ====================================================================================================
         // [BƯỚC 1]: KIỂM TRA QUYỀN TRUY CẬP KHÓA HỌC HIỆN TẠI
         // ====================================================================================================
-        // - Điều kiện: !await _courseAccess.CanAccessCourseAsync(courseId, learnerId, isAdmin: false).
+        // - Điều kiện: `!await _courseAccess.CanAccessCourseAsync(courseId, learnerId, isAdmin: false)`.
         // - Trường hợp ĐÚNG (TRUE): Khóa học đã hết hạn truy cập, bị khóa hoặc học viên chưa mua.
-        //     + Ném InvalidOperationException("Learner does not currently have access to this course.").
+        //     + Ném `InvalidOperationException("Learner does not currently have access to this course.")`.
         //     + Dừng thực thi ngay lập tức, không thay đổi CSDL.
         // - Trường hợp SAI (FALSE): Học viên có quyền hợp lệ, tiếp tục bước 2.
         if (!await _courseAccess.CanAccessCourseAsync(courseId, learnerId, isAdmin: false))
@@ -263,7 +262,6 @@ public class CertificateService : ICertificateService
         // ====================================================================================================
         // [BƯỚC 3]: NGUYÊN TẮC BẤT BIẾN / CHỐNG TRÙNG LẶP (IDEMPOTENCY CHECK)
         // ====================================================================================================
-        // Idempotency: Return existing certificate if already issued
         // - Tìm xem trong bảng Certificates đã có chứng chỉ nào gắn với EnrollmentId này chưa.
         var existingCerts = await _certificateRepository.FindAsync(
             c => c.EnrollmentId == enrollment.EnrollmentId);
@@ -271,7 +269,7 @@ public class CertificateService : ICertificateService
         var existingCert = existingCerts.FirstOrDefault();
 
         // Rẽ nhánh: Nếu đã từng được cấp chứng chỉ trước đó
-        // - Trường hợp ĐÚNG (existingCert != null):
+        // - Trường hợp ĐÚNG (`existingCert != null`):
         //     + Gán lại thông tin Enrollment và RETURN ngay chứng chỉ đã có.
         //     + Ý NGHĨA NGHIỆP VỤ: Đảm bảo tính Idempotent: 1 học viên hoàn thành 1 khóa học thì dù có bấm nút
         //       "Nhận chứng chỉ" 10 lần thì hệ thống vẫn chỉ phát hành duy nhất 1 chứng chỉ, không tạo rác CSDL.
@@ -284,7 +282,6 @@ public class CertificateService : ICertificateService
         // ====================================================================================================
         // [BƯỚC 4]: XÁC MINH TỶ LỆ HOÀN THÀNH KHÓA HỌC (COMPLETION RATE VERIFICATION)
         // ====================================================================================================
-        // Verify completion rate
         // 4.1: Đếm tổng số bài học đang có trạng thái ACTIVE trong khóa học
         var totalLessonsList = await _lessonRepository.FindAsync(
             l => l.CourseId == courseId && l.Status == Core.Enums.LessonStatus.ACTIVE);
@@ -302,10 +299,10 @@ public class CertificateService : ICertificateService
             : 0m;
 
         // [BƯỚC 4.4]: Rẽ nhánh kiểm tra điều kiện hoàn thành 100%
-        // - Điều kiện: totalLessons > 0 && completedLessons < totalLessons && enrollment.CompletionPercentage < 100.00m.
+        // - Điều kiện: `totalLessons > 0 && completedLessons < totalLessons && enrollment.CompletionPercentage < 100.00m`.
         // - Trường hợp ĐÚNG (TRUE):
         //     + Học viên chưa học xong toàn bộ các bài học trong khóa học.
-        //     + Ném ra InvalidOperationException báo rõ tiến độ hiện tại chưa đủ 100%.
+        //     + Ném ra `InvalidOperationException($"Cannot issue certificate. Course completion is only {completionPercentage}%.")`.
         //     + Dừng quy trình cấp chứng chỉ, bảo vệ uy tín của hệ thống giáo dục.
         // - Trường hợp SAI (FALSE): Đã hoàn thành 100% nội dung bài giảng, đi tiếp xuống [BƯỚC 5].
         if (totalLessons > 0 && completedLessons < totalLessons && enrollment.CompletionPercentage < 100.00m)
@@ -326,7 +323,6 @@ public class CertificateService : ICertificateService
         // ====================================================================================================
         // [BƯỚC 6]: SINH MÃ CHỨNG CHỈ DUY NHẤT & KHỞI TẠO THỰC THỂ
         // ====================================================================================================
-        // Generate unique certificate code: CERT-YYYY-XXXXXX
         string code = GenerateUniqueCertificateCode();
 
         var certificate = new Certificate
@@ -345,7 +341,6 @@ public class CertificateService : ICertificateService
         await _certificateRepository.AddAsync(certificate);
         
         // Thu hồi quyền truy cập của các khóa học tặng kèm (Gifts) khi khóa học chính đã hoàn tất
-        // The gift is tied to this specific paid-course enrollment, not to the learner globally.
         await _courseGiftAccess.RevokeGiftGrantsForCompletedEnrollmentAsync(enrollment.EnrollmentId, DateTime.UtcNow);
         
         // Lưu toàn bộ thay đổi qua UnitOfWork (Commit Transaction)
@@ -356,12 +351,13 @@ public class CertificateService : ICertificateService
     }
 
     /// <summary>
-    /// Xác thực công khai tính hợp lệ của một chứng chỉ dựa vào mã code (Public Certificate Verification).
-    /// <para>End-to-End Execution Flow:</para>
-    /// <para>Bước 1: Chuẩn hóa mã code (Trim, ToUpperInvariant). Nếu rỗng -> Trả về null.</para>
-    /// <para>Bước 2: Tìm chứng chỉ theo CertificateCode trong CSDL.</para>
-    /// <para>Bước 3: Nếu không tìm thấy: Trả về DTO với IsValid = false và Status = 'NOT_FOUND'.</para>
-    /// <para>Bước 4: Nếu tìm thấy: Nạp quan hệ Course và Learner, trả về DTO với IsValid = (Status == 'ACTIVE').</para>
+    /// [Dòng này làm gì & Luồng chạy]:
+    /// - Xác thực công khai tính hợp lệ của một chứng chỉ dựa vào mã code (Public Certificate Verification).
+    /// - End-to-End Execution Flow:
+    ///   - Bước 1: Chuẩn hóa mã code (Trim, ToUpperInvariant). Nếu rỗng -> Trả về null.
+    ///   - Bước 2: Tìm chứng chỉ theo CertificateCode trong CSDL.
+    ///   - Bước 3: Nếu không tìm thấy: Trả về DTO với IsValid = false và Status = 'NOT_FOUND'.
+    ///   - Bước 4: Nếu tìm thấy: Nạp quan hệ Course và Learner, trả về DTO với IsValid = (Status == 'ACTIVE').
     /// </summary>
     /// <param name="code">Mã chứng chỉ nhập vào từ trang web tra cứu.</param>
     /// <returns>CertificateVerificationDto chứa thông tin xác thực.</returns>
@@ -370,7 +366,6 @@ public class CertificateService : ICertificateService
         // Rẽ nhánh: Nếu mã code truyền vào rỗng hoặc chỉ có khoảng trắng -> Trả về null
         if (string.IsNullOrWhiteSpace(code)) return null;
 
-        // Chuẩn hóa mã code về chữ in hoa không dấu để tìm kiếm chính xác
         var cleanCode = code.Trim().ToUpperInvariant();
 
         // [BƯỚC 1]: Tìm chứng chỉ theo mã CertificateCode
@@ -381,8 +376,7 @@ public class CertificateService : ICertificateService
         var cert = certs.FirstOrDefault();
 
         // [BƯỚC 2]: Rẽ nhánh xử lý khi KHÔNG TÌM THẤY CHỨNG CHỈ (cert == null)
-        // - Ý NGHĨA NGHIỆP VỤ: Trả về trạng thái "NOT_FOUND" và IsValid = false để giao diện hiển thị cảnh báo
-        //   chứng chỉ giả mạo hoặc mã tra cứu không tồn tại trên hệ thống MSEEK.
+        // - Trả về trạng thái "NOT_FOUND" và IsValid = false để giao diện hiển thị cảnh báo chứng chỉ giả mạo.
         if (cert == null)
         {
             return new CertificateVerificationDto
@@ -418,21 +412,21 @@ public class CertificateService : ICertificateService
     }
 
     /// <summary>
-    /// Hàm tiện ích sinh mã chứng chỉ độc nhất vô nhị (Unique Code Generator) theo định dạng chuẩn quốc tế:
-    /// CERT-{Năm_Hiện_Tại}-{8_Ký_Tự_Hex_Ngẫu_Nhiên_Từ_GUID} (ví dụ: CERT-2026-A1B2C3D4).
+    /// [Dòng này làm gì & Luồng chạy]:
+    /// - Hàm tiện ích sinh mã chứng chỉ độc nhất vô nhị (Unique Code Generator) theo định dạng chuẩn quốc tế:
+    ///   `CERT-{Năm_Hiện_Tại}-{8_Ký_Tự_Hex_Ngẫu_Nhiên_Từ_GUID}` (ví dụ: CERT-2026-A1B2C3D4).
     /// </summary>
     /// <returns>Chuỗi mã chứng chỉ độc nhất.</returns>
     private string GenerateUniqueCertificateCode()
     {
         var year = DateTime.UtcNow.Year;
-        // Lấy chuỗi GUID loại bỏ dấu gạch nối ("N") và cắt lấy 8 ký tự đầu tiên viết hoa
         var randomPart = Guid.NewGuid().ToString("N").Substring(0, 8).ToUpper();
         return $"CERT-{year}-{randomPart}";
     }
 
     /// <summary>
-    /// Hàm dùng chung (Private Helper) ánh xạ thực thể Certificate sang CertificateDto phục vụ Client.
-    /// Sử dụng toán tử kiểm tra null (?.) và giá trị mặc định (??) để tránh NullReferenceException.
+    /// [Dòng này làm gì]: Ánh xạ thực thể Certificate sang CertificateDto phục vụ Client.
+    /// Sử dụng toán tử null-conditional (?.) và null-coalescing (??) để tránh NullReferenceException.
     /// </summary>
     /// <param name="c">Thực thể Certificate.</param>
     /// <returns>CertificateDto.</returns>

@@ -30,14 +30,30 @@ using Microsoft.EntityFrameworkCore;
 namespace MC_BE.Features.Learning.Repositories;
 
 /// <summary>
-/// Lớp triển khai Repository cho thực thể bài nộp Speaking (SpeakingSubmission).
+/// [Định nghĩa Lớp]: Lớp triển khai Repository cho thực thể bài nộp Speaking (SpeakingSubmission).
+/// [Giải phẫu cú pháp]:
+/// - `public`: Cho phép đăng ký DI và sử dụng ở tầng Service.
+/// - `class`: Lớp triển khai cụ thể.
+/// - `: GenericRepository<SpeakingSubmission>`: Thừa hưởng các hàm CRUD generic (Add, Update, Remove...).
+/// - `, ISpeakingSubmissionRepository`: Triển khai giao diện chuyên biệt cho bài nộp Speaking.
 /// </summary>
 public class SpeakingSubmissionRepository : GenericRepository<SpeakingSubmission>, ISpeakingSubmissionRepository
 {
+    /// <summary>
+    /// [Dòng này làm gì]: Khai báo trường DbContext để truy vấn cơ sở dữ liệu.
+    /// [Giải phẫu từng từ khóa]:
+    /// - `private`: Đảm bảo tính đóng gói, chỉ sử dụng nội bộ lớp này.
+    /// - `readonly`: Bất biến sau khi khởi tạo trong Constructor.
+    /// - `SmartMcDbContext _context`: Đối tượng DbContext của hệ thống MSEEK.
+    /// </summary>
     private readonly SmartMcDbContext _context;
 
     /// <summary>
-    /// Khởi tạo Repository với DbContext được inject từ DI Container.
+    /// [Dòng này làm gì]: Constructor nhận DbContext từ DI Container.
+    /// [Giải phẫu từng từ khóa]:
+    /// - `public`: Constructor công khai.
+    /// - `SmartMcDbContext context`: Instance DbContext được tiêm vào theo vòng đời Scoped.
+    /// - `: base(context)`: Gọi constructor của lớp cha GenericRepository để gán context và khởi tạo DbSet.
     /// </summary>
     /// <param name="context">SmartMcDbContext kết nối cơ sở dữ liệu.</param>
     public SpeakingSubmissionRepository(SmartMcDbContext context) : base(context)
@@ -46,23 +62,26 @@ public class SpeakingSubmissionRepository : GenericRepository<SpeakingSubmission
     }
 
     /// <summary>
-    /// Hàm dùng chung (Helper Method) cấu hình Eager Loading toàn bộ các quan hệ phức tạp của SpeakingSubmission.
-    /// <para>End-to-End Flow: Khởi tạo query trên DbSet SpeakingSubmissions -> Include SpeakingScript (Course, Instructor, Module) -> Include Lesson (Course, Instructor, Module) -> Include Learner -> Include GradedBy.</para>
+    /// [Dòng này làm gì & Luồng chạy]:
+    /// - Hàm dùng chung (Private Helper Method) cấu hình Eager Loading toàn bộ các quan hệ phức tạp của SpeakingSubmission.
+    /// - End-to-End Flow:
+    ///   - Bước 1: Khởi tạo IQueryable trên DbSet SpeakingSubmissions.
+    ///   - Bước 2: Nạp chuỗi quan hệ qua SpeakingScript -> Course -> Instructor và Module.
+    ///   - Bước 3: Nạp chuỗi quan hệ qua Lesson -> Course -> Instructor và Module.
+    ///   - Bước 4: Nạp thông tin học viên (Learner) và người chấm (GradedBy).
+    ///   - Bước 5: Trả về đối tượng IQueryable sẵn sàng cho việc ghép thêm điều kiện Where và Sắp xếp.
+    /// [Giải phẫu từng từ khóa & hàm]:
+    /// - `private`: Chỉ dùng nội bộ repository này.
+    /// - `IQueryable<SpeakingSubmission>`: Kiểu biểu diễn câu truy vấn SQL chưa thực thi, cho phép ghép nối thêm các toán tử LINQ.
+    /// - `.Include(...)`: Mở quan hệ cấp 1 (Navigation Property) sinh lệnh SQL `LEFT JOIN`.
+    /// - `.ThenInclude(...)`: Mở quan hệ cấp 2, cấp 3 lồng nhau từ bảng vừa được Include trước đó.
+    /// - `sc!`: Toán tử Null-forgiving trong biểu thức lambda báo cho trình biên dịch biết sc không bị null khi thực hiện ThenInclude.
+    /// [Tại sao dùng kỹ thuật này]:
+    /// - Áp dụng nguyên lý DRY (Don't Repeat Yourself): Gom toàn bộ logic Include phức tạp vào 1 nơi duy nhất, giúp bảo trì dễ dàng và đảm bảo mọi API đều nạp đủ dữ liệu, chống lỗi N+1 Query.
     /// </summary>
     /// <returns>Đối tượng IQueryable sẵn sàng để ghép thêm điều kiện Where và Sắp xếp.</returns>
     private IQueryable<SpeakingSubmission> IncludeSubmissionDetails()
     {
-        // [BƯỚC 1]: Xây dựng cây quan hệ lồng nhau (Nested Navigation Properties)
-        // [TẠI SAO DÙNG KỸ THUẬT NÀY]:
-        //   - Áp dụng nguyên lý DRY (Don't Repeat Yourself): Tập trung logic Include các bảng vào một phương thức
-        //     duy nhất, giúp mã nguồn nhất quán và dễ bảo trì khi cấu trúc quan hệ thay đổi.
-        //   - Nạp đầy đủ thông tin giảng viên (c.Instructor) và thông tin người nộp (Learner) trong 1 round-trip SQL,
-        //     ngăn chặn triệt để hiện tượng N+1 Query.
-        // [DỰ ĐOÁN CÂU HỎI REVIEW CỦA GIẢNG VIÊN]:
-        //   - Q: Việc Include quá nhiều bảng như thế này có làm nặng bộ nhớ không?
-        //   - A: Có tạo ra câu lệnh JOIN tương đối lớn, tuy nhiên các bảng liên kết (User, Course, Lesson)
-        //     đều có quan hệ 1-1 hoặc N-1 nên không gây hiện tượng bùng nổ dòng dữ liệu (Cartesian product).
-        //     Để tối ưu hơn nữa ở các API chỉ đọc danh sách lớn, có thể dùng Projection (.Select) sang DTO.
         return _context.SpeakingSubmissions
             .Include(s => s.SpeakingScript)
                 .ThenInclude(sc => sc!.Course)
@@ -79,28 +98,36 @@ public class SpeakingSubmissionRepository : GenericRepository<SpeakingSubmission
     }
 
     /// <summary>
-    /// Lấy chi tiết một bài nộp theo ID duy nhất (submissionId).
-    /// <para>End-to-End Flow: Gọi IncludeSubmissionDetails() -> Lọc theo s.SubmissionId == submissionId -> FirstOrDefaultAsync.</para>
+    /// [Dòng này làm gì & Luồng chạy]:
+    /// - Lấy chi tiết một bài nộp theo ID duy nhất (submissionId).
+    /// - End-to-End Flow: Gọi IncludeSubmissionDetails() -> Lọc theo điều kiện s.SubmissionId == submissionId -> FirstOrDefaultAsync().
+    /// [Giải phẫu từng từ khóa]:
+    /// - `public async Task<SpeakingSubmission?>`: Hàm bất đồng bộ trả về thực thể SpeakingSubmission hoặc null.
+    /// - `await`: Đợi kết quả truy vấn từ Database mà không làm block luồng thực thi.
+    /// - `.FirstOrDefaultAsync(s => s.SubmissionId == submissionId)`: Truy vấn theo Khóa chính SubmissionId, trả về bản ghi đầu tiên hoặc null nếu không tồn tại.
     /// </summary>
     /// <param name="submissionId">ID bài nộp.</param>
     /// <returns>Thực thể SpeakingSubmission hoặc null nếu không tồn tại.</returns>
     public async Task<SpeakingSubmission?> GetByIdWithDetailsAsync(int submissionId)
     {
-        // [BƯỚC 1]: Thực thi truy vấn lấy bài nộp duy nhất theo Khóa chính SubmissionId
         return await IncludeSubmissionDetails()
             .FirstOrDefaultAsync(s => s.SubmissionId == submissionId);
     }
 
     /// <summary>
-    /// Lấy danh sách toàn bộ bài nộp của một học viên cụ thể.
-    /// <para>End-to-End Flow: IncludeSubmissionDetails -> Where(s.LearnerId == learnerId) -> OrderByDescending(SubmittedAt) -> ToListAsync.</para>
+    /// [Dòng này làm gì & Luồng chạy]:
+    /// - Lấy danh sách toàn bộ bài nộp của một học viên cụ thể.
+    /// - End-to-End Flow: IncludeSubmissionDetails() -> Where(s.LearnerId == learnerId) -> OrderByDescending(s.SubmittedAt) -> ToListAsync().
+    /// [Giải phẫu từng hàm]:
+    /// - `.Where(s => s.LearnerId == learnerId)`: Lọc các bài nộp của học viên trong bảng Users.
+    /// - `.OrderByDescending(s => s.SubmittedAt)`: Bài nộp gần nhất sẽ được xếp lên đầu danh sách (dòng thời gian giảm dần).
+    /// - `.ToListAsync()`: Thực thi câu lệnh SQL và trả về danh sách đối tượng trong bộ nhớ RAM.
+    /// [Ý nghĩa nghiệp vụ]: Phục vụ màn hình "Lịch sử nộp bài" của học viên để tự theo dõi tiến trình của mình.
     /// </summary>
     /// <param name="learnerId">ID học viên.</param>
     /// <returns>Danh sách bài nộp của học viên sắp xếp theo ngày nộp mới nhất.</returns>
     public async Task<IEnumerable<SpeakingSubmission>> GetSubmissionsByLearnerAsync(int learnerId)
     {
-        // [BƯỚC 1]: Lọc các bài nộp thuộc về học viên có LearnerId tương ứng
-        // [Ý NGHĨA NGHIỆP VỤ]: Phục vụ màn hình "Lịch sử nộp bài" của học viên để tự theo dõi tiến trình của mình.
         return await IncludeSubmissionDetails()
             .Where(s => s.LearnerId == learnerId)
             .OrderByDescending(s => s.SubmittedAt)
@@ -108,22 +135,22 @@ public class SpeakingSubmissionRepository : GenericRepository<SpeakingSubmission
     }
 
     /// <summary>
-    /// Lấy danh sách tất cả các bài nộp cần chấm điểm thuộc các khóa học mà giảng viên này giảng dạy.
-    /// <para>End-to-End Flow: IncludeSubmissionDetails -> Where theo InstructorId của khóa học (qua Lesson hoặc qua SpeakingScript) -> Sắp xếp SubmittedAt giảm dần -> ToListAsync.</para>
+    /// [Dòng này làm gì & Luồng chạy]:
+    /// - Lấy danh sách tất cả các bài nộp cần chấm điểm thuộc các khóa học mà giảng viên này giảng dạy.
+    /// - End-to-End Flow: IncludeSubmissionDetails() -> Where theo InstructorId của khóa học (qua Lesson hoặc qua SpeakingScript) -> Sắp xếp SubmittedAt giảm dần -> ToListAsync().
+    /// [Giải phẫu điều kiện rẽ nhánh trong mệnh đề .Where()]:
+    /// - Nhánh 1: `(s.Lesson != null && s.Lesson.Course != null && s.Lesson.Course.InstructorId == instructorId)`
+    ///   => Bài nộp theo bài học con thuộc khóa học của giảng viên.
+    /// - Nhánh 2: `(s.SpeakingScript != null && s.SpeakingScript.Course != null && s.SpeakingScript.Course.InstructorId == instructorId)`
+    ///   => Bài nộp theo kịch bản bài thi (Final/Chapter) thuộc khóa học của giảng viên.
+    /// [Tại sao phải kiểm tra cả 2 nhánh]:
+    /// - Đảm bảo tính bảo mật và phân quyền chính xác (Role-Based / Resource-Based Authorization):
+    ///   Giảng viên A không bao giờ nhìn thấy hoặc chấm nhầm bài nộp của giảng viên B.
     /// </summary>
     /// <param name="instructorId">ID giảng viên.</param>
     /// <returns>Danh sách bài nộp cần chấm của giảng viên.</returns>
     public async Task<IEnumerable<SpeakingSubmission>> GetSubmissionsByInstructorAsync(int instructorId)
     {
-        // [BƯỚC 1]: Lọc bài nộp dựa trên quyền sở hữu khóa học của giảng viên
-        // [GIẢI PHẪU ĐIỀU KIỆN LỌC]:
-        //   - Nhánh 1: (s.Lesson != null && s.Lesson.Course != null && s.Lesson.Course.InstructorId == instructorId)
-        //     => Bài nộp theo bài học con thuộc khóa học của giảng viên.
-        //   - Nhánh 2: (s.SpeakingScript != null && s.SpeakingScript.Course != null && s.SpeakingScript.Course.InstructorId == instructorId)
-        //     => Bài nộp theo kịch bản bài thi (Final/Chapter) thuộc khóa học của giảng viên.
-        // [TẠI SAO PHẢI CHECK CẢ 2 NHÁNH]:
-        //   - Đảm bảo tính bảo mật và phân quyền chính xác (Role-Based / Resource-Based Authorization):
-        //     Giảng viên A không bao giờ nhìn thấy hoặc chấm nhầm bài nộp của giảng viên B.
         return await IncludeSubmissionDetails()
             .Where(s =>
                 (s.Lesson != null && s.Lesson.Course != null && s.Lesson.Course.InstructorId == instructorId) ||
@@ -133,14 +160,17 @@ public class SpeakingSubmissionRepository : GenericRepository<SpeakingSubmission
     }
 
     /// <summary>
-    /// Lấy danh sách các bài nộp thuộc một khóa học cụ thể.
-    /// <para>End-to-End Flow: IncludeSubmissionDetails -> Where CourseId trùng khớp qua Lesson hoặc SpeakingScript -> OrderByDescending -> ToListAsync.</para>
+    /// [Dòng này làm gì & Luồng chạy]:
+    /// - Lấy danh sách các bài nộp thuộc một khóa học cụ thể.
+    /// - End-to-End Flow: IncludeSubmissionDetails() -> Where CourseId trùng khớp qua Lesson hoặc SpeakingScript -> OrderByDescending -> ToListAsync().
+    /// [Giải phẫu điều kiện trong .Where()]:
+    /// - `(s.Lesson != null && s.Lesson.CourseId == courseId)`: Bài nộp gắn với bài học của khóa học.
+    /// - `|| (s.SpeakingScript != null && s.SpeakingScript.CourseId == courseId)`: Bài nộp gắn với kịch bản độc lập của khóa học.
     /// </summary>
     /// <param name="courseId">ID khóa học.</param>
     /// <returns>Danh sách bài nộp trong khóa học.</returns>
     public async Task<IEnumerable<SpeakingSubmission>> GetSubmissionsByCourseAsync(int courseId)
     {
-        // [BƯỚC 1]: Lọc bài nộp theo phạm vi toàn bộ khóa học
         return await IncludeSubmissionDetails()
             .Where(s =>
                 (s.Lesson != null && s.Lesson.CourseId == courseId) ||
@@ -150,19 +180,21 @@ public class SpeakingSubmissionRepository : GenericRepository<SpeakingSubmission
     }
 
     /// <summary>
-    /// Lấy bài nộp mới nhất của một học viên cho một bài học cụ thể.
-    /// <para>End-to-End Flow: IncludeSubmissionDetails -> Where(LearnerId và LessonId) -> OrderByDescending(SubmittedAt) -> FirstOrDefaultAsync.</para>
+    /// [Dòng này làm gì & Luồng chạy]:
+    /// - Lấy bài nộp mới nhất của một học viên cho một bài học cụ thể.
+    /// - End-to-End Flow: IncludeSubmissionDetails() -> Where(s.LearnerId == learnerId && s.LessonId == lessonId) -> OrderByDescending(s.SubmittedAt) -> FirstOrDefaultAsync().
+    /// [Ý nghĩa nghiệp vụ cốt lõi]:
+    /// - Đây là điểm mấu chốt để hệ thống thực hiện nghiệp vụ "Khóa nộp bài thông minh" (Resubmission Lock):
+    ///   Service sẽ kiểm tra bài nộp mới nhất này:
+    ///   + Nếu trạng thái là "SUBMITTED" (hoặc Score == null): Bài đang đợi giáo viên chấm, hệ thống từ chối nộp đè.
+    ///   + Nếu điểm số đã đạt "Score >= 80": Đã đạt chuẩn đầu ra, hệ thống từ chối nộp lại để bảo toàn kết quả.
+    ///   + Nếu điểm số "Score < 80" và đã có điểm: Bài bị trượt, hệ thống cho phép ghi đè/nộp lại để cải thiện điểm.
     /// </summary>
     /// <param name="learnerId">ID học viên.</param>
     /// <param name="lessonId">ID bài học.</param>
     /// <returns>Bản ghi bài nộp mới nhất hoặc null nếu học viên chưa từng nộp.</returns>
     public async Task<SpeakingSubmission?> GetLatestByLearnerAndLessonAsync(int learnerId, int lessonId)
     {
-        // [BƯỚC 1]: Lọc theo cặp (LearnerId, LessonId) và lấy bản ghi nộp gần nhất
-        // [Ý NGHĨA NGHIỆP VỤ CỐT LÕI]:
-        //   - Đây là điểm mấu chốt để hệ thống thực hiện nghiệp vụ "Khóa nộp bài":
-        //     Service sẽ kiểm tra bài nộp mới nhất này, nếu trạng thái là "PENDING" (đang đợi giáo viên chấm),
-        //     hoặc điểm số đã đạt ">= 80", hệ thống sẽ từ chối không cho học viên nộp thêm bài mới để tránh spam.
         return await IncludeSubmissionDetails()
             .Where(s => s.LearnerId == learnerId && s.LessonId == lessonId)
             .OrderByDescending(s => s.SubmittedAt)
@@ -170,19 +202,20 @@ public class SpeakingSubmissionRepository : GenericRepository<SpeakingSubmission
     }
 
     /// <summary>
-    /// Lấy bài nộp mới nhất của một học viên cho một kịch bản nói cụ thể (bài thi Final/Chapter hoặc qua Lesson).
-    /// <para>End-to-End Flow: IncludeSubmissionDetails -> Where(LearnerId và ScriptId trực tiếp hoặc qua Lesson.SpeakingScript) -> OrderByDescending(SubmittedAt) -> FirstOrDefaultAsync.</para>
+    /// [Dòng này làm gì & Luồng chạy]:
+    /// - Lấy bài nộp mới nhất của một học viên cho một kịch bản nói cụ thể (bài thi Final/Chapter hoặc qua Lesson).
+    /// - End-to-End Flow: IncludeSubmissionDetails() -> Where(LearnerId và ScriptId trực tiếp hoặc qua Lesson.SpeakingScript) -> OrderByDescending(SubmittedAt) -> FirstOrDefaultAsync().
+    /// [Giải phẫu điều kiện trong .Where()]:
+    /// - `s.LearnerId == learnerId`: Đúng học viên thực hiện.
+    /// - `s.ScriptId == scriptId`: Bài nộp trực tiếp với ScriptId (Bài thi Final / Chapter).
+    /// - `|| (s.Lesson != null && s.Lesson.SpeakingScript != null && s.Lesson.SpeakingScript.ScriptId == scriptId)`: Bài nộp theo bài học có kịch bản tương ứng.
+    /// [Ý nghĩa nghiệp vụ]: Kiểm soát trạng thái vượt qua bài thi nói của học viên để mở khóa chứng chỉ tốt nghiệp.
     /// </summary>
     /// <param name="learnerId">ID học viên.</param>
     /// <param name="scriptId">ID kịch bản.</param>
     /// <returns>Bản ghi bài nộp mới nhất hoặc null.</returns>
     public async Task<SpeakingSubmission?> GetLatestByLearnerAndScriptAsync(int learnerId, int scriptId)
     {
-        // [BƯỚC 1]: Lọc bài nộp gần nhất theo kịch bản
-        // [GIẢI PHẪU ĐIỀU KIỆN]:
-        //   - s.ScriptId == scriptId: Nộp bài trực tiếp với ScriptId (Bài thi Final / Chapter).
-        //   - Hoặc bài học s.Lesson có kịch bản trùng với scriptId.
-        // [Ý NGHĨA NGHIỆP VỤ]: Kiểm soát trạng thái vượt qua bài thi nói của học viên để mở khóa chứng chỉ tốt nghiệp.
         return await IncludeSubmissionDetails()
             .Where(s => s.LearnerId == learnerId && (s.ScriptId == scriptId || (s.Lesson != null && s.Lesson.SpeakingScript != null && s.Lesson.SpeakingScript.ScriptId == scriptId)))
             .OrderByDescending(s => s.SubmittedAt)

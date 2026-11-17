@@ -57,16 +57,13 @@ public class BackgroundMusicController : ControllerBase
     }
 
     /// <summary>
-    /// Hàm tiện ích (Private Helper) trích xuất ID người dùng đang đăng nhập từ JWT Token Claims.
-    /// <para>End-to-End Flow: Kiểm tra ClaimTypes.NameIdentifier -> Nếu null kiểm tra claim 'sub' -> Chuyển đổi sang số nguyên (int).</para>
+    /// [Dòng này làm gì & Luồng chạy]:
+    /// - Hàm tiện ích (Private Helper) trích xuất ID người dùng đang đăng nhập từ JWT Token Claims.
+    /// - End-to-End Flow: Kiểm tra ClaimTypes.NameIdentifier -> Nếu null kiểm tra claim 'sub' -> Chuyển đổi sang số nguyên (int).
     /// </summary>
     /// <returns>UserId kiểu int nếu hợp lệ; ngược lại trả về null.</returns>
     private int? GetCurrentUserId()
     {
-        // [BƯỚC 1]: Đọc giá trị Claim NameIdentifier hoặc Subject (sub) từ HttpContext.User
-        // [TẠI SAO DÙNG KỸ THUẬT NÀY - BẢO MẬT CHỐNG GIẢ MẠO]:
-        //   - Tuyệt đối không nhận UserId từ Body hoặc Query String vì client có thể can thiệp sửa đổi (IDOR Attack).
-        //   - UserId được lấy trực tiếp từ JWT Payload đã được xác thực chữ ký điện tử (HMAC-SHA256) ở Middleware Authentication.
         var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
                     ?? User.FindFirst("sub")?.Value;
         return int.TryParse(claim, out var id) ? id : null;
@@ -74,30 +71,23 @@ public class BackgroundMusicController : ControllerBase
 
     /// <summary>
     /// GET /api/speaking-scripts/musics/defaults
-    /// Lấy danh sách các bài nhạc nền mặc định toàn hệ thống.
+    /// Lấy danh sách 4 bài nhạc nền hệ thống mặc định dùng chung cho mọi bài học.
     /// <para>End-to-End Execution Flow:</para>
     /// <para>Bước 1: Gọi _musicService.GetDefaultMusicsAsync().</para>
     /// <para>Bước 2: Trả về HTTP 200 OK bọc trong ApiResponse SuccessResponse.</para>
     /// <para>Bước 3: Nếu phát sinh lỗi ngoài ý muốn -> Bắt ngoại lệ, ghi log Error và trả về HTTP 500.</para>
     /// </summary>
     /// <returns>Danh sách BackgroundMusicDto mặc định.</returns>
-    /// <summary>
-    /// GET /api/speaking-scripts/musics/defaults
-    /// Lấy danh sách 4 bài nhạc nền hệ thống mặc định
-    /// </summary>
     [HttpGet("musics/defaults")]
     public async Task<ActionResult<ApiResponse<List<BackgroundMusicDto>>>> GetDefaultMusics()
     {
         try
         {
-            // [BƯỚC 1]: Gọi tầng Service lấy danh sách nhạc mặc định
             var musics = await _musicService.GetDefaultMusicsAsync();
-            // [BƯỚC 2]: Trả về kết quả HTTP 200 OK
             return Ok(ApiResponse<List<BackgroundMusicDto>>.SuccessResponse(musics));
         }
         catch (Exception ex)
         {
-            // [BƯỚC 3]: Xử lý ngoại lệ máy chủ (Internal Server Error)
             _logger.LogError(ex, "Lỗi khi lấy danh sách nhạc nền mặc định");
             return StatusCode(StatusCodes.Status500InternalServerError,
                 ApiResponse<List<BackgroundMusicDto>>.FailureResponse("Không thể tải danh sách nhạc nền mặc định."));
@@ -106,21 +96,16 @@ public class BackgroundMusicController : ControllerBase
 
     /// <summary>
     /// GET /api/speaking-scripts/lessons/{lessonId}/musics
-    /// Lấy danh sách nhạc khả dụng cho một bài học (bao gồm nhạc hệ thống và nhạc riêng của bài học).
+    /// Lấy danh sách nhạc khả dụng cho bài học (nhạc hệ thống + nhạc giảng viên upload riêng).
     /// <para>End-to-End Flow: Nhận lessonId từ Route -> Gọi _musicService.GetMusicsForLessonAsync -> Trả về HTTP 200 OK.</para>
     /// </summary>
     /// <param name="lessonId">ID bài học.</param>
     /// <returns>Danh sách BackgroundMusicDto khả dụng.</returns>
-    /// <summary>
-    /// GET /api/speaking-scripts/lessons/{lessonId}/musics
-    /// Lấy danh sách nhạc khả dụng cho bài học (nhạc hệ thống + nhạc giảng viên upload)
-    /// </summary>
     [HttpGet("lessons/{lessonId:int}/musics")]
     public async Task<ActionResult<ApiResponse<List<BackgroundMusicDto>>>> GetMusicsForLesson(int lessonId)
     {
         try
         {
-            // [BƯỚC 1]: Gọi Service lấy nhạc nền kết hợp
             var musics = await _musicService.GetMusicsForLessonAsync(lessonId);
             return Ok(ApiResponse<List<BackgroundMusicDto>>.SuccessResponse(musics));
         }
@@ -134,7 +119,7 @@ public class BackgroundMusicController : ControllerBase
 
     /// <summary>
     /// POST /api/speaking-scripts/musics/pre-upload
-    /// Tải trước file âm thanh lên Cloudinary khi giảng viên chọn file trong modal soạn bài.
+    /// Upload trước file nhạc lên Cloudinary khi giảng viên chọn file trong modal soạn bài.
     /// Yêu cầu vai trò: Giảng viên (Instructor) hoặc Quản trị viên (Admin).
     /// <para>End-to-End Execution Flow:</para>
     /// <para>Bước 1: Trích xuất instructorId từ JWT -> Nếu null trả về HTTP 401 Unauthorized.</para>
@@ -145,39 +130,28 @@ public class BackgroundMusicController : ControllerBase
     /// </summary>
     /// <param name="request">Multipart form data chứa file và tiêu đề.</param>
     /// <returns>PreUploadMusicResultDto.</returns>
-    /// <summary>
-    /// POST /api/speaking-scripts/musics/pre-upload
-    /// Upload trước file nhạc lên Cloudinary khi giảng viên chọn file trong modal
-    /// </summary>
     [HttpPost("musics/pre-upload")]
     [Authorize(Roles = "Instructor,Admin")]
     [Consumes("multipart/form-data")]
     public async Task<ActionResult<ApiResponse<PreUploadMusicResultDto>>> PreUploadMusic(
         [FromForm] UploadBackgroundMusicRequest request)
     {
-        // [BƯỚC 1]: Kiểm tra danh tính người dùng đang gọi API
         var instructorId = GetCurrentUserId();
-        // Rẽ nhánh: Nếu token không hợp lệ hoặc thiếu claim -> Trả về HTTP 401
         if (instructorId == null)
             return Unauthorized(ApiResponse<PreUploadMusicResultDto>.FailureResponse("Unauthorized"));
 
         try
         {
-            // [BƯỚC 2]: Rẽ nhánh kiểm tra sự hiện diện của file
-            // - Điều kiện: request.File == null || request.File.Length == 0.
-            // - Xử lý: Trả về HTTP 400 BadRequest ("Vui lòng tải lên tập tin âm thanh.").
             if (request.File == null || request.File.Length == 0)
             {
                 return BadRequest(ApiResponse<PreUploadMusicResultDto>.FailureResponse("Vui lòng tải lên tập tin âm thanh."));
             }
 
-            // [BƯỚC 3]: Gọi Service đẩy file lên Cloudinary
             var result = await _musicService.PreUploadMusicAsync(request.File, request.Title, instructorId.Value);
             return Ok(ApiResponse<PreUploadMusicResultDto>.SuccessResponse(result, "Tải lên Cloudinary thành công."));
         }
         catch (ArgumentException ex)
         {
-            // Bắt lỗi tham số (file quá 5MB, sai đuôi file) -> Phản hồi 400 Bad Request
             return BadRequest(ApiResponse<PreUploadMusicResultDto>.FailureResponse(ex.Message));
         }
         catch (Exception ex)
@@ -190,7 +164,7 @@ public class BackgroundMusicController : ControllerBase
 
     /// <summary>
     /// POST /api/speaking-scripts/lessons/{lessonId}/musics/link
-    /// Gán danh sách các bản nhạc đã pre-upload vào bài học sau khi tạo/cập nhật bài học.
+    /// Gán danh sách nhạc đã pre-upload vào bài học sau khi tạo/cập nhật bài học (Batch Linking).
     /// <para>End-to-End Execution Flow:</para>
     /// <para>Bước 1: Xác thực instructorId từ JWT Token.</para>
     /// <para>Bước 2: Gọi _musicService.LinkMusicsToLessonAsync(lessonId, request.Musics, instructorId).</para>
@@ -201,10 +175,6 @@ public class BackgroundMusicController : ControllerBase
     /// <param name="lessonId">ID bài học.</param>
     /// <param name="request">Danh sách các bản nhạc cần liên kết.</param>
     /// <returns>Danh sách BackgroundMusicDto vừa được lưu.</returns>
-    /// <summary>
-    /// POST /api/speaking-scripts/lessons/{lessonId}/musics/link
-    /// Gán danh sách nhạc đã pre-upload vào bài học sau khi tạo/cập nhật bài học
-    /// </summary>
     [HttpPost("lessons/{lessonId:int}/musics/link")]
     [Authorize(Roles = "Instructor,Admin")]
     public async Task<ActionResult<ApiResponse<List<BackgroundMusicDto>>>> LinkMusicsToLesson(
@@ -216,18 +186,15 @@ public class BackgroundMusicController : ControllerBase
 
         try
         {
-            // Gọi Service thực hiện liên kết hàng loạt
             var results = await _musicService.LinkMusicsToLessonAsync(lessonId, request.Musics, instructorId.Value);
             return Ok(ApiResponse<List<BackgroundMusicDto>>.SuccessResponse(results, "Đã liên kết nhạc nền với bài học."));
         }
         catch (UnauthorizedAccessException ex)
         {
-            // Bắt lỗi không có quyền sở hữu bài học -> Trả về HTTP 403 Forbidden
             return StatusCode(StatusCodes.Status403Forbidden, ApiResponse<List<BackgroundMusicDto>>.FailureResponse(ex.Message));
         }
         catch (KeyNotFoundException ex)
         {
-            // Bắt lỗi không tìm thấy bài học -> Trả về HTTP 404 Not Found
             return NotFound(ApiResponse<List<BackgroundMusicDto>>.FailureResponse(ex.Message));
         }
         catch (Exception ex)
@@ -240,16 +207,12 @@ public class BackgroundMusicController : ControllerBase
 
     /// <summary>
     /// POST /api/speaking-scripts/lessons/{lessonId}/musics/upload
-    /// Tải lên trực tiếp một file âm thanh và liên kết ngay vào bài học đã tồn tại.
+    /// Giảng viên tải lên trực tiếp file nhạc nền mới cho bài học đã có ID.
     /// <para>End-to-End Flow: Kiểm tra Token -> Kiểm tra File -> Gọi Service UploadMusicForLessonAsync -> Trả về HTTP 200 OK.</para>
     /// </summary>
     /// <param name="lessonId">ID bài học.</param>
     /// <param name="request">Multipart form chứa file và tiêu đề.</param>
     /// <returns>BackgroundMusicDto sau khi lưu thành công.</returns>
-    /// <summary>
-    /// POST /api/speaking-scripts/lessons/{lessonId}/musics/upload
-    /// Giảng viên tải lên trực tiếp file nhạc nền mới cho bài học đã có ID
-    /// </summary>
     [HttpPost("lessons/{lessonId:int}/musics/upload")]
     [Authorize(Roles = "Instructor,Admin")]
     [Consumes("multipart/form-data")]
@@ -262,7 +225,6 @@ public class BackgroundMusicController : ControllerBase
 
         try
         {
-            // Rẽ nhánh: Kiểm tra file rỗng
             if (request.File == null || request.File.Length == 0)
             {
                 return BadRequest(ApiResponse<BackgroundMusicDto>.FailureResponse("Vui lòng tải lên tập tin âm thanh."));
@@ -295,15 +257,11 @@ public class BackgroundMusicController : ControllerBase
 
     /// <summary>
     /// DELETE /api/speaking-scripts/musics/{musicId}
-    /// Giảng viên xóa một bản nhạc nền riêng khỏi bài học và xóa file trên Cloudinary.
+    /// Giảng viên xóa nhạc nền riêng đã upload khỏi bài học và xóa file trên Cloudinary.
     /// <para>End-to-End Flow: Xác thực Token -> Gọi Service DeleteMusicAsync -> Nếu false trả về 404 -> Bắt InvalidOperationException (xóa nhạc hệ thống) trả về 400 -> Bắt UnauthorizedAccessException trả về 403.</para>
     /// </summary>
     /// <param name="musicId">ID bản nhạc cần xóa.</param>
     /// <returns>ApiResponse chứa true nếu xóa thành công.</returns>
-    /// <summary>
-    /// DELETE /api/speaking-scripts/musics/{musicId}
-    /// Giảng viên xóa nhạc nền riêng đã upload
-    /// </summary>
     [HttpDelete("musics/{musicId:int}")]
     [Authorize(Roles = "Instructor,Admin")]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteMusic(int musicId)
@@ -315,7 +273,6 @@ public class BackgroundMusicController : ControllerBase
         try
         {
             var success = await _musicService.DeleteMusicAsync(musicId, instructorId.Value);
-            // Rẽ nhánh: Không tìm thấy bản nhạc trong CSDL
             if (!success)
             {
                 return NotFound(ApiResponse<bool>.FailureResponse("Không tìm thấy nhạc nền cần xóa."));
@@ -325,12 +282,10 @@ public class BackgroundMusicController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            // Bắt lỗi cố tình xóa nhạc mặc định của hệ thống -> Trả về HTTP 400 Bad Request
             return BadRequest(ApiResponse<bool>.FailureResponse(ex.Message));
         }
         catch (UnauthorizedAccessException ex)
         {
-            // Bắt lỗi không phải giảng viên chủ nhiệm khóa học -> Trả về HTTP 403 Forbidden
             return StatusCode(StatusCodes.Status403Forbidden, ApiResponse<bool>.FailureResponse(ex.Message));
         }
         catch (Exception ex)

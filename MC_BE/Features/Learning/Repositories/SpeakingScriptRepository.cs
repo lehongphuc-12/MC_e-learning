@@ -27,37 +27,61 @@ using Microsoft.EntityFrameworkCore;
 namespace MC_BE.Features.Learning.Repositories;
 
 /// <summary>
-/// Lớp triển khai cụ thể của ISpeakingScriptRepository sử dụng Entity Framework Core.
+/// [Định nghĩa Lớp]: Lớp triển khai cụ thể của ISpeakingScriptRepository sử dụng Entity Framework Core.
+/// [Giải phẫu cú pháp]:
+/// - `public`: Cho phép đăng ký DI Container và inject vào các tầng khác.
+/// - `class`: Khai báo kiểu tham chiếu (reference type).
+/// - `: GenericRepository<SpeakingScript>`: Kế thừa lớp cơ sở triển khai các hàm CRUD generic.
+/// - `, ISpeakingScriptRepository`: Hiện thực hóa hợp đồng nghiệp vụ repository cho SpeakingScript.
 /// </summary>
 public class SpeakingScriptRepository : GenericRepository<SpeakingScript>, ISpeakingScriptRepository
 {
+    /// <summary>
+    /// [Dòng này làm gì]: Khai báo trường lưu trữ đối tượng DbContext để tương tác với CSDL PostgreSQL/SQL Server.
+    /// [Giải phẫu từng từ khóa]:
+    /// - `private`: Chỉ nội bộ lớp SpeakingScriptRepository mới được truy cập, bảo đảm tính bao đóng (Encapsulation).
+    /// - `readonly`: Chỉ cho phép gán giá trị tại thời điểm khởi tạo trong Constructor, chống bị ghi đè ngẫu nhiên trong runtime.
+    /// - `SmartMcDbContext`: Lớp DbContext quản lý kết nối và ánh xạ bảng của EF Core.
+    /// - `_context`: Tên biến quy ước tiền tố '_' cho private field.
+    /// </summary>
     private readonly SmartMcDbContext _context;
 
     /// <summary>
-    /// Khởi tạo Repository với DbContext được inject từ DI Container.
+    /// [Dòng này làm gì]: Constructor nhận DbContext từ Dependency Injection (DI Container).
+    /// [Giải phẫu từng từ khóa]:
+    /// - `public`: Cho phép ASP.NET Core DI Container gọi khởi tạo instance.
+    /// - `SmartMcDbContext context`: Tham số DbContext được tiêm vào (Scoped lifetime).
+    /// - `: base(context)`: Chuyển tiếp instance context lên constructor của lớp cha `GenericRepository<SpeakingScript>` để khởi tạo `_dbSet`.
+    /// - `{ _context = context; }`: Gán instance cho field nội bộ để sử dụng cho các truy vấn riêng biệt.
     /// </summary>
-    /// <param name="context">SmartMcDbContext kết nối cơ sở dữ liệu PostgreSQL/SQL Server.</param>
+    /// <param name="context">SmartMcDbContext kết nối cơ sở dữ liệu.</param>
     public SpeakingScriptRepository(SmartMcDbContext context) : base(context)
     {
         _context = context;
     }
 
     /// <summary>
-    /// Lấy kịch bản luyện nói gắn với một bài học cụ thể, kèm theo quan hệ Course, Module, Lesson, CreatedByUser, Levels.
-    /// <para>End-to-End Flow: Nhận lessonId -> Khởi tạo truy vấn trên DbSet SpeakingScripts -> Include các bảng liên quan -> Lọc điều kiện LessonId == lessonId -> Trả về bản ghi đầu tiên hoặc null.</para>
+    /// [Dòng này làm gì & Luồng chạy]:
+    /// - Lấy kịch bản luyện nói gắn với một bài học cụ thể, kèm theo quan hệ Course, Module, Lesson, CreatedByUser, Levels.
+    /// - End-to-End Flow: Nhận lessonId -> Query DbSet SpeakingScripts -> Nạp quan hệ bằng Eager Loading (.Include) -> Lọc theo LessonId == lessonId -> FirstOrDefaultAsync().
+    /// [Giải phẫu từng từ khóa / hàm / toán tử]:
+    /// - `public async Task<SpeakingScript?>`: Hàm bất đồng bộ trả về thực thể SpeakingScript hoặc null.
+    /// - `await`: Giải phóng luồng ThreadPool trong thời gian chờ Database I/O phản hồi.
+    /// - `_context.SpeakingScripts`: Truy cập DbSet<SpeakingScript> đại diện cho bảng SpeakingScripts trong CSDL.
+    /// - `.Include(s => s.Course)`: Eager Loading sinh câu lệnh SQL `LEFT JOIN` nạp thông tin khóa học cha.
+    /// - `.Include(s => s.Module)`: Eager Loading nạp thông tin chương học cha.
+    /// - `.Include(s => s.Lesson)`: Eager Loading nạp thông tin bài học trực tiếp.
+    /// - `.Include(s => s.CreatedByUser)`: Eager Loading nạp thông tin tác giả tạo kịch bản.
+    /// - `.Include(s => s.Levels)`: Eager Loading nạp danh sách 3 cấp độ (Beginner, Intermediate, Advanced) từ bảng SpeakingScriptLevels.
+    /// - `.FirstOrDefaultAsync(s => s.LessonId == lessonId)`: Thực thi câu lệnh SQL với `LIMIT 1` lấy bản ghi đầu tiên khớp điều kiện; nếu không thấy trả về `null`.
+    /// [Tại sao dùng & Rủi ro nếu thiếu]:
+    /// - Sử dụng `.Include()` giải quyết triệt để vấn đề N+1 Query Problem: Toàn bộ kịch bản và 3 cấp độ con được lấy trong 1 câu SQL duy nhất.
+    /// - Nếu dùng `FirstAsync` thay vì `FirstOrDefaultAsync`, khi bài học không có kịch bản sẽ ném `InvalidOperationException` làm crash API.
     /// </summary>
     /// <param name="lessonId">ID bài học cần lấy kịch bản.</param>
     /// <returns>Thực thể SpeakingScript nạp đủ thông tin hoặc null.</returns>
     public async Task<SpeakingScript?> GetByLessonIdAsync(int lessonId)
     {
-        // [BƯỚC 1]: Truy vấn bảng SpeakingScripts với Eager Loading
-        // - Dữ liệu chảy từ DbSet<SpeakingScript> qua các mệnh đề Include để nạp sẵn dữ liệu quan hệ.
-        // [TẠI SAO DÙNG HÀM/KỸ THUẬT NÀY]:
-        //   - Sử dụng .Include() tránh N+1 Query Problem: toàn bộ thực thể kịch bản và các cấp độ con (Levels)
-        //     được gom vào một câu lệnh SQL JOIN duy nhất, thay vì query thêm N lần khi duyệt Levels.
-        // [DỰ ĐOÁN CÂU HỎI REVIEW CỦA GIẢNG VIÊN]:
-        //   - Q: Nếu bài học không có kịch bản nói thì sao?
-        //   - A: FirstOrDefaultAsync trả về null, Service sẽ kiểm tra null và xử lý phù hợp (hoặc throw NotFoundException nếu bắt buộc).
         return await _context.SpeakingScripts
             .Include(s => s.Course)
             .Include(s => s.Module)
@@ -68,17 +92,17 @@ public class SpeakingScriptRepository : GenericRepository<SpeakingScript>, ISpea
     }
 
     /// <summary>
-    /// Lấy chi tiết kịch bản luyện nói theo ScriptId kèm theo toàn bộ thông tin quan hệ.
-    /// <para>End-to-End Flow: Nhận scriptId -> Query SpeakingScripts -> Include Course/Module/Lesson/CreatedByUser/Levels -> FirstOrDefaultAsync(ScriptId == scriptId).</para>
+    /// [Dòng này làm gì & Luồng chạy]:
+    /// - Lấy chi tiết kịch bản luyện nói theo Khóa chính ScriptId kèm theo toàn bộ thông tin quan hệ.
+    /// - End-to-End Flow: Nhận scriptId -> Query SpeakingScripts -> Include Course/Module/Lesson/CreatedByUser/Levels -> FirstOrDefaultAsync(ScriptId == scriptId).
+    /// [Giải phẫu từng từ khóa & kỹ thuật]:
+    /// - Phục vụ các bài thi Speaking cuối chương (Module) hoặc cuối khóa (Final) vốn không gắn trực tiếp vào một LessonId nào.
+    /// - `.FirstOrDefaultAsync(s => s.ScriptId == scriptId)`: Lọc theo Primary Key có chỉ mục (Clustered Index), tốc độ truy vấn đạt O(1).
     /// </summary>
     /// <param name="scriptId">ID kịch bản.</param>
     /// <returns>Thực thể SpeakingScript chi tiết hoặc null.</returns>
     public async Task<SpeakingScript?> GetByIdWithDetailsAsync(int scriptId)
     {
-        // [BƯỚC 1]: Thực thi truy vấn lấy kịch bản theo Khóa chính ScriptId
-        // [TẠI SAO DÙNG HÀM/KỸ THUẬT NÀY]:
-        //   - Lấy kịch bản bằng ScriptId độc lập để phục vụ các bài thi Speaking cuối chương (Module) hoặc cuối khóa (Final)
-        //     vốn không gắn trực tiếp vào một LessonId nào.
         return await _context.SpeakingScripts
             .Include(s => s.Course)
             .Include(s => s.Module)
@@ -89,20 +113,18 @@ public class SpeakingScriptRepository : GenericRepository<SpeakingScript>, ISpea
     }
 
     /// <summary>
-    /// Lấy tất cả các kịch bản liên quan đến một khóa học cụ thể.
-    /// <para>End-to-End Flow: Nhận courseId -> Query SpeakingScripts -> Include quan hệ -> Lọc kịch bản gắn trực tiếp CourseId HOẶC thông qua Lesson.CourseId -> Sắp xếp theo Scope rồi ScriptId -> ToListAsync.</para>
+    /// [Dòng này làm gì & Luồng chạy]:
+    /// - Lấy tất cả các kịch bản liên quan đến một khóa học cụ thể.
+    /// - End-to-End Flow: Nhận courseId -> Query SpeakingScripts -> Include quan hệ -> Lọc kịch bản gắn trực tiếp CourseId HOẶC thông qua Lesson.CourseId -> Sắp xếp theo Scope rồi ScriptId -> ToListAsync().
+    /// [Giải phẫu điều kiện trong mệnh đề .Where()]:
+    /// - `s.CourseId == courseId`: Kịch bản được gắn trực tiếp vào khóa học (thường là bài Final Exam).
+    /// - `|| (s.Lesson != null && s.Lesson.CourseId == courseId)`: Kịch bản được gắn vào bài học con thuộc khóa học đó.
+    /// [Tại sao dùng]: Đảm bảo gom đủ 100% kịch bản trong khóa học mà không bỏ sót bất kỳ kịch bản nào, dù kịch bản đó được gán ở cấp độ Course hay cấp độ Lesson.
     /// </summary>
     /// <param name="courseId">ID khóa học.</param>
     /// <returns>Danh sách kịch bản thuộc khóa học.</returns>
     public async Task<IEnumerable<SpeakingScript>> GetByCourseIdAsync(int courseId)
     {
-        // [BƯỚC 1]: Truy vấn danh sách kịch bản nói của khóa học
-        // [GIẢI PHẪU ĐIỀU KIỆN LỌC TRONG WHERE]:
-        //   - s.CourseId == courseId: Kịch bản được gắn trực tiếp vào khóa học (thường là bài Final Test).
-        //   - s.Lesson != null && s.Lesson.CourseId == courseId: Kịch bản được gắn vào bài học con thuộc khóa học đó.
-        // [TẠI SAO DÙNG CÁCH NÀY]:
-        //   - Đảm bảo gom đủ 100% kịch bản trong khóa học mà không bỏ sót bất kỳ kịch bản nào, dù kịch bản đó
-        //     được gán ở cấp độ Course hay cấp độ Lesson.
         return await _context.SpeakingScripts
             .Include(s => s.Course)
             .Include(s => s.Module)
@@ -116,8 +138,15 @@ public class SpeakingScriptRepository : GenericRepository<SpeakingScript>, ISpea
     }
 
     /// <summary>
-    /// Truy vấn danh sách kịch bản nâng cao hỗ trợ lọc động (Dynamic Querying) theo nhiều điều kiện và tìm kiếm tự do.
-    /// <para>End-to-End Flow: Khởi tạo IQueryable -> Nạp Include -> Kiểm tra từng tham số đầu vào -> Ghép thêm mệnh đề Where tương ứng -> Sắp xếp theo UpdatedAt giảm dần -> Trả về kết quả ToListAsync.</para>
+    /// [Dòng này làm gì & Luồng chạy]:
+    /// - Truy vấn danh sách kịch bản nâng cao hỗ trợ lọc động (Dynamic Querying) theo nhiều điều kiện và tìm kiếm tự do.
+    /// - End-to-End Flow:
+    ///   - Bước 1: Khởi tạo IQueryable trên DbSet SpeakingScripts kèm Eager Loading các bảng liên quan.
+    ///   - Bước 2: Kiểm tra từng tham số đầu vào (courseId, scope, moduleId, lessonId, search).
+    ///   - Bước 3: Nếu tham số có giá trị -> Nối thêm mệnh đề `.Where()` tương ứng vào cây truy vấn LINQ.
+    ///   - Bước 4: Sắp xếp theo UpdatedAt giảm dần và thực thi câu lệnh SQL qua `ToListAsync()`.
+    /// [Tại sao dùng AsQueryable() & Trì hoãn thực thi (Deferred Execution)]:
+    /// - Câu lệnh SQL chưa được gửi tới Database cho đến khi gọi `.ToListAsync()`. Nhờ đó, EF Core tổng hợp toàn bộ các điều kiện `if` thành duy nhất một câu lệnh SQL `WHERE ... AND ...` tối ưu tại máy chủ DB.
     /// </summary>
     /// <param name="courseId">ID khóa học (tùy chọn).</param>
     /// <param name="scope">Phạm vi kịch bản: LESSON, CHAPTER, FINAL (tùy chọn).</param>
@@ -133,9 +162,6 @@ public class SpeakingScriptRepository : GenericRepository<SpeakingScript>, ISpea
         string? search)
     {
         // [BƯỚC 1]: Khởi tạo truy vấn IQueryable và nạp các thực thể phụ thuộc
-        // [TẠI SAO DÙNG AsQueryable()]:
-        //   - Tận dụng cơ chế Trì hoãn thực thi (Deferred Execution) của LINQ to Entities: Câu lệnh SQL chưa được
-        //     gửi tới DB mà sẽ được ghép nối dần các mệnh đề WHERE tùy thuộc vào tham số người dùng truyền vào.
         var query = _context.SpeakingScripts
             .Include(s => s.Course)
             .Include(s => s.Module)
@@ -145,35 +171,45 @@ public class SpeakingScriptRepository : GenericRepository<SpeakingScript>, ISpea
             .AsQueryable();
 
         // [BƯỚC 2.1]: Rẽ nhánh kiểm tra lọc theo Khóa học (courseId)
-        // - Điều kiện: courseId.HasValue (Người dùng có truyền tiêu chí lọc CourseId hay không).
-        // - Trường hợp ĐÚNG (TRUE): Ghép thêm điều kiện WHERE lọc kịch bản thuộc CourseId trực tiếp hoặc qua Lesson.
-        // - Trường hợp SAI (FALSE): Bỏ qua khối if, không lọc theo CourseId, dữ liệu tiếp tục giữ nguyên.
+        // - Điều kiện kiểm tra: `courseId.HasValue` (Người dùng có truyền tiêu chí lọc CourseId hay không).
+        // - Trường hợp ĐÚNG (TRUE - khi courseId != null):
+        //     + Gọi tiếp hàm: `query.Where(s => s.CourseId == courseId.Value || (s.Lesson != null && s.Lesson.CourseId == courseId.Value))`.
+        //     + Hệ quả: Thu hẹp tập kết quả, chỉ lấy các kịch bản gắn trực tiếp vào CourseId hoặc qua Lesson thuộc CourseId đó.
+        // - Trường hợp SAI (FALSE - khi courseId == null):
+        //     + Bỏ qua khối if, giữ nguyên truy vấn ban đầu để lấy kịch bản của mọi khóa học.
         if (courseId.HasValue)
         {
             query = query.Where(s => s.CourseId == courseId.Value || (s.Lesson != null && s.Lesson.CourseId == courseId.Value));
         }
 
         // [BƯỚC 2.2]: Rẽ nhánh kiểm tra lọc theo Phạm vi (scope)
-        // - Điều kiện: scope.HasValue (Lọc theo LESSON, CHAPTER hoặc FINAL).
-        // - Trường hợp ĐÚNG (TRUE): Ghép WHERE s.Scope == scope.Value để chỉ lấy kịch bản đúng phạm vi yêu cầu.
-        // - Trường hợp SAI (FALSE): Bỏ qua khối if, lấy tất cả các Scope.
+        // - Điều kiện kiểm tra: `scope.HasValue` (Kiểm tra người dùng có chọn Scope LESSON/CHAPTER/FINAL hay không).
+        // - Trường hợp ĐÚNG (TRUE - khi scope != null):
+        //     + Gọi tiếp: `query.Where(s => s.Scope == scope.Value)`.
+        //     + Hệ quả: Chỉ lấy các kịch bản đúng phạm vi yêu cầu.
+        // - Trường hợp SAI (FALSE):
+        //     + Bỏ qua khối if, cho phép hiển thị kịch bản ở mọi Scope.
         if (scope.HasValue)
         {
             query = query.Where(s => s.Scope == scope.Value);
         }
 
         // [BƯỚC 2.3]: Rẽ nhánh kiểm tra lọc theo Chương học (moduleId)
-        // - Điều kiện: moduleId.HasValue (Người dùng chọn xem kịch bản của một Module cụ thể).
-        // - Trường hợp ĐÚNG (TRUE): Ghép WHERE s.ModuleId == moduleId hoặc Lesson thuộc moduleId đó.
-        // - Trường hợp SAI (FALSE): Bỏ qua khối if, cho phép hiển thị kịch bản của toàn bộ các module.
+        // - Điều kiện kiểm tra: `moduleId.HasValue`.
+        // - Trường hợp ĐÚNG (TRUE):
+        //     + Gọi tiếp: `query.Where(s => s.ModuleId == moduleId.Value || (s.Lesson != null && s.Lesson.ModuleId == moduleId.Value))`.
+        //     + Hệ quả: Lọc chính xác các kịch bản gắn với chương học được chọn.
+        // - Trường hợp SAI (FALSE): Bỏ qua khối if.
         if (moduleId.HasValue)
         {
             query = query.Where(s => s.ModuleId == moduleId.Value || (s.Lesson != null && s.Lesson.ModuleId == moduleId.Value));
         }
 
         // [BƯỚC 2.4]: Rẽ nhánh kiểm tra lọc theo Bài học (lessonId)
-        // - Điều kiện: lessonId.HasValue.
-        // - Trường hợp ĐÚNG (TRUE): Ghép WHERE s.LessonId == lessonId.Value.
+        // - Điều kiện kiểm tra: `lessonId.HasValue`.
+        // - Trường hợp ĐÚNG (TRUE):
+        //     + Gọi tiếp: `query.Where(s => s.LessonId == lessonId.Value)`.
+        //     + Hệ quả: Chỉ lấy kịch bản gán riêng cho bài học đó.
         // - Trường hợp SAI (FALSE): Bỏ qua khối if.
         if (lessonId.HasValue)
         {
@@ -181,16 +217,14 @@ public class SpeakingScriptRepository : GenericRepository<SpeakingScript>, ISpea
         }
 
         // [BƯỚC 2.5]: Rẽ nhánh kiểm tra tìm kiếm từ khóa (search)
-        // - Điều kiện: !string.IsNullOrWhiteSpace(search) (Chuỗi tìm kiếm không rỗng và không chỉ chứa khoảng trắng).
+        // - Điều kiện kiểm tra: `!string.IsNullOrWhiteSpace(search)` (Chuỗi tìm kiếm không rỗng và không chỉ chứa khoảng trắng).
         // - Trường hợp ĐÚNG (TRUE):
-        //     + Chuẩn hóa từ khóa: search.Trim().ToLower() để tìm kiếm không phân biệt chữ hoa/thường.
-        //     + Tìm kiếm đa trường: Tìm trong Tiêu đề kịch bản (Title), Tên khóa học (Course.Title), hoặc Nội dung gốc (OriginalContent).
-        // - Trường hợp SAI (FALSE): Bỏ qua, không lọc theo từ khóa.
+        //     + Chuẩn hóa từ khóa: `var searchLower = search.Trim().ToLower();` để tìm kiếm không phân biệt hoa thường.
+        //     + Ghép điều kiện tìm kiếm đa trường: Tìm trong Tiêu đề kịch bản (Title), Tên khóa học (Course.Title), hoặc Nội dung gốc (OriginalContent).
+        // - Trường hợp SAI (FALSE): Bỏ qua khối if.
         // [DỰ ĐOÁN CÂU HỎI REVIEW CỦA GIẢNG VIÊN]:
         //   - Q: Việc dùng .ToLower().Contains() trên DB lớn có ảnh hưởng hiệu năng không?
-        //   - A: Trong phạm vi số lượng kịch bản của hệ thống vừa và nhỏ, ILIKE/Contains hoạt động tốt.
-        //        Nếu dữ liệu lên tới hàng triệu bản ghi, đồ án có thể cải tiến dùng Full-Text Search (tsvector trên PostgreSQL)
-        //        hoặc ElasticSearch kết hợp đánh chỉ mục (Index).
+        //   - A: Trong quy mô dữ liệu vừa và nhỏ, ILIKE/Contains của PostgreSQL/SQL Server hoạt động tốt. Khi dữ liệu lớn lên hàng triệu bản ghi, hệ thống có thể nâng cấp sử dụng Full-Text Search (tsvector) kết hợp GIN Index hoặc ElasticSearch.
         if (!string.IsNullOrWhiteSpace(search))
         {
             var searchLower = search.Trim().ToLower();
@@ -201,44 +235,43 @@ public class SpeakingScriptRepository : GenericRepository<SpeakingScript>, ISpea
         }
 
         // [BƯỚC 3]: Sắp xếp kết quả và kích hoạt thực thi câu lệnh SQL (Materialize query)
-        // - OrderByDescending(s => s.UpdatedAt): Kịch bản được chỉnh sửa gần nhất sẽ nổi lên đầu danh sách.
-        // - ToListAsync(): Gửi câu truy vấn tối ưu cuối cùng tới Database và thu nạp kết quả vào bộ nhớ RAM.
+        // - `OrderByDescending(s => s.UpdatedAt)`: Sắp xếp theo ngày cập nhật mới nhất lên đầu danh sách.
+        // - `ToListAsync()`: Kích hoạt gửi câu truy vấn SQL hoàn chỉnh về Database và nạp danh sách kết quả vào RAM.
         return await query
             .OrderByDescending(s => s.UpdatedAt)
             .ToListAsync();
     }
 
     /// <summary>
-    /// Lấy bản ghi cấp độ cụ thể của một kịch bản dựa vào ScriptId và SpeakingLevel.
-    /// <para>End-to-End Flow: Nhận scriptId, level -> Query SpeakingScriptLevels -> Include Script cha -> FirstOrDefaultAsync theo điều kiện.</para>
+    /// [Dòng này làm gì & Luồng chạy]:
+    /// - Lấy bản ghi cấp độ cụ thể của một kịch bản dựa vào ScriptId và SpeakingLevel.
+    /// - End-to-End Flow: Nhận scriptId, level -> Query DbSet SpeakingScriptLevels -> Nạp quan hệ Script cha -> FirstOrDefaultAsync(ScriptId == scriptId && Level == level).
+    /// [Tại sao dùng & Rủi ro nếu thiếu]:
+    /// - Mỗi kịch bản chỉ có tối đa một bản ghi cho mỗi SpeakingLevel.
+    /// - Việc `.Include(l => l.Script)` giúp Service lấy được ngay thông tin kịch bản cha (PassingScore, Scope) trong 1 query duy nhất.
     /// </summary>
     /// <param name="scriptId">ID kịch bản.</param>
     /// <param name="level">Cấp độ (BEGINNER, INTERMEDIATE, ADVANCED).</param>
     /// <returns>Thực thể SpeakingScriptLevel hoặc null.</returns>
     public async Task<SpeakingScriptLevel?> GetLevelAsync(int scriptId, SpeakingLevel level)
     {
-        // [BƯỚC 1]: Truy vấn bảng SpeakingScriptLevels với khóa tổ hợp logic (ScriptId + Level)
-        // [TẠI SAO DÙNG HÀM/KỸ THUẬT NÀY]:
-        //   - Mỗi kịch bản chỉ có tối đa một bản ghi cho mỗi SpeakingLevel. Việc Include(l => l.Script)
-        //     giúp Service lấy được ngay thông tin kịch bản cha (như PassingScore, Scope) mà không cần query lại.
         return await _context.SpeakingScriptLevels
             .Include(l => l.Script)
             .FirstOrDefaultAsync(l => l.ScriptId == scriptId && l.Level == level);
     }
 
     /// <summary>
-    /// Lấy bản ghi cấp độ của kịch bản thông qua LessonId liên kết.
-    /// <para>End-to-End Flow: Nhận lessonId, level -> Query SpeakingScriptLevels -> Include Script -> Lọc theo Script.LessonId == lessonId và Level == level.</para>
+    /// [Dòng này làm gì & Luồng chạy]:
+    /// - Lấy bản ghi cấp độ của kịch bản thông qua LessonId liên kết.
+    /// - End-to-End Flow: Nhận lessonId, level -> Query DbSet SpeakingScriptLevels -> Include Script -> FirstOrDefaultAsync(l.Script.LessonId == lessonId && l.Level == level).
+    /// [Ý nghĩa nghiệp vụ]:
+    /// - Phục vụ trực tiếp màn hình luyện tập của học viên: Học viên đang xem bài học lessonId và chọn cấp độ Beginner/Intermediate/Advanced để luyện nói, API gọi hàm này để lấy đúng nội dung văn bản cần đọc.
     /// </summary>
     /// <param name="lessonId">ID bài học.</param>
     /// <param name="level">Cấp độ luyện nói.</param>
-    /// <returns>Thực thể SpeakingScriptLevel hoặc null.</returns>
+    /// <returns>Thực thể SpeakingScriptLevel tương ứng.</returns>
     public async Task<SpeakingScriptLevel?> GetLevelByLessonIdAsync(int lessonId, SpeakingLevel level)
     {
-        // [BƯỚC 1]: Truy vấn nội dung cấp độ nói trực tiếp qua mối quan hệ gián tiếp Lesson -> Script -> Level
-        // [Ý NGHĨA NGHIỆP VỤ]:
-        //   - Phục vụ trực tiếp màn hình học tập của học viên: Học viên đang xem bài học lessonId và chọn cấp độ
-        //     Beginner/Intermediate/Advanced để luyện nói, API gọi hàm này để lấy đúng nội dung văn bản cần đọc.
         return await _context.SpeakingScriptLevels
             .Include(l => l.Script)
             .FirstOrDefaultAsync(l => l.Script.LessonId == lessonId && l.Level == level);

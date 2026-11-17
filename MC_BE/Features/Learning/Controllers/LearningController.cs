@@ -50,12 +50,12 @@ public class LearningController : ControllerBase
     }
 
     /// <summary>
-    /// Hàm tiện ích (Private Helper) trích xuất ID người dùng từ Claims trong JWT Token đã giải mã.
+    /// [Dòng này làm gì & Luồng chạy]:
+    /// - Hàm tiện ích (Private Helper) trích xuất ID người dùng từ Claims trong JWT Token đã giải mã.
     /// </summary>
     /// <returns>UserId kiểu int hoặc null nếu token không hợp lệ.</returns>
     private int? GetCurrentUserId()
     {
-        // [BƯỚC 1]: Đọc Claim NameIdentifier từ HttpContext.User
         var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         return int.TryParse(claim, out var id) ? id : null;
     }
@@ -71,32 +71,21 @@ public class LearningController : ControllerBase
     /// </summary>
     /// <param name="courseId">ID khóa học.</param>
     /// <returns>ApiResponse chứa CourseLearningProgressDto.</returns>
-    /// <summary>
-    /// GET /api/learning/courses/{courseId}/progress
-    /// Get course learning progress for current learner
-    /// </summary>
     [HttpGet("courses/{courseId:int}/progress")]
     public async Task<ActionResult<ApiResponse<CourseLearningProgressDto>>> GetCourseProgress(int courseId)
     {
-        // [BƯỚC 1]: Kiểm tra xác thực người dùng
         var learnerId = GetCurrentUserId();
-        // Rẽ nhánh: Nếu token không hợp lệ -> Phản hồi 401 Unauthorized
         if (learnerId == null)
         {
             return Unauthorized(ApiResponse<CourseLearningProgressDto>.FailureResponse("Unauthorized."));
         }
 
-        // [BƯỚC 2]: Gọi Service tính toán tiến độ
         var progress = await _learningProgressService.GetCourseProgressAsync(learnerId.Value, courseId);
-        // [BƯỚC 3]: Rẽ nhánh kiểm tra sự tồn tại của lượt ghi danh
-        // - Điều kiện: progress == null (Học viên chưa ghi danh khóa học này hoặc không có quyền truy cập).
-        // - Xử lý: Phản hồi HTTP 404 Not Found.
         if (progress == null)
         {
             return NotFound(ApiResponse<CourseLearningProgressDto>.FailureResponse("Learner enrollment or course not found."));
         }
 
-        // [BƯỚC 4]: Phản hồi kết quả HTTP 200 OK
         return Ok(ApiResponse<CourseLearningProgressDto>.SuccessResponse(progress, "Course progress retrieved successfully."));
     }
 
@@ -113,10 +102,6 @@ public class LearningController : ControllerBase
     /// <param name="lessonId">ID bài học cần cập nhật.</param>
     /// <param name="request">Payload chứa thông tin tiến độ.</param>
     /// <returns>ApiResponse chứa CourseLearningProgressDto mới nhất.</returns>
-    /// <summary>
-    /// PUT /api/learning/lessons/{lessonId}/progress
-    /// Update lesson progress idempotently (time spent, video position, completion status)
-    /// </summary>
     [HttpPut("lessons/{lessonId:int}/progress")]
     public async Task<ActionResult<ApiResponse<CourseLearningProgressDto>>> UpdateLessonProgress(
         int lessonId, [FromBody] UpdateLessonProgressRequest request)
@@ -127,9 +112,7 @@ public class LearningController : ControllerBase
             return Unauthorized(ApiResponse<CourseLearningProgressDto>.FailureResponse("Unauthorized."));
         }
 
-        // Gọi Service cập nhật tiến độ bài học và tính lại tổng tiến độ khóa học
         var updatedProgress = await _learningProgressService.UpdateLessonProgressAsync(learnerId.Value, lessonId, request);
-        // Rẽ nhánh: Nếu bài học hoặc lượt ghi danh không hợp lệ
         if (updatedProgress == null)
         {
             return NotFound(ApiResponse<CourseLearningProgressDto>.FailureResponse("Lesson or enrollment not found."));
@@ -145,10 +128,6 @@ public class LearningController : ControllerBase
     /// </summary>
     /// <param name="limit">Số lượng hoạt động tối đa (mặc định 10).</param>
     /// <returns>ApiResponse chứa danh sách ActivityLogDto.</returns>
-    /// <summary>
-    /// GET /api/learning/activity-logs
-    /// Get recent learning activities for the user
-    /// </summary>
     [HttpGet("activity-logs")]
     public async Task<ActionResult<ApiResponse<List<ActivityLogDto>>>> GetActivityLogs([FromQuery] int limit = 10)
     {
@@ -158,21 +137,16 @@ public class LearningController : ControllerBase
             return Unauthorized(ApiResponse<List<ActivityLogDto>>.FailureResponse("Unauthorized."));
         }
 
-        // Gọi Service tổng hợp 7 loại hoạt động học tập
         var activities = await _learningProgressService.GetRecentActivitiesAsync(learnerId.Value, limit);
         return Ok(ApiResponse<List<ActivityLogDto>>.SuccessResponse(activities, "Retrieved activity logs successfully."));
     }
 
     /// <summary>
     /// GET /api/learning/streak
-    /// Lấy chỉ số Gamification chuỗi ngày học liên tục (Learning Streak) của học viên.
+    /// Lấy chỉ số Gamification chuỗi ngày học liên tục (Learning Streak) của học viên theo múi giờ Việt Nam (UTC+7).
     /// <para>End-to-End Flow: Xác thực Token -> Gọi Service GetLearningStreakAsync(learnerId) -> Trả về HTTP 200 OK.</para>
     /// </summary>
     /// <returns>ApiResponse chứa LearningStreakDto (CurrentStreak, LongestStreak).</returns>
-    /// <summary>
-    /// GET /api/learning/streak
-    /// Get learning streak for the user
-    /// </summary>
     [HttpGet("streak")]
     public async Task<ActionResult<ApiResponse<LearningStreakDto>>> GetLearningStreak()
     {
@@ -182,7 +156,6 @@ public class LearningController : ControllerBase
             return Unauthorized(ApiResponse<LearningStreakDto>.FailureResponse("Unauthorized."));
         }
 
-        // Gọi Service tính toán Streak theo múi giờ Việt Nam
         var streak = await _learningProgressService.GetLearningStreakAsync(learnerId.Value);
         return Ok(ApiResponse<LearningStreakDto>.SuccessResponse(streak, "Retrieved streak successfully."));
     }

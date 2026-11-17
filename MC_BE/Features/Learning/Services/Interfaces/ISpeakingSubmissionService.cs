@@ -25,13 +25,21 @@ using MC_BE.Features.Learning.DTOs;
 namespace MC_BE.Features.Learning.Services.Interfaces;
 
 /// <summary>
-/// Giao diện dịch vụ nghiệp vụ nộp và chấm điểm bài tập nói (Speaking Submissions).
+/// [Định nghĩa Interface]: Giao diện dịch vụ nghiệp vụ nộp và chấm điểm bài tập nói (Speaking Submissions).
+/// [Giải phẫu cú pháp]:
+/// - `public`: Công khai toàn hệ thống.
+/// - `interface`: Hợp đồng dịch vụ.
+/// - `ISpeakingSubmissionService`: Tên giao diện chuẩn convention C#.
 /// </summary>
 public interface ISpeakingSubmissionService
 {
     /// <summary>
-    /// Học viên nộp bài tập nói (file audio + ghi chú) theo LessonId hoặc ScriptId.
+    /// [Dòng này làm gì]: Học viên nộp bài tập nói (file audio + ghi chú) theo LessonId hoặc ScriptId.
     /// Tự động kiểm tra quyền truy cập khóa học, kiểm tra điều kiện khóa nộp bài và upload file lên Cloudinary.
+    /// [Giải phẫu cú pháp & kiểu dữ liệu]:
+    /// - `int learnerId`: ID học viên nộp bài.
+    /// - `CreateSpeakingSubmissionRequest request`: DTO chứa AudioFile (IFormFile), LessonId, ScriptId, Note.
+    /// - `Task<SpeakingSubmissionResponseDto>`: Trả về DTO kết quả bài nộp vừa tạo hoặc ghi đè.
     /// </summary>
     /// <param name="learnerId">ID học viên nộp bài.</param>
     /// <param name="request">Dữ liệu nộp bài (file audio, lessonId, scriptId, note).</param>
@@ -39,7 +47,11 @@ public interface ISpeakingSubmissionService
     Task<SpeakingSubmissionResponseDto> SubmitSpeakingAssignmentAsync(int learnerId, CreateSpeakingSubmissionRequest request);
 
     /// <summary>
-    /// Lấy bài nộp mới nhất của học viên đối với một bài học cụ thể.
+    /// [Dòng này làm gì]: Lấy bài nộp mới nhất của học viên đối với một bài học cụ thể.
+    /// [Giải phẫu cú pháp & kiểu dữ liệu]:
+    /// - `int learnerId`: ID học viên.
+    /// - `int lessonId`: ID bài học.
+    /// - `Task<SpeakingSubmissionResponseDto?>`: Nullable DTO, trả về null nếu học viên chưa từng nộp bài cho bài học này.
     /// </summary>
     /// <param name="learnerId">ID học viên.</param>
     /// <param name="lessonId">ID bài học.</param>
@@ -47,7 +59,10 @@ public interface ISpeakingSubmissionService
     Task<SpeakingSubmissionResponseDto?> GetLatestSubmissionByLessonAsync(int learnerId, int lessonId);
 
     /// <summary>
-    /// Lấy bài nộp mới nhất của học viên đối với một kịch bản nói cụ thể.
+    /// [Dòng này làm gì]: Lấy bài nộp mới nhất của học viên đối với một kịch bản nói cụ thể (bài thi Final hoặc Chapter).
+    /// [Giải phẫu cú pháp & kiểu dữ liệu]:
+    /// - `int learnerId`: ID học viên.
+    /// - `int scriptId`: ID kịch bản nói.
     /// </summary>
     /// <param name="learnerId">ID học viên.</param>
     /// <param name="scriptId">ID kịch bản.</param>
@@ -55,21 +70,29 @@ public interface ISpeakingSubmissionService
     Task<SpeakingSubmissionResponseDto?> GetLatestSubmissionByScriptAsync(int learnerId, int scriptId);
 
     /// <summary>
-    /// Lấy toàn bộ danh sách các bài nộp luyện nói của học viên hiện tại.
+    /// [Dòng này làm gì]: Lấy toàn bộ danh sách các bài nộp luyện nói của học viên hiện tại.
+    /// [Giải phẫu cú pháp & kiểu dữ liệu]:
+    /// - `int learnerId`: ID học viên.
+    /// - `Task<IEnumerable<SpeakingSubmissionResponseDto>>`: Danh sách bài nộp của học viên sắp xếp theo ngày nộp giảm dần.
     /// </summary>
     /// <param name="learnerId">ID học viên.</param>
     /// <returns>Danh sách bài nộp của học viên.</returns>
     Task<IEnumerable<SpeakingSubmissionResponseDto>> GetMySubmissionsAsync(int learnerId);
 
     /// <summary>
-    /// Lấy danh sách các bài nộp cần chấm thuộc tất cả các khóa học do giảng viên này phụ trách.
+    /// [Dòng này làm gì]: Lấy danh sách các bài nộp cần chấm thuộc tất cả các khóa học do giảng viên này phụ trách.
+    /// [Giải phẫu cú pháp & kiểu dữ liệu]:
+    /// - `int instructorId`: ID giảng viên để kiểm tra quyền sở hữu khóa học.
     /// </summary>
     /// <param name="instructorId">ID giảng viên.</param>
     /// <returns>Danh sách bài nộp chờ chấm hoặc đã chấm.</returns>
     Task<IEnumerable<SpeakingSubmissionResponseDto>> GetSubmissionsForInstructorAsync(int instructorId);
 
     /// <summary>
-    /// Lấy danh sách các bài nộp trong một khóa học cụ thể dành cho giảng viên phụ trách khóa học đó.
+    /// [Dòng này làm gì]: Lấy danh sách các bài nộp trong một khóa học cụ thể dành cho giảng viên phụ trách khóa học đó.
+    /// [Giải phẫu cú pháp & kiểu dữ liệu]:
+    /// - `int instructorId`: ID giảng viên.
+    /// - `int courseId`: ID khóa học.
     /// </summary>
     /// <param name="instructorId">ID giảng viên.</param>
     /// <param name="courseId">ID khóa học.</param>
@@ -77,8 +100,14 @@ public interface ISpeakingSubmissionService
     Task<IEnumerable<SpeakingSubmissionResponseDto>> GetSubmissionsByCourseForInstructorAsync(int instructorId, int courseId);
 
     /// <summary>
-    /// Giảng viên thực hiện chấm điểm và viết lời nhận xét góp ý cho một bài nộp cụ thể.
+    /// [Dòng này làm gì]: Giảng viên thực hiện chấm điểm và viết lời nhận xét góp ý cho một bài nộp cụ thể.
     /// Kiểm tra quyền giảng viên của khóa học trước khi cập nhật điểm.
+    /// Tự động cập nhật hoàn thành bài học (LessonProgress.IsCompleted = true) nếu điểm đạt chuẩn (Score >= 80).
+    /// [Giải phẫu cú pháp & kiểu dữ liệu]:
+    /// - `int instructorId`: ID giảng viên chấm bài.
+    /// - `int submissionId`: ID bài nộp cần chấm.
+    /// - `GradeSpeakingSubmissionRequest request`: DTO chứa điểm số (Score) và nhận xét (Feedback).
+    /// - `Task<SpeakingSubmissionResponseDto?>`: Bài nộp sau khi chấm hoặc null nếu không tìm thấy.
     /// </summary>
     /// <param name="instructorId">ID giảng viên chấm điểm.</param>
     /// <param name="submissionId">ID bài nộp.</param>
