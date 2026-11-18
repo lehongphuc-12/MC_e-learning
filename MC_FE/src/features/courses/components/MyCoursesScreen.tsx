@@ -450,7 +450,8 @@ export const MyCoursesScreen: React.FC<MyCoursesScreenProps> = ({ onNavigate }) 
 
   useEffect(() => {
     window.addEventListener('resize', measureTabs);
-    return () => window.removeEventListener('resize', measureTabs);
+    // Link is rendered outside the course cards so expired enrollments remain accessible.
+  return () => window.removeEventListener('resize', measureTabs);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
@@ -466,6 +467,7 @@ export const MyCoursesScreen: React.FC<MyCoursesScreenProps> = ({ onNavigate }) 
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
       <style>{MOTION_CSS}</style>
+      <div className="mx-auto mb-4 max-w-7xl text-right"><button type="button" onClick={() => navigate("/learning-history")} className="rounded-lg bg-blue-700 px-4 py-2 font-semibold text-white hover:bg-blue-800">Xem lịch sử học tập</button></div>
 
       <div className="mx-auto max-w-7xl space-y-5">
         {/* ---------------- Banner: 2 nửa bằng nhau, dải số liệu 4 ô đều ---------------- */}

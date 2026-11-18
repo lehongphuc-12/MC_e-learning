@@ -1,4 +1,6 @@
 using MC_BE.Core.DTOs;
+using MC_BE.Shared.Data;
+using Microsoft.EntityFrameworkCore;
 using MC_BE.Shared.Services.Interfaces;
 using MC_BE.Features.Quizzes.DTOs;
 using MC_BE.Features.Quizzes.Services.Interfaces;
@@ -16,14 +18,16 @@ namespace MC_BE.Features.Quizzes.Controllers;
 public class QuizzesController : ControllerBase
 {
     private readonly IQuizService _quizService;
+    private readonly SmartMcDbContext _db;
     private readonly ICourseLearningAccessService _courseAccess;
     private readonly QuizSheetExporter _sheetExporter;
     private readonly ILogger<QuizzesController> _logger;
     private readonly ICloudinaryService _cloudinaryService;
     private readonly ILearningAccessService _learningAccess;
-    public QuizzesController(IQuizService quizService, QuizSheetExporter sheetExporter, ILogger<QuizzesController> logger, ICloudinaryService cloudinaryService, ILearningAccessService learningAccess, ICourseLearningAccessService courseAccess)
+    public QuizzesController(IQuizService quizService, QuizSheetExporter sheetExporter, ILogger<QuizzesController> logger, ICloudinaryService cloudinaryService, ILearningAccessService learningAccess, ICourseLearningAccessService courseAccess, SmartMcDbContext db)
     {
         _quizService = quizService;
+        _db = db;
         _courseAccess = courseAccess;
         _sheetExporter = sheetExporter;
         _logger = logger;
@@ -204,8 +208,12 @@ public async Task<ActionResult<ApiResponse<TakeQuizDto>>> TakeQuiz(
     {
         var quiz = await _quizService.GetQuizByIdAsync(quizId);
         if (quiz is null) return NotFound(ApiResponse<TakeQuizDto>.FailureResponse("Quiz not found."));
-        if (quiz.CourseId.HasValue &&
-            !await _courseAccess.CanAccessCourseAsync(quiz.CourseId.Value, learnerId.Value, isAdmin: false))
+        var courseId = await _db.Quizzes.AsNoTracking().Where(q => q.QuizId == quizId)
+            .Select(q => q.CourseId ?? (q.Lesson != null ? (int?)q.Lesson.CourseId : null) ??
+                (q.ModuleId.HasValue ? _db.Modules.Where(m => m.ModuleId == q.ModuleId.Value)
+                    .Select(m => (int?)m.CourseId).FirstOrDefault() : null))
+            .FirstOrDefaultAsync();
+        if (!courseId.HasValue || !await _courseAccess.CanAccessCourseAsync(courseId.Value, learnerId.Value, false))
             return Forbid();
 
         var result = await _quizService.TakeQuizAsync(
@@ -250,6 +258,14 @@ public async Task<ActionResult<ApiResponse<QuizResultDto>>> SubmitQuiz(
     }
     try
     {
+        // Recheck enrollment at submission time; a quiz started before expiry must not be submitted after expiry.
+        var courseId = await _db.Quizzes.AsNoTracking().Where(q => q.QuizId == quizId)
+            .Select(q => q.CourseId ?? (q.Lesson != null ? (int?)q.Lesson.CourseId : null) ??
+                (q.ModuleId.HasValue ? _db.Modules.Where(m => m.ModuleId == q.ModuleId.Value)
+                    .Select(m => (int?)m.CourseId).FirstOrDefault() : null))
+            .FirstOrDefaultAsync();
+        if (!courseId.HasValue || !await _courseAccess.CanAccessCourseAsync(courseId.Value, learnerId.Value, false))
+            return Forbid();
         var result = await _quizService.SubmitQuizAsync(
             learnerId.Value,
             quizId,

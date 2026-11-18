@@ -103,7 +103,7 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
                 throw new ArgumentException("Vui lòng cung cấp LessonId hoặc ScriptId để nộp bài nói.");
             }
 
-            if (!await _courseAccess.CanAccessCourseAsync(lesson.CourseId, learnerId, isAdmin: false))
+            if (courseId <= 0 || !await _courseAccess.CanAccessCourseAsync(courseId, learnerId, isAdmin: false))
                 throw new InvalidOperationException("Bạn không có quyền truy cập khóa học này.");
 
             // 3. Check learner enrollment in the course via Repository
