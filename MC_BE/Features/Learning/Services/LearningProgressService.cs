@@ -313,7 +313,9 @@ public class LearningProgressService : ILearningProgressService
         }
         catch (DbUpdateException)
         {
-            // Suppress duplicate key error from concurrent requests
+            // Do not hide persistence failures: they may prevent the next lesson from unlocking.
+            // Check the server exception/inner exception for the exact database cause.
+            throw;
         }
 
         // Calculate new course completion rate

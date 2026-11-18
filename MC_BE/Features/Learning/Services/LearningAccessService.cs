@@ -25,7 +25,8 @@ public sealed class LearningAccessService : ILearningAccessService
         int? LessonId,
         int? ModuleId,
         QuizPurpose Purpose,
-        QuizStatus Status
+        QuizStatus Status,
+        DateTime? AvailableUntil
     );
 
     private sealed record LearningSnapshot(
@@ -83,7 +84,8 @@ public sealed class LearningAccessService : ILearningAccessService
                 x.LessonId,
                 x.ModuleId,
                 x.Purpose,
-                x.Status))
+                x.Status,
+                x.AvailableUntil))
             .ToListAsync();
 
         var quizIds = quizzes.Select(q => q.Id).ToList();
@@ -158,6 +160,13 @@ public sealed class LearningAccessService : ILearningAccessService
                 q.LessonId == lessonId)
             .ToList();
 
+    // Quiz hết hạn không còn chặn việc mở video tiếp theo.
+    // Điều này KHÔNG tính quiz là PASSED và không thay đổi điều kiện cấp chứng chỉ.
+    private static bool BlocksLessonProgress(QuizNode quiz, LearningSnapshot data) =>
+        !data.PassedQuizIds.Contains(quiz.Id) &&
+        quiz.Status == QuizStatus.ACTIVE &&
+        (!quiz.AvailableUntil.HasValue || DateTime.UtcNow < quiz.AvailableUntil.Value);
+
     // Bài có video phải hoàn thành video trước khi chuyển bài.
     // Chỉ yêu cầu PASS bài tập khi bài học thực sự được gắn quiz luyện tập ACTIVE.
     // Nếu bài học không có quiz luyện tập thì không phát sinh điều kiện PASS quiz.
@@ -176,8 +185,7 @@ public sealed class LearningAccessService : ILearningAccessService
         var practices =
             ActivePracticeQuizzesForLesson(data, lesson.Id);
 
-        if (practices.Any(q =>
-            !data.PassedQuizIds.Contains(q.Id)))
+        if (practices.Any(q => BlocksLessonProgress(q, data)))
         {
             return $"Vui lòng đạt tất cả bài tập luyện tập của bài học {lesson.Id} trước.";
         }
@@ -241,8 +249,7 @@ public sealed class LearningAccessService : ILearningAccessService
                     q.ModuleId == previousModuleId)
                 .ToList();
 
-            if (chapterAssessments.Any(q =>
-                !data.PassedQuizIds.Contains(q.Id)))
+            if (chapterAssessments.Any(q => BlocksLessonProgress(q, data)))
             {
                 return "Vui lòng đạt bài đánh giá chương trước.";
             }
