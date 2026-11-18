@@ -1,6 +1,17 @@
 using System;
 using System.Collections.Generic;
+
 namespace MC_BE.Features.VoiceAssessment.DTOs;
+
+public sealed class PracticeCriterionResultDto
+{
+    public string Code { get; set; } = "";
+    public string Name { get; set; } = "";
+    // PASSED / FAILED / NOT_EVALUATED. No automatic pass/fail until validated rules exist.
+    public string Status { get; set; } = "NOT_EVALUATED";
+    public bool EvidenceAvailable { get; set; }
+}
+
 public sealed class AIPracticeResult
 {
     public int PracticeSessionId { get; set; }
@@ -10,7 +21,15 @@ public sealed class AIPracticeResult
     public int? LessonId { get; set; }
     public string ModelVersion { get; set; } = "";
     public int CheckpointEpoch { get; set; }
+    public MC_BE.Features.VoiceAssessment.DTOs.Internal.SpeechClarityDto? Clarity { get; set; }
+    public string? Transcript { get; set; }
+    public bool PronunciationAvailable { get; set; }
     public Dictionary<string, double> Predictions { get; set; } = new();
+    public List<PracticeCriterionResultDto> Criteria { get; set; } = new();
+    // Zero means no criterion is confirmed passed; NOT_EVALUATED is not FAILED.
+    public int PassedCriteriaCount { get; set; }
+    public int EvaluatedCriteriaCount { get; set; }
+    public int TotalCriteriaCount { get; set; } = 3;
     public string OverallAssessment { get; set; } = "";
     public string Summary { get; set; } = "";
     public List<FeedbackItemResultDto> Strengths { get; set; } = new();

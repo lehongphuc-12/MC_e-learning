@@ -225,6 +225,10 @@ builder.Services.AddScoped<ICallService, CallService>();
 // ============================================================
 // Model AI
 // ============================================================
+// C03: Vietnamese ASR trên MSEEK Space. C02 gọi từ AIPracticeService.
+// Không đăng ký MaiTranscribeService lần nữa cho IAsrService.
+builder.Services.AddTransient<IAsrService, HuggingFaceAsrService>();
+
 builder.Services.Configure<OpenAISettings>(
     builder.Configuration.GetSection("OpenAI"));
 
