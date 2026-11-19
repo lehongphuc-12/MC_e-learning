@@ -77,7 +77,7 @@ export const CourseFormPage: React.FC = () => {
   }, [location.pathname, location.state, navigate]);
 
   // ── Submit handler ─────────────────────────────────────────────────────────
-  const handleSubmit = async (formData: CourseFormData & { submitForApproval?: boolean; submissionNote?: string; syllabusFile?: File }) => {
+  const handleSubmit = async (formData: CourseFormData & { submitForApproval?: boolean; submissionNote?: string; syllabusFile?: File; keepApprovedSyllabus?: boolean }) => {
     if (submitLockRef.current || isCreating || isUpdating) return;
     // Clear previous error on each new attempt
     setSubmitError(null);
@@ -107,6 +107,7 @@ export const CourseFormPage: React.FC = () => {
       status: 'DRAFT' as CourseStatus,
       submissionNote: formData.submissionNote,
       submitForApproval: formData.submitForApproval || false,
+      keepApprovedSyllabus: formData.keepApprovedSyllabus || false,
     };
 
     let createdDraftId: number | null = null;
@@ -141,7 +142,11 @@ export const CourseFormPage: React.FC = () => {
         await courseSyllabusApi.upload(savedCourseId, formData.syllabusFile);
 
       if (formData.submitForApproval && !submittedPublishedCourse) {
-        await submitForApproval({ courseId: savedCourseId, note: formData.submissionNote });
+        await submitForApproval({
+          courseId: savedCourseId,
+          note: formData.submissionNote,
+          keepApprovedSyllabus: formData.keepApprovedSyllabus,
+        });
         submitLockRef.current = false;
         setIsSubmittingCourse(false);
         navigate('/instructor/courses');

@@ -183,6 +183,7 @@ builder.Services.AddScoped<ILearningProgressService, LearningProgressService>();
 builder.Services.AddScoped<ILearningAccessService, LearningAccessService>();
 builder.Services.AddScoped<ISpeakingSubmissionRepository, SpeakingSubmissionRepository>();
 builder.Services.AddScoped<ISpeakingSubmissionService, SpeakingSubmissionService>();
+builder.Services.AddScoped<IRemedialAssignmentService, RemedialAssignmentService>();
 builder.Services.AddScoped<ISpeakingScriptRepository, SpeakingScriptRepository>();
 builder.Services.AddScoped<ISpeakingScriptService, SpeakingScriptService>();
 builder.Services.AddScoped<SpeakingScriptParserService>();

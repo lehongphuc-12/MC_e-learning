@@ -54,6 +54,10 @@ public class SmartMcDbContext : DbContext
     public DbSet<CourseDeletionRequest> CourseDeletionRequests { get; set; } = null!;
     public DbSet<CourseGiftPolicy> CourseGiftPolicies { get; set; } = null!;
     public DbSet<CourseAccessGrant> CourseAccessGrants { get; set; } = null!;
+    public DbSet<RemedialAssignment> RemedialAssignments { get; set; } = null!;
+    public DbSet<RemedialAssignmentRecipient> RemedialAssignmentRecipients { get; set; } = null!;
+    public DbSet<RemedialAssignmentEvent> RemedialAssignmentEvents { get; set; } = null!;
+    public DbSet<RemedialRetakeGrant> RemedialRetakeGrants { get; set; } = null!;
     public DbSet<CourseSyllabusVersion> CourseSyllabusVersions { get; set; } = null!;
     public DbSet<CourseSyllabusUploadSession> CourseSyllabusUploadSessions { get; set; } = null!;
 
@@ -371,6 +375,62 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
             entity.HasOne(e => e.SourceEnrollment).WithMany().HasForeignKey(e => e.SourceEnrollmentId).OnDelete(DeleteBehavior.Restrict);
         });
 
+        modelBuilder.Entity<RemedialAssignment>(entity =>
+        {
+            entity.ToTable("remedial_assignments", table => table.HasCheckConstraint(
+                "CK_remedial_assignments_one_content",
+                "((\"LessonID\" IS NOT NULL)::int + (\"QuizID\" IS NOT NULL)::int + (\"SpeakingScriptID\" IS NOT NULL)::int) = 1"));
+            entity.HasIndex(x => new { x.CourseId, x.IsActive, x.CreatedAt });
+            entity.HasIndex(x => new { x.CourseId, x.LessonId }).HasFilter("\"LessonID\" IS NOT NULL AND \"IsActive\" = TRUE");
+            entity.HasIndex(x => new { x.CourseId, x.QuizId }).HasFilter("\"QuizID\" IS NOT NULL AND \"IsActive\" = TRUE");
+            entity.HasIndex(x => new { x.CourseId, x.SpeakingScriptId }).HasFilter("\"SpeakingScriptID\" IS NOT NULL AND \"IsActive\" = TRUE");
+            entity.Property(x => x.RetakeAttemptsGranted).HasDefaultValue(1);
+            entity.HasOne(x => x.Course).WithMany().HasForeignKey(x => x.CourseId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.AssignedBy).WithMany().HasForeignKey(x => x.AssignedById).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Lesson).WithMany().HasForeignKey(x => x.LessonId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.Quiz).WithMany().HasForeignKey(x => x.QuizId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.SpeakingScript).WithMany().HasForeignKey(x => x.SpeakingScriptId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.TargetQuiz).WithMany().HasForeignKey(x => x.TargetQuizId).OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.TargetSpeakingScript).WithMany().HasForeignKey(x => x.TargetSpeakingScriptId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<RemedialAssignmentRecipient>(entity =>
+        {
+            entity.ToTable("remedial_assignment_recipients");
+            entity.HasIndex(x => new { x.RemedialAssignmentId, x.StudentId }).IsUnique();
+            entity.HasIndex(x => new { x.StudentId, x.Status, x.DueAt });
+            entity.Property(x => x.Status).HasDefaultValue("ASSIGNED");
+            entity.Property(x => x.AssignedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(x => x.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasOne(x => x.Assignment).WithMany(x => x.Recipients).HasForeignKey(x => x.RemedialAssignmentId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.Student).WithMany().HasForeignKey(x => x.StudentId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<RemedialAssignmentEvent>(entity =>
+        {
+            entity.ToTable("remedial_assignment_events");
+            entity.HasIndex(x => new { x.RemedialAssignmentId, x.CreatedAt });
+            entity.Property(x => x.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasOne(x => x.Assignment).WithMany(x => x.Events).HasForeignKey(x => x.RemedialAssignmentId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<RemedialRetakeGrant>(entity =>
+        {
+            entity.ToTable("remedial_retake_grants", table => table.HasCheckConstraint(
+                "CK_remedial_retake_grants_one_target",
+                "((\"TargetQuizID\" IS NOT NULL)::int + (\"TargetSpeakingScriptID\" IS NOT NULL)::int) = 1"));
+            entity.HasIndex(x => new { x.LearnerId, x.TargetQuizId, x.UsedAt });
+            entity.HasIndex(x => new { x.LearnerId, x.TargetSpeakingScriptId, x.UsedAt });
+            entity.HasIndex(x => new { x.LearnerId, x.TargetQuizId, x.ExpiresAt, x.UsedAt });
+            entity.HasIndex(x => new { x.LearnerId, x.TargetSpeakingScriptId, x.ExpiresAt, x.UsedAt });
+            entity.Property(x => x.AttemptsGranted).HasDefaultValue(1);
+            entity.Property(x => x.AttemptsRemaining).HasDefaultValue(1).IsConcurrencyToken();
+            entity.HasOne(x => x.Recipient).WithMany().HasForeignKey(x => x.RecipientId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.Learner).WithMany().HasForeignKey(x => x.LearnerId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.TargetQuiz).WithMany().HasForeignKey(x => x.TargetQuizId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.TargetSpeakingScript).WithMany().HasForeignKey(x => x.TargetSpeakingScriptId).OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<Module>(entity =>
         {
             entity.ToTable("modules");
@@ -405,6 +465,7 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
 
             entity.Property(e => e.IsPreview)
                 .HasDefaultValue(false);
+            entity.Property(e => e.IsRemedial).HasDefaultValue(false);
 
             entity.Property(e => e.Status)
                 .HasConversion<string>()
@@ -601,7 +662,10 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
 
             entity.HasIndex(e => e.CourseId);
             entity.HasIndex(e => e.ModuleId);
-            entity.HasIndex(e => e.LessonId).IsUnique().HasFilter("\"LessonID\" IS NOT NULL");
+            // Keep at most one official speaking assignment per lesson, but allow
+            // multiple remedial assignments for the same lesson.
+            entity.HasIndex(e => e.LessonId).IsUnique()
+                .HasFilter("\"LessonID\" IS NOT NULL AND \"IsRemedial\" = FALSE");
 
             entity.Property(e => e.Scope)
                 .HasConversion<string>()
@@ -614,6 +678,7 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
             entity.Property(e => e.Status)
                 .HasConversion<string>()
                 .HasDefaultValue(SpeakingScriptStatus.DRAFT);
+            entity.Property(e => e.IsRemedial).HasDefaultValue(false);
 
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP");
@@ -1134,6 +1199,7 @@ modelBuilder.Entity<Quiz>(entity =>
 
     entity.Property(e => e.MaxAttempts)
         .HasDefaultValue(1);
+    entity.Property(e => e.IsRemedial).HasDefaultValue(false);
 
     entity.Property(e => e.Status)
         .HasConversion<string>()

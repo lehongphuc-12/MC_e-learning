@@ -1,6 +1,7 @@
 using MC_BE.Core.DTOs;
 using MC_BE.Features.Courses.DTOs;
 using MC_BE.Features.Courses.Services.Interfaces;
+using MC_BE.Features.Learning.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -13,11 +14,13 @@ public class ModulesController : ControllerBase
 {
     private readonly IModuleService _moduleService;
     private readonly ICourseLearningAccessService _courseAccess;
+    private readonly IRemedialAssignmentService _remedialAssignments;
 
-    public ModulesController(IModuleService moduleService, ICourseLearningAccessService courseAccess)
+    public ModulesController(IModuleService moduleService, ICourseLearningAccessService courseAccess, IRemedialAssignmentService remedialAssignments)
     {
         _moduleService = moduleService;
         _courseAccess = courseAccess;
+        _remedialAssignments = remedialAssignments;
     }
 
     private int? GetCurrentUserId()
@@ -39,6 +42,20 @@ public class ModulesController : ControllerBase
             return Forbid();
 
         var modules = await _moduleService.GetModulesByCourseIdAsync(courseId);
+
+        if (!User.IsInRole("Instructor") && !User.IsInRole("Admin"))
+        {
+            foreach (var module in modules)
+            {
+                var visible = new List<LessonDto>();
+                foreach (var lesson in module.Lessons)
+                    if (!lesson.IsRemedial || await _remedialAssignments.CanAccessContentAsync(userId.Value, "LESSON", lesson.LessonId))
+                        visible.Add(lesson);
+                module.Lessons = visible;
+                module.LessonsCount = visible.Count;
+                module.TotalDurationMinutes = visible.Sum(x => x.DurationMinutes);
+            }
+        }
 
         // Do not serialize legacy public video URLs to learners. They must use authorized playback.
         if (!User.IsInRole("Instructor") && !User.IsInRole("Admin"))

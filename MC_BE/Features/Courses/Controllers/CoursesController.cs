@@ -324,7 +324,11 @@ public class CoursesController : ControllerBase
 
         try
         {
-            var updated = await _courseService.SubmitForApprovalAsync(id, instructorId.Value, request.SubmissionNote);
+            var updated = await _courseService.SubmitForApprovalAsync(
+                id,
+                instructorId.Value,
+                request.SubmissionNote,
+                request.KeepApprovedSyllabus);
             if (updated is null)
                 return NotFound(ApiResponse<CourseDto>.FailureResponse("Course not found or you are not the owner."));
 

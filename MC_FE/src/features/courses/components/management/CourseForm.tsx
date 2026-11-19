@@ -93,7 +93,7 @@ interface CourseFormProps {
   existingCourse?: Course;
   categories: Category[];
   isSubmitting: boolean;
-  onSubmit: (data: CourseFormData & { syllabusFile?: File; submitForApproval?: boolean }) => void;
+  onSubmit: (data: CourseFormData & { syllabusFile?: File; submitForApproval?: boolean; keepApprovedSyllabus?: boolean }) => void;
   onCancel: () => void;
 }
 
@@ -138,6 +138,9 @@ export const CourseForm: React.FC<CourseFormProps> = ({
   const [thumbnailUploadError, setThumbnailUploadError] = useState<string | null>(null);
   const [approvalFormError, setApprovalFormError] = useState<string | null>(null);
   const [syllabusFile, setSyllabusFile] = useState<File | undefined>();
+  const [approvedSyllabus, setApprovedSyllabus] = useState<SyllabusVersion | null>(null);
+  const [syllabusChoice, setSyllabusChoice] = useState<'KEEP_APPROVED' | 'UPLOAD_NEW'>('UPLOAD_NEW');
+  const [showApprovedSyllabusPreview, setShowApprovedSyllabusPreview] = useState(false);
   const [syllabusFileError, setSyllabusFileError] = useState<string | null>(null);
   const [currentSyllabus, setCurrentSyllabus] = useState<SyllabusVersion | null>(null);
   const [showSyllabusPreview, setShowSyllabusPreview] = useState(false);
@@ -189,10 +192,21 @@ export const CourseForm: React.FC<CourseFormProps> = ({
 
   useEffect(() => {
     let active = true;
-    if (!existingCourse) { setCurrentSyllabus(null); return; }
+    setCurrentSyllabus(null);
+    setApprovedSyllabus(null);
+    setSyllabusChoice('UPLOAD_NEW');
+    setShowApprovedSyllabusPreview(false);
+    if (!existingCourse) return;
     courseSyllabusApi.getCurrent(existingCourse.courseId)
       .then((version) => { if (active) setCurrentSyllabus(version); })
       .catch(() => { if (active) setCurrentSyllabus(null); });
+    courseSyllabusApi.getApproved(existingCourse.courseId)
+      .then((version) => {
+        if (!active) return;
+        setApprovedSyllabus(version);
+        if (version) setSyllabusChoice('KEEP_APPROVED');
+      })
+      .catch(() => { if (active) setApprovedSyllabus(null); });
     return () => { active = false; };
   }, [existingCourse?.courseId]);
 
@@ -488,6 +502,23 @@ export const CourseForm: React.FC<CourseFormProps> = ({
           </FormField>
 
           <FormField id="course-syllabus-file" label="Đề cương khóa học (PDF/DOCX)" icon={<FileText className="h-4 w-4 text-indigo-600" />}>
+            {approvedSyllabus && <div className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50/70 p-3">
+              <label className="flex cursor-pointer items-start gap-3">
+                <input type="radio" name="syllabus-choice" checked={syllabusChoice === 'KEEP_APPROVED'} onChange={() => { setSyllabusChoice('KEEP_APPROVED'); setSyllabusFile(undefined); }} className="mt-1 h-4 w-4 accent-emerald-600" />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-bold text-emerald-900">Giữ syllabus đã được Admin duyệt</span>
+                  <span className="mt-0.5 block truncate text-xs text-emerald-800">Phiên bản v{approvedSyllabus.versionNumber}: {approvedSyllabus.originalFileName}</span>
+                  <span className="mt-1 block text-[11px] leading-4 text-emerald-800">Không tải lại file. Hệ thống sẽ tạo phiên bản xét duyệt mới dùng cùng nội dung file, để Admin vẫn duyệt đúng phiên bản.</span>
+                </span>
+              </label>
+              <button type="button" onClick={() => setShowApprovedSyllabusPreview(value => !value)} className="ml-7 mt-2 text-xs font-bold text-emerald-800 underline underline-offset-2">{showApprovedSyllabusPreview ? 'Ẩn bản xem trước' : 'Xem trước bản đã duyệt'}</button>
+            </div>}
+            {showApprovedSyllabusPreview && approvedSyllabus && existingCourse && <div className="mb-3"><CourseSyllabusDocumentViewer courseId={existingCourse.courseId} version={approvedSyllabus} /></div>}
+            <div className={`rounded-xl border border-dashed px-4 py-4 transition ${syllabusChoice === 'UPLOAD_NEW' || !approvedSyllabus ? 'border-indigo-200 bg-indigo-50/50' : 'border-slate-200 bg-slate-50/50 opacity-75'}`}>
+            {approvedSyllabus && <label className="mb-3 flex cursor-pointer items-start gap-3">
+              <input type="radio" name="syllabus-choice" checked={syllabusChoice === 'UPLOAD_NEW'} onChange={() => setSyllabusChoice('UPLOAD_NEW')} className="mt-1 h-4 w-4 accent-indigo-600" />
+              <span><span className="block text-sm font-bold text-slate-800">Tải lên syllabus mới</span><span className="mt-0.5 block text-xs text-slate-600">Admin sẽ duyệt phiên bản mới này; bản đã duyệt hiện tại vẫn có hiệu lực cho đến khi bản mới được duyệt.</span></span>
+            </label>}
             <label htmlFor="course-syllabus-file" className="flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-indigo-200 bg-indigo-50/50 px-4 py-4 text-sm text-slate-700 hover:border-indigo-400 hover:bg-indigo-50">
               <FileText className="h-5 w-5 shrink-0 text-indigo-600" />
               <span className="min-w-0 flex-1">
@@ -506,8 +537,10 @@ export const CourseForm: React.FC<CourseFormProps> = ({
                 return;
               }
               setSyllabusFileError(null);
+              setSyllabusChoice('UPLOAD_NEW');
               setSyllabusFile(file);
             }} />
+            </div>
             {existingCourse && <p className="text-xs text-slate-500">Khi tải bản mới, bản Admin đã duyệt tiếp tục có hiệu lực cho học viên cho đến khi bản mới được duyệt.</p>}
             {currentSyllabus && <div className="flex flex-wrap items-center gap-2 rounded-lg bg-slate-50 p-3 text-xs">
               <FileText className="h-4 w-4 text-indigo-600" />
@@ -517,7 +550,7 @@ export const CourseForm: React.FC<CourseFormProps> = ({
             </div>}
             {showSyllabusPreview && existingCourse && currentSyllabus && <CourseSyllabusDocumentViewer courseId={existingCourse.courseId} version={currentSyllabus} />}
             {syllabusFileError && <p role="alert" className="text-xs font-semibold text-rose-600">{syllabusFileError}</p>}
-            {syllabusFile && <button type="button" onClick={() => setSyllabusFile(undefined)} className="text-xs font-semibold text-rose-600">Bỏ chọn file</button>}
+            {syllabusFile && <button type="button" onClick={() => { setSyllabusFile(undefined); setSyllabusChoice(approvedSyllabus ? 'KEEP_APPROVED' : 'UPLOAD_NEW'); }} className="text-xs font-semibold text-rose-600">Bỏ chọn file</button>}
           </FormField>
 
           {/* Submission Note for Admin */}
@@ -564,9 +597,16 @@ export const CourseForm: React.FC<CourseFormProps> = ({
               type="button"
               disabled={isSubmitting || isUploadingThumbnail}
       onClick={handleSubmit((data) => {
+                if (approvedSyllabus && syllabusChoice === 'UPLOAD_NEW' && !syllabusFile
+                    && currentSyllabus?.syllabusVersionId === approvedSyllabus.syllabusVersionId) {
+                  setApprovalFormError('Hãy chọn tải lên syllabus mới hoặc chọn giữ lại phiên bản đã duyệt trước khi gửi Admin.');
+                  return;
+                }
+                setApprovalFormError(null);
                 onSubmit({
                   ...data,
                   syllabusFile,
+                  keepApprovedSyllabus: !!approvedSyllabus && syllabusChoice === 'KEEP_APPROVED',
                   submitForApproval: true,
                 } as any);
               }, () => {

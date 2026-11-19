@@ -8,7 +8,6 @@ import type { Course, CourseListParams } from '../../types/courseTypes';
 import { CourseStatusBadge } from './CourseStatusBadge';
 import { DeleteCourseModal } from './DeleteCourseModal';
 import { CourseMaterialModal } from './CourseMaterialModal';
-import { CourseStudentsModal } from './CourseStudentsModal';
 import { useCourseStudents } from '../../../payment/hooks/useCourseStudents';
 import { moduleApi } from '../../api/moduleApi';
 import { lessonApi } from '../../api/lessonApi';
@@ -74,7 +73,6 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
   const navigate = useNavigate();
   const [courseToDelete, setCourseToDelete] = useState<Course | null>(null);
   const [deletionNotice, setDeletionNotice] = useState<{ message: string; isError: boolean } | null>(null);
-  const [courseForStudents, setCourseForStudents] = useState<Course | null>(null);
   const [incompleteCourse, setIncompleteCourse] = useState<{
     course: Course;
     missingItems: string[];
@@ -278,7 +276,7 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
                       </span>
                     ) : (
                       <button
-                        onClick={() => setCourseForStudents(course)}
+                        onClick={() => navigate(`/instructor/courses/${course.courseId}/students`)}
                         title="Bấm để xem danh sách học viên"
                         className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-50 px-2.5 py-1 text-xs font-semibold text-cyan-700 border border-cyan-200/80 hover:bg-cyan-100 active:scale-95 transition-all cursor-pointer whitespace-nowrap shadow-xs"
                       >
@@ -437,13 +435,6 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
             setIncompleteCourse(null);
           }
         }}
-      />
-      {/* Course Students Modal */}
-      <CourseStudentsModal
-        isOpen={Boolean(courseForStudents)}
-        onClose={() => setCourseForStudents(null)}
-        courseTitle={courseForStudents?.title}
-        courseId={courseForStudents?.courseId ?? 0}
       />
     </>
   );
