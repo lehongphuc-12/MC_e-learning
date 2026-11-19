@@ -106,10 +106,23 @@ const [selectedAIResult, setSelectedAIResult] =
 
 const [aiDetailLoadingId, setAiDetailLoadingId] =
   useState<number | null>(null);
+  // Kiểm tra có tiêu chí Rubric nào bị điểm liệt (<= 0) không
+  const hasZeroCriterion = useMemo(() => {
+    if (activeRubricCriteria.length === 0) return false;
+    return activeRubricCriteria.some((c) => {
+      const s = criterionScores[c.code] ?? (typeof scoreInput === 'number' ? scoreInput : 0);
+      return s <= 0;
+    });
+  }, [activeRubricCriteria, criterionScores, scoreInput]);
+
   // Real-time calculated grade tier & pass status for active modal
   const currentScoreGradeInfo = useMemo(() => {
-    return getSpeakingGradeInfo(typeof scoreInput === 'number' ? scoreInput : 0);
-  }, [scoreInput]);
+    return getSpeakingGradeInfo(
+      typeof scoreInput === 'number' ? scoreInput : 0,
+      !hasZeroCriterion,
+      hasZeroCriterion
+    );
+  }, [scoreInput, hasZeroCriterion]);
 
   // Audio Playback state
   const [playingAudioId, setPlayingAudioId] = useState<number | null>(null);
@@ -497,7 +510,7 @@ const handleCriterionScoreChange = (code: string, newScore: number) => {
 const handleTotalScoreChange = (newTotalScore: number) => {
   const clamped = Math.min(100, Math.max(0, newTotalScore));
   setScoreInput(clamped);
-  // Đồng bộ điểm của các tiêu chí về cùng mức này
+  // Đồng bộ điểm của tất cả các tiêu chí về cùng mức này (đảm bảo > 0 nếu clamped > 0)
   setCriterionScores(() => {
     const next: Record<string, number> = {};
     activeRubricCriteria.forEach((c) => {
@@ -507,15 +520,28 @@ const handleTotalScoreChange = (newTotalScore: number) => {
   });
 };
 
+// Gán đồng đều điểm cho tất cả tiêu chí Rubric (dành cho các nút chọn nhanh 100đ, 85đ, 80đ)
+const handleSetAllCriteriaScores = (val: number) => {
+  handleTotalScoreChange(val);
+};
+
 // Nút chèn bảng Rubric vào Lời nhận xét
 const handleAppendRubricToFeedback = () => {
   if (activeRubricCriteria.length === 0) return;
   const lines = activeRubricCriteria.map((c) => {
     const score = criterionScores[c.code] ?? (typeof scoreInput === 'number' ? scoreInput : 85);
     const contribution = ((score * c.weightPercentage) / 100).toFixed(1);
-    return `• [${c.code}] ${c.name} (${c.weightPercentage}%): ${score}/100 đ (Đóng góp: ${contribution} đ)`;
+    const zeroFlag = score <= 0 ? ' [ĐIỂM LIỆT (0đ)]' : '';
+    return `• [${c.code}] ${c.name} (${c.weightPercentage}%): ${score}/100 đ (Đóng góp: ${contribution} đ)${zeroFlag}`;
   });
-  const rubricText = `\n\n[ĐÁNH GIÁ CHI TIẾT THEO TIÊU CHÍ RUBRIC]:\n${lines.join('\n')}\n=> TỔNG ĐIỂM: ${scoreInput}/100 (${currentScoreGradeInfo.tier} - ${currentScoreGradeInfo.isPassed ? 'ĐẠT' : 'CHƯA ĐẠT'})`;
+  const isActualPassed = (typeof scoreInput === 'number' ? scoreInput : 0) >= 80 && !hasZeroCriterion;
+  const statusSummary = isActualPassed
+    ? 'ĐẠT'
+    : hasZeroCriterion
+    ? 'CHƯA ĐẠT (Có tiêu chí 0 điểm - Điểm liệt)'
+    : 'CHƯA ĐẠT (Yêu cầu ≥ 80)';
+
+  const rubricText = `\n\n[ĐÁNH GIÁ CHI TIẾT THEO TIÊU CHÍ RUBRIC]:\n${lines.join('\n')}\n=> TỔNG ĐIỂM: ${scoreInput}/100 (${currentScoreGradeInfo.tier} - ${statusSummary})`;
   
   setFeedbackInput((prev) => (prev.trim() ? `${prev.trim()}${rubricText}` : rubricText.trim()));
   if (onToast) onToast('Đã chèn Rubric', 'Đã thêm bảng điểm tiêu chí vào phần nhận xét.', 'info');
@@ -547,12 +573,13 @@ const handleAppendRubricToFeedback = () => {
       });
 
       if (res.success && res.data) {
+        const isPassedActual = res.data.isPassed ?? (Number(res.data.score) >= 80 && !hasZeroCriterion);
         const gradeInfo = getSpeakingGradeInfo(res.data.score);
         if (onToast) {
           onToast(
             'Chấm điểm thành công!',
-            `Đã lưu kết quả cho ${res.data.learnerName}: ${res.data.score} điểm (${gradeInfo.tier} - ${gradeInfo.isPassed ? 'Đạt' : 'Chưa đạt'}).`,
-            gradeInfo.isPassed ? 'success' : 'warning'
+            `Đã lưu kết quả cho ${res.data.learnerName}: ${res.data.score} điểm (${gradeInfo.tier} - ${isPassedActual ? 'Đạt' : 'Chưa đạt'}${hasZeroCriterion ? ' do có tiêu chí 0 điểm' : ''}).`,
+            isPassedActual ? 'success' : 'warning'
           );
         }
         
@@ -909,8 +936,12 @@ const handleAppendRubricToFeedback = () => {
                   {filteredSubmissions.map((sub) => {
                     const category = getSpeakingSubmissionCategory(sub);
                     const isGraded = category !== 'SUBMITTED';
+                    const hasZeroCriterionInSub = sub.criterionScores?.some((c) => Number(c.score) <= 0) || sub.status === 'NEEDS_RESUBMISSION';
+                    const isPassedActual = sub.isPassed !== undefined && sub.isPassed !== null
+                      ? sub.isPassed
+                      : (sub.status === 'GRADED' && (sub.score ?? 0) >= 80 && !hasZeroCriterionInSub);
                     const gradeInfo = isGraded && sub.score !== null && sub.score !== undefined
-                      ? getSpeakingGradeInfo(sub.score)
+                      ? getSpeakingGradeInfo(sub.score, isPassedActual, hasZeroCriterionInSub)
                       : null;
 
                     return (
@@ -1278,25 +1309,38 @@ const handleAppendRubricToFeedback = () => {
                           const score = criterionScores[c.code] ?? (typeof scoreInput === 'number' ? scoreInput : 85);
                           const contribution = ((score * c.weightPercentage) / 100).toFixed(1);
                           const isMandatory = c.isMandatory || c.code === 'C01' || c.code === 'C02' || c.code === 'C03';
+                          const isZeroScore = score <= 0;
 
                           return (
                             <div
                               key={c.code}
-                              className="rounded-xl border border-blue-100 bg-blue-50/20 hover:bg-blue-50/40 p-2.5 transition-colors"
+                              className={`rounded-xl border p-2.5 transition-colors ${
+                                isZeroScore
+                                  ? 'border-rose-300 bg-rose-50/50 shadow-xs ring-1 ring-rose-200'
+                                  : 'border-blue-100 bg-blue-50/20 hover:bg-blue-50/40'
+                              }`}
                             >
                               <div className="flex items-center justify-between gap-2 mb-1.5">
                                 <div className="flex items-center gap-1.5 min-w-0">
-                                  <span className="rounded-md bg-blue-100 border border-blue-200 px-1.5 py-0.5 text-[10px] font-mono font-black text-blue-800">
+                                  <span className={`rounded-md border px-1.5 py-0.5 text-[10px] font-mono font-black ${
+                                    isZeroScore
+                                      ? 'bg-rose-100 border-rose-200 text-rose-800'
+                                      : 'bg-blue-100 border-blue-200 text-blue-800'
+                                  }`}>
                                     {c.code}
                                   </span>
                                   <span className="text-xs font-bold text-slate-800 truncate" title={c.name}>
                                     {c.name}
                                   </span>
-                                  {isMandatory && (
+                                  {isZeroScore ? (
+                                    <span className="rounded-full bg-rose-600 text-white px-2 py-0.2 text-[9px] font-black shrink-0 flex items-center gap-1 shadow-2xs animate-pulse">
+                                      ⚠️ Điểm liệt (0đ)
+                                    </span>
+                                  ) : isMandatory ? (
                                     <span className="rounded-full bg-blue-100 text-blue-700 px-1.5 py-0.2 text-[9px] font-bold shrink-0">
                                       Bắt buộc
                                     </span>
-                                  )}
+                                  ) : null}
                                 </div>
 
                                 <div className="flex items-center gap-1.5 shrink-0">
@@ -1304,7 +1348,11 @@ const handleAppendRubricToFeedback = () => {
                                     Trọng số: <span className="text-blue-700 font-extrabold">{c.weightPercentage}%</span>
                                   </span>
                                   <span className="text-[10px] text-slate-400">•</span>
-                                  <span className="text-[11px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded-md">
+                                  <span className={`text-[11px] font-black px-1.5 py-0.2 rounded-md border ${
+                                    isZeroScore
+                                      ? 'text-rose-700 bg-rose-50 border-rose-200'
+                                      : 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                                  }`}>
                                     +{contribution} đ
                                   </span>
                                 </div>
@@ -1317,7 +1365,9 @@ const handleAppendRubricToFeedback = () => {
                                   max={100}
                                   value={score}
                                   onChange={(e) => handleCriterionScoreChange(c.code, Number(e.target.value))}
-                                  className="flex-1 accent-blue-600 h-1.5 bg-slate-200 rounded-lg cursor-pointer"
+                                  className={`flex-1 h-1.5 bg-slate-200 rounded-lg cursor-pointer ${
+                                    isZeroScore ? 'accent-rose-600' : 'accent-blue-600'
+                                  }`}
                                 />
                                 <div className="flex items-center gap-1 shrink-0">
                                   <input
@@ -1326,7 +1376,11 @@ const handleAppendRubricToFeedback = () => {
                                     max={100}
                                     value={score}
                                     onChange={(e) => handleCriterionScoreChange(c.code, Number(e.target.value) || 0)}
-                                    className="w-12 px-1.5 py-0.5 text-center text-xs font-black bg-white border border-slate-200 rounded-lg focus:border-blue-500 focus:outline-none"
+                                    className={`w-12 px-1.5 py-0.5 text-center text-xs font-black rounded-lg focus:outline-none transition-all ${
+                                      isZeroScore
+                                        ? 'bg-rose-50 border-2 border-rose-500 text-rose-700 font-extrabold'
+                                        : 'bg-white border border-slate-200 text-slate-800 focus:border-blue-500'
+                                    }`}
                                   />
                                   <span className="text-[10px] font-bold text-slate-400">/100</span>
                                 </div>
@@ -1356,23 +1410,42 @@ const handleAppendRubricToFeedback = () => {
                       </label>
 
                       {/* Real-time Dynamic Status Badge */}
-                      <div
-                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black border transition-all shadow-2xs ${
-                          currentScoreGradeInfo.isPassed
-                            ? currentScoreGradeInfo.score >= 95
-                              ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                              : 'bg-blue-100 text-blue-800 border-blue-300'
-                            : currentScoreGradeInfo.score >= 50
-                            ? 'bg-amber-100 text-amber-900 border-amber-300'
-                            : currentScoreGradeInfo.score >= 30
-                            ? 'bg-orange-100 text-orange-900 border-orange-300'
-                            : 'bg-rose-100 text-rose-900 border-rose-300'
-                        }`}
-                      >
-                        <span className={`w-2 h-2 rounded-full ${currentScoreGradeInfo.dotColor} animate-pulse`} />
-                        <span>
-                          {currentScoreGradeInfo.tier} — {currentScoreGradeInfo.isPassed ? 'Đạt' : 'Chưa đạt (Yêu cầu ≥ 80)'}
-                        </span>
+                      <div className="flex flex-col items-end gap-1">
+                        <div
+                          className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black border transition-all shadow-2xs ${
+                            currentScoreGradeInfo.isPassed && !hasZeroCriterion
+                              ? currentScoreGradeInfo.score >= 95
+                                ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                : 'bg-blue-100 text-blue-800 border-blue-300'
+                              : hasZeroCriterion && typeof scoreInput === 'number' && scoreInput >= 80
+                              ? 'bg-rose-100 text-rose-900 border-rose-300 ring-1 ring-rose-300'
+                              : currentScoreGradeInfo.score >= 50
+                              ? 'bg-amber-100 text-amber-900 border-amber-300'
+                              : currentScoreGradeInfo.score >= 30
+                              ? 'bg-orange-100 text-orange-900 border-orange-300'
+                              : 'bg-rose-100 text-rose-900 border-rose-300'
+                          }`}
+                        >
+                          <span
+                            className={`w-2 h-2 rounded-full ${
+                              currentScoreGradeInfo.isPassed && !hasZeroCriterion
+                                ? currentScoreGradeInfo.dotColor
+                                : 'bg-rose-500'
+                            } animate-pulse`}
+                          />
+                          <span>
+                            {currentScoreGradeInfo.isPassed && !hasZeroCriterion
+                              ? `${currentScoreGradeInfo.tier} — Đạt`
+                              : hasZeroCriterion && typeof scoreInput === 'number' && scoreInput >= 80
+                              ? 'Chưa đạt (Có tiêu chí 0 điểm)'
+                              : `${currentScoreGradeInfo.tier} — Chưa đạt (Yêu cầu ≥ 80)`}
+                          </span>
+                        </div>
+                        {hasZeroCriterion && typeof scoreInput === 'number' && scoreInput >= 80 && (
+                          <span className="text-[10px] font-bold text-rose-600 italic">
+                            * Yêu cầu tất cả tiêu chí phải lớn hơn 0 điểm để Đạt
+                          </span>
+                        )}
                       </div>
                     </div>
 
@@ -1389,9 +1462,9 @@ const handleAppendRubricToFeedback = () => {
                           else setScoreInput('');
                         }}
                         className={`w-24 px-3 py-2 text-2xl font-black text-center bg-white border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all ${
-                          currentScoreGradeInfo.isPassed
+                          currentScoreGradeInfo.isPassed && !hasZeroCriterion
                             ? 'border-emerald-400 text-emerald-700'
-                            : 'border-amber-400 text-amber-700'
+                            : 'border-rose-400 text-rose-700 bg-rose-50/20'
                         }`}
                       />
 
@@ -1446,12 +1519,26 @@ const handleAppendRubricToFeedback = () => {
                               setScorePreset(85, 'Phát âm tốt, bài nói lưu loát, đạt yêu cầu hoàn thành bài học. Cần chú ý thêm một vài trọng âm.')
                             }
                             className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border cursor-pointer ${
-                              scoreInput === 85
+                              scoreInput === 85 && !hasZeroCriterion
                                 ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
                                 : 'bg-white text-blue-700 border-blue-200 hover:bg-blue-100'
                             }`}
                           >
                             ✓ 85 (Giỏi)
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setScorePreset(80, 'Bài nói đạt chuẩn đầu ra (80 điểm), ngữ điệu ổn định, phát âm rõ ràng.')
+                            }
+                            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border cursor-pointer ${
+                              scoreInput === 80 && !hasZeroCriterion
+                                ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                                : 'bg-white text-blue-700 border-blue-200 hover:bg-blue-100'
+                            }`}
+                          >
+                            ✓ 80 (Đạt chuẩn)
                           </button>
                         </div>
 

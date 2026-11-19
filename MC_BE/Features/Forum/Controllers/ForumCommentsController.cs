@@ -34,7 +34,6 @@ public class ForumCommentsController : ControllerBase
         return User.IsInRole("Admin");
     }
 
-    // GET /api/forum/posts/{postId}/comments
     [HttpGet("posts/{postId:int}/comments")]
     [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<List<ForumCommentDto>>>> GetComments(int postId)
@@ -52,7 +51,6 @@ public class ForumCommentsController : ControllerBase
         }
     }
 
-    // POST /api/forum/comments
     [HttpPost("comments")]
     [Authorize]
     public async Task<ActionResult<ApiResponse<ForumCommentDto>>> AddComment([FromBody] CreateCommentRequest request)
@@ -76,7 +74,6 @@ public class ForumCommentsController : ControllerBase
         }
     }
 
-    // PUT /api/forum/comments/{id}
     [HttpPut("comments/{id:int}")]
     [Authorize]
     public async Task<ActionResult<ApiResponse<ForumCommentDto>>> UpdateComment(int id, [FromBody] UpdateCommentRequest request)
@@ -109,7 +106,6 @@ public class ForumCommentsController : ControllerBase
         }
     }
 
-    // DELETE /api/forum/comments/{id}
     [HttpDelete("comments/{id:int}")]
     [Authorize]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteComment(int id)
@@ -139,7 +135,6 @@ public class ForumCommentsController : ControllerBase
         }
     }
 
-    // POST /api/forum/comments/{id}/react
     [HttpPost("comments/{id:int}/react")]
     [Authorize]
     public async Task<ActionResult<ApiResponse<ForumReactionSummaryDto>>> ToggleCommentReaction(int id, [FromBody] ToggleReactionRequest request)
@@ -166,7 +161,6 @@ public class ForumCommentsController : ControllerBase
         }
     }
 
-    // POST /api/forum/comments/{id}/report
     [HttpPost("comments/{id:int}/report")]
     [Authorize]
     public async Task<ActionResult<ApiResponse<bool>>> ReportComment(int id, [FromBody] CreateReportRequest request)

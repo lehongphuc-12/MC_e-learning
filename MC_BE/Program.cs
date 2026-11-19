@@ -459,6 +459,17 @@ using (var scope = app.Services.CreateScope())
                 CONSTRAINT fk_speaking_script_levels_script FOREIGN KEY (""ScriptID"") REFERENCES speaking_scripts(""ScriptID"") ON DELETE CASCADE,
                 CONSTRAINT uq_script_level UNIQUE (""ScriptID"", ""Level"")
             );
+            ALTER TABLE IF EXISTS speaking_scripts ADD COLUMN IF NOT EXISTS ""BackgroundMusicId"" integer;
+            CREATE TABLE IF NOT EXISTS speaking_rubric_criteria (
+                ""CriterionId"" SERIAL PRIMARY KEY,
+                ""ScriptId"" integer NOT NULL,
+                ""Code"" character varying(50) NOT NULL,
+                ""Name"" character varying(255) NOT NULL,
+                ""Description"" character varying(1000),
+                ""Weight"" numeric(5,2) NOT NULL DEFAULT 0.00,
+                ""OrderIndex"" integer NOT NULL DEFAULT 0,
+                CONSTRAINT fk_rubric_criteria_script FOREIGN KEY (""ScriptId"") REFERENCES speaking_scripts(""ScriptID"") ON DELETE CASCADE
+            );
         ");
     }
     catch (Exception ex)

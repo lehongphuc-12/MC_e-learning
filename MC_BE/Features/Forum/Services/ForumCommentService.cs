@@ -43,12 +43,10 @@ public class ForumCommentService : IForumCommentService
                 .ToListAsync()).ToHashSet();
         }
 
-        // Map comment to DTO with API Anonymity Masking & Hidden Status check
         ForumCommentDto MapToDto(ForumComment c)
         {
             bool isAuthor = currentUserId.HasValue && c.AuthorId == currentUserId.Value;
 
-            // API Anonymity Masking: If anonymous and viewer is not admin, mask author details completely
             int authorId = c.AuthorId;
             string authorName = c.Author?.FullName ?? "Học viên";
             string? authorAvatar = c.Author?.AvatarUrl;
@@ -62,7 +60,6 @@ public class ForumCommentService : IForumCommentService
                 authorRole = "Learner";
             }
 
-            // Hidden comment content masking for non-author & non-admin
             string displayContent = c.Content;
             if (c.Status != "ACTIVE" && !isAdmin && !isAuthor)
             {
@@ -95,7 +92,6 @@ public class ForumCommentService : IForumCommentService
 
         var allDtos = comments.Select(MapToDto).ToList();
 
-        // Organize into 2-level hierarchy: Level 1 comments with Replies list
         var topLevelComments = allDtos
             .Where(c => c.ParentCommentId == null || c.DepthLevel == 1)
             .OrderBy(c => c.CreatedAt)
@@ -148,7 +144,6 @@ public class ForumCommentService : IForumCommentService
                 throw new InvalidOperationException("Bình luận cha không tồn tại.");
             }
 
-            // If replying to a Level 2 comment, link to top-level parent comment so depth remains 2 (same indent level)
             parentCommentId = parent.ParentCommentId ?? parent.CommentId;
             depthLevel = 2;
         }
@@ -169,7 +164,6 @@ public class ForumCommentService : IForumCommentService
 
         _context.ForumComments.Add(comment);
 
-        // Increment post comments count
         post.CommentsCount += 1;
         _context.ForumPosts.Update(post);
 
@@ -294,7 +288,6 @@ public class ForumCommentService : IForumCommentService
 
         _context.ForumComments.Update(comment);
 
-        // Decrement post comments count
         var post = await _context.ForumPosts.FirstOrDefaultAsync(p => p.PostId == comment.PostId);
         if (post != null && post.CommentsCount > 0)
         {

@@ -11,7 +11,7 @@ public sealed class CreateRemedialAssignmentRequest
     public int? SpeakingScriptId { get; set; }
     public int? TargetQuizId { get; set; }
     public int? TargetSpeakingScriptId { get; set; }
-    // 0 = không giới hạn; số dương = số lượt tối đa.
+
     [Range(0, 20)] public int MaxAttempts { get; set; } = 0;
     [Range(1, 20)] public int RetakeAttemptsGranted { get; set; } = 1;
     [Required, MinLength(1)] public List<int> StudentIds { get; set; } = new();

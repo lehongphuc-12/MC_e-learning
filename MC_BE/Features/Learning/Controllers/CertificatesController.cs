@@ -25,10 +25,6 @@ public class CertificatesController : ControllerBase
         return int.TryParse(claim, out var id) ? id : null;
     }
 
-    /// <summary>
-    /// GET /api/certificates/my-certificates
-    /// Get all certificates earned by current learner
-    /// </summary>
     [HttpGet("my-certificates")]
     [Authorize]
     public async Task<ActionResult<ApiResponse<List<CertificateDto>>>> GetMyCertificates()
@@ -43,10 +39,6 @@ public class CertificatesController : ControllerBase
         return Ok(ApiResponse<List<CertificateDto>>.SuccessResponse(certificates, "Certificates retrieved successfully."));
     }
 
-    /// <summary>
-    /// GET /api/certificates/course/{courseId}
-    /// Get certificate for current learner by course ID
-    /// </summary>
     [HttpGet("course/{courseId:int}")]
     [Authorize]
     public async Task<ActionResult<ApiResponse<CertificateDto>>> GetCertificateByCourse(int courseId)
@@ -66,10 +58,6 @@ public class CertificatesController : ControllerBase
         return Ok(ApiResponse<CertificateDto>.SuccessResponse(cert, "Certificate retrieved successfully."));
     }
 
-    /// <summary>
-    /// GET /api/certificates/{certificateId}
-    /// Get certificate details by certificate ID
-    /// </summary>
     [HttpGet("{certificateId:int}")]
     [Authorize]
     public async Task<ActionResult<ApiResponse<CertificateDto>>> GetCertificateById(int certificateId)
@@ -84,10 +72,6 @@ public class CertificatesController : ControllerBase
         return Ok(ApiResponse<CertificateDto>.SuccessResponse(cert, "Certificate details retrieved successfully."));
     }
 
-    /// <summary>
-    /// POST /api/certificates/issue/{courseId}
-    /// Issue certificate for current learner if 100% completed (Idempotent)
-    /// </summary>
     [HttpPost("issue/{courseId:int}")]
     [Authorize]
     public async Task<ActionResult<ApiResponse<CertificateDto>>> IssueCertificate(int courseId)
@@ -123,10 +107,6 @@ public class CertificatesController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// GET /api/certificates/verify/{code}
-    /// Public endpoint to verify certificate authenticity by code
-    /// </summary>
     [HttpGet("verify/{code}")]
     [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<CertificateVerificationDto>>> VerifyCertificate(string code)
