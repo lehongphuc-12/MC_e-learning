@@ -137,7 +137,7 @@ public class LearningProgressService : ILearningProgressService
             .Where(q =>
                 q.Purpose == QuizPurpose.CHAPTER_ASSESSMENT &&
                 !q.IsRemedial &&
-                q.Status == QuizStatus.ACTIVE &&
+                (q.Status == QuizStatus.ACTIVE || (q.Status == QuizStatus.INACTIVE && q.AvailableUntil.HasValue && q.AvailableUntil.Value <= DateTime.UtcNow)) &&
                 ((q.CourseId == courseId) || (q.ModuleId.HasValue && moduleIds.Contains(q.ModuleId.Value))))
             .Select(q => q.QuizId)
             .Distinct()
@@ -148,7 +148,7 @@ public class LearningProgressService : ILearningProgressService
             .Where(q =>
                 q.Purpose == QuizPurpose.FINAL_ASSESSMENT &&
                 !q.IsRemedial &&
-                q.Status == QuizStatus.ACTIVE &&
+                (q.Status == QuizStatus.ACTIVE || (q.Status == QuizStatus.INACTIVE && q.AvailableUntil.HasValue && q.AvailableUntil.Value <= DateTime.UtcNow)) &&
                 (q.CourseId == courseId || (q.LessonId.HasValue && lessonIds.Contains(q.LessonId.Value))))
             .Select(q => q.QuizId)
             .Distinct()
@@ -350,7 +350,7 @@ public class LearningProgressService : ILearningProgressService
             .Where(q =>
                 q.Purpose == QuizPurpose.CHAPTER_ASSESSMENT &&
                 !q.IsRemedial &&
-                q.Status == QuizStatus.ACTIVE &&
+                (q.Status == QuizStatus.ACTIVE || (q.Status == QuizStatus.INACTIVE && q.AvailableUntil.HasValue && q.AvailableUntil.Value <= DateTime.UtcNow)) &&
                 ((q.CourseId == lesson.CourseId) || (q.ModuleId.HasValue && moduleIds.Contains(q.ModuleId.Value))))
             .Select(q => q.QuizId)
             .Distinct()
@@ -360,7 +360,7 @@ public class LearningProgressService : ILearningProgressService
             .Where(q =>
                 q.Purpose == QuizPurpose.FINAL_ASSESSMENT &&
                 !q.IsRemedial &&
-                q.Status == QuizStatus.ACTIVE &&
+                (q.Status == QuizStatus.ACTIVE || (q.Status == QuizStatus.INACTIVE && q.AvailableUntil.HasValue && q.AvailableUntil.Value <= DateTime.UtcNow)) &&
                 (q.CourseId == lesson.CourseId || (q.LessonId.HasValue && allLessonIds.Contains(q.LessonId.Value))))
             .Select(q => q.QuizId)
             .Distinct()

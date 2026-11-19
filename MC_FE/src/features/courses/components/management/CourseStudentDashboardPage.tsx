@@ -17,12 +17,6 @@ const riskMeta = {
 
 type ProgressStatus = 'SAFE' | 'WARNING' | 'DANGER';
 
-const getProgressStatus = (percentage: number): ProgressStatus => {
-  if (percentage >= 80) return 'SAFE';
-  if (percentage >= 60) return 'WARNING';
-  return 'DANGER';
-};
-
 const getProgressColor = (percentage: number) => {
   if (percentage >= 80) return 'rgb(34, 197, 94)';
   if (percentage >= 60) return 'rgb(234, 179, 8)';
@@ -54,8 +48,7 @@ export const CourseStudentDashboardPage: React.FC = () => {
 
   const filtered = useMemo(() => students.filter(student => {
     const matchesSearch = `${student.fullName} ${student.email}`.toLowerCase().includes(search.trim().toLowerCase());
-    const percentage = Math.min(100, Math.max(0, Number(student.completionPercentage) || 0));
-    return matchesSearch && (filter === 'ALL' || getProgressStatus(percentage) === filter);
+    return matchesSearch && (filter === 'ALL' || student.riskStatus === filter);
   }), [students, search, filter]);
   const selected = students.find(student => student.userId === selectedStudentId) ?? null;
   React.useEffect(() => {
@@ -64,9 +57,9 @@ export const CourseStudentDashboardPage: React.FC = () => {
   }, [courseId, selected?.userId]);
   const counts = {
     total: students.length,
-    danger: students.filter(student => getProgressStatus(Number(student.completionPercentage) || 0) === 'DANGER').length,
-    warning: students.filter(student => getProgressStatus(Number(student.completionPercentage) || 0) === 'WARNING').length,
-    safe: students.filter(student => getProgressStatus(Number(student.completionPercentage) || 0) === 'SAFE').length,
+    danger: students.filter(student => student.riskStatus === 'DANGER').length,
+    warning: students.filter(student => student.riskStatus === 'WARNING').length,
+    safe: students.filter(student => student.riskStatus === 'SAFE').length,
   };
 
   return (
@@ -98,7 +91,7 @@ export const CourseStudentDashboardPage: React.FC = () => {
               <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Tìm theo tên hoặc email…" className="w-full rounded-xl border border-slate-200 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100" />
             </label>
             <select value={filter} onChange={e => setFilter(e.target.value as typeof filter)} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-blue-400">
-              <option value="ALL">Tất cả trạng thái</option><option value="DANGER">Có nguy cơ (&lt;60%)</option><option value="WARNING">Cần hỗ trợ (60–&lt;80%)</option><option value="SAFE">Đúng tiến độ (≥80%)</option>
+              <option value="ALL">Tất cả trạng thái</option><option value="DANGER">Có nguy cơ</option><option value="WARNING">Cần hỗ trợ</option><option value="SAFE">Đúng tiến độ</option>
             </select>
           </div>
 
@@ -110,7 +103,7 @@ export const CourseStudentDashboardPage: React.FC = () => {
                     <thead className="bg-slate-50 text-[11px] font-bold uppercase tracking-wide text-slate-500"><tr><th className="px-5 py-3">Học viên</th><th className="px-4 py-3">Tiến độ</th><th className="px-4 py-3">Bài đạt</th><th className="px-4 py-3">Quá hạn / Chưa đạt</th><th className="px-4 py-3">Hoạt động gần nhất</th><th className="px-5 py-3">Đánh giá</th></tr></thead>
                     <tbody className="divide-y divide-slate-100">{filtered.map(student => {
                       const pct = Math.min(100, Math.max(0, Number(student.completionPercentage) || 0));
-                      const progressStatus = getProgressStatus(pct);
+                      const progressStatus = student.riskStatus === 'INSUFFICIENT_DATA' ? 'INSUFFICIENT_DATA' : student.riskStatus;
                       const risk = riskMeta[progressStatus];
                       const progressColor = getProgressColor(pct);
                       return <tr key={student.enrollmentId} onClick={() => setSelectedStudentId(student.userId)} className="cursor-pointer hover:bg-blue-50/50">
@@ -124,7 +117,7 @@ export const CourseStudentDashboardPage: React.FC = () => {
                     })}</tbody>
                   </table>
                 </div>}
-          <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/60 px-5 py-3 text-xs text-slate-500"><span>Đánh giá theo tiến độ: ≥80% đúng tiến độ · 60–&lt;80% cần hỗ trợ · &lt;60% có nguy cơ.</span><span>{filtered.length} học viên</span></div>
+          <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/60 px-5 py-3 text-xs text-slate-500"><span>Đánh giá dựa trên hạn nộp và kết quả gần nhất của Quiz/Speaking; chi tiết lý do có trong hồ sơ từng học viên.</span><span>{filtered.length} học viên</span></div>
         </section>
       </div>
 
@@ -133,14 +126,16 @@ export const CourseStudentDashboardPage: React.FC = () => {
           <div className="flex items-start justify-between gap-4"><div><p className="text-xs font-bold uppercase tracking-wider text-blue-600">Hồ sơ tiến độ</p><h2 className="mt-1 text-xl font-extrabold text-slate-900">{selected.fullName}</h2><p className="text-sm text-slate-500">{selected.email}</p></div><button onClick={() => setSelectedStudentId(null)} className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600">Đóng</button></div>
           <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4"><div className="flex items-center justify-between text-sm"><span className="font-semibold text-slate-700">Tiến độ khóa học</span><span className="font-bold" style={{ color: getProgressColor(Math.min(100, Math.max(0, Number(selected.completionPercentage) || 0))) }}>{Number(selected.completionPercentage).toFixed(1)}%</span></div><div className="mt-2 h-2 overflow-hidden rounded-full bg-white"><div className="h-full rounded-full transition-[width,background-color] duration-500 ease-out" style={{ width: `${Math.min(100, Math.max(0, Number(selected.completionPercentage) || 0))}%`, backgroundColor: getProgressColor(Math.min(100, Math.max(0, Number(selected.completionPercentage) || 0))) }} /></div><div className="mt-3 text-xs text-slate-500">Ghi danh ngày {formatDate(selected.enrolledAt)}</div></div>
           <h3 className="mb-3 mt-7 flex items-center gap-2 font-bold text-slate-900"><BookOpen size={17} className="text-blue-600" /> Bài đánh giá chính thức</h3>
-          {selected.assessments.length === 0 ? <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">Khóa học chưa có bài đánh giá để theo dõi.</p> : <div className="space-y-3">{selected.assessments.map(item => { const meta = assessmentMeta[item.status]; return <article key={`${item.assessmentType}-${item.assessmentId}`} className="rounded-xl border border-slate-200 p-4"><div className="flex flex-wrap items-start justify-between gap-2"><div><span className="mr-2 rounded bg-slate-100 px-2 py-1 text-[10px] font-bold uppercase text-slate-600">{item.assessmentType === 'QUIZ' ? 'Quiz' : 'Speaking'}</span><span className="font-semibold text-slate-800">{item.title}</span></div><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${meta.classes}`}>{meta.label}</span></div><div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-500"><span>Điểm cao nhất: <b className="text-slate-700">{item.bestScore == null ? '—' : `${item.bestScore}/100`}</b></span><span>Lượt nộp: <b className="text-slate-700">{item.attemptCount}</b></span><span>Hạn: <b className="text-slate-700">{formatDate(item.dueAt)}</b></span></div></article>; })}</div>}
+          {selected.assessments.length === 0 ? <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">Khóa học chưa có bài đánh giá để theo dõi.</p> : <div className="space-y-3">{selected.assessments.map(item => { const meta = assessmentMeta[item.status]; return <article key={`${item.assessmentType}-${item.assessmentId}`} className="rounded-xl border border-slate-200 p-4"><div className="flex flex-wrap items-start justify-between gap-2"><div><span className="mr-2 rounded bg-slate-100 px-2 py-1 text-[10px] font-bold uppercase text-slate-600">{item.assessmentType === 'QUIZ' ? 'Quiz' : 'Speaking'}</span><span className="font-semibold text-slate-800">{item.title}</span></div><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${meta.classes}`}>{meta.label}</span></div><div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-500"><span>Điểm gần nhất: <b className="text-slate-700">{item.latestScore == null ? '—' : `${item.latestScore}/100`}</b></span><span>Lượt nộp: <b className="text-slate-700">{item.attemptCount}{item.maxAttempts && item.maxAttempts > 0 ? `/${item.maxAttempts}` : ''}</b></span>{item.attemptLimitReached && <span className="font-bold text-rose-700">Đã hết lượt</span>}<span>Hạn: <b className="text-slate-700">{formatDate(item.dueAt)}</b></span></div></article>; })}</div>}
           {selected.riskReasons.length > 0 && <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4"><h3 className="text-sm font-bold text-amber-900">Tình hình bài đánh giá</h3><ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-900">{selected.riskReasons.map(reason => <li key={reason}>{reason}</li>)}</ul></div>}
-          <section className="mt-6"><h3 className="mb-3 text-sm font-bold text-slate-900">Lịch sử bài bổ trợ</h3>{remedialAssignments.length === 0 ? <p className="rounded-xl bg-slate-50 p-4 text-xs text-slate-500">Chưa giao nội dung bổ trợ cho học viên này.</p> : <div className="space-y-2">{remedialAssignments.map(task => <article key={`${task.remedialAssignmentId}-${task.studentId}`} className="rounded-xl border border-slate-200 p-3"><div className="flex items-start justify-between gap-2"><div><p className="text-sm font-bold text-slate-800">{task.title}</p><p className="mt-1 text-xs text-slate-500">{task.contentTitle} · Giao bởi {task.assignedByName || 'giảng viên'}</p></div><span className="rounded-full bg-blue-50 px-2 py-1 text-[10px] font-bold text-blue-700">{task.status === 'COMPLETED' ? 'Hoàn thành' : task.status}</span></div><p className="mt-2 text-xs text-slate-600">{task.reason}</p><p className="mt-2 text-[11px] text-slate-500">Lượt: {task.attemptsUsed}/{task.maxAttempts} · Hạn: {formatDate(task.dueAt)}</p></article>)}</div>}</section>
+          <section className="mt-6"><h3 className="mb-3 text-sm font-bold text-slate-900">Lịch sử bài bổ trợ</h3>{remedialAssignments.length === 0 ? <p className="rounded-xl bg-slate-50 p-4 text-xs text-slate-500">Chưa giao nội dung bổ trợ cho học viên này.</p> : <div className="space-y-2">{remedialAssignments.map(task => <article key={`${task.remedialAssignmentId}-${task.studentId}`} className="rounded-xl border border-slate-200 p-3"><div className="flex items-start justify-between gap-2"><div><p className="text-sm font-bold text-slate-800">{task.title}</p><p className="mt-1 text-xs text-slate-500">{task.contentTitle} · Giao bởi {task.assignedByName || 'giảng viên'}</p></div><span className="rounded-full bg-blue-50 px-2 py-1 text-[10px] font-bold text-blue-700">{task.status === 'COMPLETED' ? 'Hoàn thành' : task.status}</span></div><p className="mt-2 text-xs text-slate-600">{task.reason}</p><p className="mt-2 text-[11px] text-slate-500">Lượt bổ trợ: {task.attemptsUsed}{task.hasUnlimitedAttempts ? ' · Không giới hạn' : `/${task.maxAttempts}`} · Cấp khi đạt: {task.retakeAttemptsGranted} lượt làm lại · Không có hạn hoàn thành{task.hasActiveRetakeGrant && task.retakeExpiresAt ? ` · Lượt làm lại đến ${new Date(task.retakeExpiresAt).toLocaleString('vi-VN')}` : ''}</p></article>)}</div>}</section>
           <div className="mt-6 rounded-xl bg-blue-50 p-4 text-sm text-blue-900">Bài bổ trợ không cộng vào điều kiện hoàn thành khóa học hay cấp chứng chỉ.</div>
-          <button onClick={() => setAssigningStudent(selected)} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700"><UserPlus size={16}/> Giao bài bổ trợ riêng</button>
+          {selected.riskStatus === 'WARNING' || selected.riskStatus === 'DANGER'
+            ? <button onClick={() => setAssigningStudent(selected)} className="mt-4 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700"><UserPlus size={16}/> Giao bài bổ trợ riêng</button>
+            : <p className="mt-4 rounded-xl bg-slate-50 p-3 text-xs text-slate-500">Chỉ giao bài bổ trợ cho học viên đang cần hỗ trợ hoặc có nguy cơ.</p>}
         </aside>
       </div>}
-      {assigningStudent && <AssignRemedialContentModal courseId={courseId} studentId={assigningStudent.userId} studentName={assigningStudent.fullName} onClose={() => setAssigningStudent(null)} onCreated={() => { setAssigningStudent(null); void refetch(); }} />}
+      {assigningStudent && <AssignRemedialContentModal courseId={courseId} studentId={assigningStudent.userId} studentName={assigningStudent.fullName} assessments={assigningStudent.assessments} onClose={() => setAssigningStudent(null)} onCreated={() => { setAssigningStudent(null); void refetch(); }} />}
     </div>
   );
 };

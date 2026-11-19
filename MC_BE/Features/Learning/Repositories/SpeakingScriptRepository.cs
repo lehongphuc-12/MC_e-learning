@@ -24,7 +24,7 @@ public class SpeakingScriptRepository : GenericRepository<SpeakingScript>, ISpea
             .Include(s => s.Lesson)
             .Include(s => s.CreatedByUser)
             .Include(s => s.Levels)
-            .FirstOrDefaultAsync(s => s.LessonId == lessonId);
+            .FirstOrDefaultAsync(s => s.LessonId == lessonId && !s.IsRemedial);
     }
 
     public async Task<SpeakingScript?> GetByIdWithDetailsAsync(int scriptId)
@@ -112,6 +112,6 @@ public class SpeakingScriptRepository : GenericRepository<SpeakingScript>, ISpea
     {
         return await _context.SpeakingScriptLevels
             .Include(l => l.Script)
-            .FirstOrDefaultAsync(l => l.Script.LessonId == lessonId && l.Level == level);
+            .FirstOrDefaultAsync(l => l.Script.LessonId == lessonId && !l.Script.IsRemedial && l.Level == level);
     }
 }

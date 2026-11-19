@@ -127,10 +127,12 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
 
             var hasOfficialRetake = script != null && !script.IsRemedial &&
                 await _remedialAssignments.HasSpeakingRetakeGrantAsync(learnerId, script.ScriptId);
+            if (script != null && !script.IsRemedial && script.DueAt.HasValue && script.DueAt.Value <= DateTime.UtcNow && !hasOfficialRetake)
+                throw new InvalidOperationException("Hạn nộp bài Speaking đã qua. Hãy liên hệ giảng viên để được giao bài bổ trợ và mở lượt nộp mới trong 7 ngày.");
             var hasPassedOfficialSubmission = script != null && !script.IsRemedial &&
                 (await _submissionRepository.FindAsync(s => s.LearnerId == learnerId && s.ScriptId == script.ScriptId && s.Score >= 80)).Any();
-            if (hasPassedOfficialSubmission && !hasOfficialRetake)
-                throw new InvalidOperationException("Bạn đã đạt bài Speaking này. Giảng viên cần mở lượt làm lại thông qua bài bổ trợ.");
+            if (hasPassedOfficialSubmission)
+                throw new InvalidOperationException("Bạn đã đạt bài Speaking này; không cần làm bài bổ trợ hoặc nộp lại.");
 
             if (existingSubmission != null)
             {
@@ -141,7 +143,7 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
                     throw new InvalidOperationException(errMsg);
                 }
 
-                if (existingSubmission.Score >= 80 && !hasOfficialRetake)
+                if (existingSubmission.Score >= 80 && script?.IsRemedial != true)
                 {
                     var errMsg = "Bạn đã đạt yêu cầu bài thi nói này (≥ 80 điểm), không cần nộp lại.";
                     _logger.LogWarning("Learner {LearnerId} already passed Script {ScriptId} / Lesson {LessonId} with score {Score}", learnerId, scriptId, lessonId, existingSubmission.Score);
@@ -307,6 +309,8 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
             var remedialScript = submission.SpeakingScript ?? submission.Lesson?.SpeakingScript;
             if (remedialScript?.IsRemedial == true)
                 await _remedialAssignments.CompleteSpeakingAttemptAsync(submission.LearnerId, remedialScript.ScriptId, isPassed);
+            else if (isPassed && remedialScript != null)
+                await _remedialAssignments.RevokeSpeakingRetakeGrantsAsync(submission.LearnerId, remedialScript.ScriptId);
 
             if (submission.Lesson != null && submission.LessonId.HasValue && submission.Lesson.IsRemedial == false && remedialScript?.IsRemedial != true)
             {

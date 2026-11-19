@@ -84,6 +84,13 @@ public class LessonsController : ControllerBase
 
         foreach (var lesson in lessons)
         {
+            if (lesson.IsRemedial)
+            {
+                lesson.IsLocked = false;
+                lesson.LockReason = null;
+                continue;
+            }
+
             lesson.IsLocked =
                 !locks.TryGetValue(lesson.LessonId, out var reason) || reason != null;
 

@@ -3337,6 +3337,12 @@ namespace MC_BE.Migrations
                         .HasColumnType("character varying(1000)")
                         .HasColumnName("Reason");
 
+                    b.Property<int>("RetakeAttemptsGranted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("RetakeAttemptsGranted");
+
                     b.Property<int?>("SpeakingScriptId")
                         .HasColumnType("integer")
                         .HasColumnName("SpeakingScriptID");
@@ -3374,15 +3380,12 @@ namespace MC_BE.Migrations
                     b.HasIndex("TargetSpeakingScriptId");
 
                     b.HasIndex("CourseId", "LessonId")
-                        .IsUnique()
                         .HasFilter("\"LessonID\" IS NOT NULL AND \"IsActive\" = TRUE");
 
                     b.HasIndex("CourseId", "QuizId")
-                        .IsUnique()
                         .HasFilter("\"QuizID\" IS NOT NULL AND \"IsActive\" = TRUE");
 
                     b.HasIndex("CourseId", "SpeakingScriptId")
-                        .IsUnique()
                         .HasFilter("\"SpeakingScriptID\" IS NOT NULL AND \"IsActive\" = TRUE");
 
                     b.HasIndex("CourseId", "IsActive", "CreatedAt");
@@ -3506,6 +3509,23 @@ namespace MC_BE.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("GrantId"));
 
+                    b.Property<int>("AttemptsGranted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("AttemptsGranted");
+
+                    b.Property<int>("AttemptsRemaining")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("AttemptsRemaining");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ExpiresAt");
+
                     b.Property<DateTime>("GrantedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("GrantedAt");
@@ -3541,6 +3561,10 @@ namespace MC_BE.Migrations
                     b.HasIndex("LearnerId", "TargetQuizId", "UsedAt");
 
                     b.HasIndex("LearnerId", "TargetSpeakingScriptId", "UsedAt");
+
+                    b.HasIndex("LearnerId", "TargetQuizId", "ExpiresAt", "UsedAt");
+
+                    b.HasIndex("LearnerId", "TargetSpeakingScriptId", "ExpiresAt", "UsedAt");
 
                     b.ToTable("remedial_retake_grants", null, t =>
                         {
@@ -3757,7 +3781,7 @@ namespace MC_BE.Migrations
 
                     b.HasIndex("LessonId")
                         .IsUnique()
-                        .HasFilter("\"LessonID\" IS NOT NULL");
+                        .HasFilter("\"LessonID\" IS NOT NULL AND \"IsRemedial\" = FALSE");
 
                     b.HasIndex("ModuleId");
 

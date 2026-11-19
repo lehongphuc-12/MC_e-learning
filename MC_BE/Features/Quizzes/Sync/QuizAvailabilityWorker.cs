@@ -44,8 +44,9 @@ public sealed class QuizAvailabilityWorker(
 
             var scheduled = await db.Quizzes
                 .Where(q =>
-                    (q.Status == QuizStatus.ARCHIVED && q.AvailableFrom.HasValue && q.AvailableFrom.Value <= now) ||
-                    (q.Status == QuizStatus.ACTIVE && q.AvailableUntil.HasValue && q.AvailableUntil.Value <= now))
+                    !q.IsRemedial &&
+                    ((q.Status == QuizStatus.ARCHIVED && q.AvailableFrom.HasValue && q.AvailableFrom.Value <= now) ||
+                     (q.Status == QuizStatus.ACTIVE && q.AvailableUntil.HasValue && q.AvailableUntil.Value <= now)))
                 .ToListAsync(cancellationToken);
 
             var changed = 0;

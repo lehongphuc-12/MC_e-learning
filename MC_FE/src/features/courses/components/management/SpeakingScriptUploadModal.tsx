@@ -684,7 +684,7 @@ export const SpeakingScriptUploadModal: React.FC<SpeakingScriptUploadModalProps>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block text-[11px] font-bold text-slate-600">Hạn nộp (tùy chọn)<input type="datetime-local" value={dueAt} onChange={e=>setDueAt(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium"/></label>
-              <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3"><input type="checkbox" checked={isRemedial} onChange={e=>setIsRemedial(e.target.checked)} className="mt-0.5 h-4 w-4 rounded text-amber-600"/><span><b className="block text-xs text-amber-900">Bài Speaking bổ trợ riêng</b><span className="mt-1 block text-[10px] text-amber-800">Không tính vào chứng chỉ; chỉ người được giao thấy.</span></span></label>
+              <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3"><input type="checkbox" checked={isRemedial} onChange={e=>setIsRemedial(e.target.checked)} className="mt-0.5 h-4 w-4 rounded text-amber-600"/><span><b className="block text-xs text-amber-900">Bài Speaking bổ trợ riêng</b><span className="mt-1 block text-[10px] text-amber-800">Có thể tạo nhiều bài bổ trợ cho cùng một lesson. Không tính vào chứng chỉ; chỉ người được giao thấy.</span></span></label>
             </div>
           </div>
 

@@ -1890,6 +1890,8 @@ export const CourseLearningPage: React.FC = () => {
   const courseId = id ? Number(id) : 0;
   const [learnerRemedialAssignments, setLearnerRemedialAssignments] = useState<RemedialAssignmentDto[]>([]);
   const [isRemedialPanelOpen, setIsRemedialPanelOpen] = useState(false);
+  const [remedialAssignmentsError, setRemedialAssignmentsError] = useState<string | null>(null);
+  const [remedialAssignmentsReloadKey, setRemedialAssignmentsReloadKey] = useState(0);
 
   const initialLessonId = searchParams.get('lessonId')
     ? Number(searchParams.get('lessonId'))
@@ -1897,13 +1899,38 @@ export const CourseLearningPage: React.FC = () => {
 
   const user = useAuthStore((state) => state.user);
   useEffect(() => {
-    if (!courseId || !user) { setLearnerRemedialAssignments([]); return; }
+    if (!courseId || !user) {
+      setLearnerRemedialAssignments([]);
+      setRemedialAssignmentsError(null);
+      return;
+    }
     let active = true;
-    remedialAssignmentApi.getForLearner(courseId)
-      .then(response => { if (active) setLearnerRemedialAssignments(response.data ?? []); })
-      .catch(() => { if (active) setLearnerRemedialAssignments([]); });
-    return () => { active = false; };
-  }, [courseId, user]);
+    let loading = false;
+    const loadAssignments = async () => {
+      if (loading) return;
+      loading = true;
+      try {
+        const response = await remedialAssignmentApi.getForLearner(courseId);
+        if (!response.success) throw new Error(response.message || 'Không thể tải danh sách bài bổ trợ.');
+        if (active) {
+          setLearnerRemedialAssignments(response.data ?? []);
+          setRemedialAssignmentsError(null);
+        }
+      } catch (error) {
+        if (active) setRemedialAssignmentsError(error instanceof Error ? error.message : 'Không thể tải danh sách bài bổ trợ.');
+      } finally {
+        loading = false;
+      }
+    };
+    void loadAssignments();
+    const refreshTimer = window.setInterval(() => { void loadAssignments(); }, 20_000);
+    window.addEventListener('focus', loadAssignments);
+    return () => {
+      active = false;
+      window.clearInterval(refreshTimer);
+      window.removeEventListener('focus', loadAssignments);
+    };
+  }, [courseId, user, remedialAssignmentsReloadKey]);
 
   // ===========================================================================
   // Data fetching
@@ -2505,6 +2532,17 @@ export const CourseLearningPage: React.FC = () => {
     );
   };
 
+  const hasQuizRetakeGrant = (quizId: number) => learnerRemedialAssignments.some(task =>
+    task.targetAssessmentType === 'QUIZ' && task.targetAssessmentId === quizId && task.hasActiveRetakeGrant);
+  const getQuizRetakeGrant = (quizId: number) => {
+    const grants = learnerRemedialAssignments.filter(task =>
+      task.targetAssessmentType === 'QUIZ' && task.targetAssessmentId === quizId && task.hasActiveRetakeGrant);
+    return grants.length === 0 ? undefined : {
+      retakeAttemptsRemaining: grants.reduce((sum, task) => sum + task.retakeAttemptsRemaining, 0),
+      retakeExpiresAt: grants.map(task => task.retakeExpiresAt).filter((value): value is string => Boolean(value)).sort()[0],
+    };
+  };
+
   const renderQuizButton = (lessonId: number) => {
     const lessonQuizzes = getQuizzesForLesson(lessonId);
     if (!lessonQuizzes.length) return null;
@@ -2513,7 +2551,7 @@ export const CourseLearningPage: React.FC = () => {
     return <div className="ml-7 mt-1 max-w-md space-y-2">{lessonQuizzes.map(quiz => (
       <div key={quiz.quizId} className="rounded-lg border border-slate-100 bg-white p-2">
         <p className="mb-1 flex items-center gap-1.5 text-[11px] font-semibold text-slate-700">{quiz.title}{quiz.isRemedial && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold text-amber-800">Bổ trợ</span>}</p>
-        {quiz.status === 'ACTIVE' ? <LearnerQuizHistoryActions quizId={quiz.quizId} maxAttempts={quiz.maxAttempts} passingScore={quiz.passingScore} returnTo={getQuizReturnTo(lessonId)} onTake={() => handleTakeQuiz(quiz.quizId, lessonId)} />
+        {quiz.status === 'ACTIVE' ? <LearnerQuizHistoryActions quizId={quiz.quizId} maxAttempts={quiz.isRemedial ? 0 : quiz.maxAttempts} passingScore={quiz.passingScore} returnTo={getQuizReturnTo(lessonId)} onTake={() => handleTakeQuiz(quiz.quizId, lessonId)} />
           : quiz.status === 'ARCHIVED' ? <p className="text-[11px] text-amber-700">{quiz.availableFrom ? `Đang lên lịch mở: ${new Date(quiz.availableFrom).toLocaleString('vi-VN')}` : 'Quiz đang được lưu trữ.'}</p>
           : <p className="text-[11px] text-slate-500">Quiz hiện đang ngừng hoạt động.</p>}
       </div>
@@ -3464,16 +3502,17 @@ export const CourseLearningPage: React.FC = () => {
         {/* Right header action */}
 
         <div className="flex items-center gap-3">
-          {learnerRemedialAssignments.length > 0 && <div className="relative">
-            <button type="button" onClick={() => setIsRemedialPanelOpen(value => !value)} className="flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800 hover:bg-amber-100"><Sparkles className="h-3.5 w-3.5"/> Bài bổ trợ <span className="rounded-full bg-amber-200 px-1.5 py-0.5 text-[10px]">{learnerRemedialAssignments.filter(x=>x.status !== 'COMPLETED').length}</span></button>
+          {(learnerRemedialAssignments.length > 0 || remedialAssignmentsError) && <div className="relative">
+            <button type="button" onClick={() => setIsRemedialPanelOpen(value => !value)} className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold hover:bg-amber-100 ${remedialAssignmentsError ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-amber-200 bg-amber-50 text-amber-800'}`}><Sparkles className="h-3.5 w-3.5"/> {remedialAssignmentsError ? 'Lỗi tải bài bổ trợ' : 'Bài bổ trợ'} {learnerRemedialAssignments.length > 0 && <span className="rounded-full bg-amber-200 px-1.5 py-0.5 text-[10px]">{learnerRemedialAssignments.filter(x=>x.status !== 'COMPLETED').length}</span>}</button>
             {isRemedialPanelOpen && <div className="absolute right-0 top-[calc(100%+10px)] z-[60] w-[min(90vw,380px)] overflow-hidden rounded-2xl border border-amber-200 bg-white shadow-xl">
               <div className="border-b border-amber-100 bg-amber-50 px-4 py-3"><p className="text-sm font-extrabold text-amber-950">Lộ trình bổ trợ riêng</p><p className="mt-0.5 text-[11px] text-amber-800">Không ảnh hưởng điều kiện hoàn thành hoặc chứng chỉ.</p></div>
-              <div className="max-h-[55vh] space-y-2 overflow-y-auto p-3">{learnerRemedialAssignments.map(task => <button key={`${task.remedialAssignmentId}-${task.studentId}`} type="button" onClick={() => {
+              <div className="max-h-[55vh] space-y-2 overflow-y-auto p-3">{remedialAssignmentsError && <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800"><p>Không tải được danh sách bài bổ trợ: {remedialAssignmentsError}</p><button type="button" onClick={() => setRemedialAssignmentsReloadKey(value => value + 1)} className="mt-2 font-bold underline">Thử tải lại</button></div>}{learnerRemedialAssignments.map(task => <button key={`${task.remedialAssignmentId}-${task.studentId}`} type="button" onClick={() => {
                 setIsRemedialPanelOpen(false);
-                if (task.contentType === 'LESSON') { const target = orderedLessons.find(x => x.lessonId === task.contentId); if (target) handleSelectLesson(target); }
+                if (task.hasActiveRetakeGrant && task.targetAssessmentType === 'QUIZ' && task.targetAssessmentId) handleTakeQuiz(task.targetAssessmentId);
+                else if (task.contentType === 'LESSON') { const target = orderedLessons.find(x => x.lessonId === task.contentId); if (target) handleSelectLesson(target); }
                 else if (task.contentType === 'QUIZ') handleTakeQuiz(task.contentId);
                 else { const target = courseSpeakingScripts.find(x => x.scriptId === task.contentId); if (target) handleSelectSpeakingScript(target); }
-              }} className="block w-full rounded-xl border border-slate-200 p-3 text-left hover:border-amber-300 hover:bg-amber-50/60"><span className="flex items-start justify-between gap-2"><span className="min-w-0"><b className="block truncate text-xs text-slate-900">{task.title}</b><span className="mt-1 block truncate text-[11px] text-slate-600">{task.contentTitle}</span></span><span className={`shrink-0 rounded-full px-2 py-1 text-[9px] font-bold ${task.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'}`}>{task.status === 'COMPLETED' ? 'Hoàn thành' : `${task.attemptsUsed}/${task.maxAttempts} lượt`}</span></span><span className="mt-2 block text-[10px] text-slate-500">{task.reason}{task.dueAt ? ` · Hạn ${new Date(task.dueAt).toLocaleString('vi-VN')}` : ''}</span></button>)}</div>
+              }} className="block w-full rounded-xl border border-slate-200 p-3 text-left hover:border-amber-300 hover:bg-amber-50/60"><span className="flex items-start justify-between gap-2"><span className="min-w-0"><b className="block truncate text-xs text-slate-900">{task.title}</b><span className="mt-1 block truncate text-[11px] text-slate-600">{task.contentTitle}</span></span><span className={`shrink-0 rounded-full px-2 py-1 text-[9px] font-bold ${task.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'}`}>{task.hasActiveRetakeGrant ? `${task.retakeAttemptsRemaining} lượt làm lại` : task.status === 'COMPLETED' ? 'Hoàn thành' : task.hasUnlimitedAttempts ? `${task.attemptsUsed} lượt · Không giới hạn` : `${task.attemptsUsed}/${task.maxAttempts} lượt`}</span></span><span className="mt-2 block text-[10px] text-slate-500">{task.reason}{task.retakeExpiresAt && task.hasActiveRetakeGrant ? ` · Làm lại quiz trước ${new Date(task.retakeExpiresAt).toLocaleString('vi-VN')}` : ''}</span>{!task.hasUnlimitedAttempts && task.attemptsUsed >= task.maxAttempts && task.status !== 'COMPLETED' && <span className="mt-2 block text-[10px] font-semibold text-rose-700">Bạn đã hết lượt bài bổ trợ. Hãy liên hệ giảng viên qua khung chat để yêu cầu thêm lượt.</span>}{task.retakeExpiresAt && !task.hasActiveRetakeGrant && task.status === 'COMPLETED' && <span className="mt-2 block text-[10px] font-semibold text-rose-700">Lượt làm lại đã hết hạn. Hãy liên hệ giảng viên để được giao bài bổ trợ mới.</span>}</button>)}</div>
             </div>}
           </div>}
           {/* Progress Badge */}
@@ -4278,7 +4317,7 @@ export const CourseLearningPage: React.FC = () => {
                                 <div className="min-w-0 flex-1">
                                   <p className="text-xs font-extrabold text-amber-950">Bài đánh giá {mod.title}</p>
                                   <p className="mt-1 text-[10px] leading-4 text-amber-800">Hoàn thành video và đạt tất cả bài luyện tập đã đến ngày mở trong chương để làm bài đánh giá. Đạt từ 80% để mở chương tiếp theo.</p>
-                                  {chapterQuiz.isLocked && (
+                                  {chapterQuiz.isLocked && !hasQuizRetakeGrant(chapterQuiz.quizId) && (
                                     <p className="mt-2 flex items-center gap-1.5 text-[11px] font-semibold text-amber-800">
                                       <LockKeyhole size={12} />
                                       {chapterQuiz.lockReason || 'Bài đánh giá hiện chưa thể làm.'}
@@ -4291,11 +4330,14 @@ export const CourseLearningPage: React.FC = () => {
                                       passingScore={chapterQuiz.passingScore}
                                       returnTo={getQuizReturnTo()}
                                       canTakeQuiz={
-                                        chapterQuiz.status === 'ACTIVE' &&
-                                        !chapterQuiz.isLocked &&
+                                        (chapterQuiz.status === 'ACTIVE' || hasQuizRetakeGrant(chapterQuiz.quizId)) &&
+                                        (!chapterQuiz.isLocked || hasQuizRetakeGrant(chapterQuiz.quizId)) &&
                                         (!chapterQuiz.availableFrom || new Date(chapterQuiz.availableFrom).getTime() <= Date.now()) &&
-                                        (!chapterQuiz.availableUntil || new Date(chapterQuiz.availableUntil).getTime() > Date.now())
+                                        (hasQuizRetakeGrant(chapterQuiz.quizId) || !chapterQuiz.availableUntil || new Date(chapterQuiz.availableUntil).getTime() > Date.now())
                                       }
+                                      hasRetakeGrant={hasQuizRetakeGrant(chapterQuiz.quizId)}
+                                      retakeAttemptsRemaining={getQuizRetakeGrant(chapterQuiz.quizId)?.retakeAttemptsRemaining}
+                                      retakeExpiresAt={getQuizRetakeGrant(chapterQuiz.quizId)?.retakeExpiresAt}
                                       onTake={() => handleTakeQuiz(chapterQuiz.quizId)}
                                     />
                                   </div>
@@ -4671,11 +4713,14 @@ export const CourseLearningPage: React.FC = () => {
                               passingScore={overallQuiz.passingScore}
                               returnTo={getQuizReturnTo(activeLesson?.lessonId)}
                               canTakeQuiz={
-                                overallQuiz.status === 'ACTIVE' &&
-                                !overallQuiz.isLocked &&
+                                (overallQuiz.status === 'ACTIVE' || hasQuizRetakeGrant(overallQuiz.quizId)) &&
+                                (!overallQuiz.isLocked || hasQuizRetakeGrant(overallQuiz.quizId)) &&
                                 (!overallQuiz.availableFrom || new Date(overallQuiz.availableFrom).getTime() <= Date.now()) &&
-                                (!overallQuiz.availableUntil || new Date(overallQuiz.availableUntil).getTime() > Date.now())
+                                (hasQuizRetakeGrant(overallQuiz.quizId) || !overallQuiz.availableUntil || new Date(overallQuiz.availableUntil).getTime() > Date.now())
                               }
+                              hasRetakeGrant={hasQuizRetakeGrant(overallQuiz.quizId)}
+                              retakeAttemptsRemaining={getQuizRetakeGrant(overallQuiz.quizId)?.retakeAttemptsRemaining}
+                              retakeExpiresAt={getQuizRetakeGrant(overallQuiz.quizId)?.retakeExpiresAt}
                               onTake={() => handleTakeQuiz(overallQuiz.quizId)}
                             />
                           </div>

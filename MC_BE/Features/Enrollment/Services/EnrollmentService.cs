@@ -508,11 +508,11 @@ public class EnrollmentService : IEnrollmentService
         var lessonIds = lessons.Select(l => l.LessonId).ToList();
 
         var quizzes = await _context.Quizzes.AsNoTracking()
-            .Where(q => q.Status == QuizStatus.ACTIVE &&
-                (q.Purpose == QuizPurpose.CHAPTER_ASSESSMENT || q.Purpose == QuizPurpose.FINAL_ASSESSMENT) &&
+            .Where(q => (q.Status == QuizStatus.ACTIVE ||
+                    (q.Status == QuizStatus.INACTIVE && q.AvailableUntil.HasValue && q.AvailableUntil.Value <= now)) &&
                 !q.IsRemedial &&
                 (q.CourseId == courseId || (q.ModuleId.HasValue && modules.Contains(q.ModuleId.Value)) || (q.LessonId.HasValue && lessonIds.Contains(q.LessonId.Value))))
-            .Select(q => new { q.QuizId, q.Title, q.AvailableUntil })
+            .Select(q => new { q.QuizId, q.Title, q.AvailableUntil, q.MaxAttempts })
             .ToListAsync();
         var scripts = await _context.SpeakingScripts.AsNoTracking()
             .Where(s => s.CourseId == courseId && s.Status == SpeakingScriptStatus.PUBLISHED && !s.IsRemedial)
@@ -537,13 +537,18 @@ public class EnrollmentService : IEnrollmentService
                 var bestScore = graded.Select(a => a.Score).Max();
                 var pending = attempts.Any(a => a.ResultStatus == QuizAttemptStatus.PENDING_GRADING && a.SubmittedAt.HasValue);
                 var latest = attempts.OrderByDescending(a => a.AttemptNumber).FirstOrDefault();
+                var latestScore = latest?.Score;
+                var hasPassed = attempts.Any(a => a.ResultStatus == QuizAttemptStatus.PASSED);
+                var attemptLimitReached = quiz.MaxAttempts > 0 && attempts.Count(a => a.SubmittedAt.HasValue) >= quiz.MaxAttempts && !hasPassed;
+                var assessmentStatus = ResolveAssessmentStatus(hasPassed, pending, latest?.ResultStatus?.ToString(), attempts.Any(a => a.SubmittedAt.HasValue), quiz.AvailableUntil, now);
                 assessments.Add(new StudentAssessmentInsightDto
                 {
                     AssessmentType = "QUIZ", AssessmentId = quiz.QuizId, Title = quiz.Title,
-                    BestScore = bestScore, DueAt = quiz.AvailableUntil,
+                    BestScore = bestScore, LatestScore = latestScore, MaxAttempts = quiz.MaxAttempts,
+                    AttemptLimitReached = attemptLimitReached, DueAt = quiz.AvailableUntil,
                     LastSubmittedAt = attempts.Where(a => a.SubmittedAt.HasValue).Select(a => a.SubmittedAt).Max(),
                     AttemptCount = attempts.Count(a => a.SubmittedAt.HasValue),
-                    Status = ResolveAssessmentStatus(bestScore, pending, latest?.ResultStatus?.ToString(), attempts.Any(a => a.SubmittedAt.HasValue), quiz.AvailableUntil, now)
+                    Status = assessmentStatus
                 });
             }
             foreach (var script in scripts)
@@ -551,26 +556,36 @@ public class EnrollmentService : IEnrollmentService
                 var attempts = speakingSubmissions.Where(s => s.LearnerId == enrollment.LearnerId && s.ScriptId == script.ScriptId).ToList();
                 var latest = attempts.OrderByDescending(s => s.SubmittedAt).FirstOrDefault();
                 var bestScore = attempts.Where(s => s.Score.HasValue).Select(s => s.Score).Max();
+                var latestScore = latest?.Score;
                 var pending = latest != null && !latest.Score.HasValue;
                 assessments.Add(new StudentAssessmentInsightDto
                 {
                     AssessmentType = "SPEAKING", AssessmentId = script.ScriptId, Title = script.Title,
-                    BestScore = bestScore, DueAt = script.DueAt,
+                    BestScore = bestScore, LatestScore = latestScore, DueAt = script.DueAt,
                     LastSubmittedAt = latest?.SubmittedAt, AttemptCount = attempts.Count,
-                    Status = ResolveAssessmentStatus(bestScore, pending, latest?.Status.ToString(), latest != null, script.DueAt, now)
+                    Status = ResolveAssessmentStatus(attempts.Any(s => s.Score >= 80), pending, latest?.Status.ToString(), latest != null, script.DueAt, now)
                 });
             }
 
             var failedCount = assessments.Count(a => a.Status == "NEEDS_REMEDIATION");
             var overdueCount = assessments.Count(a => a.Status == "OVERDUE");
+            var exhaustedCount = assessments.Count(a => a.AttemptLimitReached);
             var pendingCount = assessments.Count(a => a.Status == "PENDING_GRADE");
             var passedCount = assessments.Count(a => a.Status == "PASSED");
             var reasons = new List<string>();
-            if (overdueCount > 0) reasons.Add($"{overdueCount} bài đánh giá đã quá hạn chưa đạt.");
-            if (failedCount > 0) reasons.Add($"{failedCount} bài đánh giá gần nhất chưa đạt 80 điểm.");
+            foreach (var assessment in assessments.Where(a => a.Status == "OVERDUE" || a.Status == "NEEDS_REMEDIATION"))
+            {
+                var kind = assessment.AssessmentType == "QUIZ" ? "Quiz" : "Speaking assignment";
+                if (assessment.Status == "OVERDUE")
+                    reasons.Add($"{kind} ‘{assessment.Title}’ đã quá hạn ({assessment.DueAt:dd/MM/yyyy}) nhưng chưa đạt.");
+                else
+                    reasons.Add($"{kind} ‘{assessment.Title}’ chưa đạt 80 điểm; điểm gần nhất {assessment.LatestScore?.ToString("0.##") ?? "chưa có"}/100.");
+                if (assessment.AttemptLimitReached)
+                    reasons.Add($"{kind} ‘{assessment.Title}’ đã hết {assessment.MaxAttempts} lượt làm.");
+            }
             if (pendingCount > 0) reasons.Add($"{pendingCount} bài đang chờ giảng viên chấm.");
             var risk = assessments.Count == 0 ? "INSUFFICIENT_DATA"
-                : overdueCount >= 2 || failedCount >= 2 ? "DANGER"
+                : exhaustedCount > 0 || overdueCount >= 2 || failedCount >= 2 ? "DANGER"
                 : overdueCount > 0 || failedCount > 0 ? "WARNING" : "SAFE";
             if (risk == "SAFE" && assessments.Count > 0) reasons.Add("Không có bài đánh giá quá hạn hoặc chưa đạt.");
             if (risk == "INSUFFICIENT_DATA") reasons.Add("Khóa học chưa có bài đánh giá bắt buộc để phân loại.");
@@ -594,11 +609,11 @@ public class EnrollmentService : IEnrollmentService
         return ApiResponse<List<CourseStudentInsightDto>>.SuccessResponse(result.OrderBy(x => x.FullName).ToList());
     }
 
-    private static string ResolveAssessmentStatus(decimal? bestScore, bool pending, string? latestStatus, bool hasSubmission, DateTime? dueAt, DateTime now)
+    private static string ResolveAssessmentStatus(bool hasPassed, bool pending, string? latestStatus, bool hasSubmission, DateTime? dueAt, DateTime now)
     {
-        if (bestScore >= 80m) return "PASSED";
+        if (hasPassed) return "PASSED";
         if (pending) return "PENDING_GRADE";
-        if (dueAt.HasValue && dueAt.Value <= now && !hasSubmission) return "OVERDUE";
+        if (dueAt.HasValue && dueAt.Value <= now) return "OVERDUE";
         if (hasSubmission && (string.Equals(latestStatus, "FAILED", StringComparison.OrdinalIgnoreCase) || string.Equals(latestStatus, "NEEDS_RESUBMISSION", StringComparison.OrdinalIgnoreCase))) return "NEEDS_REMEDIATION";
         if (hasSubmission) return "IN_PROGRESS";
         return "NOT_STARTED";

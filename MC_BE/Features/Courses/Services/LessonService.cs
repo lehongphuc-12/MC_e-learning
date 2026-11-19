@@ -44,8 +44,7 @@ public class LessonService : ILessonService
         ITranscriptionQueue transcriptionQueue,
         ICourseLearningAccessService courseAccess,
         IMentorChatService mentorChatService,
-        ILogger<LessonService> logger)
-        ICourseLearningAccessService courseAccess,
+        ILogger<LessonService> logger,
         IRemedialAssignmentService remedialAssignments)
     {
         _lessonRepository = lessonRepository;

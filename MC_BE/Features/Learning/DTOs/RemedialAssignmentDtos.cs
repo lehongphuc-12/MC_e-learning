@@ -11,8 +11,9 @@ public sealed class CreateRemedialAssignmentRequest
     public int? SpeakingScriptId { get; set; }
     public int? TargetQuizId { get; set; }
     public int? TargetSpeakingScriptId { get; set; }
-    [Range(1, 20)] public int MaxAttempts { get; set; } = 3;
-    public DateTime? DueAt { get; set; }
+    // 0 = không giới hạn; số dương = số lượt tối đa.
+    [Range(0, 20)] public int MaxAttempts { get; set; } = 0;
+    [Range(1, 20)] public int RetakeAttemptsGranted { get; set; } = 1;
     [Required, MinLength(1)] public List<int> StudentIds { get; set; } = new();
 }
 
@@ -29,12 +30,18 @@ public sealed class RemedialAssignmentDto
     public int? TargetAssessmentId { get; set; }
     public string? TargetAssessmentType { get; set; }
     public int MaxAttempts { get; set; }
+    public int RetakeAttemptsGranted { get; set; }
     public bool IsActive { get; set; }
     public DateTime? DueAt { get; set; }
     public string Status { get; set; } = string.Empty;
     public DateTime AssignedAt { get; set; }
     public DateTime? CompletedAt { get; set; }
     public int AttemptsUsed { get; set; }
+    public bool HasUnlimitedAttempts { get; set; }
+    public int? RemainingAttempts { get; set; }
+    public DateTime? RetakeExpiresAt { get; set; }
+    public bool HasActiveRetakeGrant { get; set; }
+    public int RetakeAttemptsRemaining { get; set; }
     public string? AssignedByName { get; set; }
 }
 

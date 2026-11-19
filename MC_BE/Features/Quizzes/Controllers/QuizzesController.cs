@@ -25,7 +25,7 @@ public class QuizzesController : ControllerBase
     private readonly ICloudinaryService _cloudinaryService;
     private readonly ILearningAccessService _learningAccess;
     private readonly IRemedialAssignmentService _remedialAssignments;
-    public QuizzesController(IQuizService quizService, QuizSheetExporter sheetExporter, ILogger<QuizzesController> logger, ICloudinaryService cloudinaryService, ILearningAccessService learningAccess, ICourseLearningAccessService courseAccess, IRemedialAssignmentService remedialAssignments)
+    public QuizzesController(IQuizService quizService,SmartMcDbContext db, QuizSheetExporter sheetExporter, ILogger<QuizzesController> logger, ICloudinaryService cloudinaryService, ILearningAccessService learningAccess, ICourseLearningAccessService courseAccess, IRemedialAssignmentService remedialAssignments)
     {
         _quizService = quizService;
         _db = db;

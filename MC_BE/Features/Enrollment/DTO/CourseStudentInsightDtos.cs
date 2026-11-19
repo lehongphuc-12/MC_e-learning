@@ -27,6 +27,9 @@ public sealed class StudentAssessmentInsightDto
     public int AssessmentId { get; set; }
     public string Title { get; set; } = string.Empty;
     public decimal? BestScore { get; set; }
+    public decimal? LatestScore { get; set; }
+    public int? MaxAttempts { get; set; }
+    public bool AttemptLimitReached { get; set; }
     public string Status { get; set; } = string.Empty;
     public DateTime? DueAt { get; set; }
     public DateTime? LastSubmittedAt { get; set; }

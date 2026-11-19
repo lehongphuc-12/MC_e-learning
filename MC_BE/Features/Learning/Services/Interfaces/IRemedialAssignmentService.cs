@@ -12,6 +12,7 @@ public interface IRemedialAssignmentService
     Task<bool> CanStartAttemptAsync(int learnerId, string contentType, int contentId);
     Task RecordAttemptResultAsync(int learnerId, string contentType, int contentId, bool passed);
     Task CompleteSpeakingAttemptAsync(int learnerId, int scriptId, bool passed);
+    Task RevokeSpeakingRetakeGrantsAsync(int learnerId, int scriptId);
     Task CompleteLessonAsync(int learnerId, int lessonId);
     Task<bool> HasSpeakingRetakeGrantAsync(int learnerId, int scriptId);
     Task ConsumeSpeakingRetakeGrantAsync(int learnerId, int scriptId);

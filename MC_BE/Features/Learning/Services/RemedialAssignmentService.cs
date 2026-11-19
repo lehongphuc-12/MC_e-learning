@@ -32,8 +32,15 @@ public sealed class RemedialAssignmentService : IRemedialAssignmentService
                 ContentTitle = x.Lesson != null ? x.Lesson.Title : x.Quiz != null ? x.Quiz.Title : x.SpeakingScript!.Title,
                 TargetAssessmentId = x.TargetQuizId ?? x.TargetSpeakingScriptId,
                 TargetAssessmentType = x.TargetQuizId.HasValue ? "QUIZ" : x.TargetSpeakingScriptId.HasValue ? "SPEAKING" : null,
-                MaxAttempts = x.MaxAttempts, IsActive = x.IsActive, DueAt = r.DueAt, Status = r.Status,
+                MaxAttempts = x.MaxAttempts, HasUnlimitedAttempts = x.MaxAttempts == 0,
+                RetakeAttemptsGranted = x.RetakeAttemptsGranted,
+                RemainingAttempts = x.MaxAttempts == 0 ? null : Math.Max(0, x.MaxAttempts - r.AttemptsUsed),
+                IsActive = x.IsActive, DueAt = null, Status = r.Status,
                 AssignedAt = r.AssignedAt, CompletedAt = r.CompletedAt, AttemptsUsed = r.AttemptsUsed,
+                HasActiveRetakeGrant = _db.RemedialRetakeGrants.Any(g => g.RecipientId == r.RecipientId && g.UsedAt == null && g.AttemptsRemaining > 0 && g.ExpiresAt > DateTime.UtcNow),
+                RetakeAttemptsRemaining = _db.RemedialRetakeGrants.Where(g => g.RecipientId == r.RecipientId && g.UsedAt == null && g.AttemptsRemaining > 0 && g.ExpiresAt > DateTime.UtcNow).Select(g => g.AttemptsRemaining).FirstOrDefault(),
+                RetakeExpiresAt = _db.RemedialRetakeGrants.Where(g => g.RecipientId == r.RecipientId && g.UsedAt == null && g.AttemptsRemaining > 0 && g.ExpiresAt > DateTime.UtcNow)
+                    .OrderBy(g => g.ExpiresAt).Select(g => (DateTime?)g.ExpiresAt).FirstOrDefault(),
                 AssignedByName = x.AssignedBy.FullName
             }))
             .OrderByDescending(x => x.AssignedAt).ToListAsync();
@@ -53,8 +60,15 @@ public sealed class RemedialAssignmentService : IRemedialAssignmentService
                 ContentTitle = x.Lesson != null ? x.Lesson.Title : x.Quiz != null ? x.Quiz.Title : x.SpeakingScript!.Title,
                 TargetAssessmentId = x.TargetQuizId ?? x.TargetSpeakingScriptId,
                 TargetAssessmentType = x.TargetQuizId.HasValue ? "QUIZ" : x.TargetSpeakingScriptId.HasValue ? "SPEAKING" : null,
-                MaxAttempts = x.MaxAttempts, IsActive = x.IsActive, DueAt = r.DueAt, Status = r.Status,
+                MaxAttempts = x.MaxAttempts, HasUnlimitedAttempts = x.MaxAttempts == 0,
+                RetakeAttemptsGranted = x.RetakeAttemptsGranted,
+                RemainingAttempts = x.MaxAttempts == 0 ? null : Math.Max(0, x.MaxAttempts - r.AttemptsUsed),
+                IsActive = x.IsActive, DueAt = null, Status = r.Status,
                 AssignedAt = r.AssignedAt, CompletedAt = r.CompletedAt, AttemptsUsed = r.AttemptsUsed,
+                HasActiveRetakeGrant = _db.RemedialRetakeGrants.Any(g => g.RecipientId == r.RecipientId && g.UsedAt == null && g.AttemptsRemaining > 0 && g.ExpiresAt > DateTime.UtcNow),
+                RetakeAttemptsRemaining = _db.RemedialRetakeGrants.Where(g => g.RecipientId == r.RecipientId && g.UsedAt == null && g.AttemptsRemaining > 0 && g.ExpiresAt > DateTime.UtcNow).Select(g => g.AttemptsRemaining).FirstOrDefault(),
+                RetakeExpiresAt = _db.RemedialRetakeGrants.Where(g => g.RecipientId == r.RecipientId && g.UsedAt == null && g.AttemptsRemaining > 0 && g.ExpiresAt > DateTime.UtcNow)
+                    .OrderBy(g => g.ExpiresAt).Select(g => (DateTime?)g.ExpiresAt).FirstOrDefault(),
                 AssignedByName = x.AssignedBy.FullName
             }))
             .OrderByDescending(x => x.AssignedAt).ToListAsync();
@@ -67,7 +81,9 @@ public sealed class RemedialAssignmentService : IRemedialAssignmentService
         var targetCount = (request.TargetQuizId.HasValue ? 1 : 0) + (request.TargetSpeakingScriptId.HasValue ? 1 : 0);
         if (contentCount != 1 || targetCount > 1) throw new ArgumentException("Chọn chính xác một nội dung bổ trợ và tối đa một bài đánh giá chính thức cần làm lại.");
         if (request.StudentIds.Count == 0 || request.StudentIds.Any(id => id <= 0)) throw new ArgumentException("Danh sách học viên không hợp lệ.");
-        if (request.DueAt.HasValue && request.DueAt.Value <= DateTime.UtcNow) throw new ArgumentException("Hạn hoàn thành phải nằm trong tương lai.");
+        if (request.RetakeAttemptsGranted is < 1 or > 20) throw new ArgumentException("Số lượt làm lại được cấp phải từ 1 đến 20.");
+        var studentIds = request.StudentIds.Distinct().ToList();
+        await EnsureStudentsNeedSupportAsync(courseId, studentIds);
 
         Lesson? lesson = null; Quiz? quiz = null; SpeakingScript? script = null;
         if (request.LessonId.HasValue) lesson = await _db.Lessons.Include(x => x.Course).FirstOrDefaultAsync(x => x.LessonId == request.LessonId && x.CourseId == courseId);
@@ -78,20 +94,26 @@ public sealed class RemedialAssignmentService : IRemedialAssignmentService
         if (lesson?.IsRemedial == false || quiz?.IsRemedial == false || script?.IsRemedial == false)
             throw new ArgumentException("Chỉ được giao nội dung đã được đánh dấu là bài bổ trợ; không thể chuyển bài học chính thức thành bài riêng cho một học viên.");
         if (request.TargetQuizId.HasValue && (request.TargetQuizId == request.QuizId ||
-            !await _db.Quizzes.AnyAsync(x => x.QuizId == request.TargetQuizId && x.CourseId == courseId && !x.IsRemedial && x.Purpose != QuizPurpose.PRACTICE)))
-            throw new KeyNotFoundException("Quiz đích phải là bài đánh giá chính thức khác nội dung bổ trợ và thuộc khóa học này.");
+            !await _db.Quizzes.AnyAsync(x => x.QuizId == request.TargetQuizId && x.CourseId == courseId && !x.IsRemedial)))
+            throw new KeyNotFoundException("Quiz đích phải là quiz chính thức, khác nội dung bổ trợ và thuộc khóa học này.");
+        if (request.TargetQuizId.HasValue && await _db.QuizAttempts.AnyAsync(x => studentIds.Contains(x.UserId) && x.QuizId == request.TargetQuizId && x.ResultStatus == QuizAttemptStatus.PASSED))
+            throw new InvalidOperationException("Học viên đã đạt quiz này; không cần giao bài bổ trợ để mở lượt làm lại.");
         if (request.TargetSpeakingScriptId.HasValue && (request.TargetSpeakingScriptId == request.SpeakingScriptId ||
             !await _db.SpeakingScripts.AnyAsync(x => x.ScriptId == request.TargetSpeakingScriptId && x.CourseId == courseId && !x.IsRemedial)))
             throw new KeyNotFoundException("Speaking đích phải là bài chính thức khác nội dung bổ trợ và thuộc khóa học này.");
+        if (request.TargetSpeakingScriptId.HasValue && await _db.SpeakingSubmissions.AnyAsync(x => studentIds.Contains(x.LearnerId) && x.ScriptId == request.TargetSpeakingScriptId && x.Score >= 80))
+            throw new InvalidOperationException("Học viên đã đạt bài Speaking này; không cần giao bài bổ trợ để mở lượt làm lại.");
 
-        var studentIds = request.StudentIds.Distinct().ToList();
         var enrolledIds = await _db.Enrollments.Where(e => e.CourseId == courseId && studentIds.Contains(e.LearnerId) && e.Status == "ACTIVE" && (!e.ExpiresAt.HasValue || e.ExpiresAt.Value > DateTime.UtcNow))
             .Select(e => e.LearnerId).Distinct().ToListAsync();
         if (enrolledIds.Count != studentIds.Count) throw new ArgumentException("Một hoặc nhiều học viên không còn quyền học khóa học này.");
 
         await using var tx = await _db.Database.BeginTransactionAsync();
         var task = await _db.RemedialAssignments.FirstOrDefaultAsync(x => x.CourseId == courseId && x.IsActive &&
-            x.LessonId == request.LessonId && x.QuizId == request.QuizId && x.SpeakingScriptId == request.SpeakingScriptId);
+            x.LessonId == request.LessonId && x.QuizId == request.QuizId && x.SpeakingScriptId == request.SpeakingScriptId &&
+            x.TargetQuizId == request.TargetQuizId && x.TargetSpeakingScriptId == request.TargetSpeakingScriptId &&
+            x.RetakeAttemptsGranted == request.RetakeAttemptsGranted &&
+            !x.Recipients.Any(r => studentIds.Contains(r.StudentId)));
         var now = DateTime.UtcNow;
         if (task == null)
         {
@@ -100,7 +122,8 @@ public sealed class RemedialAssignmentService : IRemedialAssignmentService
                 CourseId = courseId, Title = request.Title.Trim(), Reason = request.Reason.Trim(),
                 LessonId = request.LessonId, QuizId = request.QuizId, SpeakingScriptId = request.SpeakingScriptId,
                 TargetQuizId = request.TargetQuizId, TargetSpeakingScriptId = request.TargetSpeakingScriptId,
-                AssignedById = instructorId, MaxAttempts = request.MaxAttempts, CreatedAt = now, UpdatedAt = now
+                AssignedById = instructorId, MaxAttempts = request.MaxAttempts,
+                RetakeAttemptsGranted = request.RetakeAttemptsGranted, CreatedAt = now, UpdatedAt = now
             };
             _db.RemedialAssignments.Add(task);
         }
@@ -108,9 +131,10 @@ public sealed class RemedialAssignmentService : IRemedialAssignmentService
         {
             var samePlan = task.Title == request.Title.Trim() && task.Reason == request.Reason.Trim() &&
                 task.MaxAttempts == request.MaxAttempts && task.TargetQuizId == request.TargetQuizId &&
-                task.TargetSpeakingScriptId == request.TargetSpeakingScriptId;
+                task.TargetSpeakingScriptId == request.TargetSpeakingScriptId &&
+                task.RetakeAttemptsGranted == request.RetakeAttemptsGranted;
             if (!samePlan)
-                throw new InvalidOperationException("Nội dung này đã được giao với một cấu hình khác. Hãy dùng cùng tiêu đề, lý do, số lượt và bài đích để thêm học viên vào đợt hiện tại.");
+                throw new InvalidOperationException("Nội dung này đã được giao với một cấu hình khác. Hãy dùng cùng tiêu đề, lý do, số lượt bổ trợ, số lượt làm lại và bài đích để thêm học viên vào đợt hiện tại.");
         }
         await _db.SaveChangesAsync();
 
@@ -119,12 +143,12 @@ public sealed class RemedialAssignmentService : IRemedialAssignmentService
         {
             task.Recipients.Add(new RemedialAssignmentRecipient
             {
-                StudentId = studentId, AssignedAt = now, DueAt = request.DueAt, Status = "ASSIGNED", UpdatedAt = now
+                StudentId = studentId, AssignedAt = now, DueAt = null, Status = "ASSIGNED", UpdatedAt = now
             });
             task.Events.Add(new RemedialAssignmentEvent
             {
                 StudentId = studentId, ActorId = instructorId, EventType = "ASSIGNED",
-                Details = $"Giao nội dung bổ trợ: {task.Title}", CreatedAt = now
+                Details = $"Giao nội dung bổ trợ: {task.Title}; cấp {task.RetakeAttemptsGranted} lượt làm lại khi đạt.", CreatedAt = now
             });
         }
         await _db.SaveChangesAsync();
@@ -156,7 +180,7 @@ public sealed class RemedialAssignmentService : IRemedialAssignmentService
     {
         var recipient = await FindRecipientAsync(learnerId, contentType, contentId);
         return recipient != null && recipient.Status != "REVOKED" && recipient.Status != "COMPLETED" &&
-            recipient.AttemptsUsed < recipient.Assignment.MaxAttempts &&
+            (recipient.Assignment.MaxAttempts == 0 || recipient.AttemptsUsed < recipient.Assignment.MaxAttempts) &&
             await _courseAccess.CanAccessCourseAsync(recipient.Assignment.CourseId, learnerId, isAdmin: false);
     }
 
@@ -164,32 +188,21 @@ public sealed class RemedialAssignmentService : IRemedialAssignmentService
     {
         var recipient = await FindRecipientAsync(learnerId, contentType, contentId);
         if (recipient == null) return;
-        if (recipient.AttemptsUsed >= recipient.Assignment.MaxAttempts) throw new InvalidOperationException("Bạn đã dùng hết số lượt làm bài bổ trợ.");
+        if (recipient.Assignment.MaxAttempts > 0 && recipient.AttemptsUsed >= recipient.Assignment.MaxAttempts) throw new InvalidOperationException("Bạn đã dùng hết số lượt làm bài bổ trợ. Hãy liên hệ giảng viên qua khung chat để yêu cầu thêm lượt.");
         recipient.AttemptsUsed++;
         recipient.UpdatedAt = DateTime.UtcNow;
         if (passed)
         {
             recipient.Status = "COMPLETED";
             recipient.CompletedAt = DateTime.UtcNow;
-            var hasTarget = recipient.Assignment.TargetQuizId.HasValue || recipient.Assignment.TargetSpeakingScriptId.HasValue;
-            var grantExists = hasTarget && await _db.RemedialRetakeGrants.AnyAsync(x =>
-                x.RecipientId == recipient.RecipientId && x.UsedAt == null);
-            if (hasTarget && !grantExists)
-            {
-                _db.RemedialRetakeGrants.Add(new RemedialRetakeGrant
-                {
-                    RecipientId = recipient.RecipientId, LearnerId = learnerId,
-                    TargetQuizId = recipient.Assignment.TargetQuizId,
-                    TargetSpeakingScriptId = recipient.Assignment.TargetSpeakingScriptId,
-                    GrantedAt = DateTime.UtcNow
-                });
-            }
+            await IssueRetakeGrantIfNeededAsync(recipient, learnerId);
         }
         _db.RemedialAssignmentEvents.Add(new RemedialAssignmentEvent
         {
             RemedialAssignmentId = recipient.RemedialAssignmentId, StudentId = learnerId, ActorId = learnerId,
             EventType = passed ? "COMPLETED" : "ATTEMPTED",
-            Details = $"Lượt bổ trợ {recipient.AttemptsUsed}/{recipient.Assignment.MaxAttempts}" + (passed ? "; đạt yêu cầu" : "; chưa đạt"),
+            Details = $"Lượt bổ trợ {recipient.AttemptsUsed}/{recipient.Assignment.MaxAttempts}" +
+                (passed ? $"; đạt yêu cầu; cấp {recipient.Assignment.RetakeAttemptsGranted} lượt làm lại trong 7 ngày" : "; chưa đạt"),
             CreatedAt = DateTime.UtcNow
         });
         await _db.SaveChangesAsync();
@@ -203,15 +216,7 @@ public sealed class RemedialAssignmentService : IRemedialAssignmentService
         {
             recipient.Status = "COMPLETED";
             recipient.CompletedAt = DateTime.UtcNow;
-            var hasTarget = recipient.Assignment.TargetQuizId.HasValue || recipient.Assignment.TargetSpeakingScriptId.HasValue;
-            if (hasTarget && !await _db.RemedialRetakeGrants.AnyAsync(x => x.RecipientId == recipient.RecipientId && x.UsedAt == null))
-                _db.RemedialRetakeGrants.Add(new RemedialRetakeGrant
-                {
-                    RecipientId = recipient.RecipientId, LearnerId = learnerId,
-                    TargetQuizId = recipient.Assignment.TargetQuizId,
-                    TargetSpeakingScriptId = recipient.Assignment.TargetSpeakingScriptId,
-                    GrantedAt = DateTime.UtcNow
-                });
+            await IssueRetakeGrantIfNeededAsync(recipient, learnerId);
         }
         recipient.UpdatedAt = DateTime.UtcNow;
         _db.RemedialAssignmentEvents.Add(new RemedialAssignmentEvent
@@ -224,6 +229,21 @@ public sealed class RemedialAssignmentService : IRemedialAssignmentService
         await _db.SaveChangesAsync();
     }
 
+    public async Task RevokeSpeakingRetakeGrantsAsync(int learnerId, int scriptId)
+    {
+        var grants = await _db.RemedialRetakeGrants
+            .Where(x => x.LearnerId == learnerId && x.TargetSpeakingScriptId == scriptId &&
+                !x.UsedAt.HasValue && x.AttemptsRemaining > 0)
+            .ToListAsync();
+        var now = DateTime.UtcNow;
+        foreach (var grant in grants)
+        {
+            grant.AttemptsRemaining = 0;
+            grant.UsedAt = now;
+        }
+        if (grants.Count > 0) await _db.SaveChangesAsync();
+    }
+
     public async Task CompleteLessonAsync(int learnerId, int lessonId)
     {
         var recipient = await FindRecipientAsync(learnerId, "LESSON", lessonId);
@@ -231,15 +251,7 @@ public sealed class RemedialAssignmentService : IRemedialAssignmentService
         recipient.Status = "COMPLETED";
         recipient.CompletedAt = DateTime.UtcNow;
         recipient.UpdatedAt = DateTime.UtcNow;
-        var hasTarget = recipient.Assignment.TargetQuizId.HasValue || recipient.Assignment.TargetSpeakingScriptId.HasValue;
-        if (hasTarget && !await _db.RemedialRetakeGrants.AnyAsync(x => x.RecipientId == recipient.RecipientId && x.UsedAt == null))
-            _db.RemedialRetakeGrants.Add(new RemedialRetakeGrant
-            {
-                RecipientId = recipient.RecipientId, LearnerId = learnerId,
-                TargetQuizId = recipient.Assignment.TargetQuizId,
-                TargetSpeakingScriptId = recipient.Assignment.TargetSpeakingScriptId,
-                GrantedAt = DateTime.UtcNow
-            });
+        await IssueRetakeGrantIfNeededAsync(recipient, learnerId);
         _db.RemedialAssignmentEvents.Add(new RemedialAssignmentEvent
         {
             RemedialAssignmentId = recipient.RemedialAssignmentId, StudentId = learnerId, ActorId = learnerId,
@@ -249,23 +261,98 @@ public sealed class RemedialAssignmentService : IRemedialAssignmentService
     }
 
     public Task<bool> HasSpeakingRetakeGrantAsync(int learnerId, int scriptId) =>
-        _db.RemedialRetakeGrants.AnyAsync(x => x.LearnerId == learnerId && x.TargetSpeakingScriptId == scriptId && !x.UsedAt.HasValue);
+        _db.RemedialRetakeGrants.AnyAsync(x => x.LearnerId == learnerId && x.TargetSpeakingScriptId == scriptId && !x.UsedAt.HasValue && x.AttemptsRemaining > 0 && x.ExpiresAt > DateTime.UtcNow && x.Recipient.Status != "REVOKED" && x.Recipient.Assignment.IsActive);
 
     public async Task ConsumeSpeakingRetakeGrantAsync(int learnerId, int scriptId)
     {
-        var grant = await _db.RemedialRetakeGrants.Where(x => x.LearnerId == learnerId && x.TargetSpeakingScriptId == scriptId && !x.UsedAt.HasValue)
+        var grant = await _db.RemedialRetakeGrants.Where(x => x.LearnerId == learnerId && x.TargetSpeakingScriptId == scriptId && !x.UsedAt.HasValue && x.AttemptsRemaining > 0 && x.ExpiresAt > DateTime.UtcNow && x.Recipient.Status != "REVOKED" && x.Recipient.Assignment.IsActive)
             .OrderBy(x => x.GrantedAt).FirstOrDefaultAsync();
         if (grant == null) throw new InvalidOperationException("Không có lượt làm lại Speaking được giảng viên mở.");
-        grant.UsedAt = DateTime.UtcNow;
+        grant.AttemptsRemaining--;
+        if (grant.AttemptsRemaining == 0) grant.UsedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
+    }
+
+    private async Task IssueRetakeGrantIfNeededAsync(RemedialAssignmentRecipient recipient, int learnerId)
+    {
+        if (!recipient.Assignment.TargetQuizId.HasValue && !recipient.Assignment.TargetSpeakingScriptId.HasValue)
+            return;
+
+        // One grant row represents a batch of N one-time attempts. Count every
+        // row for this recipient (including consumed/expired rows) for idempotency.
+        if (await _db.RemedialRetakeGrants.AnyAsync(x => x.RecipientId == recipient.RecipientId))
+            return;
+
+        var attempts = Math.Clamp(recipient.Assignment.RetakeAttemptsGranted, 1, 20);
+        var now = DateTime.UtcNow;
+        _db.RemedialRetakeGrants.Add(new RemedialRetakeGrant
+        {
+            RecipientId = recipient.RecipientId,
+            LearnerId = learnerId,
+            TargetQuizId = recipient.Assignment.TargetQuizId,
+            TargetSpeakingScriptId = recipient.Assignment.TargetSpeakingScriptId,
+            GrantedAt = now,
+            ExpiresAt = now.AddDays(7),
+            AttemptsGranted = attempts,
+            AttemptsRemaining = attempts
+        });
     }
 
     private IQueryable<RemedialAssignment> BuildQuery() => _db.RemedialAssignments.AsNoTracking()
         .Include(x => x.Lesson).Include(x => x.Quiz).Include(x => x.SpeakingScript).Include(x => x.AssignedBy).Include(x => x.Recipients);
 
+    private async Task EnsureStudentsNeedSupportAsync(int courseId, List<int> studentIds)
+    {
+        var now = DateTime.UtcNow;
+        var moduleIds = await _db.Modules.AsNoTracking().Where(x => x.CourseId == courseId).Select(x => x.ModuleId).ToListAsync();
+        var lessonIds = await _db.Lessons.AsNoTracking().Where(x => x.CourseId == courseId && !x.IsRemedial).Select(x => x.LessonId).ToListAsync();
+        var quizzes = await _db.Quizzes.AsNoTracking()
+            .Where(q => !q.IsRemedial &&
+                (q.Status == QuizStatus.ACTIVE || (q.Status == QuizStatus.INACTIVE && q.AvailableUntil.HasValue && q.AvailableUntil.Value <= now)) &&
+                (q.CourseId == courseId || (q.ModuleId.HasValue && moduleIds.Contains(q.ModuleId.Value)) || (q.LessonId.HasValue && lessonIds.Contains(q.LessonId.Value))))
+            .Select(q => new { q.QuizId, q.AvailableUntil })
+            .ToListAsync();
+        var scripts = await _db.SpeakingScripts.AsNoTracking()
+            .Where(s => s.CourseId == courseId && s.Status == SpeakingScriptStatus.PUBLISHED && !s.IsRemedial)
+            .Select(s => new { s.ScriptId, s.DueAt })
+            .ToListAsync();
+        var quizIds = quizzes.Select(x => x.QuizId).ToList();
+        var scriptIds = scripts.Select(x => x.ScriptId).ToList();
+        var attempts = quizIds.Count == 0 ? new List<QuizAttempt>() : await _db.QuizAttempts.AsNoTracking()
+            .Where(x => studentIds.Contains(x.UserId) && quizIds.Contains(x.QuizId)).ToListAsync();
+        var submissions = scriptIds.Count == 0 ? new List<SpeakingSubmission>() : await _db.SpeakingSubmissions.AsNoTracking()
+            .Where(x => studentIds.Contains(x.LearnerId) && x.ScriptId.HasValue && scriptIds.Contains(x.ScriptId.Value)).ToListAsync();
+
+        var unsupported = studentIds.Where(studentId =>
+        {
+            var quizNeedsSupport = quizzes.Any(quiz =>
+            {
+                var learnerAttempts = attempts.Where(x => x.UserId == studentId && x.QuizId == quiz.QuizId).ToList();
+                if (learnerAttempts.Any(x => x.ResultStatus == QuizAttemptStatus.PASSED)) return false;
+                var latest = learnerAttempts.OrderByDescending(x => x.AttemptNumber).FirstOrDefault();
+                return (quiz.AvailableUntil.HasValue && quiz.AvailableUntil.Value <= now) ||
+                    latest?.ResultStatus == QuizAttemptStatus.FAILED;
+            });
+            var speakingNeedsSupport = scripts.Any(script =>
+            {
+                var learnerSubmissions = submissions.Where(x => x.LearnerId == studentId && x.ScriptId == script.ScriptId).ToList();
+                if (learnerSubmissions.Any(x => x.Score >= 80)) return false;
+                var latest = learnerSubmissions.OrderByDescending(x => x.SubmittedAt).FirstOrDefault();
+                if (latest != null && !latest.Score.HasValue) return false;
+                return (script.DueAt.HasValue && script.DueAt.Value <= now) || latest?.Score < 80;
+            });
+            return !quizNeedsSupport && !speakingNeedsSupport;
+        }).ToList();
+
+        if (unsupported.Count > 0)
+            throw new InvalidOperationException("Chỉ có thể giao bài bổ trợ cho học viên đang có quiz hoặc Speaking chưa đạt/quá hạn. Học viên đã đạt hoặc chưa có vấn đề cần hỗ trợ: " + string.Join(", ", unsupported));
+    }
+
     private async Task<RemedialAssignmentRecipient?> FindRecipientAsync(int learnerId, string contentType, int contentId) =>
-        await _db.RemedialAssignmentRecipients.Include(r => r.Assignment).FirstOrDefaultAsync(r => r.StudentId == learnerId && r.Assignment.IsActive &&
-            ((contentType == "LESSON" && r.Assignment.LessonId == contentId) || (contentType == "QUIZ" && r.Assignment.QuizId == contentId) || (contentType == "SPEAKING" && r.Assignment.SpeakingScriptId == contentId)));
+        await _db.RemedialAssignmentRecipients.Include(r => r.Assignment)
+            .Where(r => r.StudentId == learnerId && r.Assignment.IsActive &&
+                ((contentType == "LESSON" && r.Assignment.LessonId == contentId) || (contentType == "QUIZ" && r.Assignment.QuizId == contentId) || (contentType == "SPEAKING" && r.Assignment.SpeakingScriptId == contentId)))
+            .OrderByDescending(r => r.AssignedAt).ThenByDescending(r => r.RecipientId).FirstOrDefaultAsync();
 
     private async Task EnsureInstructorOwnsCourseAsync(int instructorId, int courseId)
     {

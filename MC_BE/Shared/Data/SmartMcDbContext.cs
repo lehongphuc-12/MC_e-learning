@@ -381,9 +381,10 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
                 "CK_remedial_assignments_one_content",
                 "((\"LessonID\" IS NOT NULL)::int + (\"QuizID\" IS NOT NULL)::int + (\"SpeakingScriptID\" IS NOT NULL)::int) = 1"));
             entity.HasIndex(x => new { x.CourseId, x.IsActive, x.CreatedAt });
-            entity.HasIndex(x => new { x.CourseId, x.LessonId }).IsUnique().HasFilter("\"LessonID\" IS NOT NULL AND \"IsActive\" = TRUE");
-            entity.HasIndex(x => new { x.CourseId, x.QuizId }).IsUnique().HasFilter("\"QuizID\" IS NOT NULL AND \"IsActive\" = TRUE");
-            entity.HasIndex(x => new { x.CourseId, x.SpeakingScriptId }).IsUnique().HasFilter("\"SpeakingScriptID\" IS NOT NULL AND \"IsActive\" = TRUE");
+            entity.HasIndex(x => new { x.CourseId, x.LessonId }).HasFilter("\"LessonID\" IS NOT NULL AND \"IsActive\" = TRUE");
+            entity.HasIndex(x => new { x.CourseId, x.QuizId }).HasFilter("\"QuizID\" IS NOT NULL AND \"IsActive\" = TRUE");
+            entity.HasIndex(x => new { x.CourseId, x.SpeakingScriptId }).HasFilter("\"SpeakingScriptID\" IS NOT NULL AND \"IsActive\" = TRUE");
+            entity.Property(x => x.RetakeAttemptsGranted).HasDefaultValue(1);
             entity.HasOne(x => x.Course).WithMany().HasForeignKey(x => x.CourseId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne(x => x.AssignedBy).WithMany().HasForeignKey(x => x.AssignedById).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(x => x.Lesson).WithMany().HasForeignKey(x => x.LessonId).OnDelete(DeleteBehavior.Cascade);
@@ -420,6 +421,10 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
                 "((\"TargetQuizID\" IS NOT NULL)::int + (\"TargetSpeakingScriptID\" IS NOT NULL)::int) = 1"));
             entity.HasIndex(x => new { x.LearnerId, x.TargetQuizId, x.UsedAt });
             entity.HasIndex(x => new { x.LearnerId, x.TargetSpeakingScriptId, x.UsedAt });
+            entity.HasIndex(x => new { x.LearnerId, x.TargetQuizId, x.ExpiresAt, x.UsedAt });
+            entity.HasIndex(x => new { x.LearnerId, x.TargetSpeakingScriptId, x.ExpiresAt, x.UsedAt });
+            entity.Property(x => x.AttemptsGranted).HasDefaultValue(1);
+            entity.Property(x => x.AttemptsRemaining).HasDefaultValue(1).IsConcurrencyToken();
             entity.HasOne(x => x.Recipient).WithMany().HasForeignKey(x => x.RecipientId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne(x => x.Learner).WithMany().HasForeignKey(x => x.LearnerId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(x => x.TargetQuiz).WithMany().HasForeignKey(x => x.TargetQuizId).OnDelete(DeleteBehavior.Cascade);
@@ -657,7 +662,10 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
 
             entity.HasIndex(e => e.CourseId);
             entity.HasIndex(e => e.ModuleId);
-            entity.HasIndex(e => e.LessonId).IsUnique().HasFilter("\"LessonID\" IS NOT NULL");
+            // Keep at most one official speaking assignment per lesson, but allow
+            // multiple remedial assignments for the same lesson.
+            entity.HasIndex(e => e.LessonId).IsUnique()
+                .HasFilter("\"LessonID\" IS NOT NULL AND \"IsRemedial\" = FALSE");
 
             entity.Property(e => e.Scope)
                 .HasConversion<string>()

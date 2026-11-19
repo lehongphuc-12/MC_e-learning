@@ -5,11 +5,14 @@ export interface RemedialAssignmentDto {
   remedialAssignmentId: number; courseId: number; studentId: number; title: string; reason: string;
   contentType: RemedialContentType; contentId: number; contentTitle: string; maxAttempts: number;
   dueAt?: string | null; status: string; assignedAt: string; completedAt?: string | null; attemptsUsed: number;
+  hasUnlimitedAttempts: boolean; remainingAttempts?: number | null; retakeAttemptsGranted: number; retakeAttemptsRemaining: number;
+  retakeExpiresAt?: string | null; hasActiveRetakeGrant: boolean;
+  targetAssessmentId?: number | null; targetAssessmentType?: 'QUIZ' | 'SPEAKING' | null;
   assignedByName?: string | null;
 }
 export interface CreateRemedialAssignmentRequest {
   title: string; reason: string; lessonId?: number; quizId?: number; speakingScriptId?: number;
-  targetQuizId?: number; targetSpeakingScriptId?: number; maxAttempts: number; dueAt?: string | null; studentIds: number[];
+  targetQuizId?: number; targetSpeakingScriptId?: number; maxAttempts: number; retakeAttemptsGranted: number; studentIds: number[];
 }
 
 export const remedialAssignmentApi = {

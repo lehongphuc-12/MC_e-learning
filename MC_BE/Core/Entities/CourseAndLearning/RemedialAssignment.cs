@@ -43,6 +43,9 @@ public class RemedialAssignment
     [Column("MaxAttempts")]
     public int MaxAttempts { get; set; } = 3;
 
+    [Column("RetakeAttemptsGranted")]
+    public int RetakeAttemptsGranted { get; set; } = 1;
+
     [Column("IsActive")]
     public bool IsActive { get; set; } = true;
 
@@ -153,6 +156,15 @@ public class RemedialRetakeGrant
 
     [Column("GrantedAt")]
     public DateTime GrantedAt { get; set; } = DateTime.UtcNow;
+
+    [Column("ExpiresAt")]
+    public DateTime ExpiresAt { get; set; }
+
+    [Column("AttemptsGranted")]
+    public int AttemptsGranted { get; set; } = 1;
+
+    [Column("AttemptsRemaining")]
+    public int AttemptsRemaining { get; set; } = 1;
 
     [Column("UsedAt")]
     public DateTime? UsedAt { get; set; }
