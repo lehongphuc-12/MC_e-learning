@@ -17,6 +17,8 @@ import { CourseLessonsPage } from './components/management/CourseLessonsPage';
 import { CourseStudentDashboardPage } from './components/management/CourseStudentDashboardPage';
 import { InstructorSpeakingPage } from './components/management/InstructorSpeakingPage';
 import { InstructorSpeakingAssignmentsPage } from './components/management/InstructorSpeakingAssignmentsPage';
+import { InstructorSpeakingAssignmentFormPage } from './components/management/InstructorSpeakingAssignmentFormPage';
+import { SpeakingResultPage } from './pages/SpeakingResultPage';
 import { ProtectedRoute } from '../../components/common/ProtectedRoute';
 import { ToastType } from '../../components/common/Toast';
 
@@ -296,6 +298,40 @@ export const renderCourseRoutes = ({
       />
 
       <Route
+        path="/instructor/speaking-assignments/create"
+        element={
+          <ProtectedRoute
+            user={user}
+            allowedRoles={['instructor', 'admin']}
+            currentScreen={currentScreen}
+            onNavigate={onNavigate}
+            onToast={onToast}
+          >
+            {withInstructorLayout(
+              <InstructorSpeakingAssignmentFormPage onToast={onToast} />
+            )}
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/instructor/speaking-assignments/edit/:id"
+        element={
+          <ProtectedRoute
+            user={user}
+            allowedRoles={['instructor', 'admin']}
+            currentScreen={currentScreen}
+            onNavigate={onNavigate}
+            onToast={onToast}
+          >
+            {withInstructorLayout(
+              <InstructorSpeakingAssignmentFormPage onToast={onToast} />
+            )}
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
         path="/instructor/courses/:courseId/speaking-assignments"
         element={
           <ProtectedRoute
@@ -325,6 +361,37 @@ export const renderCourseRoutes = ({
             {withInstructorLayout(
               <InstructorSpeakingPage onToast={onToast} />
             )}
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Student Speaking Result Routes */}
+      <Route
+        path="/speaking/result/:submissionId"
+        element={
+          <ProtectedRoute
+            user={user}
+            allowedRoles={['student', 'instructor', 'admin']}
+            currentScreen={currentScreen}
+            onNavigate={onNavigate}
+            onToast={onToast}
+          >
+            {withMainLayout(<SpeakingResultPage />)}
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/courses/:courseId/speaking/result/:submissionId"
+        element={
+          <ProtectedRoute
+            user={user}
+            allowedRoles={['student', 'instructor', 'admin']}
+            currentScreen={currentScreen}
+            onNavigate={onNavigate}
+            onToast={onToast}
+          >
+            {withMainLayout(<SpeakingResultPage />)}
           </ProtectedRoute>
         }
       />

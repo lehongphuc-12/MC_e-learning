@@ -1,3 +1,4 @@
+﻿
 using System.Security.Claims;
 using MC_BE.Core.DTOs;
 using MC_BE.Shared.Data;
@@ -10,6 +11,9 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace MC_BE.Features.Learning.Controllers;
 
+/// <summary>
+/// API Controller quản lý tiến độ học tập, nhật ký hoạt động và Gamification Streak của học viên.
+/// </summary>
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
@@ -18,12 +22,19 @@ public class LearningController : ControllerBase
     private readonly ILearningProgressService _learningProgressService;
     private readonly SmartMcDbContext _db;
 
+    /// <summary>
+    /// Khởi tạo Controller với LearningProgressService và SmartMcDbContext được inject từ DI Container.
+    /// </summary>
     public LearningController(ILearningProgressService learningProgressService, SmartMcDbContext db)
     {
         _learningProgressService = learningProgressService;
         _db = db;
     }
 
+    /// <summary>
+    /// - Hàm tiện ích (Private Helper) trích xuất ID người dùng từ Claims trong JWT Token đã giải mã.
+    /// </summary>
+    /// <returns>UserId kiểu int hoặc null nếu token không hợp lệ.</returns>
     private int? GetCurrentUserId()
     {
         var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -97,8 +108,10 @@ public class LearningController : ControllerBase
 
     /// <summary>
     /// GET /api/learning/courses/{courseId}/progress
-    /// Get course learning progress for current learner
+    /// Lấy thông tin tiến độ học tập tổng thể của học viên trong một khóa học cụ thể.
     /// </summary>
+    /// <param name="courseId">ID khóa học.</param>
+    /// <returns>ApiResponse chứa CourseLearningProgressDto.</returns>
     [HttpGet("courses/{courseId:int}/progress")]
     public async Task<ActionResult<ApiResponse<CourseLearningProgressDto>>> GetCourseProgress(int courseId)
     {
@@ -119,8 +132,12 @@ public class LearningController : ControllerBase
 
     /// <summary>
     /// PUT /api/learning/lessons/{lessonId}/progress
-    /// Update lesson progress idempotently (time spent, video position, completion status)
+    /// Cập nhật tiến độ của một bài học (vị trí phát video, thời gian học tích lũy, trạng thái hoàn thành).
+    /// Phương thức có tính Bất biến / Chống trùng lặp (Idempotent).
     /// </summary>
+    /// <param name="lessonId">ID bài học cần cập nhật.</param>
+    /// <param name="request">Payload chứa thông tin tiến độ.</param>
+    /// <returns>ApiResponse chứa CourseLearningProgressDto mới nhất.</returns>
     [HttpPut("lessons/{lessonId:int}/progress")]
     public async Task<ActionResult<ApiResponse<CourseLearningProgressDto>>> UpdateLessonProgress(
         int lessonId, [FromBody] UpdateLessonProgressRequest request)
@@ -149,8 +166,10 @@ public class LearningController : ControllerBase
 
     /// <summary>
     /// GET /api/learning/activity-logs
-    /// Get recent learning activities for the user
+    /// Lấy danh sách các hoạt động học tập gần đây nhất của học viên trên toàn hệ thống.
     /// </summary>
+    /// <param name="limit">Số lượng hoạt động tối đa (mặc định 10).</param>
+    /// <returns>ApiResponse chứa danh sách ActivityLogDto.</returns>
     [HttpGet("activity-logs")]
     public async Task<ActionResult<ApiResponse<List<ActivityLogDto>>>> GetActivityLogs([FromQuery] int limit = 10)
     {
@@ -163,10 +182,12 @@ public class LearningController : ControllerBase
         var activities = await _learningProgressService.GetRecentActivitiesAsync(learnerId.Value, limit);
         return Ok(ApiResponse<List<ActivityLogDto>>.SuccessResponse(activities, "Retrieved activity logs successfully."));
     }
+
     /// <summary>
     /// GET /api/learning/streak
-    /// Get learning streak for the user
+    /// Lấy chỉ số Gamification chuỗi ngày học liên tục (Learning Streak) của học viên theo múi giờ Việt Nam (UTC+7).
     /// </summary>
+    /// <returns>ApiResponse chứa LearningStreakDto (CurrentStreak, LongestStreak).</returns>
     [HttpGet("streak")]
     public async Task<ActionResult<ApiResponse<LearningStreakDto>>> GetLearningStreak()
     {

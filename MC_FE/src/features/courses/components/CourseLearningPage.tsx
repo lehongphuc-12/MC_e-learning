@@ -1,4 +1,5 @@
 import { LearnerQuizHistoryActions } from '../../quizzes/pages/LearnerQuizHistoryActions';
+import { LearnerSpeakingHistoryActions } from './LearnerSpeakingHistoryActions';
 // =============================================================================
 // CourseLearningPage.tsx — Course Video Player / Learning Page
 // =============================================================================
@@ -25,6 +26,7 @@ import {
   RotateCcw,
   Layers,
   ChevronDown,
+  ChevronUp,
   Award,
   ClipboardList,
   Mic,
@@ -36,7 +38,10 @@ import {
   UploadCloud,
   FileAudio,
   Download,
+  Lock,
   LockKeyhole,
+  Target,
+  ListChecks,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { WaveformVisualizer } from '@/components/ui/waveform-visualizer';
@@ -131,6 +136,20 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
   const [isLoadingSubmission, setIsLoadingSubmission] = useState<boolean>(true);
   const [scriptData, setScriptData] = useState<SpeakingScriptDto | null>(null);
   const [isLoadingScript, setIsLoadingScript] = useState<boolean>(true);
+
+  // Rubric Collapse/Expand State
+  const [isRubricExpanded, setIsRubricExpanded] = useState<boolean>(true);
+
+  // Compute Rubric Criteria with Fallback
+  const rubricCriteria = useMemo(() => {
+    const list = scriptData?.rubricCriteria ?? scriptOverride?.rubricCriteria ?? submission?.rubricCriteria;
+    if (list && list.length > 0) return list;
+    return [
+      { criterionId: 1, scriptId: 0, code: 'C01', name: 'Phát âm & thanh điệu', weightPercentage: 18, isMandatory: true, orderIndex: 1, updatedAt: '' },
+      { criterionId: 2, scriptId: 0, code: 'C02', name: 'Độ rõ lời', weightPercentage: 10, isMandatory: true, orderIndex: 2, updatedAt: '' },
+      { criterionId: 3, scriptId: 0, code: 'C03', name: 'Độ chính xác nội dung', weightPercentage: 7, isMandatory: true, orderIndex: 3, updatedAt: '' },
+    ];
+  }, [scriptData, scriptOverride, submission]);
 
   // Active Practice Level
   const [selectedLevel, setSelectedLevel] = useState<SpeakingLevel>('BEGINNER');
@@ -784,6 +803,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
 
       mediaRecorder.start();
       setIsRecording(true);
+      setIsRubricExpanded(false);
       setRecordingTime(0);
 
       // Play background music if learner selected one
@@ -1000,6 +1020,8 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
         formData.append('Note', learnerNote.trim());
       }
 
+      formData.append('SelectedLevel', selectedLevel);
+
       const res = await speakingApi.submitSpeakingAssignment(formData);
       if (res.success && res.data) {
         setSubmission(res.data);
@@ -1106,6 +1128,125 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
             );
           })}
         </div>
+      </div>
+
+      {/* ── Rubric Criteria Panel (Tiêu chí chấm điểm & Yêu cầu từ Giảng viên) ── */}
+      <div className="mx-5 md:mx-8 mt-4 rounded-3xl border border-blue-200/90 bg-gradient-to-r from-blue-50/70 via-indigo-50/40 to-slate-50/80 p-4 md:p-5 shadow-xs transition-all">
+        {/* Panel Header */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white shadow-xs shrink-0">
+              <Target className="h-4 w-4" />
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-xs md:text-sm font-black text-slate-900 tracking-tight">
+                  Tiêu chí chấm điểm & Yêu cầu từ giảng viên
+                </h3>
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-800 px-2.5 py-0.5 text-[10px] font-black border border-emerald-300">
+                  <Award className="h-3 w-3 text-emerald-600" /> Điểm chuẩn Đạt: ≥ {scriptData?.passingScore ?? 80}/100 đ
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                {isRubricExpanded 
+                  ? 'Bám sát trọng số từng tiêu chí dưới đây khi thu âm bài nói để đạt điểm số cao nhất'
+                  : `Đang thu gọn ${rubricCriteria.length} tiêu chí — Bấm nút mở rộng để xem chi tiết từng tiêu chí`}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsRubricExpanded((prev) => !prev)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-all cursor-pointer shadow-2xs"
+          >
+            <ListChecks className="h-3.5 w-3.5 text-blue-600" />
+            <span>{isRubricExpanded ? 'Thu gọn tiêu chí' : 'Xem chi tiết tiêu chí'}</span>
+            {isRubricExpanded ? (
+              <ChevronUp className="h-4 w-4 text-slate-400" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-slate-400" />
+            )}
+          </button>
+        </div>
+
+        {/* Khi thu gọn: Hiển thị thanh pill tóm tắt các tiêu chí nằm ngang */}
+        {!isRubricExpanded && (
+          <div className="mt-3 pt-2.5 border-t border-blue-100/70 flex flex-wrap items-center gap-2 animate-in fade-in duration-200">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mr-1">
+              Tóm tắt tiêu chí:
+            </span>
+            {rubricCriteria.map((criterion) => {
+              const isMandatory = criterion.isMandatory || criterion.code === 'C01' || criterion.code === 'C02' || criterion.code === 'C03';
+              return (
+                <div
+                  key={criterion.code}
+                  className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-0.5 text-[11px] font-semibold border ${
+                    isMandatory
+                      ? 'bg-blue-100/70 text-blue-800 border-blue-200 font-bold'
+                      : 'bg-white text-slate-700 border-slate-200'
+                  }`}
+                >
+                  <span className="font-mono text-[10px] font-black opacity-80">{criterion.code}</span>
+                  <span>{criterion.name}</span>
+                  <span className="text-[10px] font-black text-blue-700 bg-white/80 px-1 rounded">
+                    {criterion.weightPercentage}%
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Khi mở rộng: Hiển thị lưới card chi tiết từng tiêu chí */}
+        {isRubricExpanded && (
+          <div className="mt-3.5 pt-3.5 border-t border-blue-100/80 animate-in fade-in duration-200">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
+              {rubricCriteria.map((criterion) => {
+                const isMandatory = criterion.isMandatory || criterion.code === 'C01' || criterion.code === 'C02' || criterion.code === 'C03';
+
+                return (
+                  <div
+                    key={criterion.code}
+                    className={`rounded-2xl p-3 border transition-all flex flex-col justify-between ${
+                      isMandatory
+                        ? 'bg-white border-blue-200 shadow-2xs hover:border-blue-300'
+                        : 'bg-white/90 border-slate-200/90 hover:border-blue-200'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-1.5 mb-1.5">
+                        <span className="rounded-md bg-blue-50 border border-blue-200 px-1.5 py-0.5 text-[10px] font-mono font-black text-blue-700">
+                          {criterion.code}
+                        </span>
+                        <span className="text-[11px] font-black text-blue-800 bg-blue-50/90 border border-blue-200/70 px-2 py-0.5 rounded-md">
+                          {criterion.weightPercentage}% trọng số
+                        </span>
+                      </div>
+
+                      <h5 className="text-xs font-bold text-slate-800 line-clamp-2 leading-snug">
+                        {criterion.name}
+                      </h5>
+                    </div>
+
+                    <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[10px]">
+                      {isMandatory ? (
+                        <span className="font-black text-blue-600 flex items-center gap-0.5 bg-blue-50/50 px-1.5 py-0.5 rounded-md">
+                          ⭐ Bắt buộc
+                        </span>
+                      ) : (
+                        <span className="font-semibold text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded-md">
+                          Mở rộng
+                        </span>
+                      )}
+                      <span className="text-slate-500 font-bold">Tối đa {criterion.weightPercentage} điểm</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Error Banner ── */}
@@ -1271,7 +1412,12 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
             <div className="flex items-center gap-1.5 shrink-0">
               <button
                 type="button"
-                onClick={() => setIsPlaying((p) => !p)}
+                onClick={() =>
+                  setIsPlaying((p) => {
+                    if (!p) setIsRubricExpanded(false);
+                    return !p;
+                  })
+                }
                 className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer active:scale-95 shadow-md whitespace-nowrap shrink-0 ${
                   isPlaying
                     ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-amber-500/20'
@@ -2586,14 +2732,17 @@ export const CourseLearningPage: React.FC = () => {
       (s) => s.scope === 'LESSON' && s.lessonId === lessonId
     );
     if (lessonScripts.length === 0) return null;
-    const isLessonLocked = orderedLessons.find((l) => l.lessonId === lessonId)?.isLocked;
-    if (isLessonLocked) {
-      return (
-        <p className="ml-7 mt-1 text-[11px] text-slate-500">
-          Mở khóa bài học để làm bài luyện nói.
-        </p>
-      );
-    }
+    const targetLesson = orderedLessons.find((l) => l.lessonId === lessonId);
+    const isLessonLocked = Boolean(targetLesson?.isLocked);
+    const isVideoCompleted = completedLessonIds.includes(lessonId);
+    const isSpeakingLocked = isLessonLocked || !isVideoCompleted;
+
+    const lockReason = isLessonLocked
+      ? (targetLesson?.lockReason || 'Mở khóa bài học để làm bài luyện nói.')
+      : !isVideoCompleted
+      ? 'Hoàn thành bài học để mở khóa'
+      : null;
+
     return (
       <div className="ml-7 mt-1.5 space-y-1.5">
         {lessonScripts.map((sc) => {
@@ -2601,25 +2750,63 @@ export const CourseLearningPage: React.FC = () => {
           return (
             <div
               key={sc.scriptId}
-              onClick={() => handleSelectSpeakingScript(sc)}
-              className={`cursor-pointer rounded-lg border p-2 transition-all ${
-                isSelected
-                  ? 'border-purple-500 bg-purple-50 text-purple-900 shadow-xs'
-                  : 'border-purple-100 bg-purple-50/50 hover:bg-purple-100/70 text-slate-800'
+              onClick={() => {
+                if (isSpeakingLocked) {
+                  toast.warning(lockReason || 'Vui lòng hoàn thành video bài học trước khi làm bài luyện nói!');
+                  return;
+                }
+                handleSelectSpeakingScript(sc);
+              }}
+              className={`rounded-lg border p-2 transition-all ${
+                isSpeakingLocked
+                  ? 'border-slate-200 bg-slate-50/70 text-slate-500 cursor-not-allowed opacity-85'
+                  : isSelected
+                  ? 'cursor-pointer border-purple-500 bg-purple-50 text-purple-900 shadow-xs'
+                  : 'cursor-pointer border-purple-100 bg-purple-50/50 hover:bg-purple-100/70 text-slate-800'
               }`}
             >
               <div className="flex items-center justify-between gap-1">
                 <p className="text-[11px] font-bold truncate flex items-center gap-1.5">
-                  <Mic className="h-3.5 w-3.5 text-purple-600 shrink-0" />
+                  {isSpeakingLocked ? (
+                    <LockKeyhole className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                  ) : (
+                    <Mic className="h-3.5 w-3.5 text-purple-600 shrink-0" />
+                  )}
                   <span className="truncate">{sc.title}</span>{sc.isRemedial && <span className="rounded bg-amber-100 px-1 py-0.5 text-[8px] font-bold text-amber-800">Bổ trợ</span>}
                 </p>
-                <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-purple-200/80 text-purple-800 shrink-0">
+                <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded shrink-0 ${
+                  isSpeakingLocked
+                    ? 'bg-slate-200 text-slate-600'
+                    : 'bg-purple-200/80 text-purple-800'
+                }`}>
                   Bài nói
                 </span>
               </div>
               <p className="text-[10px] text-slate-500 mt-0.5">
                 Thời lượng: {sc.durationMinutes || 5} phút • Đạt {sc.passingScore || 80}%
               </p>
+              {isSpeakingLocked && lockReason && (
+                <p className="text-[10px] text-amber-700 font-medium flex items-center gap-1 mt-1">
+                  <LockKeyhole className="h-3 w-3 shrink-0" /> {lockReason}
+                </p>
+              )}
+              <div className="mt-2 pt-1 border-t border-purple-100/60" onClick={(e) => e.stopPropagation()}>
+                <LearnerSpeakingHistoryActions
+                  scriptId={sc.scriptId}
+                  lessonId={lessonId}
+                  courseId={courseId ? Number(courseId) : undefined}
+                  passingScore={sc.passingScore || 80}
+                  returnTo={getQuizReturnTo(lessonId)}
+                  onTake={() => {
+                    if (isSpeakingLocked) {
+                      toast.warning(lockReason || 'Vui lòng hoàn thành video bài học trước khi làm bài luyện nói!');
+                      return;
+                    }
+                    handleSelectSpeakingScript(sc);
+                  }}
+                  canTakeSpeaking={!isSpeakingLocked}
+                />
+              </div>
             </div>
           );
         })}
@@ -3045,6 +3232,17 @@ export const CourseLearningPage: React.FC = () => {
   };
 
   const handleSelectSpeakingScript = (script: SpeakingScriptDto) => {
+    if (script.lessonId) {
+      const matchLesson = orderedLessons.find((l) => l.lessonId === script.lessonId);
+      if (matchLesson?.isLocked) {
+        toast.warning(matchLesson.lockReason || 'Bài học này đang bị khóa!');
+        return;
+      }
+      if (!completedLessonIds.includes(script.lessonId)) {
+        toast.warning('Vui lòng hoàn thành video bài học trước khi làm bài luyện nói!');
+        return;
+      }
+    }
     setIsVideoEnded(false);
     setReplayKey(0);
     setActiveSpeakingScript(script);
@@ -3195,6 +3393,13 @@ export const CourseLearningPage: React.FC = () => {
         ]
       : null;
 
+  const currentLessonScript = useMemo(() => {
+    if (!activeLesson) return null;
+    return courseSpeakingScripts.find(
+      (s) => s.scope === 'LESSON' && s.lessonId === activeLesson.lessonId
+    ) ?? null;
+  }, [courseSpeakingScripts, activeLesson]);
+
   // Automatically advance after a video finishes; do not skip assignments or quizzes.
   const [autoNextSeconds, setAutoNextSeconds] = useState(5);
   const [autoNextCancelled, setAutoNextCancelled] = useState(false);
@@ -3272,14 +3477,17 @@ export const CourseLearningPage: React.FC = () => {
         ? orderedLessons[currentIndex + 1] ?? null
         : null;
 
-    // Chỉ tự chuyển khi video đã kết thúc và bài kế tiếp đã được backend mở khóa.
-    // Không chặn chỉ vì bài hiện tại có quiz ACTIVE: một số DAILY_PRACTICE là bài bổ trợ;
-    // các bài tập/quiz bắt buộc phải được backend phản ánh qua trạng thái isLocked.
+    const hasSpeakingScript = courseSpeakingScripts.some(
+      (s) => s.scope === 'LESSON' && s.lessonId === activeLesson?.lessonId
+    );
+
+    // Chỉ tự chuyển khi video đã kết thúc, bài kế tiếp đã được mở khóa và bài hiện tại không có bài tập nói bắt buộc.
     if (
       !isVideoEnded ||
       !latestNextLesson ||
       latestNextLesson.isLocked ||
       autoNextCancelled ||
+      hasSpeakingScript ||
       activeLesson?.lessonType?.toUpperCase() === 'ASSIGNMENT'
     ) {
       return;
@@ -3650,14 +3858,19 @@ export const CourseLearningPage: React.FC = () => {
                         {activeLesson?.title}
                       </p>
 
-                      {nextLesson && !nextLesson.isLocked && (
+                      {currentLessonScript ? (
+                        <div className="mt-3 text-xs font-semibold text-purple-700 bg-purple-50/90 border border-purple-200 px-3.5 py-1.5 rounded-lg inline-flex items-center gap-1.5 shadow-2xs">
+                          <Mic className="h-3.5 w-3.5 text-purple-600" />
+                          <span>Bài học này có bài luyện nói thực hành. Hãy hoàn thành bài nói để tiếp tục lộ trình!</span>
+                        </div>
+                      ) : nextLesson && !nextLesson.isLocked ? (
                         <div className="mt-3 text-xs text-slate-600">
                           {autoNextCancelled
                             ? 'Đã hủy tự chuyển bài.'
                             : `Tự chuyển sang bài tiếp theo sau ${autoNextSeconds} giây.`}
                         </div>
-                      )}
-                      {nextLesson?.isLocked && (
+                      ) : null}
+                      {nextLesson?.isLocked && !currentLessonScript && (
                         <div className="mt-3 text-xs font-medium text-amber-700">
                           Bài tiếp theo đang khóa. Hãy hoàn thành bài tập bắt buộc để tiếp tục.
                         </div>
@@ -3671,7 +3884,16 @@ export const CourseLearningPage: React.FC = () => {
                           Xem lại video
                         </button>
 
-                        {nextLesson && (
+                        {currentLessonScript ? (
+                          <button
+                            onClick={() => handleSelectSpeakingScript(currentLessonScript)}
+                            className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-purple-500/30 hover:bg-purple-700 active:scale-95 transition-all cursor-pointer"
+                          >
+                            <Mic className="h-4 w-4" />
+                            <span>Làm bài nói: {currentLessonScript.title}</span>
+                            <ChevronRight className="h-4 w-4" />
+                          </button>
+                        ) : nextLesson ? (
                           <button
                             disabled={nextLesson.isLocked}
                             onClick={() => handleSelectLesson(nextLesson)}
@@ -3684,7 +3906,7 @@ export const CourseLearningPage: React.FC = () => {
 
                             <ChevronRight className="h-4 w-4" />
                           </button>
-                        )}
+                        ) : null}
                       </div>
                     </div>
                   )}
@@ -3912,28 +4134,55 @@ export const CourseLearningPage: React.FC = () => {
                 </button>
               )}
 
-              <button
-                disabled={!nextLesson}
-                onClick={() =>
-                  nextLesson &&
-                  handleSelectLesson(
-                    nextLesson,
-                  )
-                }
-                className="flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2 text-xs font-bold text-white hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-violet-600 transition-all cursor-pointer shadow-md shadow-violet-500/20"
-              >
-                <span className="hidden sm:inline">
-                  Bài tiếp:
-                </span>
+              {!activeSpeakingScript && currentLessonScript ? (
+                <button
+                  disabled={!completedLessonIds.includes(activeLesson?.lessonId ?? -1)}
+                  onClick={() => handleSelectSpeakingScript(currentLessonScript)}
+                  title={
+                    !completedLessonIds.includes(activeLesson?.lessonId ?? -1)
+                      ? 'Vui lòng hoàn thành video để mở khóa bài luyện nói'
+                      : `Chuyển sang làm bài nói: ${currentLessonScript.title}`
+                  }
+                  className="flex items-center gap-2 rounded-xl bg-purple-600 px-4 py-2 text-xs font-bold text-white hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-purple-600 transition-all cursor-pointer shadow-md shadow-purple-500/20"
+                >
+                  <Mic className="h-4 w-4 text-white shrink-0" />
+                  <span className="hidden sm:inline">
+                    Làm bài nói:
+                  </span>
+                  <span className="truncate max-w-[140px]">
+                    {currentLessonScript.title}
+                  </span>
+                  <ChevronRight className="h-4 w-4 text-white shrink-0" />
+                </button>
+              ) : (
+                <button
+                  disabled={!nextLesson || nextLesson.isLocked}
+                  onClick={() =>
+                    nextLesson &&
+                    handleSelectLesson(
+                      nextLesson,
+                    )
+                  }
+                  title={
+                    nextLesson?.isLocked
+                      ? (nextLesson.lockReason || 'Bài tiếp theo đang khóa. Hãy hoàn thành bài tập bắt buộc để mở khóa.')
+                      : 'Chuyển sang bài tiếp theo'
+                  }
+                  className="flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2 text-xs font-bold text-white hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-violet-600 transition-all cursor-pointer shadow-md shadow-violet-500/20"
+                >
+                  <span className="hidden sm:inline">
+                    Bài tiếp:
+                  </span>
 
-                <span className="truncate max-w-[140px]">
-                  {nextLesson
-                    ? nextLesson.title
-                    : '---'}
-                </span>
+                  <span className="truncate max-w-[140px]">
+                    {nextLesson
+                      ? nextLesson.title
+                      : '---'}
+                  </span>
 
-                <ChevronRight className="h-4 w-4 text-white" />
-              </button>
+                  <ChevronRight className="h-4 w-4 text-white shrink-0" />
+                </button>
+              )}
             </div>
 
             {/* Lesson Title & Info */}
@@ -4370,14 +4619,15 @@ export const CourseLearningPage: React.FC = () => {
                                         <p className="mt-1 text-[10px] leading-4 text-purple-800">
                                           Luyện nói theo kịch bản của chương {mod.title}. Điểm đạt yêu cầu: {sc.passingScore || 80}/100.
                                         </p>
-                                        <div className="mt-2 flex items-center gap-2">
-                                          <button
-                                            type="button"
-                                            onClick={() => handleSelectSpeakingScript(sc)}
-                                            className="rounded-lg bg-purple-600 px-2.5 py-1 text-[11px] font-bold text-white transition-colors hover:bg-purple-700"
-                                          >
-                                            Làm bài thi nói
-                                          </button>
+                                        <div className="mt-2">
+                                          <LearnerSpeakingHistoryActions
+                                            scriptId={sc.scriptId}
+                                            courseId={courseId ? Number(courseId) : undefined}
+                                            passingScore={sc.passingScore || 80}
+                                            returnTo={getQuizReturnTo()}
+                                            onTake={() => handleSelectSpeakingScript(sc)}
+                                            canTakeSpeaking={true}
+                                          />
                                         </div>
                                       </div>
                                     </div>
@@ -4614,6 +4864,18 @@ export const CourseLearningPage: React.FC = () => {
                                 >
                                   Luyện tập với AI
                                 </button>
+                              </div>
+
+                              <div className="mt-2 pt-1 border-t border-purple-100/70">
+                                <LearnerSpeakingHistoryActions
+                                  scriptId={item.script?.scriptId}
+                                  lessonId={item.lessonId}
+                                  courseId={courseId ? Number(courseId) : undefined}
+                                  passingScore={item.script?.passingScore || 80}
+                                  returnTo={getQuizReturnTo(item.lessonId)}
+                                  onTake={handleClickSelect}
+                                  canTakeSpeaking={!item.isLocked}
+                                />
                               </div>
                             </div>
                           );
