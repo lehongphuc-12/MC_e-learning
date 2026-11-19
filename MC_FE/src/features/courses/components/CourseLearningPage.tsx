@@ -2973,10 +2973,6 @@ export const CourseLearningPage: React.FC = () => {
     completedLessonIds,
   ]);
 
-  // ===========================================================================
-  // Handle lesson selection
-  // ===========================================================================
-
   const handleSelectLesson = (
     lesson: Lesson,
   ) => {
@@ -3016,9 +3012,6 @@ export const CourseLearningPage: React.FC = () => {
       }
     }
   };
-
-  // Khi học viên đạt bài tập/bài đánh giá và quay lại khóa học,
-  // tự chuyển đến bài học kế tiếp nếu Backend đã xác nhận bài đó được mở.
   const autoAdvanceAfterQuiz = Boolean(
     (location.state as { autoAdvanceAfterQuiz?: boolean } | null)?.autoAdvanceAfterQuiz,
   );
