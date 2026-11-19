@@ -27,9 +27,20 @@ import {
   Trash2,
   Edit2,
   Check,
+  Sliders,
+  ListChecks,
+  Calculator,
+  HelpCircle,
+  CheckCircle,
 } from 'lucide-react';
 import { speakingApi, SpeakingSubmissionDto } from '../../api/speakingApi';
-import { getSpeakingGradeInfo, SpeakingGradeInfo, getSpeakingSubmissionCategory, getSpeakingScopeInfo } from '../../types/speakingTypes';
+import {
+  getSpeakingGradeInfo,
+  SpeakingGradeInfo,
+  getSpeakingSubmissionCategory,
+  getSpeakingScopeInfo,
+  SpeakingRubricCriterionDto,
+} from '../../types/speakingTypes';
 import { courseApi } from '../../api/courseApi';
 import { moduleApi } from '../../api/moduleApi';
 import { lessonApi } from '../../api/lessonApi';
@@ -77,9 +88,15 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
   const [scoreInput, setScoreInput] = useState<number | ''>(85);
   const [feedbackInput, setFeedbackInput] = useState<string>('');
   const [isSubmittingGrade, setIsSubmittingGrade] = useState<boolean>(false);
-const [aiHistory, setAiHistory] = useState<
-  InstructorAIPracticeHistoryItem[]
->([]);
+
+  // Rubric State for Active Modal
+  const [activeRubricCriteria, setActiveRubricCriteria] = useState<SpeakingRubricCriterionDto[]>([]);
+  const [criterionScores, setCriterionScores] = useState<Record<string, number>>({});
+  const [isLoadingRubric, setIsLoadingRubric] = useState<boolean>(false);
+
+  const [aiHistory, setAiHistory] = useState<
+    InstructorAIPracticeHistoryItem[]
+  >([]);
 
 const [aiHistoryLoading, setAiHistoryLoading] = useState(false);
 const [aiHistoryError, setAiHistoryError] = useState<string | null>(null);
@@ -394,13 +411,116 @@ const [aiDetailLoadingId, setAiDetailLoadingId] =
     setAiDetailLoadingId(null);
   }
 };
-const handleOpenGradingModal = (sub: SpeakingSubmissionDto) => {
+const handleOpenGradingModal = async (sub: SpeakingSubmissionDto) => {
   setActiveSubmission(sub);
-  setScoreInput(sub.score ?? 85);
+  const initialScore = sub.score ?? 85;
+  setScoreInput(initialScore);
   setFeedbackInput(sub.feedback || '');
 
   void loadAIHistory(sub);
+
+  // Load Rubric Criteria
+  setIsLoadingRubric(true);
+  let criteria: SpeakingRubricCriterionDto[] = [];
+  if (sub.rubricCriteria && sub.rubricCriteria.length > 0) {
+    criteria = sub.rubricCriteria;
+  } else {
+    try {
+      if (sub.scriptId) {
+        const res = await speakingApi.getScriptById(sub.scriptId);
+        if (res.success && res.data?.rubricCriteria?.length) {
+          criteria = res.data.rubricCriteria;
+        }
+      } else if (sub.lessonId) {
+        const res = await speakingApi.getScriptByLesson(sub.lessonId);
+        if (res.success && res.data?.rubricCriteria?.length) {
+          criteria = res.data.rubricCriteria;
+        }
+      }
+    } catch (err) {
+      console.warn('Could not fetch script rubric criteria:', err);
+    }
+  }
+
+  // Fallback 3 tiêu chí cốt lõi nếu bài tập chưa có rubric
+  if (criteria.length === 0) {
+    criteria = [
+      { criterionId: 1, scriptId: sub.scriptId ?? 0, code: 'C01', name: 'Phát âm & thanh điệu', weightPercentage: 18, isMandatory: true, orderIndex: 1, updatedAt: '' },
+      { criterionId: 2, scriptId: sub.scriptId ?? 0, code: 'C02', name: 'Độ rõ lời', weightPercentage: 10, isMandatory: true, orderIndex: 2, updatedAt: '' },
+      { criterionId: 3, scriptId: sub.scriptId ?? 0, code: 'C03', name: 'Độ chính xác nội dung', weightPercentage: 7, isMandatory: true, orderIndex: 3, updatedAt: '' },
+    ];
+  }
+
+  setActiveRubricCriteria(criteria);
+
+  // Khởi tạo điểm cho từng tiêu chí bằng initialScore
+  const initialCriterionScores: Record<string, number> = {};
+  criteria.forEach((c) => {
+    initialCriterionScores[c.code] = initialScore;
+  });
+  setCriterionScores(initialCriterionScores);
+  setIsLoadingRubric(false);
 };
+
+// Cập nhật điểm cho một tiêu chí cụ thể và tự động tính tổng điểm theo trọng số
+const handleCriterionScoreChange = (code: string, newScore: number) => {
+  const clampedScore = Math.min(100, Math.max(0, newScore));
+  const nextScores = { ...criterionScores, [code]: clampedScore };
+  setCriterionScores(nextScores);
+
+  if (activeRubricCriteria.length > 0) {
+    const totalWeight = activeRubricCriteria.reduce((sum, c) => sum + (c.weightPercentage || 0), 0);
+    let calculatedTotal = 0;
+
+    if (totalWeight > 0) {
+      if (Math.round(totalWeight) === 100) {
+        // Chuẩn 100%: Điểm từng tiêu chí nhân với trọng số % rồi cộng lại
+        calculatedTotal = activeRubricCriteria.reduce((sum, c) => {
+          const s = nextScores[c.code] ?? 0;
+          return sum + (s * (c.weightPercentage / 100));
+        }, 0);
+      } else {
+        // Chuẩn hóa theo tỷ lệ nếu tổng trọng số khác 100%
+        const weightedSum = activeRubricCriteria.reduce((sum, c) => {
+          const s = nextScores[c.code] ?? 0;
+          return sum + (s * c.weightPercentage);
+        }, 0);
+        calculatedTotal = weightedSum / totalWeight;
+      }
+    }
+
+    setScoreInput(Math.round(calculatedTotal));
+  }
+};
+
+// Khi giảng viên đổi trực tiếp điểm tổng (kéo slider tổng hoặc nhập ô điểm tổng)
+const handleTotalScoreChange = (newTotalScore: number) => {
+  const clamped = Math.min(100, Math.max(0, newTotalScore));
+  setScoreInput(clamped);
+  // Đồng bộ điểm của các tiêu chí về cùng mức này
+  setCriterionScores(() => {
+    const next: Record<string, number> = {};
+    activeRubricCriteria.forEach((c) => {
+      next[c.code] = clamped;
+    });
+    return next;
+  });
+};
+
+// Nút chèn bảng Rubric vào Lời nhận xét
+const handleAppendRubricToFeedback = () => {
+  if (activeRubricCriteria.length === 0) return;
+  const lines = activeRubricCriteria.map((c) => {
+    const score = criterionScores[c.code] ?? (typeof scoreInput === 'number' ? scoreInput : 85);
+    const contribution = ((score * c.weightPercentage) / 100).toFixed(1);
+    return `• [${c.code}] ${c.name} (${c.weightPercentage}%): ${score}/100 đ (Đóng góp: ${contribution} đ)`;
+  });
+  const rubricText = `\n\n[ĐÁNH GIÁ CHI TIẾT THEO TIÊU CHÍ RUBRIC]:\n${lines.join('\n')}\n=> TỔNG ĐIỂM: ${scoreInput}/100 (${currentScoreGradeInfo.tier} - ${currentScoreGradeInfo.isPassed ? 'ĐẠT' : 'CHƯA ĐẠT'})`;
+  
+  setFeedbackInput((prev) => (prev.trim() ? `${prev.trim()}${rubricText}` : rubricText.trim()));
+  if (onToast) onToast('Đã chèn Rubric', 'Đã thêm bảng điểm tiêu chí vào phần nhận xét.', 'info');
+};
+
   // Handle submit grade
   const handleSaveGrade = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -413,9 +533,17 @@ const handleOpenGradingModal = (sub: SpeakingSubmissionDto) => {
 
     setIsSubmittingGrade(true);
     try {
+      const criterionScoresPayload = activeRubricCriteria.map((c) => ({
+        code: c.code,
+        name: c.name,
+        weightPercentage: c.weightPercentage,
+        score: criterionScores[c.code] ?? Number(scoreInput),
+      }));
+
       const res = await speakingApi.gradeSubmission(activeSubmission.submissionId, {
         score: Number(scoreInput),
         feedback: feedbackInput.trim() || undefined,
+        criterionScores: criterionScoresPayload,
       });
 
       if (res.success && res.data) {
@@ -446,7 +574,7 @@ const handleOpenGradingModal = (sub: SpeakingSubmissionDto) => {
 
   // Quick preset grade setter
   const setScorePreset = (val: number, defaultRemark: string) => {
-    setScoreInput(val);
+    handleTotalScoreChange(val);
     if (!feedbackInput.trim()) {
       setFeedbackInput(defaultRemark);
     }
@@ -903,362 +1031,504 @@ const handleOpenGradingModal = (sub: SpeakingSubmissionDto) => {
         )}
       </div>
 
-      {/* ── Grading Modal Drawer ── */}
+      {/* ── Grading Modal Drawer (Rubric Enhanced) ── */}
       {activeSubmission && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-3xl max-w-xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-5xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-slate-900 to-indigo-950 text-white p-6 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-blue-600/30 border border-blue-400/40 text-blue-300 flex items-center justify-center font-black">
-                  <Award className="w-5 h-5" />
+            <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-indigo-950 text-white p-5 sm:p-6 flex items-center justify-between border-b border-blue-900/40">
+              <div className="flex items-center gap-3.5">
+                <div className="w-11 h-11 rounded-2xl bg-blue-600/30 border border-blue-400/40 text-blue-300 flex items-center justify-center font-black shadow-inner">
+                  <Award className="w-6 h-6 text-blue-400" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-white leading-tight">Chấm điểm Bài nói Speaking</h3>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <p className="text-xs text-slate-300 font-semibold">{activeSubmission.scriptTitle || activeSubmission.lessonTitle}</p>
-                    <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded border ${getSpeakingScopeInfo(activeSubmission.scope).badgeClass}`}>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-black text-white leading-tight">Chấm điểm Bài nói Speaking</h3>
+                    <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full border shadow-2xs ${getSpeakingScopeInfo(activeSubmission.scope).badgeClass}`}>
                       {getSpeakingScopeInfo(activeSubmission.scope).shortLabel}
                     </span>
                   </div>
+                  <p className="text-xs text-blue-200/90 font-medium mt-0.5">
+                    {activeSubmission.scriptTitle || activeSubmission.lessonTitle}
+                  </p>
                 </div>
               </div>
 
               <button
+                type="button"
                 onClick={() => setActiveSubmission(null)}
-                className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+                className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center transition-colors cursor-pointer border border-white/10"
+                title="Đóng"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Modal Body */}
-            <form onSubmit={handleSaveGrade} className="p-6 overflow-y-auto space-y-5 flex-1">
-              {/* Student Details Card */}
-              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-blue-600 text-white font-bold flex items-center justify-center">
-                    {activeSubmission.learnerName.slice(0, 2).toUpperCase()}
+            {/* Modal Body - 2 Columns Responsive Layout */}
+            <form onSubmit={handleSaveGrade} className="p-5 sm:p-6 overflow-y-auto flex-1 bg-[#f8fafc]">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                {/* ── CỘT TRÁI (6 COLS): Học viên, Audio, Lịch sử AI, Nhận xét ── */}
+                <div className="lg:col-span-6 space-y-4">
+                  {/* Student Details Card */}
+                  <div className="bg-white rounded-2xl p-4 border border-blue-100 shadow-2xs flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-black text-sm flex items-center justify-center shadow-xs">
+                        {activeSubmission.learnerName.slice(0, 2).toUpperCase()}
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold text-slate-900">{activeSubmission.learnerName}</div>
+                        <div className="text-xs text-slate-500 font-medium">{activeSubmission.learnerEmail}</div>
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">Nộp bài lúc</span>
+                      <span className="text-xs font-bold text-slate-700">
+                        {new Date(activeSubmission.submittedAt).toLocaleTimeString('vi-VN', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}{' '}
+                        - {new Date(activeSubmission.submittedAt).toLocaleDateString('vi-VN')}
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <div className="text-sm font-bold text-slate-900">{activeSubmission.learnerName}</div>
-                    <div className="text-xs text-slate-500">{activeSubmission.learnerEmail}</div>
+
+                  {/* Audio Playback Player */}
+                  <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-indigo-950 text-white rounded-2xl p-4 shadow-md border border-blue-900/50">
+                    <div className="text-xs font-bold text-blue-300 flex items-center justify-between mb-2">
+                      <span className="flex items-center gap-1.5 font-bold">
+                        <Volume2 className="w-4 h-4 text-blue-400" />
+                        Bản thu âm của học viên
+                      </span>
+                      <span className="text-[11px] text-blue-200/80 font-mono bg-blue-500/20 px-2 py-0.5 rounded-full border border-blue-400/30">
+                        .MP3 / .WAV
+                      </span>
+                    </div>
+
+                    <audio controls src={activeSubmission.audioUrl} className="w-full h-10 rounded-lg mt-1" />
+
+                    {activeSubmission.note && (
+                      <div className="mt-3 p-3 rounded-xl bg-blue-950/70 border border-blue-400/20 text-xs text-slate-200">
+                        <span className="font-bold text-blue-300">Ghi chú của học viên: </span>
+                        <span className="italic">"{activeSubmission.note}"</span>
+                      </div>
+                    )}
                   </div>
-                </div>
 
-                <div className="text-right">
-                  <span className="text-[11px] font-semibold text-slate-400 block">Nộp lúc</span>
-                  <span className="text-xs font-bold text-slate-700">
-                    {new Date(activeSubmission.submittedAt).toLocaleTimeString('vi-VN', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </span>
-                </div>
-              </div>
+                  {/* AI Practice History */}
+                  <div className="rounded-2xl border border-indigo-200 bg-white p-4 shadow-2xs">
+                    <div className="flex items-center justify-between gap-3 mb-3">
+                      <div>
+                        <h4 className="text-xs font-bold text-indigo-950 uppercase tracking-wider flex items-center gap-1.5">
+                          <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                          Lịch sử feedback AI
+                        </h4>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          Các lần luyện tập AI của học viên trong bài học này
+                        </p>
+                      </div>
 
-              {/* Audio Playback Player */}
-              <div className="bg-gradient-to-tr from-blue-900 to-indigo-900 text-white rounded-2xl p-4 shadow-inner">
-                <div className="text-xs font-bold text-blue-300 flex items-center justify-between mb-2">
-                  <span className="flex items-center gap-1.5">
-                    <Volume2 className="w-4 h-4 text-blue-400" />
-                    Bản thu âm của học viên
-                  </span>
-                  <span className="text-[11px] text-slate-300 font-mono">.MP3 / .WAV</span>
-                </div>
+                      <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-extrabold text-indigo-700 border border-indigo-200">
+                        {aiHistory.length} lần
+                      </span>
+                    </div>
 
-                <audio controls src={activeSubmission.audioUrl} className="w-full h-10 rounded-lg mt-1" />
+                    {aiHistoryLoading ? (
+                      <div className="py-4 text-center text-xs text-indigo-600 font-medium">
+                        Đang tải lịch sử feedback AI...
+                      </div>
+                    ) : aiHistoryError ? (
+                      <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800">
+                        {aiHistoryError}
+                      </div>
+                    ) : aiHistory.length === 0 ? (
+                      <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 text-center text-xs text-slate-500">
+                        Học viên chưa có lịch sử luyện tập AI trong bài học này.
+                      </div>
+                    ) : (
+                      <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                        {aiHistory.map((item, index) => (
+                          <div
+                            key={item.practiceSessionId}
+                            className="rounded-xl bg-slate-50/70 hover:bg-indigo-50/40 border border-indigo-100 p-2.5 flex items-center justify-between gap-3 transition-colors"
+                          >
+                            <div>
+                              <p className="text-xs font-bold text-slate-800">
+                                Lần luyện #{aiHistory.length - index}
+                              </p>
+                              <p className="text-[10px] text-slate-500">
+                                {new Date(item.createdAt).toLocaleString('vi-VN')}
+                              </p>
+                            </div>
 
-                {activeSubmission.note && (
-                  <div className="mt-3 p-2.5 rounded-xl bg-blue-950/60 border border-blue-400/20 text-xs text-slate-200 italic">
-                    <span className="font-semibold text-blue-300 not-italic">Ghi chú của học viên: </span>
-                    "{activeSubmission.note}"
+                            <button
+                              type="button"
+                              disabled={aiDetailLoadingId === item.practiceSessionId}
+                              onClick={() => void handleViewAIFeedback(item.practiceSessionId)}
+                              className="rounded-lg bg-indigo-600 hover:bg-indigo-700 px-2.5 py-1 text-white text-xs font-bold disabled:opacity-50 cursor-pointer transition-colors shadow-2xs"
+                            >
+                              {aiDetailLoadingId === item.practiceSessionId ? 'Đang tải...' : 'Xem feedback'}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {selectedAIResult && (
+                      <div className="mt-3 rounded-xl bg-indigo-50/60 border border-indigo-200 p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <h5 className="text-xs font-bold text-slate-900">Chi tiết feedback AI</h5>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedAIResult(null)}
+                            className="text-slate-400 hover:text-slate-700 cursor-pointer"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <pre className="text-[11px] text-slate-700 whitespace-pre-wrap break-words max-h-48 overflow-y-auto font-mono bg-white p-2.5 rounded-lg border border-indigo-100">
+                          {JSON.stringify(selectedAIResult, null, 2)}
+                        </pre>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-                {/* AI Practice History */}
-<div className="rounded-2xl border border-indigo-200 bg-indigo-50/50 p-4">
-  <div className="flex items-center justify-between gap-3 mb-3">
-    <div>
-      <h4 className="text-sm font-bold text-indigo-950 flex items-center gap-2">
-        <Sparkles className="w-4 h-4 text-indigo-600" />
-        Lịch sử feedback AI
-      </h4>
 
-      <p className="text-xs text-slate-500 mt-1">
-        Các lần luyện tập AI của học viên trong bài học này.
-      </p>
-    </div>
+                  {/* Feedback Textarea */}
+                  <div className="bg-white rounded-2xl p-4 border border-blue-100 shadow-2xs space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold uppercase text-slate-700 tracking-wider">
+                        Lời nhận xét của Giảng viên
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleAppendRubricToFeedback}
+                        className="text-[11px] font-bold text-blue-600 hover:text-blue-800 hover:underline inline-flex items-center gap-1 cursor-pointer"
+                        title="Chèn bảng điểm Rubric vào ô nhận xét"
+                      >
+                        <ListChecks className="w-3.5 h-3.5 text-blue-500" />
+                        <span>Chèn bảng điểm Rubric</span>
+                      </button>
+                    </div>
 
-    <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-indigo-700 border border-indigo-200">
-      {aiHistory.length} lần
-    </span>
-  </div>
-
-  {aiHistoryLoading ? (
-    <div className="py-5 text-center text-xs text-indigo-600">
-      Đang tải lịch sử feedback AI...
-    </div>
-  ) : aiHistoryError ? (
-    <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800">
-      {aiHistoryError}
-    </div>
-  ) : aiHistory.length === 0 ? (
-    <div className="rounded-xl bg-white border border-slate-200 p-4 text-center text-xs text-slate-500">
-      Học viên chưa có lịch sử luyện tập AI trong bài học này.
-    </div>
-  ) : (
-    <div className="space-y-2 max-h-56 overflow-y-auto">
-      {aiHistory.map((item, index) => (
-        <div
-          key={item.practiceSessionId}
-          className="rounded-xl bg-white border border-indigo-100 p-3 flex items-center justify-between gap-3"
-        >
-          <div>
-            <p className="text-xs font-bold text-slate-800">
-              Lần luyện #{aiHistory.length - index}
-            </p>
-
-            <p className="text-[11px] text-slate-500 mt-1">
-              {new Date(item.createdAt).toLocaleString('vi-VN')}
-            </p>
-
-            <p className="text-[10px] text-indigo-600 mt-1 font-semibold">
-              {item.status}
-            </p>
-          </div>
-
-          <button
-            type="button"
-            disabled={aiDetailLoadingId === item.practiceSessionId}
-            onClick={() =>
-              void handleViewAIFeedback(item.practiceSessionId)
-            }
-            className="rounded-lg bg-indigo-600 hover:bg-indigo-700 px-3 py-2 text-white text-xs font-bold disabled:opacity-50"
-          >
-            {aiDetailLoadingId === item.practiceSessionId
-              ? 'Đang tải...'
-              : 'Xem feedback'}
-          </button>
-        </div>
-      ))}
-    </div>
-  )}
-
-  {selectedAIResult && (
-    <div className="mt-4 rounded-xl bg-white border border-indigo-200 p-4">
-      <div className="flex items-center justify-between mb-3">
-        <h5 className="text-sm font-bold text-slate-900">
-          Chi tiết feedback AI
-        </h5>
-
-        <button
-          type="button"
-          onClick={() => setSelectedAIResult(null)}
-          className="text-slate-400 hover:text-slate-700"
-        >
-          <X className="w-4 h-4" />
-        </button>
-      </div>
-
-      <pre className="text-xs text-slate-700 whitespace-pre-wrap break-words max-h-80 overflow-y-auto">
-        {JSON.stringify(selectedAIResult, null, 2)}
-      </pre>
-    </div>
-  )}
-</div>
-              {/* Score Input & Slider */}
-              <div className="bg-slate-50/80 rounded-2xl p-4 border border-slate-200">
-                <div className="flex items-center justify-between mb-2.5">
-                  <label className="text-xs font-bold uppercase text-slate-700 tracking-wider">
-                    Điểm số (Thang điểm 100) <span className="text-rose-500">*</span>
-                  </label>
-
-                  {/* Real-time Dynamic Status Badge */}
-                  <div
-                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black border transition-all shadow-2xs ${
-                      currentScoreGradeInfo.isPassed
-                        ? currentScoreGradeInfo.score >= 95
-                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                          : 'bg-blue-100 text-blue-800 border-blue-300'
-                        : currentScoreGradeInfo.score >= 50
-                        ? 'bg-amber-100 text-amber-900 border-amber-300'
-                        : currentScoreGradeInfo.score >= 30
-                        ? 'bg-orange-100 text-orange-900 border-orange-300'
-                        : 'bg-rose-100 text-rose-900 border-rose-300'
-                    }`}
-                  >
-                    <span className={`w-2 h-2 rounded-full ${currentScoreGradeInfo.dotColor} animate-pulse`} />
-                    <span>
-                      {currentScoreGradeInfo.tier} — {currentScoreGradeInfo.isPassed ? 'Đạt' : 'Chưa đạt (Yêu cầu ≥ 80)'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-4">
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    required
-                    value={scoreInput}
-                    onChange={(e) => {
-                      const val = e.target.value === '' ? '' : Math.min(100, Math.max(0, Number(e.target.value)));
-                      setScoreInput(val);
-                    }}
-                    className={`w-28 px-4 py-2.5 text-2xl font-black text-center bg-white border rounded-xl focus:ring-2 focus:ring-blue-500 transition-all ${
-                      currentScoreGradeInfo.isPassed
-                        ? 'border-emerald-400 text-emerald-700'
-                        : 'border-amber-400 text-amber-700'
-                    }`}
-                  />
-
-                  {/* Range Slider with 80-mark threshold indicator */}
-                  <div className="flex-1 relative py-1">
-                    <input
-                      type="range"
-                      min={0}
-                      max={100}
-                      value={scoreInput === '' ? 0 : scoreInput}
-                      onChange={(e) => setScoreInput(Number(e.target.value))}
-                      className="w-full accent-blue-600 h-2.5 bg-slate-200 rounded-lg cursor-pointer"
+                    <textarea
+                      rows={4}
+                      placeholder="Ghi nhận xét chi tiết về phát âm, cột hơi, ngữ điệu, phong thái để giúp học viên tiến bộ..."
+                      value={feedbackInput}
+                      onChange={(e) => setFeedbackInput(e.target.value)}
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:ring-2 focus:ring-blue-500 focus:bg-white focus:outline-none transition-all leading-relaxed"
                     />
-                    <div className="flex justify-between text-[10px] font-bold text-slate-400 mt-1">
-                      <span>0 (Yếu)</span>
-                      <span>30 (TB)</span>
-                      <span>50 (Cần cải thiện)</span>
-                      <span className="text-blue-600 font-black">| 80 (Đạt)</span>
-                      <span className="text-emerald-600 font-black">95+ (Xuất sắc)</span>
-                    </div>
                   </div>
                 </div>
 
-                {/* Score Presets: 5 tiers separated into Pass vs Not-Pass */}
-                <div className="mt-4 pt-3 border-t border-slate-200/80 space-y-2">
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="font-bold text-slate-500">Chọn nhanh mức điểm:</span>
-                    <span className="font-semibold text-slate-400 italic">Mức tối thiểu để Đạt: 80 điểm</span>
-                  </div>
+                {/* ── CỘT PHẢI (6 COLS): Bảng Rubric & Điểm số Thang 100 ── */}
+                <div className="lg:col-span-6 space-y-4">
+                  {/* BẢNG TIÊU CHÍ CHẤM ĐIỂM (RUBRIC CRITERIA) */}
+                  <div className="bg-white rounded-2xl p-4 border border-blue-200 shadow-xs">
+                    <div className="flex items-center justify-between border-b border-blue-50 pb-3 mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-blue-700 border border-blue-200">
+                          <Sliders className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-extrabold uppercase text-slate-900 tracking-wider">
+                            Tiêu chí chấm điểm (Rubric)
+                          </h4>
+                          <span className="text-[10px] text-slate-500 font-medium">
+                            Chấm từng tiêu chí hoặc chọn nhanh điểm tổng
+                          </span>
+                        </div>
+                      </div>
 
-                  <div className="flex flex-wrap items-center gap-2">
-                    {/* Nhóm Đạt (>= 80) */}
-                    <div className="inline-flex items-center gap-1.5 p-1 rounded-xl bg-emerald-50/70 border border-emerald-200">
-                      <span className="text-[10px] font-extrabold text-emerald-700 uppercase px-1">ĐẠT:</span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setScorePreset(95, 'Phát âm chuẩn xác, ngữ điệu tự nhiên, phong thái tự tin và làm chủ sân khấu rất tốt!')
-                        }
-                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border cursor-pointer ${
-                          scoreInput === 95
-                            ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-                            : 'bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-                        }`}
-                      >
-                        ✓ 95 (Xuất sắc)
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setScorePreset(85, 'Phát âm tốt, bài nói lưu loát, đạt yêu cầu hoàn thành bài học. Cần chú ý thêm một vài trọng âm.')
-                        }
-                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border cursor-pointer ${
-                          scoreInput === 85
-                            ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                            : 'bg-white text-blue-700 border-blue-200 hover:bg-blue-100'
-                        }`}
-                      >
-                        ✓ 85 (Giỏi)
-                      </button>
+                      {/* Quick preset buttons for all criteria */}
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleSetAllCriteriaScores(100)}
+                          className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors cursor-pointer"
+                          title="Gán tất cả tiêu chí 100 điểm"
+                        >
+                          100 đ
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleSetAllCriteriaScores(85)}
+                          className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors cursor-pointer"
+                          title="Gán tất cả tiêu chí 85 điểm"
+                        >
+                          85 đ
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleSetAllCriteriaScores(80)}
+                          className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 transition-colors cursor-pointer"
+                          title="Gán tất cả tiêu chí 80 điểm (chuẩn đạt)"
+                        >
+                          80 đ
+                        </button>
+                      </div>
                     </div>
 
-                    {/* Nhóm Chưa đạt (< 80) */}
-                    <div className="inline-flex items-center gap-1.5 p-1 rounded-xl bg-rose-50/70 border border-rose-200">
-                      <span className="text-[10px] font-extrabold text-rose-700 uppercase px-1">CHƯA ĐẠT:</span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setScorePreset(65, 'Đã hoàn thành bài nói nhưng ngữ điệu và phát âm còn hạn chế, chưa đạt mức 80 để hoàn thành bài học. Cần luyện tập và thu âm lại.')
-                        }
-                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border cursor-pointer ${
-                          scoreInput === 65
-                            ? 'bg-amber-600 text-white border-amber-600 shadow-sm'
-                            : 'bg-white text-amber-700 border-amber-200 hover:bg-amber-100'
-                        }`}
-                      >
-                        ✕ 65 (Cần cải thiện)
-                      </button>
+                    {isLoadingRubric ? (
+                      <div className="py-6 text-center text-xs text-blue-600 font-medium">
+                        Đang tải danh sách tiêu chí Rubric...
+                      </div>
+                    ) : (
+                      <div className="space-y-2.5 max-h-[310px] overflow-y-auto pr-1">
+                        {activeRubricCriteria.map((c) => {
+                          const score = criterionScores[c.code] ?? (typeof scoreInput === 'number' ? scoreInput : 85);
+                          const contribution = ((score * c.weightPercentage) / 100).toFixed(1);
+                          const isMandatory = c.isMandatory || c.code === 'C01' || c.code === 'C02' || c.code === 'C03';
 
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setScorePreset(40, 'Bài nói còn ngập ngừng nhiều, phát âm và ngắt câu chưa đúng nhịp. Cần nghe kỹ bài mẫu và nộp lại.')
-                        }
-                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border cursor-pointer ${
-                          scoreInput === 40
-                            ? 'bg-orange-600 text-white border-orange-600 shadow-sm'
-                            : 'bg-white text-orange-700 border-orange-200 hover:bg-orange-100'
-                        }`}
-                      >
-                        ✕ 40 (Trung bình)
-                      </button>
+                          return (
+                            <div
+                              key={c.code}
+                              className="rounded-xl border border-blue-100 bg-blue-50/20 hover:bg-blue-50/40 p-2.5 transition-colors"
+                            >
+                              <div className="flex items-center justify-between gap-2 mb-1.5">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <span className="rounded-md bg-blue-100 border border-blue-200 px-1.5 py-0.5 text-[10px] font-mono font-black text-blue-800">
+                                    {c.code}
+                                  </span>
+                                  <span className="text-xs font-bold text-slate-800 truncate" title={c.name}>
+                                    {c.name}
+                                  </span>
+                                  {isMandatory && (
+                                    <span className="rounded-full bg-blue-100 text-blue-700 px-1.5 py-0.2 text-[9px] font-bold shrink-0">
+                                      Bắt buộc
+                                    </span>
+                                  )}
+                                </div>
 
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setScorePreset(20, 'Chưa đạt yêu cầu tối thiểu của bài nói. Cần học kỹ lại phần phát âm và luyện tập theo kịch bản trước khi ghi âm nộp lại.')
-                        }
-                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border cursor-pointer ${
-                          scoreInput === 20
-                            ? 'bg-rose-600 text-white border-rose-600 shadow-sm'
-                            : 'bg-white text-rose-700 border-rose-200 hover:bg-rose-100'
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  <span className="text-[10px] font-bold text-slate-500">
+                                    Trọng số: <span className="text-blue-700 font-extrabold">{c.weightPercentage}%</span>
+                                  </span>
+                                  <span className="text-[10px] text-slate-400">•</span>
+                                  <span className="text-[11px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded-md">
+                                    +{contribution} đ
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-3">
+                                <input
+                                  type="range"
+                                  min={0}
+                                  max={100}
+                                  value={score}
+                                  onChange={(e) => handleCriterionScoreChange(c.code, Number(e.target.value))}
+                                  className="flex-1 accent-blue-600 h-1.5 bg-slate-200 rounded-lg cursor-pointer"
+                                />
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    max={100}
+                                    value={score}
+                                    onChange={(e) => handleCriterionScoreChange(c.code, Number(e.target.value) || 0)}
+                                    className="w-12 px-1.5 py-0.5 text-center text-xs font-black bg-white border border-slate-200 rounded-lg focus:border-blue-500 focus:outline-none"
+                                  />
+                                  <span className="text-[10px] font-bold text-slate-400">/100</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    <div className="mt-3 pt-2.5 border-t border-blue-100 flex items-center justify-between text-xs">
+                      <span className="text-slate-500 font-medium flex items-center gap-1">
+                        <Calculator className="w-3.5 h-3.5 text-blue-600" />
+                        Tổng điểm Rubric tính theo trọng số:
+                      </span>
+                      <span className="font-black text-blue-700 text-sm">
+                        {scoreInput}/100 điểm
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* KHỐI ĐIỂM SỐ TỔNG (THANG ĐIỂM 100) */}
+                  <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs">
+                    <div className="flex items-center justify-between mb-2.5">
+                      <label className="text-xs font-bold uppercase text-slate-700 tracking-wider">
+                        Điểm số tổng kết (Thang 100) <span className="text-rose-500">*</span>
+                      </label>
+
+                      {/* Real-time Dynamic Status Badge */}
+                      <div
+                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black border transition-all shadow-2xs ${
+                          currentScoreGradeInfo.isPassed
+                            ? currentScoreGradeInfo.score >= 95
+                              ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                              : 'bg-blue-100 text-blue-800 border-blue-300'
+                            : currentScoreGradeInfo.score >= 50
+                            ? 'bg-amber-100 text-amber-900 border-amber-300'
+                            : currentScoreGradeInfo.score >= 30
+                            ? 'bg-orange-100 text-orange-900 border-orange-300'
+                            : 'bg-rose-100 text-rose-900 border-rose-300'
                         }`}
                       >
-                        ✕ 20 (Yếu)
-                      </button>
+                        <span className={`w-2 h-2 rounded-full ${currentScoreGradeInfo.dotColor} animate-pulse`} />
+                        <span>
+                          {currentScoreGradeInfo.tier} — {currentScoreGradeInfo.isPassed ? 'Đạt' : 'Chưa đạt (Yêu cầu ≥ 80)'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        required
+                        value={scoreInput}
+                        onChange={(e) => {
+                          const val = e.target.value === '' ? '' : Math.min(100, Math.max(0, Number(e.target.value)));
+                          if (typeof val === 'number') handleTotalScoreChange(val);
+                          else setScoreInput('');
+                        }}
+                        className={`w-24 px-3 py-2 text-2xl font-black text-center bg-white border rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all ${
+                          currentScoreGradeInfo.isPassed
+                            ? 'border-emerald-400 text-emerald-700'
+                            : 'border-amber-400 text-amber-700'
+                        }`}
+                      />
+
+                      {/* Range Slider with 80-mark threshold indicator */}
+                      <div className="flex-1 relative py-1">
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          value={scoreInput === '' ? 0 : scoreInput}
+                          onChange={(e) => handleTotalScoreChange(Number(e.target.value))}
+                          className="w-full accent-blue-600 h-2.5 bg-slate-200 rounded-lg cursor-pointer"
+                        />
+                        <div className="flex justify-between text-[10px] font-bold text-slate-400 mt-1">
+                          <span>0 (Yếu)</span>
+                          <span>30 (TB)</span>
+                          <span>50 (Cần cải thiện)</span>
+                          <span className="text-blue-600 font-black">| 80 (Đạt)</span>
+                          <span className="text-emerald-600 font-black">95+ (Xuất sắc)</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Score Presets: 5 tiers separated into Pass vs Not-Pass */}
+                    <div className="mt-3.5 pt-3 border-t border-slate-100 space-y-2">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="font-bold text-slate-500">Chọn nhanh mức điểm chuẩn:</span>
+                        <span className="font-semibold text-slate-400 italic">Mức tối thiểu để Đạt: 80 điểm</span>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        {/* Nhóm Đạt (>= 80) */}
+                        <div className="inline-flex items-center gap-1.5 p-1 rounded-xl bg-emerald-50/70 border border-emerald-200">
+                          <span className="text-[10px] font-extrabold text-emerald-700 uppercase px-1">ĐẠT:</span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setScorePreset(95, 'Phát âm chuẩn xác, ngữ điệu tự nhiên, phong thái tự tin và làm chủ sân khấu rất tốt!')
+                            }
+                            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border cursor-pointer ${
+                              scoreInput === 95
+                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                                : 'bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                            }`}
+                          >
+                            ✓ 95 (Xuất sắc)
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setScorePreset(85, 'Phát âm tốt, bài nói lưu loát, đạt yêu cầu hoàn thành bài học. Cần chú ý thêm một vài trọng âm.')
+                            }
+                            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border cursor-pointer ${
+                              scoreInput === 85
+                                ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                                : 'bg-white text-blue-700 border-blue-200 hover:bg-blue-100'
+                            }`}
+                          >
+                            ✓ 85 (Giỏi)
+                          </button>
+                        </div>
+
+                        {/* Nhóm Chưa đạt (< 80) */}
+                        <div className="inline-flex items-center gap-1.5 p-1 rounded-xl bg-rose-50/70 border border-rose-200">
+                          <span className="text-[10px] font-extrabold text-rose-700 uppercase px-1">CHƯA ĐẠT:</span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setScorePreset(65, 'Đã hoàn thành bài nói nhưng ngữ điệu và phát âm còn hạn chế, chưa đạt mức 80 để hoàn thành bài học. Cần luyện tập và thu âm lại.')
+                            }
+                            className={`px-2 py-1 rounded-lg text-[11px] font-bold transition-all border cursor-pointer ${
+                              scoreInput === 65
+                                ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                                : 'bg-white text-amber-700 border-amber-200 hover:bg-amber-100'
+                            }`}
+                          >
+                            ✕ 65 (Cần cải thiện)
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setScorePreset(40, 'Bài nói còn ngập ngừng nhiều, phát âm và ngắt câu chưa đúng nhịp. Cần nghe kỹ bài mẫu và nộp lại.')
+                            }
+                            className={`px-2 py-1 rounded-lg text-[11px] font-bold transition-all border cursor-pointer ${
+                              scoreInput === 40
+                                ? 'bg-orange-600 text-white border-orange-600 shadow-xs'
+                                : 'bg-white text-orange-700 border-orange-200 hover:bg-orange-100'
+                            }`}
+                          >
+                            ✕ 40 (TB)
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setScorePreset(20, 'Chưa đạt yêu cầu tối thiểu của bài nói. Cần học kỹ lại phần phát âm và luyện tập theo kịch bản trước khi ghi âm nộp lại.')
+                            }
+                            className={`px-2 py-1 rounded-lg text-[11px] font-bold transition-all border cursor-pointer ${
+                              scoreInput === 20
+                                ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                                : 'bg-white text-rose-700 border-rose-200 hover:bg-rose-100'
+                            }`}
+                          >
+                            ✕ 20 (Yếu)
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Feedback Textarea */}
-              <div>
-                <label className="block text-xs font-bold uppercase text-slate-600 tracking-wider mb-2">
-                  Lời nhận xét của Giảng viên
-                </label>
-                <textarea
-                  rows={4}
-                  placeholder="Ghi nhận xét về ngữ điệu, phát âm, từ vựng để giúp học viên tiến bộ..."
-                  value={feedbackInput}
-                  onChange={(e) => setFeedbackInput(e.target.value)}
-                  className="w-full p-3 bg-slate-50 border border-slate-300 rounded-2xl text-xs font-medium text-slate-900 focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
-                />
-              </div>
-
-              {/* Modal Actions */}
-              <div className="pt-2 flex items-center justify-end gap-3 border-t border-slate-100">
+              {/* Modal Actions Footer */}
+              <div className="mt-6 pt-4 flex items-center justify-end gap-3 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => setActiveSubmission(null)}
-                  className="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 text-xs font-bold hover:bg-slate-100 transition-all cursor-pointer"
+                  className="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-700 text-xs font-bold hover:bg-slate-100 transition-all cursor-pointer"
                 >
-                  Hủy
+                  Hủy bỏ
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmittingGrade}
-                  className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-600/30 flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                  className="px-7 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:brightness-110 text-white text-xs font-bold shadow-lg shadow-blue-500/25 flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
                 >
                   {isSubmittingGrade ? (
                     <>
-                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>Đang lưu...</span>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Đang lưu kết quả...</span>
                     </>
                   ) : (
                     <>
                       <Check className="w-4 h-4" />
-                      <span>Lưu điểm & Gửi nhận xét</span>
+                      <span>Lưu kết quả & Đánh giá</span>
                     </>
                   )}
                 </button>

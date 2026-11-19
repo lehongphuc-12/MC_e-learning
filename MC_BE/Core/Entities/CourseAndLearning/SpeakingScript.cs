@@ -50,7 +50,13 @@ public class SpeakingScript
     [Column("Status")]
     public SpeakingScriptStatus Status { get; set; } = SpeakingScriptStatus.DRAFT;
 
+    [Column("BackgroundMusicId")]
+    public int? BackgroundMusicId { get; set; }
+
     // Navigation properties
+    [ForeignKey("BackgroundMusicId")]
+    public virtual BackgroundMusic? BackgroundMusic { get; set; }
+
     [ForeignKey("CourseId")]
     public virtual Course Course { get; set; } = null!;
 
@@ -64,4 +70,5 @@ public class SpeakingScript
     public virtual User? CreatedByUser { get; set; }
 
     public virtual ICollection<SpeakingScriptLevel> Levels { get; set; } = new List<SpeakingScriptLevel>();
+    public virtual ICollection<SpeakingRubricCriterion> RubricCriteria { get; set; } = new List<SpeakingRubricCriterion>();
 }

@@ -22,6 +22,7 @@ import {
   ExternalLink,
   Loader2,
   ChevronDown,
+  Scale,
 } from 'lucide-react';
 import { speakingApi } from '../../api/speakingApi';
 import { courseApi } from '../../api/courseApi';
@@ -81,23 +82,19 @@ export const InstructorSpeakingAssignmentsPage: React.FC<InstructorSpeakingAssig
   const [deleteTarget, setDeleteTarget] = useState<SpeakingScriptDto | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Auto-open modal if directed from CourseLessonsPage
+  // Auto-redirect to create page if directed with autoOpenCreate
   useEffect(() => {
     const locState = location.state as { courseId?: number; scope?: SpeakingScope; autoOpenCreate?: boolean } | null;
     const queryCourse = searchParams.get('courseId');
     const queryScope = searchParams.get('scope') as SpeakingScope | null;
 
-    if (locState?.autoOpenCreate || queryCourse) {
-      const cId = locState?.courseId || (queryCourse ? Number(queryCourse) : undefined);
-      const sc = locState?.scope || queryScope || 'FINAL';
-      setModalCourseId(cId);
-      setModalScope(sc);
-      setScriptToEdit(null);
-      if (cId) setCourseFilter(cId.toString());
-      if (sc) setScopeFilter(sc);
-      setIsModalOpen(true);
+    if (locState?.autoOpenCreate) {
+      const query = new URLSearchParams();
+      if (locState.scope || queryScope) query.set('scope', locState.scope || queryScope || 'FINAL');
+      if (locState.courseId || queryCourse) query.set('courseId', (locState.courseId || queryCourse)!.toString());
+      navigate(`/instructor/speaking-assignments/create?${query.toString()}`, { replace: true });
     }
-  }, [location.state, searchParams]);
+  }, [location.state, searchParams, navigate]);
 
   // Load Courses and Speaking Scripts
   useEffect(() => {
@@ -183,18 +180,15 @@ export const InstructorSpeakingAssignmentsPage: React.FC<InstructorSpeakingAssig
 
   // Action Handlers
   const handleOpenCreateModal = (scope: SpeakingScope) => {
-    setModalScope(scope);
-    setModalCourseId(courseFilter !== 'ALL' ? Number(courseFilter) : undefined);
-    setScriptToEdit(null);
     setCreateMenuOpen(false);
-    setIsModalOpen(true);
+    const query = new URLSearchParams();
+    query.set('scope', scope);
+    if (courseFilter !== 'ALL') query.set('courseId', courseFilter);
+    navigate(`/instructor/speaking-assignments/create?${query.toString()}`);
   };
 
   const handleOpenEditModal = (script: SpeakingScriptDto) => {
-    setScriptToEdit(script);
-    setModalScope(script.scope || 'FINAL');
-    setModalCourseId(script.courseId);
-    setIsModalOpen(true);
+    navigate(`/instructor/speaking-assignments/edit/${script.scriptId}`);
   };
 
   const handleDeleteScript = async () => {
@@ -290,12 +284,25 @@ export const InstructorSpeakingAssignmentsPage: React.FC<InstructorSpeakingAssig
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => setCreateMenuOpen(!createMenuOpen)}
+                onClick={() => {
+                  const query = new URLSearchParams();
+                  if (courseFilter !== 'ALL') query.set('courseId', courseFilter);
+                  if (scopeFilter !== 'ALL') query.set('scope', scopeFilter);
+                  const qs = query.toString();
+                  navigate(`/instructor/speaking-assignments/create${qs ? `?${qs}` : ''}`);
+                }}
                 className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-blue-500/25 transition-all hover:brightness-105 active:scale-95 cursor-pointer"
               >
                 <Plus className="h-4 w-4" />
                 <span>Tạo bài tập nói mới</span>
-                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${createMenuOpen ? 'rotate-180' : ''}`} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setCreateMenuOpen(!createMenuOpen)}
+                className="rounded-2xl border border-slate-200 bg-white p-2.5 text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer shadow-xs"
+                title="Tùy chọn nhanh phạm vi"
+              >
+                <ChevronDown className={`h-4 w-4 transition-transform ${createMenuOpen ? 'rotate-180' : ''}`} />
               </button>
             </div>
 
@@ -628,6 +635,42 @@ export const InstructorSpeakingAssignmentsPage: React.FC<InstructorSpeakingAssig
                     </span>
                   </div>
                 </div>
+
+                {/* Rubric Criteria Summary */}
+                {selectedScript.rubricCriteria && selectedScript.rubricCriteria.length > 0 && (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-4">
+                    <div className="flex items-center justify-between mb-2.5">
+                      <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <Scale className="h-3.5 w-3.5 text-blue-600" />
+                        Tiêu chí chấm điểm ({selectedScript.rubricCriteria.length})
+                      </span>
+                      <span className="text-[11px] font-bold text-slate-600 bg-white px-2 py-0.5 rounded-full border border-slate-200">
+                        Tổng: {selectedScript.rubricCriteria.reduce((sum, r) => sum + Number(r.weightPercentage), 0)}%
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {selectedScript.rubricCriteria.map((rc) => (
+                        <div
+                          key={rc.code}
+                          className="flex items-center justify-between text-xs bg-white px-2.5 py-1.5 rounded-xl border border-slate-200/70"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="font-mono font-bold text-[10px] text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
+                              {rc.code}
+                            </span>
+                            <span className="font-medium text-slate-800 truncate">{rc.name}</span>
+                            {rc.isMandatory && (
+                              <span className="text-[9px] font-bold text-blue-600 bg-blue-50 px-1 py-0.2 rounded">
+                                Bắt buộc
+                              </span>
+                            )}
+                          </div>
+                          <span className="font-bold text-blue-700 shrink-0 ml-2">{rc.weightPercentage}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* 3 Level Content Viewer */}
                 <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white">

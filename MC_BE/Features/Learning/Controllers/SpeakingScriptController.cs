@@ -1,3 +1,4 @@
+﻿
 using System.Security.Claims;
 using MC_BE.Core.DTOs;
 using MC_BE.Core.Enums;
@@ -11,6 +12,9 @@ using Microsoft.Extensions.Logging;
 
 namespace MC_BE.Features.Learning.Controllers;
 
+/// <summary>
+/// API Controller quản lý các hoạt động biên soạn, phân tích tài liệu và xuất bản kịch bản luyện nói.
+/// </summary>
 [ApiController]
 [Route("api/speaking-scripts")]
 [Authorize]
@@ -21,6 +25,9 @@ public class SpeakingScriptController : ControllerBase
     private readonly IRemedialAssignmentService _remedialAssignments;
     private readonly ICourseLearningAccessService _courseAccess;
 
+    /// <summary>
+    /// Khởi tạo Controller với các dependency được inject từ DI Container.
+    /// </summary>
     public SpeakingScriptController(
         ISpeakingScriptService scriptService,
         ILogger<SpeakingScriptController> logger,
@@ -33,6 +40,10 @@ public class SpeakingScriptController : ControllerBase
         _courseAccess = courseAccess;
     }
 
+    /// <summary>
+    /// - Hàm tiện ích (Private Helper) trích xuất ID người dùng đang đăng nhập từ JWT Token Claims.
+    /// </summary>
+    /// <returns>UserId kiểu int hoặc null nếu token không hợp lệ.</returns>
     private int? GetCurrentUserId()
     {
         var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
@@ -48,8 +59,9 @@ public class SpeakingScriptController : ControllerBase
 
     /// <summary>
     /// GET /api/speaking-scripts
-    /// Filter speaking scripts by course, scope, module, lesson, and search keyword
+    /// Lọc và tìm kiếm danh sách kịch bản luyện nói theo nhiều tiêu chí (Khóa học, Phạm vi, Chương, Bài học, Từ khóa).
     /// </summary>
+    /// <returns>Danh sách SpeakingScriptDto thỏa mãn bộ lọc.</returns>
     [HttpGet]
     public async Task<ActionResult<ApiResponse<IEnumerable<SpeakingScriptDto>>>> GetScripts(
         [FromQuery] int? courseId,
@@ -82,8 +94,10 @@ public class SpeakingScriptController : ControllerBase
 
     /// <summary>
     /// GET /api/speaking-scripts/{id:int}
-    /// Get script details by ID
+    /// Lấy chi tiết một kịch bản luyện nói theo ScriptId (bao gồm cả 3 cấp độ nói).
     /// </summary>
+    /// <param name="id">ID kịch bản.</param>
+    /// <returns>ApiResponse chứa SpeakingScriptDto.</returns>
     [HttpGet("{id:int}")]
     public async Task<ActionResult<ApiResponse<SpeakingScriptDto>>> GetScriptById(int id)
     {
@@ -108,8 +122,10 @@ public class SpeakingScriptController : ControllerBase
 
     /// <summary>
     /// GET /api/speaking-scripts/course/{courseId:int}
-    /// Get all speaking scripts of a course
+    /// Lấy toàn bộ danh sách kịch bản luyện nói thuộc một khóa học cụ thể.
     /// </summary>
+    /// <param name="courseId">ID khóa học.</param>
+    /// <returns>ApiResponse chứa danh sách SpeakingScriptDto.</returns>
     [HttpGet("course/{courseId:int}")]
     public async Task<ActionResult<ApiResponse<IEnumerable<SpeakingScriptDto>>>> GetScriptsByCourse(int courseId)
     {
@@ -137,8 +153,11 @@ public class SpeakingScriptController : ControllerBase
 
     /// <summary>
     /// POST /api/speaking-scripts
-    /// Create new speaking script with 3 levels and scope (Lesson / Chapter / Final)
+    /// Tạo mới một kịch bản luyện nói kèm 3 cấp độ (hỗ trợ các phạm vi Bài học, Cuối chương hoặc Cuối khóa).
+    /// Yêu cầu vai trò: Giảng viên hoặc Quản trị viên.
     /// </summary>
+    /// <param name="request">Dữ liệu tạo mới kịch bản.</param>
+    /// <returns>SpeakingScriptDto sau khi tạo thành công.</returns>
     [HttpPost]
     [Authorize(Roles = "Instructor,Admin")]
     public async Task<ActionResult<ApiResponse<SpeakingScriptDto>>> CreateScript([FromBody] CreateSpeakingScriptRequest request)
@@ -166,6 +185,14 @@ public class SpeakingScriptController : ControllerBase
         {
             return NotFound(ApiResponse<SpeakingScriptDto>.FailureResponse(ex.Message));
         }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<SpeakingScriptDto>.FailureResponse(ex.Message));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ApiResponse<SpeakingScriptDto>.FailureResponse(ex.Message));
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error creating speaking script");
@@ -176,7 +203,7 @@ public class SpeakingScriptController : ControllerBase
 
     /// <summary>
     /// PUT /api/speaking-scripts/{id:int}
-    /// Update speaking script
+    /// Cập nhật thông tin và các cấp độ của một kịch bản luyện nói theo ScriptId.
     /// </summary>
     [HttpPut("{id:int}")]
     [Authorize(Roles = "Instructor,Admin")]
@@ -199,6 +226,14 @@ public class SpeakingScriptController : ControllerBase
         {
             return NotFound(ApiResponse<SpeakingScriptDto>.FailureResponse(ex.Message));
         }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<SpeakingScriptDto>.FailureResponse(ex.Message));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ApiResponse<SpeakingScriptDto>.FailureResponse(ex.Message));
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error updating speaking script {Id}", id);
@@ -209,7 +244,7 @@ public class SpeakingScriptController : ControllerBase
 
     /// <summary>
     /// DELETE /api/speaking-scripts/{id:int}
-    /// Delete speaking script by ID
+    /// Xóa một kịch bản luyện nói theo ID.
     /// </summary>
     [HttpDelete("{id:int}")]
     [Authorize(Roles = "Instructor,Admin")]
@@ -241,7 +276,8 @@ public class SpeakingScriptController : ControllerBase
 
     /// <summary>
     /// POST /api/speaking-scripts/parse-file
-    /// Parse script document (.docx, .txt, .md) in-memory before lesson is created
+    /// Tiện ích bóc tách trực tiếp file kịch bản (.docx, .txt, .md) trên bộ nhớ RAM để xem trước.
+    /// Không lưu vào CSDL, không yêu cầu LessonId.
     /// </summary>
     [HttpPost("parse-file")]
     [Authorize(Roles = "Instructor,Admin")]
@@ -280,7 +316,7 @@ public class SpeakingScriptController : ControllerBase
 
     /// <summary>
     /// POST /api/speaking-scripts/lessons/{lessonId}/parse
-    /// Instructor uploads document (.docx, .txt, .md) to be parsed in-memory into 3 levels
+    /// Bóc tách file tài liệu kịch bản gắn liền với một bài học cụ thể, có kiểm tra quyền sở hữu của giảng viên.
     /// </summary>
     [HttpPost("lessons/{lessonId:int}/parse")]
     [Authorize(Roles = "Instructor,Admin")]
@@ -327,7 +363,7 @@ public class SpeakingScriptController : ControllerBase
 
     /// <summary>
     /// POST /api/speaking-scripts/lessons/{lessonId}/publish
-    /// Instructor saves and publishes the 3-level script
+    /// Giảng viên lưu chính thức và xuất bản kịch bản 3 cấp độ cho một bài học.
     /// </summary>
     [HttpPost("lessons/{lessonId:int}/publish")]
     [Authorize(Roles = "Instructor,Admin")]
@@ -357,6 +393,14 @@ public class SpeakingScriptController : ControllerBase
         {
             return NotFound(ApiResponse<SpeakingScriptDto>.FailureResponse(ex.Message));
         }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<SpeakingScriptDto>.FailureResponse(ex.Message));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ApiResponse<SpeakingScriptDto>.FailureResponse(ex.Message));
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error saving script for Lesson {LessonId}", lessonId);
@@ -367,7 +411,7 @@ public class SpeakingScriptController : ControllerBase
 
     /// <summary>
     /// GET /api/speaking-scripts/lessons/{lessonId}
-    /// Get speaking script with all 3 levels for a lesson (Students & Instructors)
+    /// Lấy toàn bộ thông tin kịch bản và 3 cấp độ của một bài học (Dành cho cả Giảng viên và Học viên).
     /// </summary>
     [HttpGet("lessons/{lessonId:int}")]
     public async Task<ActionResult<ApiResponse<SpeakingScriptDto>>> GetScriptByLesson(int lessonId)
@@ -393,7 +437,7 @@ public class SpeakingScriptController : ControllerBase
 
     /// <summary>
     /// GET /api/speaking-scripts/lessons/{lessonId}/level/{level}
-    /// Get specific level script content for student practice
+    /// Lấy nội dung chi tiết của một cấp độ luyện nói cụ thể phục vụ học viên bắt đầu thu âm.
     /// </summary>
     [HttpGet("lessons/{lessonId:int}/level/{level}")]
     public async Task<ActionResult<ApiResponse<SpeakingScriptLevelDto>>> GetLevelContent(int lessonId, SpeakingLevel level)
@@ -421,7 +465,7 @@ public class SpeakingScriptController : ControllerBase
 
     /// <summary>
     /// PUT /api/speaking-scripts/{scriptId}/levels/{level}
-    /// Update content of a single level
+    /// Chỉnh sửa riêng lẻ nội dung hoặc kịch bản sạch của một cấp độ cụ thể.
     /// </summary>
     [HttpPut("{scriptId:int}/levels/{level}")]
     [Authorize(Roles = "Instructor,Admin")]
@@ -454,7 +498,7 @@ public class SpeakingScriptController : ControllerBase
 
     /// <summary>
     /// DELETE /api/speaking-scripts/lessons/{lessonId}
-    /// Instructor deletes a speaking script
+    /// Giảng viên xóa kịch bản luyện nói gắn liền với một bài học.
     /// </summary>
     [HttpDelete("lessons/{lessonId:int}")]
     [Authorize(Roles = "Instructor,Admin")]
