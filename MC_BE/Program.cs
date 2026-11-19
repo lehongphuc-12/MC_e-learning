@@ -43,6 +43,7 @@ using MC_BE.Features.VoiceAssessment.Services.Interfaces;
 using MC_BE.Features.VoiceAssessment.Providers;
 using MC_BE.Features.VoiceAssessment.Providers.Interfaces;
 using Microsoft.Extensions.Options;
+using MC_BE.Features.VoiceJourney.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 // ============================================================
@@ -298,7 +299,17 @@ builder.Services.AddScoped<
     AIResponseService>();
 
 // AI PRACTICE (bổ sung độc lập, giữ nguyên AIResponseService)
+// ============================================================
+// AI PRACTICE + VOICE AI ENTITLEMENT
+// ============================================================
+
+// Service tạo và truy xuất kết quả luyện tập AI
 builder.Services.AddScoped<IAIPracticeService, AIPracticeService>();
+
+// Service kiểm tra quyền sử dụng tính năng Voice AI
+builder.Services.AddScoped<
+    IVoiceAiEntitlementService,
+    VoiceAiEntitlementService>();
 
 builder.Services.AddHttpClient<
     ILLMProvider,

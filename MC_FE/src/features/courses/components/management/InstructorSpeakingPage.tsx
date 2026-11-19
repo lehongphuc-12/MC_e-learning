@@ -37,7 +37,12 @@ import { Course } from '../../types/courseTypes';
 import { SpeakingScriptUploadModal } from './SpeakingScriptUploadModal';
 import { FileText, UploadCloud } from 'lucide-react';
 import { ToastType } from '../../../../components/common/Toast';
+import {
+  aiPracticeApi,
+  type InstructorAIPracticeHistoryItem,
+} from '@/features/voiceAI/api/aiPracticeApi';
 
+import type { AIPracticeResult } from '@/features/voiceAI/types/aiPracticeTypes';
 export interface SpeakingAssignmentItem {
   lessonId: number;
   courseId: number;
@@ -72,7 +77,18 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
   const [scoreInput, setScoreInput] = useState<number | ''>(85);
   const [feedbackInput, setFeedbackInput] = useState<string>('');
   const [isSubmittingGrade, setIsSubmittingGrade] = useState<boolean>(false);
+const [aiHistory, setAiHistory] = useState<
+  InstructorAIPracticeHistoryItem[]
+>([]);
 
+const [aiHistoryLoading, setAiHistoryLoading] = useState(false);
+const [aiHistoryError, setAiHistoryError] = useState<string | null>(null);
+
+const [selectedAIResult, setSelectedAIResult] =
+  useState<AIPracticeResult | null>(null);
+
+const [aiDetailLoadingId, setAiDetailLoadingId] =
+  useState<number | null>(null);
   // Real-time calculated grade tier & pass status for active modal
   const currentScoreGradeInfo = useMemo(() => {
     return getSpeakingGradeInfo(typeof scoreInput === 'number' ? scoreInput : 0);
@@ -293,14 +309,98 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
       return true;
     });
   }, [submissions, statusFilter, searchQuery]);
+  const loadAIHistory = async (sub: SpeakingSubmissionDto) => {
+  setAiHistory([]);
+  setSelectedAIResult(null);
+  setAiHistoryError(null);
 
-  // Handle open grading modal
-  const handleOpenGradingModal = (sub: SpeakingSubmissionDto) => {
-    setActiveSubmission(sub);
-    setScoreInput(sub.score ?? 85);
-    setFeedbackInput(sub.feedback || '');
-  };
+  if (!sub.lessonId) {
+    setAiHistoryError(
+      'Bài nộp này chưa liên kết với bài học nên chưa thể xác định lịch sử AI tương ứng.'
+    );
+    return;
+  }
 
+  setAiHistoryLoading(true);
+
+  try {
+    const allHistory: InstructorAIPracticeHistoryItem[] = [];
+    const pageSize = 100;
+
+    for (let page = 1; page <= 20; page++) {
+      const response = await aiPracticeApi.instructorHistory(
+        sub.courseId,
+        page,
+        pageSize,
+        sub.lessonId
+      );
+
+      // API trả về mảng trực tiếp
+      const items: InstructorAIPracticeHistoryItem[] = response;
+
+      allHistory.push(
+        ...items.filter(
+          (item) =>
+            item.learnerId === sub.learnerId &&
+            item.lessonId === sub.lessonId
+        )
+      );
+
+      if (items.length < pageSize) {
+        break;
+      }
+    }
+
+    allHistory.sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() -
+        new Date(a.createdAt).getTime()
+    );
+
+    setAiHistory(allHistory);
+  } catch (error) {
+    console.error('Failed to load AI history:', error);
+
+    setAiHistoryError(
+      error instanceof Error
+        ? error.message
+        : 'Không thể tải lịch sử feedback AI.'
+    );
+  } finally {
+    setAiHistoryLoading(false);
+  }
+};
+  const handleViewAIFeedback = async (practiceSessionId: number) => {
+  setAiDetailLoadingId(practiceSessionId);
+
+  try {
+    const result: AIPracticeResult =
+      await aiPracticeApi.instructorDetail(practiceSessionId);
+
+    setSelectedAIResult(result);
+  } catch (error) {
+    console.error('Failed to load AI feedback:', error);
+
+    if (onToast) {
+      onToast(
+        'Không thể xem feedback AI',
+        error instanceof Error
+          ? error.message
+          : 'Có lỗi xảy ra.',
+        'error'
+      );
+    }
+  } finally {
+    setAiDetailLoadingId(null);
+  }
+};
+const handleOpenGradingModal = (sub: SpeakingSubmissionDto) => {
+  setActiveSubmission(sub);
+  setScoreInput(sub.score ?? 85);
+  setFeedbackInput(sub.feedback || '');
+
+  void loadAIHistory(sub);
+};
   // Handle submit grade
   const handleSaveGrade = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -876,7 +976,97 @@ export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ 
                   </div>
                 )}
               </div>
+                {/* AI Practice History */}
+<div className="rounded-2xl border border-indigo-200 bg-indigo-50/50 p-4">
+  <div className="flex items-center justify-between gap-3 mb-3">
+    <div>
+      <h4 className="text-sm font-bold text-indigo-950 flex items-center gap-2">
+        <Sparkles className="w-4 h-4 text-indigo-600" />
+        Lịch sử feedback AI
+      </h4>
 
+      <p className="text-xs text-slate-500 mt-1">
+        Các lần luyện tập AI của học viên trong bài học này.
+      </p>
+    </div>
+
+    <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-indigo-700 border border-indigo-200">
+      {aiHistory.length} lần
+    </span>
+  </div>
+
+  {aiHistoryLoading ? (
+    <div className="py-5 text-center text-xs text-indigo-600">
+      Đang tải lịch sử feedback AI...
+    </div>
+  ) : aiHistoryError ? (
+    <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800">
+      {aiHistoryError}
+    </div>
+  ) : aiHistory.length === 0 ? (
+    <div className="rounded-xl bg-white border border-slate-200 p-4 text-center text-xs text-slate-500">
+      Học viên chưa có lịch sử luyện tập AI trong bài học này.
+    </div>
+  ) : (
+    <div className="space-y-2 max-h-56 overflow-y-auto">
+      {aiHistory.map((item, index) => (
+        <div
+          key={item.practiceSessionId}
+          className="rounded-xl bg-white border border-indigo-100 p-3 flex items-center justify-between gap-3"
+        >
+          <div>
+            <p className="text-xs font-bold text-slate-800">
+              Lần luyện #{aiHistory.length - index}
+            </p>
+
+            <p className="text-[11px] text-slate-500 mt-1">
+              {new Date(item.createdAt).toLocaleString('vi-VN')}
+            </p>
+
+            <p className="text-[10px] text-indigo-600 mt-1 font-semibold">
+              {item.status}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            disabled={aiDetailLoadingId === item.practiceSessionId}
+            onClick={() =>
+              void handleViewAIFeedback(item.practiceSessionId)
+            }
+            className="rounded-lg bg-indigo-600 hover:bg-indigo-700 px-3 py-2 text-white text-xs font-bold disabled:opacity-50"
+          >
+            {aiDetailLoadingId === item.practiceSessionId
+              ? 'Đang tải...'
+              : 'Xem feedback'}
+          </button>
+        </div>
+      ))}
+    </div>
+  )}
+
+  {selectedAIResult && (
+    <div className="mt-4 rounded-xl bg-white border border-indigo-200 p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h5 className="text-sm font-bold text-slate-900">
+          Chi tiết feedback AI
+        </h5>
+
+        <button
+          type="button"
+          onClick={() => setSelectedAIResult(null)}
+          className="text-slate-400 hover:text-slate-700"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+
+      <pre className="text-xs text-slate-700 whitespace-pre-wrap break-words max-h-80 overflow-y-auto">
+        {JSON.stringify(selectedAIResult, null, 2)}
+      </pre>
+    </div>
+  )}
+</div>
               {/* Score Input & Slider */}
               <div className="bg-slate-50/80 rounded-2xl p-4 border border-slate-200">
                 <div className="flex items-center justify-between mb-2.5">

@@ -29,7 +29,9 @@ import { mockCourses } from '../data/mockData';
 import { HomeScreen } from '../features/courses/components/HomeScreen';
 import { AiVoiceCoachPage } from '../features/courses/components/AiVoiceCoachPage';
 import { AIPracticePage } from '../features/voiceAI/pages/AIPracticePage';
+import { AIPracticeHistoryPage } from '../features/voiceAI/pages/AIPracticeHistoryPage';
 
+import { InstructorAIPracticePage } from '../features/courses/components/management/InstructorAIPracticePage';
 // Feature route modules
 import { renderAuthRoutes } from '../features/auth/routes';
 import { renderCourseRoutes } from '../features/courses/routes';
@@ -298,6 +300,14 @@ export const AppRouter: React.FC<AppRouterProps> = ({
           </ProtectedRoute>
         }
       />
+      <Route
+  path="/ai-practice/history"
+  element={<AIPracticeHistoryPage />}
+/>
+<Route
+  path="/instructor/ai-practice"
+  element={<InstructorAIPracticePage />}
+/>
       <Route
         path="/instructor/dashboard"
         element={
