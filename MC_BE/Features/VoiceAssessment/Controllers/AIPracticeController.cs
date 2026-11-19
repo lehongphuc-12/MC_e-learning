@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using MC_BE.Core.Entities;
 using MC_BE.Features.VoiceAssessment.DTOs;
+using MC_BE.Features.VoiceJourney.Services;
 using MC_BE.Features.VoiceAssessment.Services.Interfaces;
 using MC_BE.Shared.Data;
 using MC_BE.Shared.Services.Interfaces;
@@ -14,7 +15,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Microsoft.EntityFrameworkCore;
 
 namespace MC_BE.Features.VoiceAssessment.Controllers;
 
@@ -26,10 +26,11 @@ public sealed class AIPracticeController : ControllerBase
     private readonly ICloudinaryService _storage;
     private readonly IAIPracticeService _ai;
     private readonly ILogger<AIPracticeController> _logger;
+    private readonly IVoiceAiEntitlementService _entitlements;
     private const long MaxBytes = 20 * 1024 * 1024;
     public AIPracticeController(SmartMcDbContext db, ICloudinaryService storage,
-        IAIPracticeService ai, ILogger<AIPracticeController> logger)
-    { _db = db; _storage = storage; _ai = ai; _logger = logger; }
+        IAIPracticeService ai, ILogger<AIPracticeController> logger, IVoiceAiEntitlementService entitlements)
+    { _db = db; _storage = storage; _ai = ai; _logger = logger; _entitlements = entitlements; }
     private int UserId => int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : 0;
 
     [HttpPost("free"), RequestSizeLimit(MaxBytes + 65536)]
@@ -45,6 +46,10 @@ public sealed class AIPracticeController : ControllerBase
         int? courseId, int? lessonId, CancellationToken ct)
     {
         if (UserId <= 0) return Unauthorized();
+        // Free practice belongs to AI Voice Journey and requires at least one active AI entitlement.
+        // Course-assignment practice is authorized separately by the course Enrollment below.
+        if (!courseId.HasValue && !await _entitlements.HasActiveEntitlementAsync(UserId, ct: ct))
+            return StatusCode(403, new { code = "AI_ENTITLEMENT_REQUIRED", message = "Bạn chưa có quyền AI còn hiệu lực. Hãy mua AI Voice Journey hoặc khóa MC có tặng quyền AI." });
         if (request.AudioFile == null || request.AudioFile.Length == 0 || request.AudioFile.Length > MaxBytes)
             return BadRequest(new { message = "Tệp âm thanh trống hoặc vượt quá 20 MB." });
         var extension = Path.GetExtension(request.AudioFile.FileName).ToLowerInvariant();

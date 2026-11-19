@@ -12,6 +12,8 @@ export interface LessonPlayback {
   lessonId: number;
   url: string;
   expiresAt: string;
+  isPreviewOnly: boolean;
+  previewDurationSeconds: number | null;
 }
 
 export interface VideoUploadSessionRequest {
@@ -64,6 +66,10 @@ export const lessonApi = {
 
   async getPlaybackUrl(lessonId: number): Promise<LessonPlayback> {
     const envelope = await request<ApiEnvelope<LessonPlayback>>(`/lessons/${lessonId}/playback`);
+    return envelope.data;
+  },
+  async getPreviewPlaybackUrl(lessonId: number): Promise<LessonPlayback> {
+    const envelope = await request<ApiEnvelope<LessonPlayback>>(`/lessons/${lessonId}/preview-playback`);
     return envelope.data;
   },
   async getLessonsByCourseId(courseId: number): Promise<Lesson[]> {

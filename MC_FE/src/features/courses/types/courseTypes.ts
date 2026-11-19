@@ -88,6 +88,10 @@ export interface Course {
 export interface CreateCourseDto {
   title: string;              // Required: min 3 chars
   description?: string;       // Optional
+  previewTargetAudience?: string;
+  previewPrerequisites?: string;
+  previewLearningOutcomes?: string;
+  previewAssessmentOverview?: string;
   categoryId?: number | null; // Optional FK
   thumbnailUrl?: string;      // Optional URL
   price: number;              // Required: >= 0

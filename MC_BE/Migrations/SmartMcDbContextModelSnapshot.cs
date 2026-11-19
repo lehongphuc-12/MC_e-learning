@@ -1014,6 +1014,10 @@ namespace MC_BE.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("ApprovedByID");
 
+                    b.Property<int?>("ApprovedSyllabusVersionId")
+                        .HasColumnType("integer")
+                        .HasColumnName("ApprovedSyllabusVersionID");
+
                     b.Property<int?>("CategoryId")
                         .HasColumnType("integer")
                         .HasColumnName("CategoryID");
@@ -1041,6 +1045,22 @@ namespace MC_BE.Migrations
                     b.Property<string>("Level")
                         .HasColumnType("text")
                         .HasColumnName("Level");
+
+                    b.Property<string>("PreviewAssessmentOverview")
+                        .HasColumnType("text")
+                        .HasColumnName("PreviewAssessmentOverview");
+
+                    b.Property<string>("PreviewLearningOutcomes")
+                        .HasColumnType("text")
+                        .HasColumnName("PreviewLearningOutcomes");
+
+                    b.Property<string>("PreviewPrerequisites")
+                        .HasColumnType("text")
+                        .HasColumnName("PreviewPrerequisites");
+
+                    b.Property<string>("PreviewTargetAudience")
+                        .HasColumnType("text")
+                        .HasColumnName("PreviewTargetAudience");
 
                     b.Property<decimal>("Price")
                         .ValueGeneratedOnAdd()
@@ -1073,6 +1093,10 @@ namespace MC_BE.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("SubmittedAt");
 
+                    b.Property<int?>("SubmittedSyllabusVersionId")
+                        .HasColumnType("integer")
+                        .HasColumnName("SubmittedSyllabusVersionID");
+
                     b.Property<string>("ThumbnailUrl")
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)")
@@ -1094,12 +1118,16 @@ namespace MC_BE.Migrations
 
                     b.HasIndex("ApprovedById");
 
+                    b.HasIndex("ApprovedSyllabusVersionId");
+
                     b.HasIndex("CategoryId");
 
                     b.HasIndex("InstructorId");
 
                     b.HasIndex("Slug")
                         .IsUnique();
+
+                    b.HasIndex("SubmittedSyllabusVersionId");
 
                     b.ToTable("courses", null, t =>
                         {
@@ -1340,6 +1368,213 @@ namespace MC_BE.Migrations
                     b.HasIndex("UploaderId");
 
                     b.ToTable("course_materials", (string)null);
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.CourseSyllabusUploadSession", b =>
+                {
+                    b.Property<Guid>("SessionId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("SessionID");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("CompletedAt");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("ContentType");
+
+                    b.Property<int>("CourseId")
+                        .HasColumnType("integer")
+                        .HasColumnName("CourseID");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("CreatedAt")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<long>("ExpectedSize")
+                        .HasColumnType("bigint")
+                        .HasColumnName("ExpectedSize");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ExpiresAt");
+
+                    b.Property<string>("FileExtension")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("FileExtension");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("FileName");
+
+                    b.Property<int>("InstructorId")
+                        .HasColumnType("integer")
+                        .HasColumnName("InstructorID");
+
+                    b.Property<string>("ObjectKey")
+                        .IsRequired()
+                        .HasMaxLength(700)
+                        .HasColumnType("character varying(700)")
+                        .HasColumnName("ObjectKey");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("PENDING")
+                        .HasColumnName("Status");
+
+                    b.HasKey("SessionId");
+
+                    b.HasIndex("InstructorId");
+
+                    b.HasIndex("ObjectKey")
+                        .IsUnique();
+
+                    b.HasIndex("CourseId", "Status", "ExpiresAt");
+
+                    b.ToTable("course_syllabus_upload_sessions", (string)null);
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.CourseSyllabusVersion", b =>
+                {
+                    b.Property<int>("SyllabusVersionId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("SyllabusVersionId");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("SyllabusVersionId"));
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("ContentType");
+
+                    b.Property<int>("CourseId")
+                        .HasColumnType("integer")
+                        .HasColumnName("CourseID");
+
+                    b.Property<string>("FileExtension")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("FileExtension");
+
+                    b.Property<long>("FileSizeBytes")
+                        .HasColumnType("bigint")
+                        .HasColumnName("FileSizeBytes");
+
+                    b.Property<bool>("IsCurrent")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("IsCurrent");
+
+                    b.Property<string>("ObjectKey")
+                        .IsRequired()
+                        .HasMaxLength(700)
+                        .HasColumnType("character varying(700)")
+                        .HasColumnName("ObjectKey");
+
+                    b.Property<string>("OriginalFileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("OriginalFileName");
+
+                    b.Property<string>("PreviewAssessmentOverview")
+                        .HasColumnType("text")
+                        .HasColumnName("PreviewAssessmentOverview");
+
+                    b.Property<string>("PreviewDescription")
+                        .HasColumnType("text")
+                        .HasColumnName("PreviewDescription");
+
+                    b.Property<string>("PreviewLearningOutcomes")
+                        .HasColumnType("text")
+                        .HasColumnName("PreviewLearningOutcomes");
+
+                    b.Property<string>("PreviewPrerequisites")
+                        .HasColumnType("text")
+                        .HasColumnName("PreviewPrerequisites");
+
+                    b.Property<string>("PreviewTargetAudience")
+                        .HasColumnType("text")
+                        .HasColumnName("PreviewTargetAudience");
+
+                    b.Property<string>("ReviewNote")
+                        .HasColumnType("text")
+                        .HasColumnName("ReviewNote");
+
+                    b.Property<string>("ReviewStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)")
+                        .HasDefaultValue("DRAFT")
+                        .HasColumnName("ReviewStatus");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ReviewedAt");
+
+                    b.Property<int?>("ReviewedById")
+                        .HasColumnType("integer")
+                        .HasColumnName("ReviewedByID");
+
+                    b.Property<DateTime?>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("SubmittedAt");
+
+                    b.Property<DateTime>("UploadedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("UploadedAt")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<int>("UploadedById")
+                        .HasColumnType("integer")
+                        .HasColumnName("UploadedByID");
+
+                    b.Property<int>("VersionNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("VersionNumber");
+
+                    b.Property<bool>("WasPublishedBeforeSubmission")
+                        .HasColumnType("boolean")
+                        .HasColumnName("WasPublishedBeforeSubmission");
+
+                    b.HasKey("SyllabusVersionId");
+
+                    b.HasIndex("ObjectKey")
+                        .IsUnique();
+
+                    b.HasIndex("ReviewedById");
+
+                    b.HasIndex("UploadedById");
+
+                    b.HasIndex("CourseId", "IsCurrent")
+                        .IsUnique()
+                        .HasFilter("\"IsCurrent\" = TRUE");
+
+                    b.HasIndex("CourseId", "ReviewStatus");
+
+                    b.HasIndex("CourseId", "VersionNumber")
+                        .IsUnique();
+
+                    b.ToTable("course_syllabus_versions", (string)null);
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.Enrollment", b =>
@@ -3595,6 +3830,486 @@ namespace MC_BE.Migrations
                     b.ToTable("video_upload_sessions", (string)null);
                 });
 
+            modelBuilder.Entity("MC_BE.Features.VoiceJourney.Entities.VoiceAiEntitlement", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime?>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("GrantedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("LearnerId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("RevocationReason")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("SourceCourseId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("SourceEnrollmentId")
+                        .HasColumnType("integer");
+
+                    b.Property<long?>("SourceGrantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int?>("SourcePaymentItemId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SourceType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("ACTIVE");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SourceGrantId")
+                        .IsUnique()
+                        .HasFilter("\"SourceGrantId\" IS NOT NULL");
+
+                    b.HasIndex("SourcePaymentItemId")
+                        .IsUnique()
+                        .HasFilter("\"SourcePaymentItemId\" IS NOT NULL");
+
+                    b.HasIndex("LearnerId", "Status", "ExpiresAt");
+
+                    b.ToTable("voice_ai_entitlements", (string)null);
+                });
+
+            modelBuilder.Entity("MC_BE.Features.VoiceJourney.Entities.VoiceDiagnosticAttempt", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("LearnerId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ModelVersion")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<int>("PracticeSessionId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("PredictionsJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LearnerId", "CreatedAt");
+
+                    b.ToTable("voice_diagnostic_attempts");
+                });
+
+            modelBuilder.Entity("MC_BE.Features.VoiceJourney.Entities.VoiceExercise", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ExerciseType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("Instructions")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("LessonId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("PracticeText")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("voice_exercises");
+                });
+
+            modelBuilder.Entity("MC_BE.Features.VoiceJourney.Entities.VoiceExerciseAttempt", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ExerciseId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("FeedbackJson")
+                        .HasColumnType("jsonb");
+
+                    b.Property<int>("LearnerId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ModelVersion")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<int>("PracticeSessionId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("PredictionsJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LearnerId", "ExerciseId", "CreatedAt");
+
+                    b.ToTable("voice_exercise_attempts");
+                });
+
+            modelBuilder.Entity("MC_BE.Features.VoiceJourney.Entities.VoiceLesson", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("Difficulty")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("DocumentTitle")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("DocumentUrl")
+                        .HasMaxLength(1500)
+                        .HasColumnType("character varying(1500)");
+
+                    b.Property<int>("DurationMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsPublished")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("ModelLabel")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("ModelSignalDirection")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<int>("SkillId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("VideoUrl")
+                        .HasMaxLength(1500)
+                        .HasColumnType("character varying(1500)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("voice_lessons");
+                });
+
+            modelBuilder.Entity("MC_BE.Features.VoiceJourney.Entities.VoiceProfile", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Experience")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("Goal")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<int>("LearnerId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MinutesPerDay")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Region")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LearnerId")
+                        .IsUnique();
+
+                    b.ToTable("voice_profiles");
+                });
+
+            modelBuilder.Entity("MC_BE.Features.VoiceJourney.Entities.VoiceRecommendationSnapshot", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("LearnerId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("LessonId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<double>("Score")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LearnerId", "CreatedAt");
+
+                    b.ToTable("voice_recommendation_snapshots");
+                });
+
+            modelBuilder.Entity("MC_BE.Features.VoiceJourney.Entities.VoiceRoadmap", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Goal")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<int>("LearnerId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ModelVersion")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<int?>("SourcePracticeSessionId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LearnerId", "Version")
+                        .IsUnique();
+
+                    b.ToTable("voice_roadmaps");
+                });
+
+            modelBuilder.Entity("MC_BE.Features.VoiceJourney.Entities.VoiceRoadmapItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("DayNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("DurationMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ErrorCode")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("Instructions")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<bool>("IsCompleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<int?>("LessonId")
+                        .HasColumnType("integer");
+
+                    b.Property<double>("Priority")
+                        .HasColumnType("double precision");
+
+                    b.Property<int>("RoadmapId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LessonId");
+
+                    b.HasIndex("RoadmapId", "DayNumber")
+                        .IsUnique();
+
+                    b.ToTable("voice_roadmap_items");
+                });
+
+            modelBuilder.Entity("MC_BE.Features.VoiceJourney.Entities.VoiceSkill", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("SkillCode")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SkillCode")
+                        .IsUnique();
+
+                    b.ToTable("voice_skills");
+                });
+
+            modelBuilder.Entity("MC_BE.Features.VoiceJourney.Entities.VoiceSkillModelMapping", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsCalibrated")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("ModelLabel")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("SignalDirection")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<int>("SkillId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SkillId", "ModelLabel")
+                        .IsUnique();
+
+                    b.ToTable("voice_skill_model_mappings");
+                });
+
             modelBuilder.Entity("MC_BE.Core.Entities.AIPracticeFeedback", b =>
                 {
                     b.HasOne("MC_BE.Core.Entities.User", null)
@@ -3821,6 +4536,11 @@ namespace MC_BE.Migrations
                         .WithMany()
                         .HasForeignKey("ApprovedById");
 
+                    b.HasOne("MC_BE.Core.Entities.CourseSyllabusVersion", "ApprovedSyllabusVersion")
+                        .WithMany()
+                        .HasForeignKey("ApprovedSyllabusVersionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("MC_BE.Core.Entities.Category", "Category")
                         .WithMany("Courses")
                         .HasForeignKey("CategoryId")
@@ -3832,11 +4552,20 @@ namespace MC_BE.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("MC_BE.Core.Entities.CourseSyllabusVersion", "SubmittedSyllabusVersion")
+                        .WithMany()
+                        .HasForeignKey("SubmittedSyllabusVersionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("ApprovedBy");
+
+                    b.Navigation("ApprovedSyllabusVersion");
 
                     b.Navigation("Category");
 
                     b.Navigation("Instructor");
+
+                    b.Navigation("SubmittedSyllabusVersion");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.CourseAccessGrant", b =>
@@ -3913,6 +4642,51 @@ namespace MC_BE.Migrations
                     b.Navigation("Lesson");
 
                     b.Navigation("Uploader");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.CourseSyllabusUploadSession", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.Course", "Course")
+                        .WithMany()
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MC_BE.Core.Entities.User", "Instructor")
+                        .WithMany()
+                        .HasForeignKey("InstructorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Course");
+
+                    b.Navigation("Instructor");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.CourseSyllabusVersion", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.Course", "Course")
+                        .WithMany("SyllabusVersions")
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MC_BE.Core.Entities.User", "ReviewedBy")
+                        .WithMany()
+                        .HasForeignKey("ReviewedById")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("MC_BE.Core.Entities.User", "UploadedBy")
+                        .WithMany()
+                        .HasForeignKey("UploadedById")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Course");
+
+                    b.Navigation("ReviewedBy");
+
+                    b.Navigation("UploadedBy");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.Enrollment", b =>
@@ -4590,6 +5364,8 @@ namespace MC_BE.Migrations
                     b.Navigation("Modules");
 
                     b.Navigation("Quizzes");
+
+                    b.Navigation("SyllabusVersions");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.Enrollment", b =>

@@ -2,6 +2,7 @@ using MC_BE.Core.Entities;
 using MC_BE.Core.Enums;
 using MC_BE.Features.Courses.DTOs;
 using MC_BE.Features.Courses.Services.Interfaces;
+using MC_BE.Features.VoiceJourney.Entities;
 using MC_BE.Shared.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -111,6 +112,22 @@ public sealed class CourseGiftAccessService : ICourseGiftAccessService
                     GrantedAt = enrollment.EnrolledAt ?? enrollment.CreatedAt,
                     ExpiresAt = enrollment.ExpiresAt
                 });
+                var legacyEntitlementExists = await _db.VoiceAiEntitlements.AnyAsync(x =>
+                    x.SourceEnrollmentId == enrollment.EnrollmentId && x.SourceType == "MC_GIFT" &&
+                    x.SourcePaymentItemId == null, cancellationToken);
+                if (!legacyEntitlementExists)
+                {
+                    _db.VoiceAiEntitlements.Add(new VoiceAiEntitlement
+                    {
+                        LearnerId = enrollment.LearnerId,
+                        SourceType = "MC_GIFT",
+                        SourceCourseId = enrollment.CourseId,
+                        SourceEnrollmentId = enrollment.EnrollmentId,
+                        GrantedAt = enrollment.EnrolledAt ?? enrollment.CreatedAt,
+                        ExpiresAt = enrollment.ExpiresAt,
+                        Status = "ACTIVE"
+                    });
+                }
             }
         }
 
@@ -159,6 +176,25 @@ public sealed class CourseGiftAccessService : ICourseGiftAccessService
                 GrantedAt = grantedAt,
                 ExpiresAt = sourceEnrollment.ExpiresAt
             });
+
+            // A separate AI entitlement is issued for every paid item. It is independent
+            // from the course Enrollment and expires with its own source Enrollment.
+            var entitlementExists = await _db.VoiceAiEntitlements.AnyAsync(x =>
+                x.SourcePaymentItemId == item.PaymentItemId, cancellationToken);
+            if (!entitlementExists)
+            {
+                _db.VoiceAiEntitlements.Add(new VoiceAiEntitlement
+                {
+                    LearnerId = sourceEnrollment.LearnerId,
+                    SourceType = isDirectGiftCoursePurchase ? "AI_PURCHASE" : "MC_GIFT",
+                    SourceCourseId = isDirectGiftCoursePurchase ? item.CourseId : sourceEnrollment.CourseId,
+                    SourceEnrollmentId = sourceEnrollment.EnrollmentId,
+                    SourcePaymentItemId = item.PaymentItemId,
+                    GrantedAt = grantedAt,
+                    ExpiresAt = sourceEnrollment.ExpiresAt,
+                    Status = "ACTIVE"
+                });
+            }
 
             if (!isDirectGiftCoursePurchase)
                 await EnsureLearningEnrollmentAsync(sourceEnrollment.LearnerId, targetCourseId, sourceEnrollment.ExpiresAt, grantedAt, cancellationToken);

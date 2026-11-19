@@ -43,6 +43,7 @@ using MC_BE.Features.VoiceAssessment.Services.Interfaces;
 using MC_BE.Features.VoiceAssessment.Providers;
 using MC_BE.Features.VoiceAssessment.Providers.Interfaces;
 using Microsoft.Extensions.Options;
+using MC_BE.Features.VoiceJourney.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 // ============================================================
@@ -145,6 +146,7 @@ builder.Services.AddScoped<IAdminStatsService, AdminStatsService>();
 // COURSE MANAGEMENT
 // ============================================================
 builder.Services.AddScoped<ICourseService, CourseService>();
+builder.Services.AddScoped<ICourseSyllabusService, CourseSyllabusService>();
 builder.Services.AddScoped<ICourseMaterialsReadRepository, CourseMaterialsReadRepository>();
 builder.Services.AddScoped<ICourseMaterialsReadService, CourseMaterialsReadService>();
 builder.Services.AddScoped<ICourseLearningAccessService, CourseLearningAccessService>();
@@ -224,6 +226,10 @@ builder.Services.AddScoped<ICallService, CallService>();
 // ============================================================
 // Model AI
 // ============================================================
+// C03: Vietnamese ASR trên MSEEK Space. C02 gọi từ AIPracticeService.
+// Không đăng ký MaiTranscribeService lần nữa cho IAsrService.
+builder.Services.AddTransient<IAsrService, HuggingFaceAsrService>();
+
 builder.Services.Configure<OpenAISettings>(
     builder.Configuration.GetSection("OpenAI"));
 
@@ -293,7 +299,17 @@ builder.Services.AddScoped<
     AIResponseService>();
 
 // AI PRACTICE (bổ sung độc lập, giữ nguyên AIResponseService)
+// ============================================================
+// AI PRACTICE + VOICE AI ENTITLEMENT
+// ============================================================
+
+// Service tạo và truy xuất kết quả luyện tập AI
 builder.Services.AddScoped<IAIPracticeService, AIPracticeService>();
+
+// Service kiểm tra quyền sử dụng tính năng Voice AI
+builder.Services.AddScoped<
+    IVoiceAiEntitlementService,
+    VoiceAiEntitlementService>();
 
 builder.Services.AddHttpClient<
     ILLMProvider,

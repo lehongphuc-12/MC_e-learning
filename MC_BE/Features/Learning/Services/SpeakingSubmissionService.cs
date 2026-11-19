@@ -167,7 +167,7 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
             // ====================================================================================================
             // [BƯỚC 3]: XÁC MINH QUYỀN TRUY CẬP VÀ GHI DANH KHÓA HỌC
             // ====================================================================================================
-            if (!await _courseAccess.CanAccessCourseAsync(courseId, learnerId, isAdmin: false))
+            if (courseId <= 0 || !await _courseAccess.CanAccessCourseAsync(courseId, learnerId, isAdmin: false))
                 throw new InvalidOperationException("Bạn không có quyền truy cập khóa học này.");
 
             var enrollments = await _enrollmentRepository.FindAsync(

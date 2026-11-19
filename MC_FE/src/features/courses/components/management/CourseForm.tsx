@@ -25,9 +25,12 @@ import {
   BarChart,
   Upload,
   Link as LinkIcon,
+  FileText,
 } from 'lucide-react';
 import type { Category, Course } from '../../types/courseTypes';
 import { courseApi } from '../../api/courseApi';
+import { courseSyllabusApi, type SyllabusVersion } from '../../api/courseSyllabusApi';
+import { CourseSyllabusDocumentViewer } from '../CourseSyllabusDocumentViewer';
 
 // ---------------------------------------------------------------------------
 // Zod Schema  — Vietnamese validation messages
@@ -39,6 +42,10 @@ export const courseSchema = z.object({
     .max(255, 'Tên khóa học không vượt quá 255 ký tự'),
 
   description: z.string().optional(),
+  previewTargetAudience: z.string().max(3000, 'Tối đa 3000 ký tự').optional(),
+  previewPrerequisites: z.string().max(3000, 'Tối đa 3000 ký tự').optional(),
+  previewLearningOutcomes: z.string().max(5000, 'Tối đa 5000 ký tự').optional(),
+  previewAssessmentOverview: z.string().max(3000, 'Tối đa 3000 ký tự').optional(),
 
   categoryId: z
     .string()
@@ -86,7 +93,7 @@ interface CourseFormProps {
   existingCourse?: Course;
   categories: Category[];
   isSubmitting: boolean;
-  onSubmit: (data: CourseFormData) => void;
+  onSubmit: (data: CourseFormData & { syllabusFile?: File; submitForApproval?: boolean }) => void;
   onCancel: () => void;
 }
 
@@ -130,6 +137,11 @@ export const CourseForm: React.FC<CourseFormProps> = ({
   const [isUploadingThumbnail, setIsUploadingThumbnail] = useState(false);
   const [thumbnailUploadError, setThumbnailUploadError] = useState<string | null>(null);
   const [approvalFormError, setApprovalFormError] = useState<string | null>(null);
+  const [syllabusFile, setSyllabusFile] = useState<File | undefined>();
+  const [syllabusFileError, setSyllabusFileError] = useState<string | null>(null);
+  const [currentSyllabus, setCurrentSyllabus] = useState<SyllabusVersion | null>(null);
+  const [showSyllabusPreview, setShowSyllabusPreview] = useState(false);
+  const [previewLoadError, setPreviewLoadError] = useState<string | null>(null);
 
   const {
     register,
@@ -143,6 +155,10 @@ export const CourseForm: React.FC<CourseFormProps> = ({
     defaultValues: {
       title: '',
       description: '',
+      previewTargetAudience: '',
+      previewPrerequisites: '',
+      previewLearningOutcomes: '',
+      previewAssessmentOverview: '',
       categoryId: '',
       thumbnailUrl: '',
       isFree: false,
@@ -157,6 +173,10 @@ export const CourseForm: React.FC<CourseFormProps> = ({
       reset({
         title: existingCourse.title,
         description: existingCourse.description ?? '',
+        previewTargetAudience: '',
+        previewPrerequisites: '',
+        previewLearningOutcomes: '',
+        previewAssessmentOverview: '',
         categoryId: existingCourse.categoryId?.toString() ?? '',
         thumbnailUrl: existingCourse.thumbnailUrl ?? '',
         isFree: existingCourse.isFree ?? existingCourse.price <= 0,
@@ -166,6 +186,45 @@ export const CourseForm: React.FC<CourseFormProps> = ({
       });
     }
   }, [existingCourse, reset]);
+
+  useEffect(() => {
+    let active = true;
+    if (!existingCourse) { setCurrentSyllabus(null); return; }
+    courseSyllabusApi.getCurrent(existingCourse.courseId)
+      .then((version) => { if (active) setCurrentSyllabus(version); })
+      .catch(() => { if (active) setCurrentSyllabus(null); });
+    return () => { active = false; };
+  }, [existingCourse?.courseId]);
+
+  useEffect(() => {
+    let active = true;
+    if (!existingCourse) return;
+    setPreviewLoadError(null);
+    courseSyllabusApi.getPreviewDraft(existingCourse.courseId)
+      .then((preview) => {
+        if (!active || !preview) return;
+        setValue('description', preview.description ?? '');
+        setValue('previewTargetAudience', preview.targetAudience ?? '');
+        setValue('previewPrerequisites', preview.prerequisites ?? '');
+        setValue('previewLearningOutcomes', preview.learningOutcomes ?? '');
+        setValue('previewAssessmentOverview', preview.assessmentOverview ?? '');
+      })
+      .catch((error: unknown) => {
+        if (active) setPreviewLoadError(error instanceof Error ? error.message : 'Không tải được nội dung xem trước.');
+      });
+    return () => { active = false; };
+  }, [existingCourse?.courseId, setValue]);
+
+  const deleteCurrentSyllabus = async () => {
+    if (!existingCourse || !currentSyllabus) return;
+    try {
+      await courseSyllabusApi.deleteDraft(existingCourse.courseId, currentSyllabus.syllabusVersionId);
+      setCurrentSyllabus(null);
+      setShowSyllabusPreview(false);
+    } catch (error) {
+      setSyllabusFileError(error instanceof Error ? error.message : 'Không thể xóa phiên bản syllabus này.');
+    }
+  };
 
   // Real-time live watched values for the interactive preview card
   const watchedValues = watch();
@@ -224,7 +283,7 @@ export const CourseForm: React.FC<CourseFormProps> = ({
   return (
     <form
       id="course-form"
-      onSubmit={handleSubmit(onSubmit as any)}
+      onSubmit={handleSubmit((data) => onSubmit({ ...data, syllabusFile } as unknown as CourseFormData & { syllabusFile?: File }))}
       className="no-validate"
       noValidate
     >
@@ -272,6 +331,27 @@ export const CourseForm: React.FC<CourseFormProps> = ({
               {...register('description')}
             />
           </FormField>
+
+          <section className="space-y-4 rounded-2xl border border-indigo-100 bg-indigo-50/40 p-4 sm:p-5">
+            <div>
+              <h3 className="flex items-center gap-2 text-sm font-extrabold text-slate-900"><Eye className="h-4 w-4 text-indigo-600" /> Nội dung xem trước khi mua</h3>
+              <p className="mt-1 text-xs leading-relaxed text-slate-500">Thông tin này sẽ hiển thị công khai trên trang chi tiết khóa học sau khi Admin duyệt. File syllabus đầy đủ vẫn được giới hạn cho người đã có quyền học.</p>
+            </div>
+            <FormField id="previewTargetAudience" label="Khóa học phù hợp với ai">
+              <textarea id="previewTargetAudience" rows={3} placeholder="Mỗi dòng là một nhóm học viên phù hợp" className={`${inputClass} resize-y leading-relaxed`} {...register('previewTargetAudience')} />
+            </FormField>
+            <FormField id="previewPrerequisites" label="Yêu cầu đầu vào">
+              <textarea id="previewPrerequisites" rows={3} placeholder="Kiến thức hoặc kỹ năng nên có trước khi học; mỗi dòng một ý" className={`${inputClass} resize-y leading-relaxed`} {...register('previewPrerequisites')} />
+            </FormField>
+            <FormField id="previewLearningOutcomes" label="Chuẩn đầu ra (LO)">
+              <textarea id="previewLearningOutcomes" rows={5} placeholder="Ví dụ: LO1 — Giải thích được quy trình và nghi thức cưới" className={`${inputClass} resize-y leading-relaxed`} {...register('previewLearningOutcomes')} />
+              <p className="text-xs text-slate-500">Mỗi dòng sẽ được trình bày thành một chuẩn đầu ra riêng cho học viên xem.</p>
+            </FormField>
+            <FormField id="previewAssessmentOverview" label="Hình thức đánh giá và điều kiện hoàn thành">
+              <textarea id="previewAssessmentOverview" rows={4} placeholder="Ví dụ: Quiz từng chương; bài thi cuối gồm quiz và video thực hành; cần đạt từ 80/100..." className={`${inputClass} resize-y leading-relaxed`} {...register('previewAssessmentOverview')} />
+            </FormField>
+            {previewLoadError && <p role="alert" className="text-xs font-semibold text-rose-600">Không tải được nội dung xem trước đã lưu: {previewLoadError}</p>}
+          </section>
 
           {/* Category & Level */}
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
@@ -400,11 +480,44 @@ export const CourseForm: React.FC<CourseFormProps> = ({
                   {isUploadingThumbnail ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4 text-blue-600" />}
                   {isUploadingThumbnail ? 'Đang tải ảnh lên Cloudinary…' : 'Chọn ảnh JPG, PNG, WEBP hoặc GIF (tối đa 5 MB)'}
                 </label>
-                <input id="thumbnailFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="sr-only" disabled={isUploadingThumbnail || isSubmitting} onChange={handleThumbnailFile} />
+                <input id="thumbnailFile" type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" disabled={isUploadingThumbnail || isSubmitting} onChange={handleThumbnailFile} />
                 {watchedValues.thumbnailUrl && <p className="truncate text-xs text-emerald-700">Ảnh đã chọn: {watchedValues.thumbnailUrl}</p>}
                 {thumbnailUploadError && <p role="alert" className="text-xs font-semibold text-rose-600">{thumbnailUploadError}</p>}
               </div>
             )}
+          </FormField>
+
+          <FormField id="course-syllabus-file" label="Đề cương khóa học (PDF/DOCX)" icon={<FileText className="h-4 w-4 text-indigo-600" />}>
+            <label htmlFor="course-syllabus-file" className="flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-indigo-200 bg-indigo-50/50 px-4 py-4 text-sm text-slate-700 hover:border-indigo-400 hover:bg-indigo-50">
+              <FileText className="h-5 w-5 shrink-0 text-indigo-600" />
+              <span className="min-w-0 flex-1">
+                <span className="block font-semibold">{syllabusFile?.name ?? 'Chọn đề cương từ thiết bị'}</span>
+                <span className="block text-xs text-slate-500">Tối đa 20 MB. File chỉ được tải lên R2 sau khi bấm Lưu.</span>
+              </span>
+              <span className="rounded-lg bg-white px-3 py-2 text-xs font-bold text-indigo-700 shadow-sm">Chọn file</span>
+            </label>
+            <input id="course-syllabus-file" className="hidden" type="file" accept="application/pdf,.pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx" disabled={isSubmitting} onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = '';
+              if (!file) return;
+              const validType = file.type === 'application/pdf' || file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+              if (!validType || file.size > 20 * 1024 * 1024) {
+                setSyllabusFileError('Chỉ nhận PDF hoặc DOCX, dung lượng không quá 20 MB.');
+                return;
+              }
+              setSyllabusFileError(null);
+              setSyllabusFile(file);
+            }} />
+            {existingCourse && <p className="text-xs text-slate-500">Khi tải bản mới, bản Admin đã duyệt tiếp tục có hiệu lực cho học viên cho đến khi bản mới được duyệt.</p>}
+            {currentSyllabus && <div className="flex flex-wrap items-center gap-2 rounded-lg bg-slate-50 p-3 text-xs">
+              <FileText className="h-4 w-4 text-indigo-600" />
+              <span className="min-w-0 flex-1 truncate font-semibold text-slate-700">Bản hiện tại v{currentSyllabus.versionNumber}: {currentSyllabus.originalFileName} · {currentSyllabus.reviewStatus}</span>
+              <button type="button" onClick={() => setShowSyllabusPreview((value) => !value)} className="font-bold text-blue-700">{showSyllabusPreview ? 'Ẩn xem trước' : 'Xem trước'}</button>
+              {['DRAFT', 'REJECTED'].includes(currentSyllabus.reviewStatus) && <button type="button" onClick={deleteCurrentSyllabus} className="font-bold text-rose-600">Xóa bản nháp</button>}
+            </div>}
+            {showSyllabusPreview && existingCourse && currentSyllabus && <CourseSyllabusDocumentViewer courseId={existingCourse.courseId} version={currentSyllabus} />}
+            {syllabusFileError && <p role="alert" className="text-xs font-semibold text-rose-600">{syllabusFileError}</p>}
+            {syllabusFile && <button type="button" onClick={() => setSyllabusFile(undefined)} className="text-xs font-semibold text-rose-600">Bỏ chọn file</button>}
           </FormField>
 
           {/* Submission Note for Admin */}
@@ -450,9 +563,10 @@ export const CourseForm: React.FC<CourseFormProps> = ({
               id="course-form-submit-approval-btn"
               type="button"
               disabled={isSubmitting || isUploadingThumbnail}
-              onClick={handleSubmit((data) => {
+      onClick={handleSubmit((data) => {
                 onSubmit({
                   ...data,
+                  syllabusFile,
                   submitForApproval: true,
                 } as any);
               }, () => {

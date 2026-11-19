@@ -1177,8 +1177,8 @@ export const UpdateQuizPage: React.FC<
         {
           purpose: quiz?.purpose ?? 'PRACTICE',
           moduleId: quiz?.moduleId ?? null,
-          availableFrom: quiz?.availableFrom ?? null,
-          availableUntil: quiz?.availableUntil ?? null,
+          availableFrom: ((quiz?.purpose === 'PRACTICE' && quiz?.lessonId != null) || quiz?.purpose === 'FINAL_ASSESSMENT') ? null : quiz?.availableFrom ?? null,
+          availableUntil: ((quiz?.purpose === 'PRACTICE' && quiz?.lessonId != null) || quiz?.purpose === 'FINAL_ASSESSMENT') ? null : quiz?.availableUntil ?? null,
           title:
             title.trim(),
 

@@ -81,6 +81,8 @@ export interface SpeakingScriptDto {
   title: string;
   originalContent?: string;
   passingScore?: number;
+  /** Optional UI estimate; current API may omit it for course-level scripts. */
+  durationMinutes?: number;
   createdBy?: number;
   createdByName?: string;
   status: SpeakingScriptStatus;

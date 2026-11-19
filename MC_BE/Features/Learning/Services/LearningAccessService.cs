@@ -71,7 +71,8 @@ public sealed class LearningAccessService : ILearningAccessService
         int? LessonId,
         int? ModuleId,
         QuizPurpose Purpose,
-        QuizStatus Status
+        QuizStatus Status,
+        DateTime? AvailableUntil
     );
 
     /// <summary>
@@ -93,6 +94,59 @@ public sealed class LearningAccessService : ILearningAccessService
     private static bool IsPracticePurpose(QuizPurpose purpose) =>
         purpose == QuizPurpose.PRACTICE ||
         purpose == QuizPurpose.DAILY_PRACTICE;
+
+    // PRACTICE lesson quizzes and FINAL_ASSESSMENT use individual seven-day windows.
+    // DAILY_PRACTICE keeps its existing scheduled-date behavior.
+    private static bool IsSevenDayQuiz(QuizPurpose purpose, int? lessonId) =>
+        (purpose == QuizPurpose.PRACTICE && lessonId.HasValue) ||
+        purpose == QuizPurpose.FINAL_ASSESSMENT;
+
+    private async Task<(bool Allowed, string? Reason)> CheckSevenDayWindowAsync(
+        int learnerId, int courseId, QuizPurpose purpose, int? lessonId, DateTime now)
+    {
+        if (!IsSevenDayQuiz(purpose, lessonId)) return (true, null);
+
+        int? anchorLessonId = lessonId;
+        if (purpose == QuizPurpose.FINAL_ASSESSMENT)
+        {
+            // Use the last ACTIVE video lesson in curriculum order, not the final quiz itself.
+            // This prevents a circular dependency on course completion.
+            var moduleIds = await _db.Modules.AsNoTracking()
+                .Where(m => m.CourseId == courseId)
+                .OrderBy(m => m.OrderIndex).ThenBy(m => m.ModuleId)
+                .Select(m => m.ModuleId).ToListAsync();
+            var videoLessons = await _db.Lessons.AsNoTracking()
+                .Where(l => l.CourseId == courseId && l.Status == LessonStatus.ACTIVE &&
+                    l.CourseMaterials.Any(m => m.MaterialType == MaterialType.VIDEO &&
+                        ((m.ObjectKey != null && m.ObjectKey != "") ||
+                         (m.FileUrl != null && m.FileUrl != ""))))
+                .Select(l => new { l.LessonId, l.ModuleId, l.OrderIndex }).ToListAsync();
+            anchorLessonId = videoLessons
+                .OrderBy(l => l.ModuleId.HasValue && moduleIds.Contains(l.ModuleId.Value)
+                    ? moduleIds.IndexOf(l.ModuleId.Value) : int.MaxValue)
+                .ThenBy(l => l.OrderIndex).ThenBy(l => l.LessonId)
+                .Select(l => (int?)l.LessonId).LastOrDefault();
+        }
+        if (!anchorLessonId.HasValue)
+            return (false, "Không tìm thấy video làm mốc mở Quiz.");
+
+        // Earliest recorded completion is stable across subsequent progress updates.
+        var completedAt = await _db.LessonProgresses.AsNoTracking()
+            .Where(p => p.LessonId == anchorLessonId.Value &&
+                p.Enrollment.LearnerId == learnerId &&
+                p.Enrollment.CourseId == courseId &&
+                p.Enrollment.Status != "PENDING_PAYMENT" &&
+                (p.IsCompleted || p.Status == LessonProgressStatus.COMPLETED))
+            .OrderBy(p => p.CompletedAt ?? p.UpdatedAt)
+            .Select(p => (DateTime?)(p.CompletedAt ?? p.UpdatedAt))
+            .FirstOrDefaultAsync();
+        if (!completedAt.HasValue)
+            return (false, "Vui lòng hoàn thành video trước khi mở Quiz.");
+        if (now >= completedAt.Value.AddDays(7))
+            return (false, "Quiz đã hết hạn 7 ngày kể từ khi hoàn thành video.");
+        return (true, null);
+    }
+
 
     /// <summary>
     /// [Dòng này làm gì & Luồng chạy]:
@@ -158,7 +212,8 @@ public sealed class LearningAccessService : ILearningAccessService
                 x.LessonId,
                 x.ModuleId,
                 x.Purpose,
-                x.Status))
+                x.Status,
+                x.AvailableUntil))
             .ToListAsync();
 
         var quizIds = quizzes.Select(q => q.Id).ToList();
@@ -240,6 +295,17 @@ public sealed class LearningAccessService : ILearningAccessService
                 q.LessonId == lessonId)
             .ToList();
 
+    // Quiz hết hạn không còn chặn việc mở video tiếp theo.
+    // Điều này KHÔNG tính quiz là PASSED và không thay đổi điều kiện cấp chứng chỉ.
+    private static bool BlocksLessonProgress(QuizNode quiz, LearningSnapshot data) =>
+        !data.PassedQuizIds.Contains(quiz.Id) &&
+        quiz.Status == QuizStatus.ACTIVE &&
+        (!quiz.AvailableUntil.HasValue || DateTime.UtcNow < quiz.AvailableUntil.Value);
+
+    // Bài có video phải hoàn thành video trước khi chuyển bài.
+    // Chỉ yêu cầu PASS bài tập khi bài học thực sự được gắn quiz luyện tập ACTIVE.
+    // Nếu bài học không có quiz luyện tập thì không phát sinh điều kiện PASS quiz.
+
     /// <summary>
     /// [Dòng này làm gì & Luồng chạy]:
     /// - Kiểm tra điều kiện hoàn thành bài học: Bắt buộc xem hết video (nếu có video) và đạt toàn bộ Quiz bài tập gắn kèm.
@@ -263,11 +329,7 @@ public sealed class LearningAccessService : ILearningAccessService
             ActivePracticeQuizzesForLesson(data, lesson.Id);
 
         // [BƯỚC 3]: Rẽ nhánh kiểm tra điểm đạt bài tập
-        // - Điều kiện: practices.Any(q => !data.PassedQuizIds.Contains(q.Id))
-        //   (Tồn tại ít nhất 1 bài tập trắc nghiệm mà học viên chưa thi đỗ).
-        // - Trường hợp ĐÚNG (TRUE): Chặn lại và yêu cầu đạt bài tập trước.
-        if (practices.Any(q =>
-            !data.PassedQuizIds.Contains(q.Id)))
+        if (practices.Any(q => BlocksLessonProgress(q, data)))
         {
             return $"Vui lòng đạt tất cả bài tập luyện tập của bài học {lesson.Id} trước.";
         }
@@ -337,8 +399,7 @@ public sealed class LearningAccessService : ILearningAccessService
                     q.ModuleId == previousModuleId)
                 .ToList();
 
-            if (chapterAssessments.Any(q =>
-                !data.PassedQuizIds.Contains(q.Id)))
+            if (chapterAssessments.Any(q => BlocksLessonProgress(q, data)))
             {
                 return "Vui lòng đạt bài đánh giá chương trước.";
             }
@@ -470,10 +531,11 @@ public sealed class LearningAccessService : ILearningAccessService
         // [BƯỚC 2]: Kiểm tra khung thời gian cho phép làm bài (Time Window Check)
         var now = DateTime.UtcNow;
 
-        if ((quiz.AvailableFrom.HasValue &&
+        if (!IsSevenDayQuiz(quiz.Purpose, quiz.LessonId) &&
+            ((quiz.AvailableFrom.HasValue &&
              now < quiz.AvailableFrom.Value) ||
             (quiz.AvailableUntil.HasValue &&
-             now >= quiz.AvailableUntil.Value))
+             now >= quiz.AvailableUntil.Value)))
         {
             return (false, "Bài kiểm tra nằm ngoài thời gian được phép làm.");
         }
@@ -501,6 +563,12 @@ public sealed class LearningAccessService : ILearningAccessService
         {
             return (false, "Bài kiểm tra chưa được gắn với khóa học.");
         }
+
+        var sevenDayWindow = await CheckSevenDayWindowAsync(
+            learnerId, courseId.Value, quiz.Purpose, quiz.LessonId, now);
+        if (!sevenDayWindow.Allowed) return sevenDayWindow;
+
+        // Kiểm tra ghi danh.
 
         // [BƯỚC 4]: Kiểm tra ghi danh khóa học của học viên
         var enrolled = await _db.Enrollments.AsNoTracking()

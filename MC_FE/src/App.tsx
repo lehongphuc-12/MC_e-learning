@@ -69,6 +69,11 @@ export default function App() {
   // - cart thuộc account nào
   // - có cần sync Enrollment hay không
   const store = useAppStore(user);
+  const [previewLesson, setPreviewLesson] = useState<{ lessonId: number; title: string } | null>(null);
+  const openVideoPreview = (course: Course, lessonId?: number, lessonTitle?: string) => {
+    setPreviewLesson(lessonId ? { lessonId, title: lessonTitle ?? 'Bài học xem trước' } : null);
+    store.setPreviewModalCourse(course);
+  };
 
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -496,9 +501,7 @@ export default function App() {
         searchQuery={searchQuery}
         user={user}
         onSearchChange={setSearchQuery}
-        onPreviewVideo={
-          store.setPreviewModalCourse
-        }
+        onPreviewVideo={openVideoPreview}
         onAddToCart={
           store.handleAddToCart
         }
@@ -578,10 +581,13 @@ export default function App() {
         isOpen={
           !!store.previewModalCourse
         }
+        lessonId={previewLesson?.lessonId ?? null}
+        lessonTitle={previewLesson?.title}
         onClose={() =>
-          store.setPreviewModalCourse(
-            null
-          )
+          {
+            store.setPreviewModalCourse(null);
+            setPreviewLesson(null);
+          }
         }
         onEnroll={
           store.setCheckoutModalCourse

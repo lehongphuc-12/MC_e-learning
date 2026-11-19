@@ -140,3 +140,8 @@ nhac_nen/
 *.mp3
 *.wav
 
+
+/MC.zip
+/qdrant_db/
+
+/MC_BE.zip

@@ -38,6 +38,8 @@ public class LessonPlaybackDto
     public int LessonId { get; set; }
     public string Url { get; set; } = string.Empty;
     public DateTime ExpiresAt { get; set; }
+    public bool IsPreviewOnly { get; set; }
+    public int? PreviewDurationSeconds { get; set; }
 }
 
 public class CreateLessonRequest

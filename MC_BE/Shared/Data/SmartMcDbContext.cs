@@ -1,3 +1,4 @@
+using MC_BE.Features.VoiceJourney.Entities;
 using System;
 using MC_BE.Core.Entities;
 using MC_BE.Core.Enums;
@@ -53,6 +54,8 @@ public class SmartMcDbContext : DbContext
     public DbSet<CourseDeletionRequest> CourseDeletionRequests { get; set; } = null!;
     public DbSet<CourseGiftPolicy> CourseGiftPolicies { get; set; } = null!;
     public DbSet<CourseAccessGrant> CourseAccessGrants { get; set; } = null!;
+    public DbSet<CourseSyllabusVersion> CourseSyllabusVersions { get; set; } = null!;
+    public DbSet<CourseSyllabusUploadSession> CourseSyllabusUploadSessions { get; set; } = null!;
 
     // ============================================================
     // Section 3: Payment
@@ -118,9 +121,41 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
 
     public DbSet<AIPronunciationFeedback> AIPronunciationFeedbacks
     { get; set; } = null!;
+    public DbSet<MC_BE.Features.VoiceJourney.Entities.VoiceAiEntitlement> VoiceAiEntitlements { get; set; } = null!;
+    public DbSet<VoiceProfile> VoiceProfiles { get; set; } = null!;
+    public DbSet<VoiceRoadmap> VoiceRoadmaps { get; set; } = null!;
+    public DbSet<VoiceRoadmapItem> VoiceRoadmapItems { get; set; } = null!;
+    public DbSet<VoiceSkill> VoiceSkills { get; set; } = null!;
+    public DbSet<VoiceLesson> VoiceLessons { get; set; } = null!;
+    public DbSet<VoiceExercise> VoiceExercises { get; set; } = null!;
+    public DbSet<VoiceExerciseAttempt> VoiceExerciseAttempts { get; set; } = null!;
+    public DbSet<VoiceDiagnosticAttempt> VoiceDiagnosticAttempts { get; set; } = null!;
+    public DbSet<VoiceSkillModelMapping> VoiceSkillModelMappings { get; set; } = null!;
+    public DbSet<VoiceRecommendationSnapshot> VoiceRecommendationSnapshots { get; set; } = null!;
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.Entity<MC_BE.Features.VoiceJourney.Entities.VoiceAiEntitlement>(entity => {
+            entity.ToTable("voice_ai_entitlements");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.SourcePaymentItemId).IsUnique().HasFilter("\"SourcePaymentItemId\" IS NOT NULL");
+            entity.HasIndex(x => x.SourceGrantId).IsUnique().HasFilter("\"SourceGrantId\" IS NOT NULL");
+            entity.HasIndex(x => new { x.LearnerId, x.Status, x.ExpiresAt });
+            entity.Property(x => x.SourceType).HasMaxLength(30).IsRequired();
+            entity.Property(x => x.Status).HasMaxLength(20).HasDefaultValue("ACTIVE");
+            entity.Property(x => x.RevocationReason).HasMaxLength(200);
+        });
+        modelBuilder.Entity<VoiceProfile>().HasIndex(x => x.LearnerId).IsUnique();
+        modelBuilder.Entity<VoiceRoadmap>().HasIndex(x => new { x.LearnerId, x.Version }).IsUnique();
+        modelBuilder.Entity<VoiceRoadmapItem>().HasIndex(x => new { x.RoadmapId, x.DayNumber }).IsUnique();
+        modelBuilder.Entity<VoiceRoadmapItem>().HasIndex(x => x.LessonId);
+        modelBuilder.Entity<VoiceSkill>().HasIndex(x => x.SkillCode).IsUnique();
+        modelBuilder.Entity<VoiceSkillModelMapping>().HasIndex(x => new { x.SkillId, x.ModelLabel }).IsUnique();
+        modelBuilder.Entity<VoiceExerciseAttempt>().HasIndex(x => new { x.LearnerId, x.ExerciseId, x.CreatedAt });
+        modelBuilder.Entity<VoiceDiagnosticAttempt>().HasIndex(x => new { x.LearnerId, x.CreatedAt });
+        modelBuilder.Entity<VoiceRecommendationSnapshot>().HasIndex(x => new { x.LearnerId, x.CreatedAt });
+
 
         // ============================================================
         // Section 1: Auth & User
@@ -249,6 +284,61 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
             entity.HasOne(d => d.Instructor)
                 .WithMany(p => p.InstructedCourses)
                 .HasForeignKey(d => d.InstructorId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(d => d.SubmittedSyllabusVersion)
+                .WithMany()
+                .HasForeignKey(d => d.SubmittedSyllabusVersionId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(d => d.ApprovedSyllabusVersion)
+                .WithMany()
+                .HasForeignKey(d => d.ApprovedSyllabusVersionId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<CourseSyllabusVersion>(entity =>
+        {
+            entity.ToTable("course_syllabus_versions");
+            entity.HasKey(version => version.SyllabusVersionId);
+            entity.HasIndex(version => new { version.CourseId, version.VersionNumber }).IsUnique();
+            entity.HasIndex(version => new { version.CourseId, version.IsCurrent })
+                .IsUnique()
+                .HasFilter("\"IsCurrent\" = TRUE");
+            entity.HasIndex(version => new { version.CourseId, version.ReviewStatus });
+            entity.HasIndex(version => version.ObjectKey).IsUnique();
+            entity.Property(version => version.ReviewStatus).HasDefaultValue("DRAFT");
+            entity.Property(version => version.IsCurrent).HasDefaultValue(true);
+            entity.Property(version => version.UploadedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasOne(version => version.Course)
+                .WithMany(course => course.SyllabusVersions)
+                .HasForeignKey(version => version.CourseId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(version => version.UploadedBy)
+                .WithMany()
+                .HasForeignKey(version => version.UploadedById)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(version => version.ReviewedBy)
+                .WithMany()
+                .HasForeignKey(version => version.ReviewedById)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<CourseSyllabusUploadSession>(entity =>
+        {
+            entity.ToTable("course_syllabus_upload_sessions");
+            entity.HasKey(session => session.SessionId);
+            entity.HasIndex(session => new { session.CourseId, session.Status, session.ExpiresAt });
+            entity.HasIndex(session => session.ObjectKey).IsUnique();
+            entity.Property(session => session.Status).HasDefaultValue("PENDING");
+            entity.Property(session => session.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasOne(session => session.Course)
+                .WithMany()
+                .HasForeignKey(session => session.CourseId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(session => session.Instructor)
+                .WithMany()
+                .HasForeignKey(session => session.InstructorId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

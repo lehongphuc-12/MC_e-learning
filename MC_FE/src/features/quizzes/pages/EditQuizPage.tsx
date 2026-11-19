@@ -443,6 +443,7 @@ export const EditQuizPage: React.FC<EditQuizPageProps> = ({ onToast }) => {
   const [status, setStatus] = useState<QuizStatus>('DRAFT');
   const [availableFrom, setAvailableFrom] = useState('');
   const [availableUntil, setAvailableUntil] = useState('');
+  const isSelfPacedLessonQuiz = (quiz?.purpose === 'PRACTICE' && quiz?.lessonId != null) || quiz?.purpose === 'FINAL_ASSESSMENT';
   const [questions, setQuestions] = useState<CreateQuestionRequest[]>([]);
   const [identities, setIdentities] = useState<QuestionIdentity[]>([]);
   const [initializedQuizId, setInitializedQuizId] = useState<number | null>(
@@ -533,9 +534,9 @@ export const EditQuizPage: React.FC<EditQuizPageProps> = ({ onToast }) => {
   const handleAddAndExpand = () => { setExpandedQuestions(current => [...current, questions.length]); handleAddQuestion(); };
   const handleRemoveAndCollapse = (index: number) => { handleRemoveQuestion(index); setExpandedQuestions(current => current.filter(i => i !== index).map(i => i > index ? i - 1 : i)); };
   const validateForm = (): string | null => {
-    if (availableFrom && Number.isNaN(new Date(availableFrom).getTime())) return 'Ngày giờ bắt đầu không hợp lệ.';
-    if (availableUntil && Number.isNaN(new Date(availableUntil).getTime())) return 'Ngày giờ kết thúc không hợp lệ.';
-    if (availableFrom && availableUntil && new Date(availableUntil).getTime() <= new Date(availableFrom).getTime()) return 'Ngày giờ kết thúc phải sau ngày giờ bắt đầu.';
+    if (!isSelfPacedLessonQuiz && availableFrom && Number.isNaN(new Date(availableFrom).getTime())) return 'Ngày giờ bắt đầu không hợp lệ.';
+    if (!isSelfPacedLessonQuiz && availableUntil && Number.isNaN(new Date(availableUntil).getTime())) return 'Ngày giờ kết thúc không hợp lệ.';
+    if (!isSelfPacedLessonQuiz && availableFrom && availableUntil && new Date(availableUntil).getTime() <= new Date(availableFrom).getTime()) return 'Ngày giờ kết thúc phải sau ngày giờ bắt đầu.';
     if (!title.trim()) {
       return 'Vui lòng nhập tên Quiz.';
     }
@@ -601,8 +602,8 @@ export const EditQuizPage: React.FC<EditQuizPageProps> = ({ onToast }) => {
       passingScore,
       maxAttempts,
       status,
-      availableFrom: availableFrom ? new Date(availableFrom).toISOString() : null,
-      availableUntil: availableUntil ? new Date(availableUntil).toISOString() : null,
+      availableFrom: isSelfPacedLessonQuiz ? null : availableFrom ? new Date(availableFrom).toISOString() : null,
+      availableUntil: isSelfPacedLessonQuiz ? null : availableUntil ? new Date(availableUntil).toISOString() : null,
       questions: updateQuestions,
     };
     try {
@@ -711,15 +712,16 @@ export const EditQuizPage: React.FC<EditQuizPageProps> = ({ onToast }) => {
               <div className="mb-5 flex items-center gap-3"><div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-100 text-blue-600"><ClipboardList className="h-6 w-6" /></div><div><h2 className="text-base font-extrabold">Thông tin Quiz</h2><p className="text-xs text-slate-500">Cập nhật các thông tin cơ bản của bài kiểm tra.</p></div></div>
               <div className="grid gap-x-5 gap-y-4 md:grid-cols-[minmax(0,1fr)_230px]">
                 <label className="block"><span className={labelClass}>Tên Quiz <span className="text-red-500">*</span></span><input value={title} onChange={e => {setTitle(e.target.value);setErrorMessage('');}} className={inputClass} placeholder="Nhập tên bài kiểm tra" /></label>
-                <label className="block"><span className={labelClass}>Trạng thái</span><select value={status} onChange={e => setStatus(e.target.value as QuizStatus)} className={inputClass}><option value="DRAFT">Bản nháp</option><option value="ACTIVE">Đã xuất bản</option><option value="INACTIVE">Ngừng hoạt động</option><option value="ARCHIVED">Lưu trữ</option></select><span className="mt-1 block text-[11px] text-slate-500">Chọn Lưu trữ và đặt ngày mở để hệ thống tự xuất bản đúng lịch.</span></label>
+                <label className="block"><span className={labelClass}>Trạng thái</span><select value={status} onChange={e => setStatus(e.target.value as QuizStatus)} className={inputClass}><option value="DRAFT">Bản nháp</option><option value="ACTIVE">Đã xuất bản</option><option value="INACTIVE">Ngừng hoạt động</option><option value="ARCHIVED">Lưu trữ</option></select><span className="mt-1 block text-[11px] text-slate-500">{isSelfPacedLessonQuiz ? "Chọn Đã xuất bản để học viên được mở Quiz theo tiến độ video." : "Chọn Lưu trữ và đặt ngày mở để hệ thống tự xuất bản đúng lịch."}</span></label>
                 <label className="block"><span className={labelClass}>Mô tả</span><textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} className={`${inputClass} resize-none`} placeholder="Mô tả nội dung bài kiểm tra" /></label>
                 <label className="block"><span className={labelClass}>Thời gian làm bài (phút)</span><input type="number" min={0} value={timeLimitMinutes} onChange={e => setTimeLimitMinutes(Math.max(0,Number(e.target.value)))} className={inputClass} /><span className="mt-1 block text-[11px] text-slate-400">0 = không giới hạn thời gian.</span></label>
-                <div className="md:col-span-2 grid gap-4 sm:grid-cols-2">
+                {isSelfPacedLessonQuiz && <p className="md:col-span-2 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">Quiz tự mở khi học viên hoàn thành video trước bài kiểm tra và đóng sau 7 ngày theo từng học viên. Quiz cuối khóa vẫn yêu cầu đủ điều kiện học tập. Không cần nhập ngày thủ công.</p>}
+                {!isSelfPacedLessonQuiz && <div className="md:col-span-2 grid gap-4 sm:grid-cols-2">
                   <label><span className={labelClass}>Thời gian mở</span><input type="datetime-local" value={availableFrom} onChange={e => {setAvailableFrom(e.target.value);setErrorMessage('');}} className={inputClass} /></label>
                   <label><span className={labelClass}>Thời gian đóng</span><input type="datetime-local" min={availableFrom || undefined} value={availableUntil} onChange={e => {setAvailableUntil(e.target.value);setErrorMessage('');}} className={inputClass} /></label>
-                </div>
+                </div>}
                 <div className="md:col-span-2 grid gap-4 sm:grid-cols-2"><label><span className={labelClass}>Điểm đạt (%)</span><input type="number" min={0} max={100} value={80} disabled title="Điểm đạt cố định là 80% theo quy định MSEEK" className={inputClass} /></label><label><span className={labelClass}>Số lần được làm</span><input type="number" min={0} step={1} value={maxAttempts} onChange={e => setMaxAttempts(Math.max(0, Number(e.target.value)))} className={inputClass} /><span className="mt-1 block text-[11px] text-slate-500">Nhập 0 để không giới hạn tổng số lượt làm bài.</span></label></div>
-                <p className="md:col-span-2 -mt-1 flex items-center gap-2 text-[11px] text-slate-400"><CalendarClock className="h-3.5 w-3.5" /> Để trống lịch nếu không giới hạn. Thời gian nhập theo thiết bị và lưu dưới dạng UTC.</p>
+                {!isSelfPacedLessonQuiz && <p className="md:col-span-2 -mt-1 flex items-center gap-2 text-[11px] text-slate-400"><CalendarClock className="h-3.5 w-3.5" /> Để trống lịch nếu không giới hạn. Thời gian nhập theo thiết bị và lưu dưới dạng UTC.</p>}
               </div>
             </section>
             <section className="eq-rise eq-card rounded-[22px] border border-[#dce8fa] bg-white p-5 shadow-sm sm:p-6" style={{animationDelay:'.08s'}}>

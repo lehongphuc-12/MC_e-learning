@@ -737,6 +737,13 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
   // Audio Recording Handlers
   const executeActualStartRecording = async () => {
     setErrorMsg(null);
+    // Keep the identifier stable for the asynchronous MediaRecorder.onstop callback.
+    // A standalone speaking script can be recorded without an associated lesson.
+    const recordingLessonId = lesson?.lessonId ?? scriptOverride?.scriptId;
+    if (recordingLessonId == null) {
+      setErrorMsg('Không tìm thấy bài học hoặc kịch bản để ghi âm.');
+      return;
+    }
     try {
       const constraints: MediaStreamConstraints = {
         audio: selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : true,
@@ -765,7 +772,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
         // Use 'video/webm' MIME type so Chromium maps the downloaded file to .webm (recognized by Windows/Mac media players) instead of .weba
         const file = new File(
           audioChunksRef.current,
-          `speaking_${lesson.lessonId}_${Date.now()}.webm`,
+          `speaking_${recordingLessonId}_${Date.now()}.webm`,
           { type: 'video/webm' }
         );
         const url = URL.createObjectURL(file);
@@ -1055,7 +1062,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold text-slate-600">
               <Clock className="w-4 h-4 text-blue-600" />
-              <span>Thời lượng: {scriptOverride?.durationMinutes || lesson?.durationMinutes || 15} phút</span>
+              <span>Thời lượng: {lesson?.durationMinutes ?? 15} phút</span>
             </div>
           </div>
         </div>
@@ -2127,7 +2134,7 @@ export const CourseLearningPage: React.FC = () => {
         scriptId: matchedScript?.scriptId,
         title: lesson.title,
         isLocked: Boolean(lesson.isLocked),
-        lockReason: lesson.lockReason,
+        lockReason: lesson.lockReason ?? undefined,
         lesson,
         script: matchedScript,
       });
@@ -2497,14 +2504,11 @@ export const CourseLearningPage: React.FC = () => {
   const renderQuizButton = (lessonId: number) => {
     const lessonQuizzes = getQuizzesForLesson(lessonId);
     if (!lessonQuizzes.length) return null;
-    if (orderedLessons.find(l => l.lessonId === lessonId)?.isLocked)
-      return <p className="ml-7 mt-1 flex items-center gap-1.5 text-[11px] font-medium text-slate-500"><LockKeyhole size={12}/> Mở khóa bài học để làm Quiz</p>;
+    const isLessonLocked = Boolean(orderedLessons.find(l => l.lessonId === lessonId)?.isLocked);
     return <div className="ml-7 mt-1 max-w-md space-y-2">{lessonQuizzes.map(quiz => (
       <div key={quiz.quizId} className="rounded-lg border border-slate-100 bg-white p-2">
         <p className="mb-1 text-[11px] font-semibold text-slate-700">{quiz.title}</p>
-        {quiz.status === 'ACTIVE' ? <LearnerQuizHistoryActions quizId={quiz.quizId} maxAttempts={quiz.maxAttempts} passingScore={quiz.passingScore} returnTo={getQuizReturnTo(lessonId)} onTake={() => handleTakeQuiz(quiz.quizId, lessonId)} />
-          : quiz.status === 'ARCHIVED' ? <p className="text-[11px] text-amber-700">{quiz.availableFrom ? `Đang lên lịch mở: ${new Date(quiz.availableFrom).toLocaleString('vi-VN')}` : 'Quiz đang được lưu trữ.'}</p>
-          : <p className="text-[11px] text-slate-500">Quiz hiện đang ngừng hoạt động.</p>}
+        {<LearnerQuizHistoryActions canTakeQuiz={quiz.status === 'ACTIVE' && !isLessonLocked} quizId={quiz.quizId} maxAttempts={quiz.maxAttempts} passingScore={quiz.passingScore} returnTo={getQuizReturnTo(lessonId)} onTake={() => handleTakeQuiz(quiz.quizId, lessonId)} />}
       </div>
     ))}</div>;
   };
@@ -2516,14 +2520,11 @@ export const CourseLearningPage: React.FC = () => {
       (q.status === 'ACTIVE' || q.status === 'ARCHIVED' || q.status === 'INACTIVE')
     );
     if (dailyQuizzes.length === 0) return null;
-    if (orderedLessons.find(l => l.lessonId === lessonId)?.isLocked)
-      return <p className="ml-7 mt-1 text-[11px] text-slate-500">Mở khóa bài học để làm luyện tập hằng ngày.</p>;
+    const isLessonLocked = Boolean(orderedLessons.find(l => l.lessonId === lessonId)?.isLocked);
     return <div className="ml-7 mt-1 space-y-2">{dailyQuizzes.map(q => (
       <div key={q.quizId} className="rounded-lg border border-sky-100 bg-sky-50/70 p-2">
         <p className="text-[11px] font-bold text-sky-800">Luyện tập hằng ngày: {q.title}</p>
-        {q.status === 'ACTIVE' ? <LearnerQuizHistoryActions quizId={q.quizId} maxAttempts={q.maxAttempts} passingScore={q.passingScore} returnTo={getQuizReturnTo(lessonId)} onTake={() => handleTakeQuiz(q.quizId, lessonId)} />
-          : q.status === 'ARCHIVED' ? <p className="text-[11px] text-amber-700">{q.availableFrom ? `Đang lên lịch mở: ${new Date(q.availableFrom).toLocaleString('vi-VN')}` : 'Bài luyện tập đang được lưu trữ.'}</p>
-          : <p className="text-[11px] text-slate-500">Bài luyện tập hiện đang ngừng hoạt động.</p>}
+        {<LearnerQuizHistoryActions canTakeQuiz={q.status === 'ACTIVE' && !isLessonLocked} quizId={q.quizId} maxAttempts={q.maxAttempts} passingScore={q.passingScore} returnTo={getQuizReturnTo(lessonId)} onTake={() => handleTakeQuiz(q.quizId, lessonId)} />}
       </div>
     ))}</div>;
   };
@@ -2972,10 +2973,6 @@ export const CourseLearningPage: React.FC = () => {
     completedLessonIds,
   ]);
 
-  // ===========================================================================
-  // Handle lesson selection
-  // ===========================================================================
-
   const handleSelectLesson = (
     lesson: Lesson,
   ) => {
@@ -3015,9 +3012,6 @@ export const CourseLearningPage: React.FC = () => {
       }
     }
   };
-
-  // Khi học viên đạt bài tập/bài đánh giá và quay lại khóa học,
-  // tự chuyển đến bài học kế tiếp nếu Backend đã xác nhận bài đó được mở.
   const autoAdvanceAfterQuiz = Boolean(
     (location.state as { autoAdvanceAfterQuiz?: boolean } | null)?.autoAdvanceAfterQuiz,
   );
@@ -4255,36 +4249,32 @@ export const CourseLearningPage: React.FC = () => {
                                 <div className="min-w-0 flex-1">
                                   <p className="text-xs font-extrabold text-amber-950">Bài đánh giá {mod.title}</p>
                                   <p className="mt-1 text-[10px] leading-4 text-amber-800">Hoàn thành video và đạt tất cả bài luyện tập đã đến ngày mở trong chương để làm bài đánh giá. Đạt từ 80% để mở chương tiếp theo.</p>
-                                  {chapterQuiz.status === 'ACTIVE' && chapterQuiz.isLocked ? (
-                                    <p className="mt-2 flex items-center gap-1.5 text-[11px] font-semibold text-amber-800"><LockKeyhole size={12}/>{chapterQuiz.lockReason || 'Hoàn thành và PASS tất cả Quiz luyện tập trong chương để mở bài đánh giá.'}</p>
-                                  ) : chapterQuiz.status === 'ACTIVE' ? (
-                                    <div className="mt-2">
-                                      <LearnerQuizHistoryActions
-                                        quizId={chapterQuiz.quizId}
-                                        maxAttempts={chapterQuiz.maxAttempts}
-                                        passingScore={chapterQuiz.passingScore}
-                                        returnTo={getQuizReturnTo()}
-                                        onTake={() => handleTakeQuiz(chapterQuiz.quizId)}
-                                      />
-                                    </div>
-                                  ) : chapterQuiz.status === 'ARCHIVED' ? (
-                                    <p className="mt-2 text-[11px] font-semibold text-amber-800">
-                                      {chapterQuiz.availableFrom
-                                        ? `Đang lên lịch mở: ${new Date(chapterQuiz.availableFrom).toLocaleString('vi-VN')}`
-                                        : 'Bài đánh giá đang được lưu trữ.'}
+                                  {chapterQuiz.isLocked && (
+                                    <p className="mt-2 flex items-center gap-1.5 text-[11px] font-semibold text-amber-800">
+                                      <LockKeyhole size={12} />
+                                      {chapterQuiz.lockReason || 'Bài đánh giá hiện chưa thể làm.'}
                                     </p>
-                                  ) : (
-                                    <p className="mt-2 text-[11px] font-semibold text-slate-500">Bài đánh giá hiện đang ngừng hoạt động.</p>
                                   )}
+                                  <div className="mt-2">
+                                    <LearnerQuizHistoryActions
+                                      quizId={chapterQuiz.quizId}
+                                      maxAttempts={chapterQuiz.maxAttempts}
+                                      passingScore={chapterQuiz.passingScore}
+                                      returnTo={getQuizReturnTo()}
+                                      canTakeQuiz={
+                                        chapterQuiz.status === 'ACTIVE' &&
+                                        !chapterQuiz.isLocked &&
+                                        (!chapterQuiz.availableFrom || new Date(chapterQuiz.availableFrom).getTime() <= Date.now()) &&
+                                        (!chapterQuiz.availableUntil || new Date(chapterQuiz.availableUntil).getTime() > Date.now())
+                                      }
+                                      onTake={() => handleTakeQuiz(chapterQuiz.quizId)}
+                                    />
+                                  </div>
                                 </div>
                               </div>
                             </div>
                           )}
-                          {!isCollapsed && !chapterQuiz && modLessons.length > 0 && (
-                            <p className="mx-3 mb-3 mt-1 rounded-lg border border-amber-100 bg-amber-50/60 p-2 text-[10px] leading-4 text-amber-800">
-                              Chương này chưa có bài đánh giá chương. Học viên cần bài đánh giá này sau khi hoàn thành các Quiz từng bài để mở chương tiếp theo.
-                            </p>
-                          )}
+                          
                           {!isCollapsed && (
                             courseSpeakingScripts
                               .filter((sc) => sc.scope === 'CHAPTER' && sc.moduleId === mod.moduleId)
@@ -4577,9 +4567,7 @@ export const CourseLearningPage: React.FC = () => {
                           {quizzes.filter(q => q.purpose === 'DAILY_PRACTICE' && q.lessonId == null && (q.status === 'ACTIVE' || q.status === 'ARCHIVED' || q.status === 'INACTIVE')).map(q => (
                             <div key={q.quizId} className="mt-2 rounded-lg border border-sky-100 bg-white p-2">
                               <p className="text-[11px] font-semibold text-sky-900">{q.title}</p>
-                              {q.status === 'ACTIVE' ? <LearnerQuizHistoryActions quizId={q.quizId} maxAttempts={q.maxAttempts} passingScore={q.passingScore} returnTo={getQuizReturnTo()} onTake={() => handleTakeQuiz(q.quizId)} />
-                                : q.status === 'ARCHIVED' ? <p className="mt-1 text-[11px] text-amber-700">{q.availableFrom ? `Đang lên lịch mở: ${new Date(q.availableFrom).toLocaleString('vi-VN')}` : 'Bài luyện tập đang được lưu trữ.'}</p>
-                                : <p className="mt-1 text-[11px] text-slate-500">Bài luyện tập hiện đang ngừng hoạt động.</p>}
+                              {<LearnerQuizHistoryActions canTakeQuiz={q.status === 'ACTIVE'} quizId={q.quizId} maxAttempts={q.maxAttempts} passingScore={q.passingScore} returnTo={getQuizReturnTo()} onTake={() => handleTakeQuiz(q.quizId)} />}
                             </div>
                           ))}
                         </div>
@@ -4639,21 +4627,25 @@ export const CourseLearningPage: React.FC = () => {
                           </div>
 
                           <div className="mt-3">
-                            {overallQuiz.status === 'ACTIVE' && overallQuiz.isLocked ? (
-                              <p className="flex items-center gap-1.5 text-[11px] font-semibold text-violet-800"><LockKeyhole size={12}/>{overallQuiz.lockReason || 'PASS tất cả bài học và bài đánh giá chương để mở Quiz tổng kết.'}</p>
-                            ) : overallQuiz.status === 'ACTIVE' ? (
-                              <LearnerQuizHistoryActions
-                                quizId={overallQuiz.quizId}
-                                maxAttempts={overallQuiz.maxAttempts}
-                                passingScore={overallQuiz.passingScore}
-                                returnTo={getQuizReturnTo(activeLesson?.lessonId)}
-                                onTake={() => handleTakeQuiz(overallQuiz.quizId)}
-                              />
-                            ) : overallQuiz.status === 'ARCHIVED' ? (
-                              <p className="text-[11px] font-semibold text-violet-700">{overallQuiz.availableFrom ? `Đang lên lịch mở: ${new Date(overallQuiz.availableFrom).toLocaleString('vi-VN')}` : 'Quiz tổng kết đang được lưu trữ.'}</p>
-                            ) : (
-                              <p className="text-[11px] text-slate-500">Quiz tổng kết hiện đang ngừng hoạt động.</p>
+                            {overallQuiz.isLocked && (
+                              <p className="flex items-center gap-1.5 text-[11px] font-semibold text-violet-800">
+                                <LockKeyhole size={12} />
+                                {overallQuiz.lockReason || 'Quiz tổng kết hiện chưa thể làm.'}
+                              </p>
                             )}
+                            <LearnerQuizHistoryActions
+                              quizId={overallQuiz.quizId}
+                              maxAttempts={overallQuiz.maxAttempts}
+                              passingScore={overallQuiz.passingScore}
+                              returnTo={getQuizReturnTo(activeLesson?.lessonId)}
+                              canTakeQuiz={
+                                overallQuiz.status === 'ACTIVE' &&
+                                !overallQuiz.isLocked &&
+                                (!overallQuiz.availableFrom || new Date(overallQuiz.availableFrom).getTime() <= Date.now()) &&
+                                (!overallQuiz.availableUntil || new Date(overallQuiz.availableUntil).getTime() > Date.now())
+                              }
+                              onTake={() => handleTakeQuiz(overallQuiz.quizId)}
+                            />
                           </div>
                         </div>
                       </div>

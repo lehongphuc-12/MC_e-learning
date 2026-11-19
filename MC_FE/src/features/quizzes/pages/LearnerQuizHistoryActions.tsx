@@ -4,11 +4,11 @@ import { ClipboardList, Eye, RefreshCw } from 'lucide-react';
 import { useMyQuizAttempts } from '../hooks/useQuiz';
 import type { LearnerQuizAttemptHistoryDto } from '../types/quizTypes';
 
-interface Props { quizId: number; maxAttempts: number; passingScore: number; returnTo: string; onTake: () => void; }
+interface Props { quizId: number; maxAttempts: number; passingScore: number; returnTo: string; onTake: () => void; canTakeQuiz?: boolean; }
 const statusIs = (status: LearnerQuizAttemptHistoryDto['resultStatus'], value: string, code: number) => status === value || status === code;
 const statusLabel = (status: LearnerQuizAttemptHistoryDto['resultStatus']) => statusIs(status, 'PASSED', 3) ? 'Đã đạt' : statusIs(status, 'FAILED', 4) ? 'Chưa đạt' : statusIs(status, 'PENDING_GRADING', 2) ? 'Chờ chấm' : 'Đã nộp';
 
-export const LearnerQuizHistoryActions: React.FC<Props> = ({ quizId, maxAttempts, passingScore, returnTo, onTake }) => {
+export const LearnerQuizHistoryActions: React.FC<Props> = ({ quizId, maxAttempts, passingScore, returnTo, onTake, canTakeQuiz = true }) => {
   const navigate = useNavigate();
   const { data = [], isLoading, isError, refetch, isFetching } = useMyQuizAttempts(quizId);
   const history = useMemo(() => [...data].filter(a => a.submittedAt).sort((a, b) => b.attemptNumber - a.attemptNumber), [data]);
@@ -17,7 +17,7 @@ export const LearnerQuizHistoryActions: React.FC<Props> = ({ quizId, maxAttempts
   // API chỉ trả về lượt đã nộp; lượt đang làm dở không có trong danh sách này.
   // Backend TakeQuizAsync vẫn là nơi quyết định có được tạo/tiếp tục lượt làm hay không.
   const exhausted = maxAttempts > 0 && history.length >= maxAttempts;
-  const canTake = !isLoading && !isError && !passed && !pending && !exhausted;
+  const canTake = canTakeQuiz && !isLoading && !isError && !passed && !pending && !exhausted;
   const openResult = (attemptId: number) => navigate(`/quizzes/${quizId}/result/${attemptId}`, { state: { returnTo } });
   return <div className="mt-2 w-full space-y-2 text-xs">
     <div className="flex flex-wrap items-center gap-2">

@@ -121,6 +121,43 @@ public class LessonService : ILessonService
         };
     }
 
+    public async Task<LessonPlaybackDto?> GetPreviewPlaybackAsync(int lessonId, int? userId, bool isAdmin)
+    {
+        var lesson = await _lessonRepository.GetQueryable()
+            .Include(item => item.Course)
+            .Include(item => item.CourseMaterials)
+            .FirstOrDefaultAsync(item => item.LessonId == lessonId);
+
+        if (lesson?.Course is null || lesson.Status != LessonStatus.ACTIVE ||
+            lesson.LessonType != LessonType.VIDEO)
+            return null;
+
+        var hasFullAccess = userId.HasValue && await _courseAccess
+            .CanAccessCourseAsync(lesson.CourseId, userId.Value, isAdmin);
+
+        // Anonymous/non-enrolled learners may only preview explicitly approved lessons
+        // from a published course. Enrolled learners get the same full playback access
+        // as the authenticated learning player.
+        if (!hasFullAccess && (!lesson.IsPreview || lesson.Course.Status != CourseStatus.PUBLISHED))
+            return null;
+
+        var objectKey = FindR2VideoObjectKey(lesson.CourseMaterials);
+        if (string.IsNullOrWhiteSpace(objectKey))
+            return null;
+
+        // Shorten the lifetime of public preview URLs; entitled learners receive the
+        // same playback lifetime as the regular player.
+        var expiresHours = hasFullAccess ? 6d : 5d / 60d;
+        return new LessonPlaybackDto
+        {
+            LessonId = lessonId,
+            Url = _r2.GetPresignedUrl(objectKey, expiresHours),
+            ExpiresAt = DateTime.UtcNow.AddHours(expiresHours),
+            IsPreviewOnly = !hasFullAccess,
+            PreviewDurationSeconds = hasFullAccess ? null : 30,
+        };
+    }
+
     private string? FindR2VideoObjectKey(IEnumerable<CourseMaterial> materials)
     {
         foreach (var material in materials.Where(item => item.MaterialType == MaterialType.VIDEO))

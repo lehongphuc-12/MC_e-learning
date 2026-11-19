@@ -233,7 +233,7 @@ public class SpeakingSubmissionsController : ControllerBase
             // - TH FALSE: Trả về HTTP 200 OK chứa thông tin bài nộp gần nhất (điểm số, nhận xét, file ghi âm).
             if (submission == null)
             {
-                return NotFound(ApiResponse<SpeakingSubmissionResponseDto>.FailureResponse("No submission found for this lesson."));
+                return Ok(ApiResponse<SpeakingSubmissionResponseDto>.SuccessResponse(null!, "No submission yet for this lesson."));
             }
 
             // [BƯỚC 4]: Phản hồi kết quả thành công HTTP 200 OK
@@ -281,7 +281,7 @@ public class SpeakingSubmissionsController : ControllerBase
             // - TH FALSE: Trả về dữ liệu bài nộp với HTTP 200 OK.
             if (submission == null)
             {
-                return NotFound(ApiResponse<SpeakingSubmissionResponseDto>.FailureResponse("No submission found for this script."));
+                return Ok(ApiResponse<SpeakingSubmissionResponseDto>.SuccessResponse(null!, "No submission yet for this script."));
             }
 
             // [BƯỚC 4]: Phản hồi kết quả thành công HTTP 200 OK

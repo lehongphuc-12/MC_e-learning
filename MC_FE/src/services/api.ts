@@ -241,6 +241,13 @@ export async function request<T>(
   // PARSE RESPONSE
   // ============================================================
 
+  if (
+    response.ok &&
+    new Headers(options.headers).get("Accept") === "application/octet-stream"
+  ) {
+    return (await response.blob()) as T;
+  }
+
   const data =
     await parseResponse(response);
 
@@ -318,4 +325,11 @@ export async function request<T>(
   }
 
   return data as T;
+}
+
+/** Uses the shared JWT refresh flow while retaining binary response bodies. */
+export function requestBlob(endpoint: string): Promise<Blob> {
+  return request<Blob>(endpoint, {
+    headers: { Accept: "application/octet-stream" },
+  });
 }

@@ -2,10 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { X, Play, Pause, Volume2, VolumeX, Maximize, Star } from 'lucide-react';
 import { Course } from '../../types';
+import { lessonApi } from '../../features/courses/api/lessonApi';
 
 interface VideoPreviewModalProps {
   course: Course | null;
   isOpen: boolean;
+  lessonId?: number | null;
+  lessonTitle?: string;
   onClose: () => void;
   onEnroll: (course: Course) => void;
 }
@@ -13,11 +16,60 @@ interface VideoPreviewModalProps {
 export const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({
   course,
   isOpen,
+  lessonId,
+  lessonTitle,
   onClose,
   onEnroll,
 }) => {
   const [isPlaying, setIsPlaying] = useState(true);
   const [isMuted, setIsMuted] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [previewLimitSeconds, setPreviewLimitSeconds] = useState<number | null>(null);
+  const [previewLimitReached, setPreviewLimitReached] = useState(false);
+
+  useEffect(() => {
+    setPreviewLimitReached(false);
+  }, [isOpen, lessonId]);
+
+  const stopAtPreviewLimit = (video: HTMLVideoElement) => {
+    if (previewLimitSeconds === null || video.currentTime < previewLimitSeconds) {
+      if (previewLimitSeconds !== null) setPreviewLimitReached(false);
+      return;
+    }
+    video.currentTime = previewLimitSeconds;
+    video.pause();
+    setPreviewLimitReached(true);
+  };
+
+  useEffect(() => {
+    if (!isOpen || !lessonId) {
+      setPreviewUrl(null);
+      setPreviewError(null);
+      setIsLoadingPreview(false);
+      setPreviewLimitSeconds(null);
+      return;
+    }
+
+    let active = true;
+    setPreviewUrl(null);
+    setPreviewError(null);
+    setPreviewLimitSeconds(null);
+    setIsLoadingPreview(true);
+    lessonApi.getPreviewPlaybackUrl(lessonId)
+      .then((playback) => {
+        if (!active) return;
+        setPreviewUrl(playback.url);
+        setPreviewLimitSeconds(playback.isPreviewOnly ? playback.previewDurationSeconds : null);
+      })
+      .catch((error: unknown) => {
+        if (active) setPreviewError(error instanceof Error ? error.message : 'Không thể tải video xem trước.');
+      })
+      .finally(() => { if (active) setIsLoadingPreview(false); });
+
+    return () => { active = false; };
+  }, [isOpen, lessonId]);
 
   // Hỗ trợ phím Escape
   useEffect(() => {
@@ -81,6 +133,7 @@ export const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({
             <h3 id="preview-modal-title" className="text-base sm:text-lg font-bold text-white line-clamp-1">
               {course.title}
             </h3>
+            {lessonId && <p className="mt-0.5 text-xs text-slate-400 line-clamp-1">{lessonTitle}</p>}
           </div>
           <button
             id="close-preview-modal-btn"
@@ -95,6 +148,38 @@ export const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({
 
         {/* Video Player Area */}
         <div className="relative aspect-video bg-black flex items-center justify-center overflow-hidden group">
+          {lessonId ? (
+            previewUrl ? (
+              <video
+                key={previewUrl}
+                src={previewUrl}
+                poster={course.videoPreviewThumb || course.thumbnail}
+                controls
+                autoPlay
+                playsInline
+                controlsList="nodownload noremoteplayback"
+                disablePictureInPicture
+                onContextMenu={(event) => event.preventDefault()}
+                onTimeUpdate={(event) => stopAtPreviewLimit(event.currentTarget)}
+                onSeeking={(event) => stopAtPreviewLimit(event.currentTarget)}
+                className="h-full w-full object-contain"
+                aria-label={lessonTitle || 'Bài học xem trước'}
+              />
+            ) : (
+              <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-slate-950 px-6 text-center">
+                {isLoadingPreview ? (
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-400 border-t-transparent" />
+                ) : (
+                  <Play className="h-8 w-8 text-blue-300" />
+                )}
+                <div>
+                  <p className="text-sm font-bold text-white">{isLoadingPreview ? 'Đang tải bài học xem trước…' : 'Không thể phát bài học xem trước'}</p>
+                  {previewError && <p className="mt-1 max-w-md text-xs text-slate-400">{previewError}</p>}
+                </div>
+              </div>
+            )
+          ) : (
+            <>
           <img 
             src={course.videoPreviewThumb || course.thumbnail} 
             alt={course.title}
@@ -107,7 +192,7 @@ export const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({
           {/* Live Speaker Badge */}
           <div className="absolute top-4 left-4 z-10 flex items-center gap-2 px-3 py-1.5 bg-slate-950/80 backdrop-blur-md rounded-full border border-slate-700/60 text-xs font-medium">
             <span className="w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-emerald-500/20" />
-            <span>Bài học mẫu: Khơi mở sự tự tin & Làm chủ giọng nói</span>
+            <span>{lessonTitle || 'Bài học mẫu'}</span>
           </div>
 
           {/* Center Play Button Overlay */}
@@ -147,6 +232,26 @@ export const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({
               </div>
             </div>
           </div>
+            </>
+          )}
+          {lessonId && previewLimitReached && (
+            <div className="absolute inset-0 z-20 flex items-center justify-center bg-slate-950/80 p-5 text-center backdrop-blur-sm">
+              <div className="max-w-sm rounded-2xl border border-white/15 bg-slate-900 p-6 shadow-2xl">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-500/15 text-blue-300">
+                  <Play className="ml-0.5 h-5 w-5 fill-current" />
+                </div>
+                <h4 className="mt-4 text-base font-extrabold text-white">Bạn đã xem hết 30 giây dùng thử</h4>
+                <p className="mt-2 text-sm leading-relaxed text-slate-300">Đăng ký khóa học để xem đầy đủ bài học và toàn bộ chương trình đào tạo.</p>
+                <button
+                  type="button"
+                  onClick={() => { onClose(); onEnroll(course); }}
+                  className="mt-5 rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-600/25 transition hover:bg-blue-500"
+                >
+                  Mua khóa học để xem đầy đủ
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Modal Body & CTA */}
