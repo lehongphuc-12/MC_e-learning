@@ -18,6 +18,7 @@ public class QuizDto
     public decimal PassingScore { get; set; }
     public int MaxAttempts { get; set; }
     public QuizStatus Status { get; set; }
+    public bool IsRemedial { get; set; }
     public DateTime CreatedAt { get; set; }
     public List<QuestionDto> Questions { get; set; } = new();
 }

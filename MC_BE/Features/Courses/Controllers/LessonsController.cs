@@ -17,17 +17,20 @@ public class LessonsController : ControllerBase
     private readonly ILearningAccessService _access;
     private readonly ICourseLearningAccessService _courseAccess;
     private readonly MC_BE.Shared.Data.SmartMcDbContext _db;
+    private readonly IRemedialAssignmentService _remedialAssignments;
 
     public LessonsController(
         ILessonService lessonService,
         ILearningAccessService access,
         ICourseLearningAccessService courseAccess,
-        MC_BE.Shared.Data.SmartMcDbContext db)
+        MC_BE.Shared.Data.SmartMcDbContext db,
+        IRemedialAssignmentService remedialAssignments)
     {
         _lessonService = lessonService;
         _access = access;
         _courseAccess = courseAccess;
         _db = db;
+        _remedialAssignments = remedialAssignments;
     }
 
     private int? GetCurrentUserId()
@@ -70,12 +73,24 @@ public class LessonsController : ControllerBase
             return Forbid();
 
         var lessons = await _lessonService.GetLessonsByCourseIdAsync(courseId);
+        var assignedRemedialIds = new HashSet<int>();
+        foreach (var lesson in lessons.Where(x => x.IsRemedial))
+            if (await _remedialAssignments.CanAccessContentAsync(userId.Value, "LESSON", lesson.LessonId))
+                assignedRemedialIds.Add(lesson.LessonId);
+        lessons = lessons.Where(x => !x.IsRemedial || assignedRemedialIds.Contains(x.LessonId)).ToList();
 
         // Kiểm tra quyền truy cập từng bài học theo tiến độ học tập.
         var locks = await _access.GetLessonLocksAsync(userId.Value, courseId);
 
         foreach (var lesson in lessons)
         {
+            if (lesson.IsRemedial)
+            {
+                lesson.IsLocked = false;
+                lesson.LockReason = null;
+                continue;
+            }
+
             lesson.IsLocked =
                 !locks.TryGetValue(lesson.LessonId, out var reason) || reason != null;
 

@@ -35,6 +35,12 @@ public class SpeakingScript
     [Column("PassingScore", TypeName = "decimal(5,2)")]
     public decimal PassingScore { get; set; } = 80.00m;
 
+    [Column("DueAt")]
+    public DateTime? DueAt { get; set; }
+
+    [Column("IsRemedial")]
+    public bool IsRemedial { get; set; }
+
     [Column("CreatedBy")]
     public int? CreatedBy { get; set; }
 

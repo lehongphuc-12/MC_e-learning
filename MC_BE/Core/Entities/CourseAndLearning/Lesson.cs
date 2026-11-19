@@ -40,6 +40,9 @@ public class Lesson
     [Column("IsPreview")]
     public bool IsPreview { get; set; } = false;
 
+    [Column("IsRemedial")]
+    public bool IsRemedial { get; set; } = false;
+
     [Column("Status")]
     public LessonStatus Status { get; set; } = LessonStatus.ACTIVE;
 

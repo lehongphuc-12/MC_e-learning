@@ -488,9 +488,13 @@ export function AIPracticePage() {
 
           <button
             type="button"
-            onClick={() =>
-              navigate(`/courses/${courseId}/learn`)
-            }
+            onClick={() => {
+  if (window.history.length > 1) {
+    navigate(-1);
+  } else {
+    navigate(`/courses/${courseId}/learn`);
+  }
+}}
             className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-violet-50 hover:text-violet-700"
           >
             <ArrowLeft size={18} />

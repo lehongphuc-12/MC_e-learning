@@ -98,6 +98,7 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
   const [durationMinutes, setDurationMinutes] = useState<number>(10);
   const [orderIndex, setOrderIndex] = useState<number>(1);
   const [isPreview, setIsPreview] = useState<boolean>(false);
+  const [isRemedial, setIsRemedial] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Video upload state
@@ -379,6 +380,7 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
       setDurationMinutes(computedMins);
       setOrderIndex(existingLesson.orderIndex);
       setIsPreview(existingLesson.isPreview);
+      setIsRemedial(existingLesson.isRemedial ?? false);
     } else {
       setTitle('');
       setDescription('');
@@ -388,6 +390,7 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
       setDurationMinutes(10);
       setOrderIndex(1);
       setIsPreview(false);
+      setIsRemedial(false);
       setScriptLevels({
         BEGINNER: '',
         INTERMEDIATE: '',
@@ -669,6 +672,7 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
         durationMinutes: Number(durationMinutes),
         orderIndex: Number(orderIndex) || 1,
         isPreview,
+        isRemedial,
         status: 'ACTIVE',
       }, selectedFile, (percent) => setUploadProgress(percent), levelsPayload, customMusicsPayload);
     } catch (error) {
@@ -788,6 +792,13 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
               </div>
             </div>
           )}
+
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+            <label className="flex cursor-pointer items-start gap-3">
+              <input type="checkbox" checked={isRemedial} onChange={(e) => setIsRemedial(e.target.checked)} className="mt-0.5 h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500" />
+              <span><span className="block text-xs font-bold text-amber-900">Đây là bài học bổ trợ cá nhân</span><span className="mt-1 block text-[11px] text-amber-800">Bài này không hiện trong lộ trình chung. Chỉ học viên được giảng viên giao mới xem được.</span></span>
+            </label>
+          </div>
 
           {/* Title */}
           <div>

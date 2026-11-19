@@ -14,4 +14,5 @@ public interface IEnrollmentService
     int instructorId,
     int courseId
 );
+    Task<ApiResponse<List<CourseStudentInsightDto>>> GetCourseStudentInsightsAsync(int instructorId, int courseId);
 }

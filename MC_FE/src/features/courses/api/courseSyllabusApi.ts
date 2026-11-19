@@ -69,6 +69,16 @@ export const courseSyllabusApi = {
     }
   },
 
+  getApproved: async (courseId: number): Promise<SyllabusVersion | null> => {
+    try {
+      return (await request<Envelope<SyllabusVersion>>(`${root(courseId)}/approved`)).data;
+    } catch (error) {
+      if (typeof error === 'object' && error !== null && 'status' in error && error.status === 404)
+        return null;
+      throw error;
+    }
+  },
+
   getPreviewDraft: async (courseId: number): Promise<SyllabusPreviewDraft | null> => {
     try {
       return (await request<Envelope<SyllabusPreviewDraft>>(`${root(courseId)}/preview-draft`)).data;

@@ -54,6 +54,7 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
     private readonly IUnitOfWork _unitOfWork;
     private readonly ILogger<SpeakingSubmissionService> _logger;
     private readonly ICourseLearningAccessService _courseAccess;
+    private readonly IRemedialAssignmentService _remedialAssignments;
 
     /// <summary>
     /// Khởi tạo SpeakingSubmissionService với đầy đủ các kho lưu trữ và dịch vụ lưu trữ đám mây.
@@ -67,7 +68,8 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
         ICloudinaryService cloudinaryService,
         IUnitOfWork unitOfWork,
         ILogger<SpeakingSubmissionService> logger,
-        ICourseLearningAccessService courseAccess)
+        ICourseLearningAccessService courseAccess,
+        IRemedialAssignmentService remedialAssignments)
     {
         _submissionRepository = submissionRepository;
         _scriptRepository = scriptRepository;
@@ -78,6 +80,7 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
         _unitOfWork = unitOfWork;
         _logger = logger;
         _courseAccess = courseAccess;
+        _remedialAssignments = remedialAssignments;
     }
 
     /// <summary>
@@ -179,6 +182,11 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
                 throw new InvalidOperationException("You must be enrolled in this course to submit assignments.");
             }
 
+            if (script?.IsRemedial == true &&
+                (!await _remedialAssignments.CanAccessContentAsync(learnerId, "SPEAKING", script.ScriptId) ||
+                 !await _remedialAssignments.CanStartAttemptAsync(learnerId, "SPEAKING", script.ScriptId)))
+                throw new InvalidOperationException("Bài bổ trợ đã hết lượt, đã hoàn thành hoặc khóa học hiện không còn quyền truy cập.");
+
             // ====================================================================================================
             // [BƯỚC 4]: QUY CHẾ KHÓA NỘP BÀI (RESUBMISSION LOCK BUSINESS RULES)
             // ====================================================================================================
@@ -192,7 +200,15 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
                 existingSubmission = await _submissionRepository.GetLatestByLearnerAndLessonAsync(learnerId, lessonId.Value);
             }
 
-            // Rẽ nhánh: Nếu học viên ĐÃ TỪNG nộp bài cho kịch bản/bài học này trước đó
+            var hasOfficialRetake = script != null && !script.IsRemedial &&
+                await _remedialAssignments.HasSpeakingRetakeGrantAsync(learnerId, script.ScriptId);
+            if (script != null && !script.IsRemedial && script.DueAt.HasValue && script.DueAt.Value <= DateTime.UtcNow && !hasOfficialRetake)
+                throw new InvalidOperationException("Hạn nộp bài Speaking đã qua. Hãy liên hệ giảng viên để được giao bài bổ trợ và mở lượt nộp mới trong 7 ngày.");
+            var hasPassedOfficialSubmission = script != null && !script.IsRemedial &&
+                (await _submissionRepository.FindAsync(s => s.LearnerId == learnerId && s.ScriptId == script.ScriptId && s.Score >= 80)).Any();
+            if (hasPassedOfficialSubmission)
+                throw new InvalidOperationException("Bạn đã đạt bài Speaking này; không cần làm bài bổ trợ hoặc nộp lại.");
+
             if (existingSubmission != null)
             {
                 // [KHÓA 1]: Bài nộp trước đang chờ giảng viên chấm (Score == null hoặc Status == SUBMITTED)
@@ -203,8 +219,7 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
                     throw new InvalidOperationException(errMsg);
                 }
 
-                // [KHÓA 2]: Bài nộp trước ĐÃ ĐẠT CHUẨN ĐẦU RA (Score >= 80 điểm)
-                if (existingSubmission.Score >= 80)
+                if (existingSubmission.Score >= 80 && script?.IsRemedial != true)
                 {
                     var errMsg = "Bạn đã đạt yêu cầu bài thi nói này (≥ 80 điểm), không cần nộp lại.";
                     _logger.LogWarning("Learner {LearnerId} already passed Script {ScriptId} / Lesson {LessonId} with score {Score}", learnerId, scriptId, lessonId, existingSubmission.Score);
@@ -227,50 +242,26 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
 
             var audioUrl = uploadResult.SecureUrl.ToString();
 
-            // ====================================================================================================
-            // [BƯỚC 6]: GHI ĐÈ BẢN GHI CŨ HOẶC TẠO MỚI BÀI NỘP (UPSERT PATTERN)
-            // ====================================================================================================
-            SpeakingSubmission submission;
-            // Nhánh 6.1: Nộp lại sau khi bị trượt -> Reset điểm, nhận xét và chuyển về trạng thái SUBMITTED
-            if (existingSubmission != null)
+            // Preserve every resubmission as a separate attempt for audit/history.
+            var submission = new SpeakingSubmission
             {
-                existingSubmission.AudioUrl = audioUrl;
-                existingSubmission.Note = request.Note;
-                existingSubmission.Status = SpeakingSubmissionStatus.SUBMITTED;
-                existingSubmission.Score = null;
-                existingSubmission.Feedback = null;
-                existingSubmission.GradedById = null;
-                existingSubmission.GradedAt = null;
-                existingSubmission.SubmittedAt = DateTime.UtcNow;
-                existingSubmission.UpdatedAt = DateTime.UtcNow;
-                if (scriptId.HasValue && !existingSubmission.ScriptId.HasValue)
-                {
-                    existingSubmission.ScriptId = scriptId.Value;
-                }
-
-                _submissionRepository.Update(existingSubmission);
-                submission = existingSubmission;
-            }
-            // Nhánh 6.2: Nộp lần đầu tiên -> Tạo mới hoàn toàn
-            else
-            {
-                submission = new SpeakingSubmission
-                {
-                    ScriptId = scriptId,
-                    LessonId = lessonId,
-                    LearnerId = learnerId,
-                    AudioUrl = audioUrl,
-                    Note = request.Note,
-                    Status = SpeakingSubmissionStatus.SUBMITTED,
-                    SubmittedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                };
-
-                await _submissionRepository.AddAsync(submission);
-            }
+                ScriptId = scriptId,
+                LessonId = lessonId,
+                LearnerId = learnerId,
+                AudioUrl = audioUrl,
+                Note = request.Note,
+                Status = SpeakingSubmissionStatus.SUBMITTED,
+                SubmittedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            await _submissionRepository.AddAsync(submission);
 
             // [BƯỚC 7]: Lưu giao dịch vào CSDL
             await _unitOfWork.SaveChangesAsync();
+            if (script?.IsRemedial == true)
+                await _remedialAssignments.RecordAttemptResultAsync(learnerId, "SPEAKING", script.ScriptId, passed: false);
+            else if (hasOfficialRetake && script != null)
+                await _remedialAssignments.ConsumeSpeakingRetakeGrantAsync(learnerId, script.ScriptId);
 
             // [BƯỚC 8]: Nạp lại đầy đủ chi tiết quan hệ (Giảng viên, Khóa học, Học viên) và trả về DTO
             var fullSubmission = await _submissionRepository.GetByIdWithDetailsAsync(submission.SubmissionId);
@@ -432,10 +423,14 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
 
             _submissionRepository.Update(submission);
 
-            // ====================================================================================================
-            // [BƯỚC 5]: ĐỒNG BỘ TRẠNG THÁI TIẾN ĐỘ BÀI HỌC (LESSON PROGRESS SYNCHRONIZATION)
-            // ====================================================================================================
-            if (submission.Lesson != null && submission.LessonId.HasValue)
+            // Cập nhật tiến độ hoàn thành bài học (LessonProgress) nếu có gắn bài học
+            var remedialScript = submission.SpeakingScript ?? submission.Lesson?.SpeakingScript;
+            if (remedialScript?.IsRemedial == true)
+                await _remedialAssignments.CompleteSpeakingAttemptAsync(submission.LearnerId, remedialScript.ScriptId, isPassed);
+            else if (isPassed && remedialScript != null)
+                await _remedialAssignments.RevokeSpeakingRetakeGrantsAsync(submission.LearnerId, remedialScript.ScriptId);
+
+            if (submission.Lesson != null && submission.LessonId.HasValue && submission.Lesson.IsRemedial == false && remedialScript?.IsRemedial != true)
             {
                 var enrollments = await _enrollmentRepository.FindAsync(
                     e => e.LearnerId == submission.LearnerId && e.CourseId == submission.Lesson.CourseId);

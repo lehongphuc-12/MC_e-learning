@@ -43,7 +43,144 @@ public sealed class AIPracticeService : IAIPracticeService
         _aiSettings = aiOptions.Value; _openAISettings = openAIOptions.Value; _logger = logger;
         _asrService = asrService;
     }
+private const double C01PassingScore = 70.0;
+private const double C02PassingScore = 70.0;
+private const double C03PassingScore = 80.0;
 
+private static List<PracticeCriterionResultDto> BuildCriteria(
+    PronunciationAnalysisDto analysis,
+    string? expectedText)
+{
+    var criteria = new List<PracticeCriterionResultDto>();
+
+    // =========================
+    // C01 - Phát âm & thanh điệu
+    // =========================
+    bool c01Available =
+        string.Equals(
+            analysis.ModelVersion,
+            "V4-B",
+            StringComparison.OrdinalIgnoreCase)
+        && analysis.Predictions != null
+        && RequiredLabels.All(label =>
+            analysis.Predictions.TryGetValue(label, out var value)
+            && !double.IsNaN(value)
+            && !double.IsInfinity(value)
+            && value >= 0
+            && value <= 1);
+
+    double? c01Score = null;
+
+    if (c01Available)
+    {
+        double meanErrorSignal = RequiredLabels
+            .Average(label => analysis.Predictions[label]);
+
+        c01Score = Math.Round(
+            (1.0 - meanErrorSignal) * 100.0,
+            2);
+    }
+
+    criteria.Add(new PracticeCriterionResultDto
+    {
+        Code = "C01",
+        Name = "Phát âm & thanh điệu",
+        EvidenceAvailable = c01Available,
+        Score = c01Score,
+        PassingScore = C01PassingScore,
+        Status = GetCriterionStatus(
+            c01Score,
+            C01PassingScore),
+        ScoreDescription = c01Available
+            ? "Điểm thử nghiệm từ trung bình 4 tín hiệu dự đoán lỗi của V4-B; chưa được hiệu chuẩn."
+            : "Không có dữ liệu C01 hợp lệ."
+    });
+
+    // =========================
+    // C02 - Độ rõ lời
+    // =========================
+    var clarity = analysis.Clarity;
+
+    bool c02Available =
+        clarity != null
+        && !double.IsNaN(clarity.Score)
+        && !double.IsInfinity(clarity.Score)
+        && clarity.Score >= 1.0
+        && clarity.Score <= 5.0;
+
+    double? c02Score = c02Available
+        ? Math.Round(
+            (clarity!.Score - 1.0) / 4.0 * 100.0,
+            2)
+        : null;
+
+    criteria.Add(new PracticeCriterionResultDto
+    {
+        Code = "C02",
+        Name = "Độ rõ lời",
+        EvidenceAvailable = c02Available,
+        RawScore = c02Available ? clarity!.Score : null,
+        Score = c02Score,
+        PassingScore = C02PassingScore,
+        Status = GetCriterionStatus(
+            c02Score,
+            C02PassingScore),
+        ScoreDescription = c02Available
+            ? "Điểm Ridge quy đổi tuyến tính từ thang 1–5 sang thang 100."
+            : "Không có dữ liệu C02 hợp lệ."
+    });
+
+    // =========================
+    // C03 - Độ chính xác nội dung
+    // =========================
+    var alignment = AlignContent(
+        expectedText,
+        analysis.Transcript);
+
+    double? c03Score = null;
+    double? wer = null;
+
+    if (alignment != null && alignment.Expected.Count > 0)
+    {
+        int errors = alignment.Edits.Count;
+        int total = alignment.Expected.Count;
+
+        wer = (double)errors / total;
+
+        c03Score = Math.Round(
+            Math.Max(0.0, 1.0 - wer.Value) * 100.0,
+            2);
+    }
+
+    criteria.Add(new PracticeCriterionResultDto
+    {
+        Code = "C03",
+        Name = "Độ chính xác nội dung",
+        EvidenceAvailable = c03Score.HasValue,
+        Score = c03Score,
+        PassingScore = C03PassingScore,
+        Status = GetCriterionStatus(
+            c03Score,
+            C03PassingScore),
+        ScoreDescription = wer.HasValue
+            ? $"Đối chiếu văn bản ASR với bài mẫu; WER = {wer.Value * 100.0:0.##}%. Kết quả có thể chịu ảnh hưởng của lỗi ASR."
+            : "Chưa có đủ văn bản để đối chiếu."
+    });
+
+    return criteria;
+}
+
+private static string GetCriterionStatus(
+    double? score,
+    double passingScore)
+{
+    if (!score.HasValue)
+        return "NOT_EVALUATED";
+
+    return score.Value >= passingScore
+        ? "PASSED"
+        : "FAILED";
+}
     public async Task<AIPracticeResult> AnalyzeAsync(int practiceSessionId, int learnerId,
         byte[] audio, string extension, CancellationToken ct)
     {
@@ -146,7 +283,13 @@ public sealed class AIPracticeService : IAIPracticeService
                 ApplyEvidenceGuard(feedback, alignment, session.ExpectedText);
             // Chuẩn hóa phần tổng quan ở mọi nhánh (LLM / ContentMismatch / ReferenceOnly).
             // Chưa có ngưỡng đã xác thực nên tuyệt đối không gán PASSED/FAILED.
-            ApplyThreeCriteriaOverview(feedback, analysis, clarity, transcript, contentMismatch);
+            ApplyThreeCriteriaOverview(
+    feedback,
+    analysis,
+    clarity,
+    transcript,
+    contentMismatch,
+    session.ExpectedText);
             ValidateFeedback(feedback, practiceSessionId);
             var record = new AIPracticeFeedback
             {
@@ -388,38 +531,74 @@ public sealed class AIPracticeService : IAIPracticeService
 
     // Ba tiêu chí luôn xuất hiện, nhưng trạng thái đạt/chưa đạt chỉ được
     // hiển thị sau khi có rubric và ngưỡng được xác thực từ backend.
-    private static void ApplyThreeCriteriaOverview(
-        LLMFeedbackDto feedback,
-        PronunciationAnalysisDto analysis,
-        SpeechClarityDto? clarity,
-        string? transcript,
-        bool contentMismatch)
+private static void ApplyThreeCriteriaOverview(
+    LLMFeedbackDto feedback,
+    PronunciationAnalysisDto analysis,
+    SpeechClarityDto? clarity,
+    string? transcript,
+    bool contentMismatch,
+    string? expectedText)
+{
+    var criteria = BuildCriteria(
+        analysis,
+        expectedText);
+
+    string FormatCriterion(PracticeCriterionResultDto c)
     {
-        bool c01Available = string.Equals(analysis.ModelVersion, "V4-B",
-            StringComparison.OrdinalIgnoreCase);
-        bool c03Available = !string.IsNullOrWhiteSpace(transcript);
+        if (!c.Score.HasValue)
+        {
+            return $"{c.Code} – {c.Name}: " +
+                   "Chưa có dữ liệu để chấm điểm.";
+        }
 
-        var c01 = c01Available
-            ? "C01 – Phát âm & thanh điệu: Đã có dữ liệu phân tích; chưa xác định đạt/chưa đạt."
-            : "C01 – Phát âm & thanh điệu: Chưa có dữ liệu đánh giá.";
-        var c02 = clarity != null
-            ? "C02 – Độ rõ lời: Đã có kết quả tham khảo; chưa xác định đạt/chưa đạt."
-            : "C02 – Độ rõ lời: Chưa có dữ liệu đánh giá.";
-        var c03 = c03Available
-            ? "C03 – Độ chính xác nội dung: Đã có bản chép lời để đối chiếu; chưa xác định đạt/chưa đạt."
-            : "C03 – Độ chính xác nội dung: Chưa có bản chép lời để đối chiếu.";
+        string result = c.Status == "PASSED"
+            ? "ĐẠT"
+            : "CHƯA ĐẠT";
 
-        feedback.OverallAssessment = string.Join(" ", c01, c02, c03);
-        if (contentMismatch)
-            feedback.Summary = "Bản chép lời khác đáng kể so với bài mẫu. Hãy kiểm tra lại bản ghi trước khi đánh giá nội dung; kết quả nhận dạng có thể chưa chính xác.";
-        else if (feedback.Summary == null || string.IsNullOrWhiteSpace(feedback.Summary))
-            feedback.Summary = "Hãy luyện theo bài mẫu và nghe lại bản ghi để tự đối chiếu từng cụm.";
-
-        // Không để các nhánh fallback hiển thị điểm số C02 cho học viên.
-        // Giữ Summary LLM nếu có, nhưng loại bỏ mẫu câu điểm C02 từ fallback.
-        if (!c01Available && clarity != null)
-            feedback.Summary = "Độ rõ lời hiện chỉ có kết quả tham khảo. Bạn có thể nghe lại bản ghi và đối chiếu với bài mẫu để luyện tiếp.";
+        return $"{c.Code} – {c.Name}: " +
+               $"{c.Score.Value:0.##}/100 – {result}.";
     }
+
+    int passed = criteria.Count(
+        x => x.Status == "PASSED");
+
+    int evaluated = criteria.Count(
+        x => x.Status != "NOT_EVALUATED");
+
+    string overallResult;
+
+    if (evaluated < criteria.Count)
+    {
+        overallResult =
+            $"Đã đánh giá {evaluated}/{criteria.Count} tiêu chí; " +
+            "chưa đủ dữ liệu để kết luận toàn bài.";
+    }
+    else
+    {
+        overallResult = passed == criteria.Count
+            ? $"Kết quả toàn bài: ĐẠT ({passed}/{criteria.Count} tiêu chí)."
+            : $"Kết quả toàn bài: CHƯA ĐẠT ({passed}/{criteria.Count} tiêu chí đạt).";
+    }
+
+    feedback.OverallAssessment =
+        string.Join(" ", criteria.Select(FormatCriterion))
+        + " " + overallResult;
+
+    if (contentMismatch)
+    {
+        feedback.Summary =
+            "Bản chép lời khác đáng kể so với bài mẫu. " +
+            "Điểm C03 phản ánh mức độ khớp văn bản nhận dạng, " +
+            "không tự khẳng định người học đọc sai. " +
+            "Hãy nghe lại bản ghi để kiểm tra.";
+    }
+    else if (string.IsNullOrWhiteSpace(feedback.Summary))
+    {
+        feedback.Summary =
+            "Hệ thống đã phân tích bản ghi. " +
+            "Hãy xem điểm từng tiêu chí và luyện tập theo gợi ý.";
+    }
+}
 
     private static LLMFeedbackDto BuildContentMismatchFeedback(
         string expectedText, string transcript)
@@ -465,41 +644,88 @@ public sealed class AIPracticeService : IAIPracticeService
             ?? throw new InvalidOperationException("Dữ liệu phân tích không hợp lệ.");
         var feedback = JsonSerializer.Deserialize<LLMFeedbackDto>(record.FeedbackJson, JsonOptions)
             ?? throw new InvalidOperationException("Dữ liệu phản hồi không hợp lệ.");
+            ApplyThreeCriteriaOverview(
+    feedback,
+    analysis,
+    analysis.Clarity,
+    analysis.Transcript,
+    false,
+    session.ExpectedText);
         return Map(session, record, analysis, feedback);
     }
 
-    private static AIPracticeResult Map(AIPracticeSession s, AIPracticeFeedback r,
-        PronunciationAnalysisDto a, LLMFeedbackDto f) => new()
+    private static AIPracticeResult Map(
+    AIPracticeSession s,
+    AIPracticeFeedback r,
+    PronunciationAnalysisDto a,
+    LLMFeedbackDto f)
+{
+    var criteria = BuildCriteria(a, s.ExpectedText);
+
+    return new AIPracticeResult
     {
-        PracticeSessionId = s.PracticeSessionId, PracticeFeedbackId = r.PracticeFeedbackId,
-        PracticeMode = s.PracticeMode, CourseId = s.CourseId, LessonId = s.LessonId,
-        ModelVersion = r.ModelVersion, CheckpointEpoch = r.CheckpointEpoch,
-        Predictions = a.Predictions, Clarity = a.Clarity, Transcript = a.Transcript,
-        PronunciationAvailable = a.ModelVersion.Equals("V4-B", StringComparison.OrdinalIgnoreCase),
-        // Model evidence availability is not a validated PASS/FAIL judgment.
-        Criteria = new List<PracticeCriterionResultDto>
-        {
-            new() { Code = "C01", Name = "Phát âm & thanh điệu", Status = "NOT_EVALUATED",
-                EvidenceAvailable = a.ModelVersion.Equals("V4-B", StringComparison.OrdinalIgnoreCase) },
-            new() { Code = "C02", Name = "Độ rõ lời", Status = "NOT_EVALUATED",
-                EvidenceAvailable = a.Clarity != null },
-            new() { Code = "C03", Name = "Độ chính xác nội dung", Status = "NOT_EVALUATED",
-                EvidenceAvailable = !string.IsNullOrWhiteSpace(a.Transcript) }
-        },
-        PassedCriteriaCount = 0,
-        EvaluatedCriteriaCount = 0,
-        TotalCriteriaCount = 3,
+        PracticeSessionId = s.PracticeSessionId,
+        PracticeFeedbackId = r.PracticeFeedbackId,
+        PracticeMode = s.PracticeMode,
+        CourseId = s.CourseId,
+        LessonId = s.LessonId,
+
+        ModelVersion = r.ModelVersion,
+        CheckpointEpoch = r.CheckpointEpoch,
+
+        Predictions = a.Predictions,
+        Clarity = a.Clarity,
+        Transcript = a.Transcript,
+
+        PronunciationAvailable =
+            a.ModelVersion.Equals(
+                "V4-B",
+                StringComparison.OrdinalIgnoreCase),
+
+        Criteria = criteria,
+
+        PassedCriteriaCount = criteria.Count(
+            x => x.Status == "PASSED"),
+
+        EvaluatedCriteriaCount = criteria.Count(
+            x => x.Status == "PASSED" ||
+                 x.Status == "FAILED"),
+
+        TotalCriteriaCount = criteria.Count,
+
         OverallAssessment = f.OverallAssessment,
         Summary = f.Summary,
-        Strengths = f.Strengths.Select(x => new FeedbackItemResultDto
-            { Category = x.Category, Explanation = x.Explanation, Evidence = x.Evidence }).ToList(),
-        Issues = f.Issues.Select(x => new FeedbackItemResultDto
-            { Category = x.Category, Explanation = x.Explanation, Evidence = x.Evidence }).ToList(),
+
+        Strengths = f.Strengths.Select(x =>
+            new FeedbackItemResultDto
+            {
+                Category = x.Category,
+                Explanation = x.Explanation,
+                Evidence = x.Evidence
+            }).ToList(),
+
+        Issues = f.Issues.Select(x =>
+            new FeedbackItemResultDto
+            {
+                Category = x.Category,
+                Explanation = x.Explanation,
+                Evidence = x.Evidence
+            }).ToList(),
+
         Recommendations = f.Recommendations,
-        PracticePlan = f.PracticePlan.Select(x => new PracticeExerciseResultDto
-            { Title = x.Title, Instruction = x.Instruction, Example = x.Example }).ToList(),
-        Encouragement = f.Encouragement, CreatedAt = r.CreatedAt
+
+        PracticePlan = f.PracticePlan.Select(x =>
+            new PracticeExerciseResultDto
+            {
+                Title = x.Title,
+                Instruction = x.Instruction,
+                Example = x.Example
+            }).ToList(),
+
+        Encouragement = f.Encouragement,
+        CreatedAt = r.CreatedAt
     };
+}
 
     private async Task<SpeechClarityDto> AnalyzeClarityAsync(
         byte[] audio, string extension, CancellationToken ct)

@@ -144,6 +144,8 @@ public class SaveScriptRequest
     // [Giải phẫu từng từ khóa]:
     //   - `public decimal PassingScore { get; set; } = 80.00m;`: Kiểu số thực chính xác cao decimal (hậu tố `m`), khởi tạo giá trị mặc định là 80.00m.
     public decimal PassingScore { get; set; } = 80.00m;
+    public DateTime? DueAt { get; set; }
+    public bool? IsRemedial { get; set; }
 
     // [Dòng này làm gì]: Ràng buộc bắt buộc phải có mảng nội dung các cấp độ.
     [Required(ErrorMessage = "Phải cung cấp đủ nội dung các cấp độ.")]
@@ -186,6 +188,8 @@ public class CreateSpeakingScriptRequest
 
     // [Dòng này làm gì]: Điểm số qua môn (mặc định 80.00).
     public decimal PassingScore { get; set; } = 80.00m;
+    public DateTime? DueAt { get; set; }
+    public bool IsRemedial { get; set; }
 
     // [Dòng này làm gì]: Ràng buộc bắt buộc có đủ 3 cấp độ.
     [Required(ErrorMessage = "Phải cung cấp đủ nội dung các cấp độ.")]
@@ -220,6 +224,8 @@ public class UpdateSpeakingScriptRequest
 
     // [Dòng này làm gì]: Ngưỡng điểm đạt mới.
     public decimal? PassingScore { get; set; }
+    public DateTime? DueAt { get; set; }
+    public bool? IsRemedial { get; set; }
 
     // [Dòng này làm gì]: Danh sách cập nhật các cấp độ con.
     public List<SaveLevelDto>? Levels { get; set; }
@@ -268,6 +274,8 @@ public class SpeakingScriptDto
     public string Title { get; set; } = string.Empty;
     public string? OriginalContent { get; set; }
     public decimal PassingScore { get; set; } = 80.00m;
+    public DateTime? DueAt { get; set; }
+    public bool IsRemedial { get; set; }
     public int? CreatedBy { get; set; }
     public string? CreatedByName { get; set; }
     public string Status { get; set; } = string.Empty;
