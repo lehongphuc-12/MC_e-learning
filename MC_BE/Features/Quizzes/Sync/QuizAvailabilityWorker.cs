@@ -44,6 +44,7 @@ public sealed class QuizAvailabilityWorker(
 
             var scheduled = await db.Quizzes
                 .Where(q =>
+                    !q.IsRemedial &&
                     !(q.Purpose == QuizPurpose.PRACTICE && q.LessonId.HasValue ||
                       q.Purpose == QuizPurpose.FINAL_ASSESSMENT) &&
                     ((q.Status == QuizStatus.ARCHIVED && q.AvailableFrom.HasValue && q.AvailableFrom.Value <= now) ||

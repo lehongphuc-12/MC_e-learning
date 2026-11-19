@@ -70,7 +70,7 @@ public interface ICourseService
     /// <summary>
     /// Instructor submits course for admin approval with a note describing changes.
     /// </summary>
-    Task<CourseDto?> SubmitForApprovalAsync(int courseId, int instructorId, string? submissionNote);
+    Task<CourseDto?> SubmitForApprovalAsync(int courseId, int instructorId, string? submissionNote, bool keepApprovedSyllabus = false);
 
     /// <summary>
     /// Admin approves course for public publishing.

@@ -7,6 +7,7 @@ public interface ICourseSyllabusService
     Task<SyllabusUploadSessionDto> CreateUploadSessionAsync(int courseId, int instructorId, CreateSyllabusUploadSessionRequest request);
     Task<CourseSyllabusVersionDto> CompleteUploadSessionAsync(int courseId, Guid sessionId, int instructorId);
     Task<CourseSyllabusVersionDto?> GetCurrentVersionAsync(int courseId, int instructorId, bool isAdmin);
+    Task<CourseSyllabusVersionDto?> GetApprovedVersionAsync(int courseId, int instructorId);
     Task<CourseSyllabusPreviewDraftDto?> GetInstructorPreviewDraftAsync(int courseId, int instructorId);
     Task<CourseSyllabusVersionDto?> GetSubmittedVersionAsync(int courseId);
     Task<CourseSyllabusPublicOutlineDto?> GetPublicOutlineAsync(int courseId, int? userId, bool isAdmin);

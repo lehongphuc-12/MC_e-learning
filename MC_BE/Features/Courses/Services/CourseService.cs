@@ -329,15 +329,58 @@ public class CourseService : ICourseService
             throw new InvalidOperationException("Chưa thể gửi Admin duyệt. Khóa học còn thiếu syllabus PDF hoặc DOCX.");
     }
 
-    private async Task AttachCurrentSyllabusSubmissionAsync(Course course, bool wasPublishedBeforeSubmission)
+    private async Task AttachCurrentSyllabusSubmissionAsync(
+        Course course,
+        bool wasPublishedBeforeSubmission,
+        bool keepApprovedSyllabus = false)
     {
-        var current = await _syllabusVersionRepository.GetQueryable()
-            .FirstOrDefaultAsync(version => version.CourseId == course.CourseId && version.IsCurrent);
+        var current = keepApprovedSyllabus && course.ApprovedSyllabusVersionId.HasValue
+            ? await _syllabusVersionRepository.GetQueryable()
+                .FirstOrDefaultAsync(version => version.CourseId == course.CourseId
+                    && version.SyllabusVersionId == course.ApprovedSyllabusVersionId.Value)
+            : await _syllabusVersionRepository.GetQueryable()
+                .FirstOrDefaultAsync(version => version.CourseId == course.CourseId && version.IsCurrent);
         if (current is null)
-            throw new InvalidOperationException("Chưa thể gửi Admin duyệt. Hãy tải syllabus PDF hoặc DOCX lên trước.");
-        if (current.SyllabusVersionId == course.ApprovedSyllabusVersionId)
+            throw new InvalidOperationException(keepApprovedSyllabus
+                ? "Không tìm thấy phiên bản syllabus đã duyệt để giữ lại. Hãy tải lên một phiên bản mới."
+                : "Chưa thể gửi Admin duyệt. Hãy tải syllabus PDF hoặc DOCX lên trước.");
+
+        if (keepApprovedSyllabus)
+        {
+            if (current.ReviewStatus != "APPROVED")
+                throw new InvalidOperationException("Chỉ có thể giữ lại phiên bản syllabus đã được Admin duyệt.");
+
+            var versions = await _syllabusVersionRepository.GetQueryable()
+                .Where(version => version.CourseId == course.CourseId)
+                .OrderByDescending(version => version.VersionNumber)
+                .ToListAsync();
+            foreach (var version in versions.Where(version => version.IsCurrent))
+            {
+                version.IsCurrent = false;
+                _syllabusVersionRepository.Update(version);
+            }
+
+            // Reuse the approved R2 object without uploading it again, but create a
+            // distinct immutable revision so Admin approval remains tied to an exact version.
+            current = new CourseSyllabusVersion
+            {
+                CourseId = course.CourseId,
+                VersionNumber = (versions.FirstOrDefault()?.VersionNumber ?? 0) + 1,
+                ObjectKey = current.ObjectKey,
+                OriginalFileName = current.OriginalFileName,
+                ContentType = current.ContentType,
+                FileExtension = current.FileExtension,
+                FileSizeBytes = current.FileSizeBytes,
+                ReviewStatus = "DRAFT",
+                IsCurrent = true,
+                UploadedById = course.InstructorId,
+                UploadedAt = DateTime.UtcNow,
+            };
+            await _syllabusVersionRepository.AddAsync(current);
+        }
+        else if (current.SyllabusVersionId == course.ApprovedSyllabusVersionId)
             throw new InvalidOperationException("Hãy tải một phiên bản syllabus mới trước khi gửi khóa học Admin duyệt.");
-        if (current.ReviewStatus == "PENDING_APPROVAL")
+        else if (current.ReviewStatus == "PENDING_APPROVAL")
             throw new InvalidOperationException("Phiên bản syllabus hiện tại đã được gửi duyệt.");
 
         current.ReviewStatus = "PENDING_APPROVAL";
@@ -469,7 +512,7 @@ public class CourseService : ICourseService
         if (request.SubmitForApproval || (request.Status.HasValue && request.Status.Value == CourseStatus.PENDING_APPROVAL))
         {
             await ValidateCourseForApprovalAsync(courseId, course);
-            await AttachCurrentSyllabusSubmissionAsync(course, wasPublished);
+            await AttachCurrentSyllabusSubmissionAsync(course, wasPublished, request.KeepApprovedSyllabus);
             course.Status = CourseStatus.PENDING_APPROVAL;
             course.SubmittedAt = DateTime.UtcNow;
             if (request.SubmissionNote is not null)
@@ -817,7 +860,11 @@ public class CourseService : ICourseService
     // -------------------------------------------------------------------------
     // Submit for Admin Approval
     // -------------------------------------------------------------------------
-    public async Task<CourseDto?> SubmitForApprovalAsync(int courseId, int instructorId, string? submissionNote)
+    public async Task<CourseDto?> SubmitForApprovalAsync(
+        int courseId,
+        int instructorId,
+        string? submissionNote,
+        bool keepApprovedSyllabus = false)
     {
         var course = await _courseRepository.GetByIdAsync(courseId);
         if (course is null || course.InstructorId != instructorId)
@@ -830,7 +877,7 @@ public class CourseService : ICourseService
             throw new InvalidOperationException("Khóa học đang lưu trữ, chờ duyệt hoặc có yêu cầu xóa nên không thể gửi duyệt.");
 
         await ValidateCourseForApprovalAsync(courseId, course);
-        await AttachCurrentSyllabusSubmissionAsync(course, wasPublished);
+        await AttachCurrentSyllabusSubmissionAsync(course, wasPublished, keepApprovedSyllabus);
 
         course.Status = CourseStatus.PENDING_APPROVAL;
         course.SubmittedAt = DateTime.UtcNow;

@@ -54,4 +54,14 @@ public class EnrollmentController : ControllerBase
         if (!response.Success) return BadRequest(response);
         return Ok(response);
     }
+
+    [HttpGet("courses/{courseId:int}/students/insights")]
+    [Authorize(Roles = "Instructor")]
+    public async Task<ActionResult<ApiResponse<List<CourseStudentInsightDto>>>> GetCourseStudentInsights(int courseId)
+    {
+        var instructorId = int.Parse(_currentUserService.GetUserId());
+        var response = await _enrollmentService.GetCourseStudentInsightsAsync(instructorId, courseId);
+        if (!response.Success) return BadRequest(response);
+        return Ok(response);
+    }
 }

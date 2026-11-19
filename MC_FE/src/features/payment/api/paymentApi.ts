@@ -1,10 +1,11 @@
 import { request } from '../../../services/api';
-import type { ApiResponse, EnrollmentDto, CreatePaymentResponseDto, PaymentDetailsDto, VerifyPaymentResultDto, PagedResult, PaymentFilterRequest, CourseEnrolledStudentDto } from '../types/paymentTypes';
+import type { ApiResponse, EnrollmentDto, CreatePaymentResponseDto, PaymentDetailsDto, VerifyPaymentResultDto, PagedResult, PaymentFilterRequest, CourseEnrolledStudentDto, CourseStudentInsightDto } from '../types/paymentTypes';
 
 export const paymentApi = {
   async enrollCourse(courseId: number): Promise<ApiResponse<EnrollmentDto>> { return await request<ApiResponse<EnrollmentDto>>(`/v1/enrollments/courses/${courseId}`, { method: 'POST' }); },
   async getMyEnrollments(): Promise<ApiResponse<EnrollmentDto[]>> { return await request<ApiResponse<EnrollmentDto[]>>('/v1/enrollments/me'); },
   async getCourseStudents(courseId: number): Promise<ApiResponse<CourseEnrolledStudentDto[]>> { return await request<ApiResponse<CourseEnrolledStudentDto[]>>(`/v1/enrollments/courses/${courseId}/students`); },
+  async getCourseStudentInsights(courseId: number): Promise<ApiResponse<CourseStudentInsightDto[]>> { return await request<ApiResponse<CourseStudentInsightDto[]>>(`/v1/enrollments/courses/${courseId}/students/insights`); },
   async cancelPendingEnrollment(enrollmentId: number): Promise<ApiResponse<boolean>> { return await request<ApiResponse<boolean>>(`/v1/enrollments/${enrollmentId}`, { method: 'DELETE' }); },
   async createPayment(enrollmentId: number): Promise<ApiResponse<CreatePaymentResponseDto>> { return await request<ApiResponse<CreatePaymentResponseDto>>('/v1/payments', { method: 'POST', body: JSON.stringify({ enrollmentId }) }); },
   async createCartPayment(enrollmentIds: number[]): Promise<ApiResponse<CreatePaymentResponseDto>> { return await request<ApiResponse<CreatePaymentResponseDto>>('/v1/payments/cart', { method: 'POST', body: JSON.stringify({ enrollmentIds }) }); },

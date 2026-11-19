@@ -196,10 +196,10 @@ export const courseApi = {
   // -------------------------------------------------------------------------
   // SUBMIT FOR APPROVAL — POST /courses/:id/submit-approval
   // -------------------------------------------------------------------------
-  async submitForApproval(courseId: number, submissionNote?: string): Promise<Course> {
+  async submitForApproval(courseId: number, submissionNote?: string, keepApprovedSyllabus = false): Promise<Course> {
     const envelope = await request<ApiEnvelope<Course>>(`/courses/${courseId}/submit-approval`, {
       method: 'POST',
-      body: JSON.stringify({ submissionNote }),
+      body: JSON.stringify({ submissionNote, keepApprovedSyllabus }),
     });
     return envelope.data;
   },

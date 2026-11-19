@@ -2,6 +2,7 @@ using MC_BE.Core.Entities;
 using MC_BE.Core.Enums;
 using MC_BE.Features.Courses.DTOs;
 using MC_BE.Features.Courses.Services.Interfaces;
+using MC_BE.Features.Learning.Services.Interfaces;
 using MC_BE.Shared.Repositories.Interfaces;
 using MC_BE.Shared.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -31,6 +32,7 @@ public class LessonService : ILessonService
     private readonly ICourseLearningAccessService _courseAccess;
     private readonly IMentorChatService _mentorChatService;
     private readonly ILogger<LessonService> _logger;
+    private readonly IRemedialAssignmentService _remedialAssignments;
 
     public LessonService(
         IGenericRepository<Lesson> lessonRepository,
@@ -42,7 +44,8 @@ public class LessonService : ILessonService
         ITranscriptionQueue transcriptionQueue,
         ICourseLearningAccessService courseAccess,
         IMentorChatService mentorChatService,
-        ILogger<LessonService> logger)
+        ILogger<LessonService> logger,
+        IRemedialAssignmentService remedialAssignments)
     {
         _lessonRepository = lessonRepository;
         _courseRepository = courseRepository;
@@ -54,6 +57,7 @@ public class LessonService : ILessonService
         _courseAccess = courseAccess;
         _mentorChatService = mentorChatService;
         _logger = logger;
+        _remedialAssignments = remedialAssignments;
     }
 
     private LessonDto MapToDto(Lesson lesson)
@@ -80,6 +84,7 @@ public class LessonService : ILessonService
             OrderIndex = lesson.OrderIndex,
             DurationMinutes = lesson.DurationMinutes,
             IsPreview = lesson.IsPreview,
+            IsRemedial = lesson.IsRemedial,
             Status = lesson.Status,
             VideoUrl = videoUrl,
             // For playback in the paid-course player, a legacy external URL is not a usable video.
@@ -101,6 +106,10 @@ public class LessonService : ILessonService
             .FirstOrDefaultAsync(l => l.LessonId == lessonId);
 
         if (lesson?.Course is null || lesson.Status != LessonStatus.ACTIVE)
+            return null;
+
+        var isStaff = isAdmin || lesson.Course.InstructorId == userId;
+        if (lesson.IsRemedial && !isStaff && !await _remedialAssignments.CanAccessContentAsync(userId, "LESSON", lessonId))
             return null;
 
         if (!lesson.IsPreview && !await _courseAccess.CanAccessCourseAsync(lesson.CourseId, userId, isAdmin))
@@ -134,6 +143,10 @@ public class LessonService : ILessonService
 
         var hasFullAccess = userId.HasValue && await _courseAccess
             .CanAccessCourseAsync(lesson.CourseId, userId.Value, isAdmin);
+
+        var isStaff = isAdmin || (userId.HasValue && lesson.Course.InstructorId == userId.Value);
+        if (lesson.IsRemedial && !isStaff && (!userId.HasValue || !await _remedialAssignments.CanAccessContentAsync(userId.Value, "LESSON", lessonId)))
+            return null;
 
         // Anonymous/non-enrolled learners may only preview explicitly approved lessons
         // from a published course. Enrolled learners get the same full playback access
@@ -214,6 +227,7 @@ public class LessonService : ILessonService
             OrderIndex = request.OrderIndex,
             DurationMinutes = request.DurationMinutes,
             IsPreview = request.IsPreview,
+            IsRemedial = request.IsRemedial,
             Status = request.Status,
             CreatedAt = DateTime.UtcNow,
         };
@@ -275,6 +289,7 @@ public class LessonService : ILessonService
         if (request.OrderIndex.HasValue) lesson.OrderIndex = request.OrderIndex.Value;
         if (request.DurationMinutes.HasValue) lesson.DurationMinutes = request.DurationMinutes.Value;
         if (request.IsPreview.HasValue) lesson.IsPreview = request.IsPreview.Value;
+        if (request.IsRemedial.HasValue) lesson.IsRemedial = request.IsRemedial.Value;
         if (request.Status.HasValue) lesson.Status = request.Status.Value;
 
         if (request.VideoUrl is not null)

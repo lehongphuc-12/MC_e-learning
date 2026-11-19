@@ -24,7 +24,8 @@ public class QuizzesController : ControllerBase
     private readonly ILogger<QuizzesController> _logger;
     private readonly ICloudinaryService _cloudinaryService;
     private readonly ILearningAccessService _learningAccess;
-    public QuizzesController(IQuizService quizService, QuizSheetExporter sheetExporter, ILogger<QuizzesController> logger, ICloudinaryService cloudinaryService, ILearningAccessService learningAccess, ICourseLearningAccessService courseAccess, SmartMcDbContext db)
+    private readonly IRemedialAssignmentService _remedialAssignments;
+    public QuizzesController(IQuizService quizService,SmartMcDbContext db, QuizSheetExporter sheetExporter, ILogger<QuizzesController> logger, ICloudinaryService cloudinaryService, ILearningAccessService learningAccess, ICourseLearningAccessService courseAccess, IRemedialAssignmentService remedialAssignments)
     {
         _quizService = quizService;
         _db = db;
@@ -33,6 +34,7 @@ public class QuizzesController : ControllerBase
         _logger = logger;
         _cloudinaryService = cloudinaryService;
         _learningAccess = learningAccess;
+        _remedialAssignments = remedialAssignments;
     }
     private async Task TrySyncSheetAsync(int quizId)
     {
@@ -215,6 +217,10 @@ public async Task<ActionResult<ApiResponse<TakeQuizDto>>> TakeQuiz(
             .FirstOrDefaultAsync();
         if (!courseId.HasValue || !await _courseAccess.CanAccessCourseAsync(courseId.Value, learnerId.Value, false))
             return Forbid();
+        if (quiz.IsRemedial && !await _remedialAssignments.CanAccessContentAsync(learnerId.Value, "QUIZ", quizId))
+            return Forbid();
+        if (quiz.IsRemedial && !await _remedialAssignments.CanStartAttemptAsync(learnerId.Value, "QUIZ", quizId))
+            return BadRequest(ApiResponse<TakeQuizDto>.FailureResponse("Bạn đã hoàn thành hoặc dùng hết lượt làm bài bổ trợ này."));
 
         var result = await _quizService.TakeQuizAsync(
             learnerId.Value,
@@ -264,12 +270,17 @@ public async Task<ActionResult<ApiResponse<QuizResultDto>>> SubmitQuiz(
                 (q.ModuleId.HasValue ? _db.Modules.Where(m => m.ModuleId == q.ModuleId.Value)
                     .Select(m => (int?)m.CourseId).FirstOrDefault() : null))
             .FirstOrDefaultAsync();
-        if (!courseId.HasValue || !await _courseAccess.CanAccessCourseAsync(courseId.Value, learnerId.Value, false))
-            return Forbid();
+       
+        var quiz = await _quizService.GetQuizByIdAsync(quizId);
+        if (quiz is null) return NotFound(ApiResponse<QuizResultDto>.FailureResponse("Quiz not found."));
+        if (quiz.CourseId.HasValue && !await _courseAccess.CanAccessCourseAsync(quiz.CourseId.Value, learnerId.Value, isAdmin: false)) return Forbid();
+        if (quiz.IsRemedial && !await _remedialAssignments.CanAccessContentAsync(learnerId.Value, "QUIZ", quizId)) return Forbid();
         var result = await _quizService.SubmitQuizAsync(
             learnerId.Value,
             quizId,
             request);
+        if (quiz.IsRemedial && result != null)
+            await _remedialAssignments.RecordAttemptResultAsync(learnerId.Value, "QUIZ", quizId, result.IsPassed == true);
         if (result is null)
         {
             return NotFound(
@@ -398,6 +409,10 @@ public async Task<IActionResult> GetQuizzesByCourse(int courseId)
         {
             var learnerId = GetCurrentUserId();
             if (!learnerId.HasValue) return Unauthorized();
+            var visibleQuizIds = new HashSet<int>();
+            foreach (var quiz in result.Where(q => q.IsRemedial))
+                if (await _remedialAssignments.CanAccessContentAsync(learnerId.Value, "QUIZ", quiz.QuizId)) visibleQuizIds.Add(quiz.QuizId);
+            result = result.Where(q => !q.IsRemedial || visibleQuizIds.Contains(q.QuizId)).ToList();
             foreach (var quiz in result.Where(q =>
                 q.Purpose == MC_BE.Core.Enums.QuizPurpose.CHAPTER_ASSESSMENT ||
                 q.Purpose == MC_BE.Core.Enums.QuizPurpose.FINAL_ASSESSMENT))

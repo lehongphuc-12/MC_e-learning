@@ -9,6 +9,7 @@ export interface Lesson {
   orderIndex: number;
   durationMinutes: number;
   isPreview: boolean;
+  isRemedial?: boolean;
   status: 'ACTIVE' | 'INACTIVE';
   videoUrl?: string;
   isLocked?: boolean;
@@ -30,6 +31,7 @@ export interface CreateLessonDto {
   orderIndex?: number;
   durationMinutes?: number;
   isPreview?: boolean;
+  isRemedial?: boolean;
   status?: 'ACTIVE' | 'INACTIVE';
   videoUrl?: string;
 }
@@ -42,6 +44,7 @@ export interface UpdateLessonDto {
   orderIndex?: number;
   durationMinutes?: number;
   isPreview?: boolean;
+  isRemedial?: boolean;
   status?: 'ACTIVE' | 'INACTIVE';
   videoUrl?: string;
 }

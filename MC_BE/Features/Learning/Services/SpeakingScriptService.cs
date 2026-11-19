@@ -109,6 +109,8 @@ public class SpeakingScriptService : ISpeakingScriptService
                 Title = request.Title.Trim(),
                 OriginalContent = request.OriginalContent,
                 PassingScore = request.PassingScore,
+                DueAt = request.DueAt,
+                IsRemedial = request.IsRemedial ?? false,
                 CreatedBy = instructorId,
                 Status = SpeakingScriptStatus.PUBLISHED,
                 UpdatedAt = DateTime.UtcNow
@@ -155,6 +157,8 @@ public class SpeakingScriptService : ISpeakingScriptService
             }
             existingScript.Status = SpeakingScriptStatus.PUBLISHED;
             existingScript.UpdatedAt = DateTime.UtcNow;
+            existingScript.DueAt = request.DueAt;
+            if (request.IsRemedial.HasValue) existingScript.IsRemedial = request.IsRemedial.Value;
 
             var validFallback = request.Levels.FirstOrDefault(l => !string.IsNullOrWhiteSpace(l.Content))?.Content
                 ?? existingScript.OriginalContent
@@ -301,6 +305,10 @@ public class SpeakingScriptService : ISpeakingScriptService
     {
         await VerifyCourseOwnershipAsync(request.CourseId, instructorId);
 
+        if (!request.IsRemedial && request.Scope == SpeakingScope.LESSON && request.LessonId.HasValue &&
+            await _context.SpeakingScripts.AnyAsync(x => x.LessonId == request.LessonId && !x.IsRemedial))
+            throw new ArgumentException("Bài học này đã có Speaking chính thức. Có thể tạo thêm Speaking bổ trợ riêng.");
+
         var script = new SpeakingScript
         {
             CourseId = request.CourseId,
@@ -310,6 +318,8 @@ public class SpeakingScriptService : ISpeakingScriptService
             Title = request.Title.Trim(),
             OriginalContent = request.OriginalContent,
             PassingScore = request.PassingScore > 0 ? request.PassingScore : 80.00m,
+            DueAt = request.DueAt,
+            IsRemedial = request.IsRemedial,
             CreatedBy = instructorId,
             Status = SpeakingScriptStatus.PUBLISHED,
             UpdatedAt = DateTime.UtcNow
@@ -355,6 +365,16 @@ public class SpeakingScriptService : ISpeakingScriptService
 
         var courseId = script.CourseId != 0 ? script.CourseId : (script.Lesson?.CourseId ?? 0);
         await VerifyCourseOwnershipAsync(courseId, instructorId);
+
+        var effectiveScope = request.Scope ?? script.Scope;
+        var effectiveLessonId = effectiveScope == SpeakingScope.LESSON
+            ? request.LessonId ?? script.LessonId
+            : null;
+        var effectiveIsRemedial = request.IsRemedial ?? script.IsRemedial;
+        if (!effectiveIsRemedial && effectiveScope == SpeakingScope.LESSON && effectiveLessonId.HasValue &&
+            await _context.SpeakingScripts.AnyAsync(x =>
+                x.ScriptId != scriptId && x.LessonId == effectiveLessonId && !x.IsRemedial))
+            throw new ArgumentException("Bài học này đã có Speaking chính thức. Có thể tạo thêm Speaking bổ trợ riêng.");
 
         if (request.CourseId.HasValue && request.CourseId.Value > 0)
         {
@@ -403,6 +423,8 @@ public class SpeakingScriptService : ISpeakingScriptService
         }
 
         script.UpdatedAt = DateTime.UtcNow;
+        if (request.DueAt.HasValue) script.DueAt = request.DueAt.Value;
+        if (request.IsRemedial.HasValue) script.IsRemedial = request.IsRemedial.Value;
 
         if (request.Levels != null && request.Levels.Count > 0)
         {
@@ -479,6 +501,8 @@ public class SpeakingScriptService : ISpeakingScriptService
             Title = script.Title,
             OriginalContent = script.OriginalContent,
             PassingScore = script.PassingScore,
+            DueAt = script.DueAt,
+            IsRemedial = script.IsRemedial,
             CreatedBy = script.CreatedBy,
             CreatedByName = script.CreatedByUser?.FullName,
             Status = script.Status.ToString(),

@@ -42,6 +42,9 @@ public sealed class LearningAccessService : ILearningAccessService
         purpose == QuizPurpose.PRACTICE ||
         purpose == QuizPurpose.DAILY_PRACTICE;
 
+    private static bool IsRequiredAssessment(QuizNode quiz, DateTime now) =>
+        quiz.Status == QuizStatus.ACTIVE ||
+        (quiz.Status == QuizStatus.INACTIVE && quiz.AvailableUntil.HasValue && quiz.AvailableUntil.Value <= now);
     // PRACTICE lesson quizzes and FINAL_ASSESSMENT use individual seven-day windows.
     // DAILY_PRACTICE keeps its existing scheduled-date behavior.
     private static bool IsSevenDayQuiz(QuizPurpose purpose, int? lessonId) =>
@@ -108,7 +111,8 @@ public sealed class LearningAccessService : ILearningAccessService
         var lessons = await _db.Lessons.AsNoTracking()
             .Where(x =>
                 x.CourseId == courseId &&
-                x.Status == LessonStatus.ACTIVE)
+                x.Status == LessonStatus.ACTIVE &&
+                !x.IsRemedial)
             .Select(x => new LessonNode(
                 x.LessonId,
                 x.ModuleId,
@@ -122,15 +126,16 @@ public sealed class LearningAccessService : ILearningAccessService
 
         var quizzes = await _db.Quizzes.AsNoTracking()
             .Where(x =>
-                x.CourseId == courseId ||
-                (x.LessonId.HasValue &&
-                 _db.Lessons.Any(l =>
-                     l.LessonId == x.LessonId &&
-                     l.CourseId == courseId)) ||
-                (x.ModuleId.HasValue &&
-                 _db.Modules.Any(m =>
-                     m.ModuleId == x.ModuleId &&
-                     m.CourseId == courseId)))
+                !x.IsRemedial &&
+                (x.CourseId == courseId ||
+                 (x.LessonId.HasValue &&
+                  _db.Lessons.Any(l =>
+                      l.LessonId == x.LessonId &&
+                      l.CourseId == courseId)) ||
+                 (x.ModuleId.HasValue &&
+                  _db.Modules.Any(m =>
+                      m.ModuleId == x.ModuleId &&
+                      m.CourseId == courseId))))
             .Select(x => new QuizNode(
                 x.QuizId,
                 x.LessonId,
@@ -208,16 +213,16 @@ public sealed class LearningAccessService : ILearningAccessService
         data.Quizzes
             .Where(q =>
                 IsPracticePurpose(q.Purpose) &&
-                q.Status == QuizStatus.ACTIVE &&
-                q.LessonId == lessonId)
+                q.LessonId == lessonId &&
+                (q.Purpose == QuizPurpose.PRACTICE
+                    ? IsRequiredAssessment(q, DateTime.UtcNow)
+                    : q.Status == QuizStatus.ACTIVE && (!q.AvailableUntil.HasValue || q.AvailableUntil.Value > DateTime.UtcNow)))
             .ToList();
 
-    // Quiz hết hạn không còn chặn việc mở video tiếp theo.
-    // Điều này KHÔNG tính quiz là PASSED và không thay đổi điều kiện cấp chứng chỉ.
+    // Đánh giá chính hết hạn vẫn là điều kiện bắt buộc; grant hợp lệ mới mở lại lượt làm.
     private static bool BlocksLessonProgress(QuizNode quiz, LearningSnapshot data) =>
         !data.PassedQuizIds.Contains(quiz.Id) &&
-        quiz.Status == QuizStatus.ACTIVE &&
-        (!quiz.AvailableUntil.HasValue || DateTime.UtcNow < quiz.AvailableUntil.Value);
+        IsRequiredAssessment(quiz, DateTime.UtcNow);
 
     // Bài có video phải hoàn thành video trước khi chuyển bài.
     // Chỉ yêu cầu PASS bài tập khi bài học thực sự được gắn quiz luyện tập ACTIVE.
@@ -292,13 +297,12 @@ public sealed class LearningAccessService : ILearningAccessService
                 }
             }
 
-            // Chỉ bắt buộc PASS bài đánh giá nếu chương thực sự được gắn
-            // ít nhất một bài đánh giá chương đang ACTIVE.
+            // Quiz đánh giá đã hết hạn vẫn là cổng bắt buộc cho tới khi học viên đạt.
             var chapterAssessments = data.Quizzes
                 .Where(q =>
                     q.Purpose == QuizPurpose.CHAPTER_ASSESSMENT &&
-                    q.Status == QuizStatus.ACTIVE &&
                     q.ModuleId == previousModuleId)
+                .Where(q => IsRequiredAssessment(q, DateTime.UtcNow))
                 .ToList();
 
             if (chapterAssessments.Any(q => BlocksLessonProgress(q, data)))
@@ -348,9 +352,7 @@ public sealed class LearningAccessService : ILearningAccessService
         var lesson = await _db.Lessons.AsNoTracking()
             .Where(x => x.LessonId == lessonId)
             .Select(x => new
-            {
-                x.CourseId
-            })
+            { x.CourseId, x.IsRemedial })
             .FirstOrDefaultAsync();
 
         if (lesson == null)
@@ -364,6 +366,14 @@ public sealed class LearningAccessService : ILearningAccessService
 
         if (!enrolled)
             return (false, "Bạn cần đăng ký khóa học để tiếp tục.");
+
+        if (lesson.IsRemedial)
+        {
+            var assigned = await _db.RemedialAssignmentRecipients.AsNoTracking()
+                .AnyAsync(r => r.StudentId == learnerId && r.Assignment.LessonId == lessonId &&
+                    r.Assignment.IsActive && r.Status != "REVOKED");
+            return assigned ? (true, null) : (false, "Bài bổ trợ chưa được giao cho bạn.");
+        }
 
         var locks = await GetLessonLocksAsync(
             learnerId,
@@ -390,17 +400,40 @@ public sealed class LearningAccessService : ILearningAccessService
                 x.Purpose,
                 x.Status,
                 x.AvailableFrom,
-                x.AvailableUntil
+                x.AvailableUntil,
+                x.IsRemedial
             })
             .FirstOrDefaultAsync();
 
-        if (quiz == null || quiz.Status != QuizStatus.ACTIVE)
+        if (quiz == null)
         {
             return (false, "Bài kiểm tra hiện không khả dụng.");
         }
 
         var now = DateTime.UtcNow;
 
+        if (quiz.IsRemedial)
+        {
+            var remedialAssigned = await _db.RemedialAssignmentRecipients.AsNoTracking()
+                .AnyAsync(r => r.StudentId == learnerId && r.Status != "REVOKED" && r.Status != "COMPLETED" &&
+                    r.Assignment.QuizId == quizId &&
+                    r.Assignment.IsActive &&
+                    (r.Assignment.MaxAttempts == 0 || r.AttemptsUsed < r.Assignment.MaxAttempts));
+            return quiz.Status == QuizStatus.ACTIVE && remedialAssigned
+                ? (true, null)
+                : (false, "Bài bổ trợ chưa được giao cho bạn, đã hoàn thành hoặc đã hết lượt.");
+        }
+
+        var hasValidRetakeGrant = await _db.RemedialRetakeGrants.AsNoTracking()
+            .AnyAsync(g => g.LearnerId == learnerId && g.TargetQuizId == quizId &&
+                !g.UsedAt.HasValue && g.AttemptsRemaining > 0 && g.ExpiresAt > now && g.Recipient.Status != "REVOKED" && g.Recipient.Assignment.IsActive);
+        var expiredAvailabilityGrant = hasValidRetakeGrant && quiz.AvailableUntil.HasValue && quiz.AvailableUntil.Value <= now;
+
+        if ((quiz.Status != QuizStatus.ACTIVE && !expiredAvailabilityGrant) ||
+            (quiz.AvailableFrom.HasValue &&
+             now < quiz.AvailableFrom.Value) ||
+            (!hasValidRetakeGrant && quiz.AvailableUntil.HasValue &&
+             now >= quiz.AvailableUntil.Value))
         if (!IsSevenDayQuiz(quiz.Purpose, quiz.LessonId) &&
             ((quiz.AvailableFrom.HasValue &&
              now < quiz.AvailableFrom.Value) ||
@@ -596,8 +629,8 @@ public sealed class LearningAccessService : ILearningAccessService
             var assessments = data.Quizzes
                 .Where(q =>
                     q.Purpose == QuizPurpose.CHAPTER_ASSESSMENT &&
-                    q.Status == QuizStatus.ACTIVE &&
                     q.ModuleId == moduleId)
+                .Where(q => IsRequiredAssessment(q, DateTime.UtcNow))
                 .ToList();
 
             if (assessments.Count == 0 ||
@@ -615,7 +648,7 @@ public sealed class LearningAccessService : ILearningAccessService
             var finalAssessments = data.Quizzes
                 .Where(q =>
                     q.Purpose == QuizPurpose.FINAL_ASSESSMENT &&
-                    q.Status == QuizStatus.ACTIVE)
+                    IsRequiredAssessment(q, DateTime.UtcNow))
                 .ToList();
 
             if (finalAssessments.Count == 0 ||

@@ -2053,6 +2053,12 @@ namespace MC_BE.Migrations
                         .HasDefaultValue(false)
                         .HasColumnName("IsPreview");
 
+                    b.Property<bool>("IsRemedial")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsRemedial");
+
                     b.Property<string>("LessonType")
                         .HasColumnType("text")
                         .HasColumnName("LessonType");
@@ -2789,6 +2795,12 @@ namespace MC_BE.Migrations
                         .HasColumnType("text")
                         .HasColumnName("Description");
 
+                    b.Property<bool>("IsRemedial")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsRemedial");
+
                     b.Property<int?>("LessonId")
                         .HasColumnType("integer")
                         .HasColumnName("LessonID");
@@ -3282,6 +3294,284 @@ namespace MC_BE.Migrations
                     b.ToTable("refresh_tokens", (string)null);
                 });
 
+            modelBuilder.Entity("MC_BE.Core.Entities.RemedialAssignment", b =>
+                {
+                    b.Property<int>("RemedialAssignmentId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("RemedialAssignmentID");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("RemedialAssignmentId"));
+
+                    b.Property<int>("AssignedById")
+                        .HasColumnType("integer")
+                        .HasColumnName("AssignedByID");
+
+                    b.Property<int>("CourseId")
+                        .HasColumnType("integer")
+                        .HasColumnName("CourseID");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("CreatedAt");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("IsActive");
+
+                    b.Property<int?>("LessonId")
+                        .HasColumnType("integer")
+                        .HasColumnName("LessonID");
+
+                    b.Property<int>("MaxAttempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("MaxAttempts");
+
+                    b.Property<int?>("QuizId")
+                        .HasColumnType("integer")
+                        .HasColumnName("QuizID");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("Reason");
+
+                    b.Property<int>("RetakeAttemptsGranted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("RetakeAttemptsGranted");
+
+                    b.Property<int?>("SpeakingScriptId")
+                        .HasColumnType("integer")
+                        .HasColumnName("SpeakingScriptID");
+
+                    b.Property<int?>("TargetQuizId")
+                        .HasColumnType("integer")
+                        .HasColumnName("TargetQuizID");
+
+                    b.Property<int?>("TargetSpeakingScriptId")
+                        .HasColumnType("integer")
+                        .HasColumnName("TargetSpeakingScriptID");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("Title");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("UpdatedAt");
+
+                    b.HasKey("RemedialAssignmentId");
+
+                    b.HasIndex("AssignedById");
+
+                    b.HasIndex("LessonId");
+
+                    b.HasIndex("QuizId");
+
+                    b.HasIndex("SpeakingScriptId");
+
+                    b.HasIndex("TargetQuizId");
+
+                    b.HasIndex("TargetSpeakingScriptId");
+
+                    b.HasIndex("CourseId", "LessonId")
+                        .HasFilter("\"LessonID\" IS NOT NULL AND \"IsActive\" = TRUE");
+
+                    b.HasIndex("CourseId", "QuizId")
+                        .HasFilter("\"QuizID\" IS NOT NULL AND \"IsActive\" = TRUE");
+
+                    b.HasIndex("CourseId", "SpeakingScriptId")
+                        .HasFilter("\"SpeakingScriptID\" IS NOT NULL AND \"IsActive\" = TRUE");
+
+                    b.HasIndex("CourseId", "IsActive", "CreatedAt");
+
+                    b.ToTable("remedial_assignments", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_remedial_assignments_one_content", "((\"LessonID\" IS NOT NULL)::int + (\"QuizID\" IS NOT NULL)::int + (\"SpeakingScriptID\" IS NOT NULL)::int) = 1");
+                        });
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.RemedialAssignmentEvent", b =>
+                {
+                    b.Property<long>("EventId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("EventID");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("EventId"));
+
+                    b.Property<int>("ActorId")
+                        .HasColumnType("integer")
+                        .HasColumnName("ActorID");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("CreatedAt")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("Details")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("Details");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("EventType");
+
+                    b.Property<int>("RemedialAssignmentId")
+                        .HasColumnType("integer")
+                        .HasColumnName("RemedialAssignmentID");
+
+                    b.Property<int?>("StudentId")
+                        .HasColumnType("integer")
+                        .HasColumnName("StudentID");
+
+                    b.HasKey("EventId");
+
+                    b.HasIndex("RemedialAssignmentId", "CreatedAt");
+
+                    b.ToTable("remedial_assignment_events", (string)null);
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.RemedialAssignmentRecipient", b =>
+                {
+                    b.Property<int>("RecipientId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("RecipientID");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("RecipientId"));
+
+                    b.Property<DateTime>("AssignedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("AssignedAt")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<int>("AttemptsUsed")
+                        .HasColumnType("integer")
+                        .HasColumnName("AttemptsUsed");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("CompletedAt");
+
+                    b.Property<DateTime?>("DueAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("DueAt");
+
+                    b.Property<int>("RemedialAssignmentId")
+                        .HasColumnType("integer")
+                        .HasColumnName("RemedialAssignmentID");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)")
+                        .HasDefaultValue("ASSIGNED")
+                        .HasColumnName("Status");
+
+                    b.Property<int>("StudentId")
+                        .HasColumnType("integer")
+                        .HasColumnName("StudentID");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("UpdatedAt")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.HasKey("RecipientId");
+
+                    b.HasIndex("RemedialAssignmentId", "StudentId")
+                        .IsUnique();
+
+                    b.HasIndex("StudentId", "Status", "DueAt");
+
+                    b.ToTable("remedial_assignment_recipients", (string)null);
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.RemedialRetakeGrant", b =>
+                {
+                    b.Property<int>("GrantId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("GrantID");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("GrantId"));
+
+                    b.Property<int>("AttemptsGranted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("AttemptsGranted");
+
+                    b.Property<int>("AttemptsRemaining")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("AttemptsRemaining");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ExpiresAt");
+
+                    b.Property<DateTime>("GrantedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("GrantedAt");
+
+                    b.Property<int>("LearnerId")
+                        .HasColumnType("integer")
+                        .HasColumnName("LearnerID");
+
+                    b.Property<int>("RecipientId")
+                        .HasColumnType("integer")
+                        .HasColumnName("RecipientID");
+
+                    b.Property<int?>("TargetQuizId")
+                        .HasColumnType("integer")
+                        .HasColumnName("TargetQuizID");
+
+                    b.Property<int?>("TargetSpeakingScriptId")
+                        .HasColumnType("integer")
+                        .HasColumnName("TargetSpeakingScriptID");
+
+                    b.Property<DateTime?>("UsedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("UsedAt");
+
+                    b.HasKey("GrantId");
+
+                    b.HasIndex("RecipientId");
+
+                    b.HasIndex("TargetQuizId");
+
+                    b.HasIndex("TargetSpeakingScriptId");
+
+                    b.HasIndex("LearnerId", "TargetQuizId", "UsedAt");
+
+                    b.HasIndex("LearnerId", "TargetSpeakingScriptId", "UsedAt");
+
+                    b.HasIndex("LearnerId", "TargetQuizId", "ExpiresAt", "UsedAt");
+
+                    b.HasIndex("LearnerId", "TargetSpeakingScriptId", "ExpiresAt", "UsedAt");
+
+                    b.ToTable("remedial_retake_grants", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_remedial_retake_grants_one_target", "((\"TargetQuizID\" IS NOT NULL)::int + (\"TargetSpeakingScriptID\" IS NOT NULL)::int) = 1");
+                        });
+                });
+
             modelBuilder.Entity("MC_BE.Core.Entities.Role", b =>
                 {
                     b.Property<int>("RoleId")
@@ -3428,6 +3718,16 @@ namespace MC_BE.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("CreatedBy");
 
+                    b.Property<DateTime?>("DueAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("DueAt");
+
+                    b.Property<bool>("IsRemedial")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsRemedial");
+
                     b.Property<int?>("LessonId")
                         .HasColumnType("integer")
                         .HasColumnName("LessonID");
@@ -3481,7 +3781,7 @@ namespace MC_BE.Migrations
 
                     b.HasIndex("LessonId")
                         .IsUnique()
-                        .HasFilter("\"LessonID\" IS NOT NULL");
+                        .HasFilter("\"LessonID\" IS NOT NULL AND \"IsRemedial\" = FALSE");
 
                     b.HasIndex("ModuleId");
 
@@ -5177,6 +5477,123 @@ namespace MC_BE.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("MC_BE.Core.Entities.RemedialAssignment", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.User", "AssignedBy")
+                        .WithMany()
+                        .HasForeignKey("AssignedById")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MC_BE.Core.Entities.Course", "Course")
+                        .WithMany()
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MC_BE.Core.Entities.Lesson", "Lesson")
+                        .WithMany()
+                        .HasForeignKey("LessonId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("MC_BE.Core.Entities.Quiz", "Quiz")
+                        .WithMany()
+                        .HasForeignKey("QuizId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("MC_BE.Core.Entities.SpeakingScript", "SpeakingScript")
+                        .WithMany()
+                        .HasForeignKey("SpeakingScriptId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("MC_BE.Core.Entities.Quiz", "TargetQuiz")
+                        .WithMany()
+                        .HasForeignKey("TargetQuizId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("MC_BE.Core.Entities.SpeakingScript", "TargetSpeakingScript")
+                        .WithMany()
+                        .HasForeignKey("TargetSpeakingScriptId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("AssignedBy");
+
+                    b.Navigation("Course");
+
+                    b.Navigation("Lesson");
+
+                    b.Navigation("Quiz");
+
+                    b.Navigation("SpeakingScript");
+
+                    b.Navigation("TargetQuiz");
+
+                    b.Navigation("TargetSpeakingScript");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.RemedialAssignmentEvent", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.RemedialAssignment", "Assignment")
+                        .WithMany("Events")
+                        .HasForeignKey("RemedialAssignmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Assignment");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.RemedialAssignmentRecipient", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.RemedialAssignment", "Assignment")
+                        .WithMany("Recipients")
+                        .HasForeignKey("RemedialAssignmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MC_BE.Core.Entities.User", "Student")
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Assignment");
+
+                    b.Navigation("Student");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.RemedialRetakeGrant", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.User", "Learner")
+                        .WithMany()
+                        .HasForeignKey("LearnerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MC_BE.Core.Entities.RemedialAssignmentRecipient", "Recipient")
+                        .WithMany()
+                        .HasForeignKey("RecipientId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MC_BE.Core.Entities.Quiz", "TargetQuiz")
+                        .WithMany()
+                        .HasForeignKey("TargetQuizId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("MC_BE.Core.Entities.SpeakingScript", "TargetSpeakingScript")
+                        .WithMany()
+                        .HasForeignKey("TargetSpeakingScriptId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("Learner");
+
+                    b.Navigation("Recipient");
+
+                    b.Navigation("TargetQuiz");
+
+                    b.Navigation("TargetSpeakingScript");
+                });
+
             modelBuilder.Entity("MC_BE.Core.Entities.ScenarioChoice", b =>
                 {
                     b.HasOne("MC_BE.Core.Entities.ScenarioNode", "NextNode")
@@ -5478,6 +5895,13 @@ namespace MC_BE.Migrations
             modelBuilder.Entity("MC_BE.Core.Entities.QuizAttempt", b =>
                 {
                     b.Navigation("QuizAnswers");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.RemedialAssignment", b =>
+                {
+                    b.Navigation("Events");
+
+                    b.Navigation("Recipients");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.Role", b =>
