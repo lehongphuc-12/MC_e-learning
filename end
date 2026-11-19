@@ -1,0 +1,27 @@
+ .../VoiceAssessment/AIService/.dockerignore        |  13 [31m-[m
+ .../VoiceAssessment/AIService/.env.example         |  59 [32m+[m[31m-[m
+ .../Features/VoiceAssessment/AIService/Dockerfile  |  37 [32m+[m[31m-[m
+ MC_BE/Features/VoiceAssessment/AIService/README.md | 103 [31m---[m
+ MC_BE/Features/VoiceAssessment/AIService/app.py    | 418 [32m++++++++[m[31m-[m
+ .../VoiceAssessment/AIService/check_c03_vocab.py   | 103 [32m+++[m
+ .../VoiceAssessment/AIService/check_hf_c02.py      |  76 [32m++[m
+ .../AIService/inspect_c03_tokenizer.py             |  66 [32m++[m
+ .../VoiceAssessment/AIService/model_service.py     | 169 [32m+++[m[31m-[m
+ .../VoiceAssessment/AIService/requirements.txt     |  12 [31m-[m
+ .../AIService/services/c02_service.py              | 187 [32m++++[m
+ .../AIService/services/c03_service.py              | 268 [32m++++++[m
+ .../AIService/test_c01_inference.py                |  40 [32m+[m
+ .../VoiceAssessment/AIService/test_c02_download.py |  49 [32m+[m
+ .../AIService/test_c02_inference.py                |  80 [32m++[m
+ .../AIService/test_c03_inference.py                | 137 [32m+++[m
+ .../AIService/test_model_restore.py                |  88 [32m+[m[31m-[m
+ .../VoiceAssessment/DTOs/AIPracticeResult.cs       |  19 [32m+[m
+ .../DTOs/Internal/PronunciationAnalysisDto.cs      |  25 [32m+[m
+ .../Prompts/PronunciationFeedbackPrompt.cs         | 999 [32m+++++[m[31m----------------[m
+ .../VoiceAssessment/Services/AIPracticeService.cs  | 457 [32m+++++++++[m[31m-[m
+ .../Services/HuggingFaceAsrService.cs              |  52 [32m++[m
+ .../Services/Interfaces/IAsrService.cs             |   9 [32m+[m
+ .../Services/MaiTranscribeService.cs               | 145 [32m+++[m
+ MC_BE/Program.cs                                   |   4 [32m+[m
+ MC_BE/Shared/Settings/StuAsrSettings.cs            |  10 [32m+[m
+ 26 files changed, 2624 insertions(+), 1001 deletions(-)
