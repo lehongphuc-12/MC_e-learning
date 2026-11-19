@@ -39,10 +39,20 @@ function criterionStatusLabel(status: string): string {
 
 export function AIPracticeFeedback({ result }: Props) {
   // Backend is the source of truth for statuses. Never derive pass/fail from raw scores.
-  const criteria = DEFAULT_CRITERIA.map((item) => {
-    const fromBe = result.criteria?.find((c) => c.code?.toUpperCase() === item.code);
-    return { ...item, status: fromBe?.status ?? 'NOT_EVALUATED', evidenceAvailable: fromBe?.evidenceAvailable ?? false };
-  });
+const criteria = DEFAULT_CRITERIA.map((item) => {
+  const fromBe = result.criteria?.find(
+    (c) => c.code?.toUpperCase() === item.code
+  );
+
+  return {
+    ...item,
+    status: fromBe?.status ?? 'NOT_EVALUATED',
+    evidenceAvailable: fromBe?.evidenceAvailable ?? false,
+    score: fromBe?.score ?? null,
+    passingScore: fromBe?.passingScore ?? null,
+    scoreDescription: fromBe?.scoreDescription ?? null,
+  };
+});
   const evaluatedCount = criteria.filter((c) => c.status === 'PASSED' || c.status === 'FAILED').length;
   const passedCount = criteria.filter((c) => c.status === 'PASSED').length;
   const strengths = result.strengths ?? [];
@@ -79,48 +89,119 @@ export function AIPracticeFeedback({ result }: Props) {
 
   return (
     <section className="space-y-5 rounded-xl border border-slate-200 bg-white p-5">
-      {/* BA TIÊU CHÍ: chỉ sử dụng trạng thái BE xác nhận */}
-      <div className="space-y-3">
-        <h2 className="text-xl font-bold text-slate-900">Đánh giá theo 3 tiêu chí</h2>
-        <p className="text-sm font-medium text-slate-700">
-          {evaluatedCount === 3
-            ? `Đã đạt ${passedCount}/3 tiêu chí`
-            : 'Chưa đủ căn cứ xác định số tiêu chí đạt'}
-        </p>
-        <div className="grid gap-3 md:grid-cols-3">
-          {criteria.map((criterion) => (
-            <div key={criterion.code} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <p className="text-xs font-bold tracking-wide text-violet-700">{criterion.code}</p>
-              <h3 className="mt-1 font-semibold text-slate-900">{criterion.name}</h3>
-              <p className="mt-2 text-sm text-slate-700">{criterionStatusLabel(criterion.status)}</p>
-              <p className="mt-1 text-xs text-slate-500">
-                {criterion.evidenceAvailable
-                  ? 'Đã có dữ liệu mô hình để tham khảo; chưa đồng nghĩa với kết luận đạt.'
-                  : 'Chưa có dữ liệu mô hình được xác nhận.'}
-              </p>
-            </div>
-          ))}
+      {/* ĐÁNH GIÁ THEO 3 TIÊU CHÍ */}
+<div className="space-y-4">
+  <h2 className="text-xl font-bold text-slate-900">
+    Đánh giá theo 3 tiêu chí
+  </h2>
+
+  <p className="text-sm font-medium text-slate-700">
+    Đã đạt {passedCount}/{evaluatedCount} tiêu chí được đánh giá
+  </p>
+
+  <div className="space-y-3">
+    {criteria.map((criterion) => (
+      <div
+        key={criterion.code}
+        className="rounded-xl border border-slate-200 bg-slate-50 p-4"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold text-violet-700">
+              {criterion.code}
+            </p>
+
+            <h3 className="mt-1 font-semibold text-slate-900">
+              {criterion.name}
+            </h3>
+          </div>
+
+          <span
+            className={`rounded-full px-3 py-1 text-sm font-bold ${
+              criterion.status === 'PASSED'
+                ? 'bg-emerald-100 text-emerald-700'
+                : criterion.status === 'FAILED'
+                  ? 'bg-red-100 text-red-700'
+                  : 'bg-slate-200 text-slate-600'
+            }`}
+          >
+            {criterionStatusLabel(criterion.status)}
+          </span>
         </div>
-      </div>
 
-      {/* KẾT QUẢ TỔNG QUAN */}
-      <div className="space-y-2">
-        <h2 className="text-xl font-bold text-slate-900">
-          Kết quả luyện giọng
-        </h2>
+        <p className="mt-3 text-lg font-bold text-slate-900">
+          {criterion.score != null
+            ? `${criterion.score.toLocaleString('vi-VN', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}/100`
+            : 'Chưa có điểm'}
+        </p>
 
-        {hasOverallAssessment && (
-          <p className="mt-2 font-medium text-slate-800">
-            {result.overallAssessment}
+        {criterion.passingScore != null && (
+          <p className="mt-1 text-xs text-slate-500">
+            Ngưỡng đạt thử nghiệm: {criterion.passingScore}/100
           </p>
         )}
 
-        {hasSummary && (
-          <p className="mt-2 text-slate-600">
-            {result.summary}
+        {criterion.scoreDescription && (
+          <p className="mt-2 text-xs leading-5 text-slate-500">
+            {criterion.scoreDescription}
           </p>
         )}
       </div>
+    ))}
+  </div>
+</div>
+
+{/* KẾT QUẢ LUYỆN GIỌNG */}
+<div className="space-y-4">
+  <h2 className="text-xl font-bold text-slate-900">
+    Kết quả luyện giọng
+  </h2>
+
+  <div className="space-y-3">
+    {criteria.map((criterion) => (
+      <div
+        key={criterion.code}
+        className="border-b border-slate-100 pb-3 last:border-b-0"
+      >
+        <p className="font-semibold text-slate-800">
+          {criterion.code} – {criterion.name}
+        </p>
+
+        <p className="mt-1 text-sm text-slate-700">
+          Điểm:{' '}
+          <strong>
+            {criterion.score != null
+              ? `${criterion.score.toFixed(2)}/100`
+              : 'Chưa có điểm'}
+          </strong>
+
+          {' — '}
+
+          <strong>
+            {criterionStatusLabel(criterion.status)}
+          </strong>
+        </p>
+      </div>
+    ))}
+  </div>
+
+  <p className="font-bold text-violet-700">
+    {evaluatedCount === 3
+      ? `Kết quả toàn bài: ${
+          passedCount === 3 ? 'ĐẠT' : 'CHƯA ĐẠT'
+        } (${passedCount}/3 tiêu chí)`
+      : `Đã đánh giá ${evaluatedCount}/3 tiêu chí; chưa đủ dữ liệu kết luận toàn bài.`}
+  </p>
+
+  {hasSummary && (
+    <p className="mt-3 leading-7 text-slate-600">
+      {result.summary}
+    </p>
+  )}
+</div>
 
       {/* ĐIỂM MẠNH
           Chỉ hiển thị khi Backend có dữ liệu.
