@@ -1,29 +1,4 @@
-// ====================================================================================================
-// [VỊ TRÍ KIẾN TRÚC]:
-// - Thuộc tầng: Service Implementation (Business Logic Layer - Progress & Gamification Domain).
-// - Nằm trong module: Features/Learning/Services.
-// - Triển khai từ: ILearningProgressService.
-// - Vai trò: Trực tiếp điều phối và tính toán toàn bộ tiến độ học tập của học viên ở cấp độ Bài học (Micro-progress)
-//   và Khóa học (Macro-progress). Đồng thời quản lý hệ thống Gamification (Chuỗi ngày học - Streak)
-//   và Dòng thời gian hoạt động (Recent Activities Timeline).
-//
-// [MỤC ĐÍCH NGHIỆP VỤ]:
-// - Theo dõi chi tiết từng giây học của học viên:
-//   1. Ghi nhớ điểm dừng phát video (Resume Video Position) để học viên học tiếp trên các thiết bị khác nhau.
-//   2. Tính toán tỷ lệ hoàn thành khóa học theo công thức tổng hợp đa thành phần:
-//      Tỷ lệ % = (Bài học hoàn thành + Chapter Quiz đạt + Final Quiz đạt + Bài nói độc lập đạt) / Tổng đầu mục bắt buộc.
-//   3. Tự động kích hoạt quy trình cấp chứng chỉ số (Auto-issue Certificate) ngay khi tiến độ chạm ngưỡng 100.00%
-//      và vượt qua kiểm định của LearningAccessService.
-//   4. Tổng hợp hoạt động đa kênh (Học bài, Đạt chứng chỉ, Đăng bài diễn đàn, Thảo luận, Nộp bài Speaking)
-//      tạo dòng tin tức học tập sống động.
-//   5. Thuật toán tính Streak theo múi giờ Việt Nam (UTC+7) tạo động lực học tập mỗi ngày.
-//
-// [BẢN ĐỒ LUỒNG DỮ LIỆU & DEPENDENCY]:
-// - Nhận request từ: LearningController (GET /progress, POST /lessons/{id}/progress, GET /recent-activities, GET /streak).
-// - Phối hợp dịch vụ: ICertificateService, ICourseLearningAccessService, ILearningAccessService, IUnitOfWork.
-// - Cơ sở dữ liệu: Enrollments, Lessons, LessonProgresses, Quizzes, QuizAttempts, SpeakingScripts, SpeakingSubmissions, Forum.
-// ====================================================================================================
-
+﻿
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -95,7 +70,6 @@ public class LearningProgressService : ILearningProgressService
     }
 
     /// <summary>
-    /// [Dòng này làm gì & Luồng chạy]:
     /// - Lấy bức tranh tiến độ học tập toàn diện của học viên trong một khóa học cụ thể.
     /// - End-to-End Execution Flow:
     ///   - Bước 1: Kiểm tra quyền truy cập khóa học qua _courseAccess.CanAccessCourseAsync.
@@ -299,7 +273,6 @@ public class LearningProgressService : ILearningProgressService
     }
 
     /// <summary>
-    /// [Dòng này làm gì & Luồng chạy]:
     /// - Cập nhật tiến độ của một bài học (vị trí xem video, tổng thời gian học, cờ hoàn thành).
     /// - Tự động tính toán lại % khóa học và phát hành chứng chỉ nếu đạt 100%.
     /// - End-to-End Execution Flow:
@@ -530,7 +503,6 @@ public class LearningProgressService : ILearningProgressService
     }
 
     /// <summary>
-    /// [Dòng này làm gì & Luồng chạy]:
     /// - Lấy danh sách các hoạt động học tập gần đây nhất của học viên trên toàn hệ thống
     ///   (Hoàn thành bài học, Đạt chứng chỉ, Đăng ký khóa học mới, Diễn đàn, Nộp bài nói).
     /// </summary>
@@ -687,7 +659,6 @@ public class LearningProgressService : ILearningProgressService
     }
 
     /// <summary>
-    /// [Dòng này làm gì & Luồng chạy]:
     /// - Thuật toán Gamification tính toán chuỗi ngày học liên tục (Learning Streak) của học viên
     ///   theo chuẩn múi giờ Việt Nam (UTC+7).
     /// </summary>
