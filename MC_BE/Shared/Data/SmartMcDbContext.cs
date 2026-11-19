@@ -1,3 +1,4 @@
+using MC_BE.Features.VoiceJourney.Entities;
 using System;
 using MC_BE.Core.Entities;
 using MC_BE.Core.Enums;
@@ -124,9 +125,41 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
 
     public DbSet<AIPronunciationFeedback> AIPronunciationFeedbacks
     { get; set; } = null!;
+    public DbSet<MC_BE.Features.VoiceJourney.Entities.VoiceAiEntitlement> VoiceAiEntitlements { get; set; } = null!;
+    public DbSet<VoiceProfile> VoiceProfiles { get; set; } = null!;
+    public DbSet<VoiceRoadmap> VoiceRoadmaps { get; set; } = null!;
+    public DbSet<VoiceRoadmapItem> VoiceRoadmapItems { get; set; } = null!;
+    public DbSet<VoiceSkill> VoiceSkills { get; set; } = null!;
+    public DbSet<VoiceLesson> VoiceLessons { get; set; } = null!;
+    public DbSet<VoiceExercise> VoiceExercises { get; set; } = null!;
+    public DbSet<VoiceExerciseAttempt> VoiceExerciseAttempts { get; set; } = null!;
+    public DbSet<VoiceDiagnosticAttempt> VoiceDiagnosticAttempts { get; set; } = null!;
+    public DbSet<VoiceSkillModelMapping> VoiceSkillModelMappings { get; set; } = null!;
+    public DbSet<VoiceRecommendationSnapshot> VoiceRecommendationSnapshots { get; set; } = null!;
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.Entity<MC_BE.Features.VoiceJourney.Entities.VoiceAiEntitlement>(entity => {
+            entity.ToTable("voice_ai_entitlements");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.SourcePaymentItemId).IsUnique().HasFilter("\"SourcePaymentItemId\" IS NOT NULL");
+            entity.HasIndex(x => x.SourceGrantId).IsUnique().HasFilter("\"SourceGrantId\" IS NOT NULL");
+            entity.HasIndex(x => new { x.LearnerId, x.Status, x.ExpiresAt });
+            entity.Property(x => x.SourceType).HasMaxLength(30).IsRequired();
+            entity.Property(x => x.Status).HasMaxLength(20).HasDefaultValue("ACTIVE");
+            entity.Property(x => x.RevocationReason).HasMaxLength(200);
+        });
+        modelBuilder.Entity<VoiceProfile>().HasIndex(x => x.LearnerId).IsUnique();
+        modelBuilder.Entity<VoiceRoadmap>().HasIndex(x => new { x.LearnerId, x.Version }).IsUnique();
+        modelBuilder.Entity<VoiceRoadmapItem>().HasIndex(x => new { x.RoadmapId, x.DayNumber }).IsUnique();
+        modelBuilder.Entity<VoiceRoadmapItem>().HasIndex(x => x.LessonId);
+        modelBuilder.Entity<VoiceSkill>().HasIndex(x => x.SkillCode).IsUnique();
+        modelBuilder.Entity<VoiceSkillModelMapping>().HasIndex(x => new { x.SkillId, x.ModelLabel }).IsUnique();
+        modelBuilder.Entity<VoiceExerciseAttempt>().HasIndex(x => new { x.LearnerId, x.ExerciseId, x.CreatedAt });
+        modelBuilder.Entity<VoiceDiagnosticAttempt>().HasIndex(x => new { x.LearnerId, x.CreatedAt });
+        modelBuilder.Entity<VoiceRecommendationSnapshot>().HasIndex(x => new { x.LearnerId, x.CreatedAt });
+
 
         // ============================================================
         // Section 1: Auth & User

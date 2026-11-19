@@ -46,6 +46,199 @@ interface CourseDetailScreenProps {
   onOpenCart?: () => void;
 }
 
+/**
+ * Popup giới thiệu quyền lợi AI Voice Journey được tặng kèm.
+ * Chỉ hiển thị cho khóa học có thông tin AI Voice / Voice Journey.
+ */
+const VoiceJourneyGiftModal: React.FC<{
+  open: boolean;
+  onClose: () => void;
+  onStart: () => void;
+}> = ({ open, onClose, onStart }) => {
+  useEffect(() => {
+    if (!open) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = '';
+    };
+  }, [open, onClose]);
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) onClose();
+          }}
+        >
+          <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="voice-journey-gift-title"
+            className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white shadow-2xl"
+            initial={{ opacity: 0, y: 24, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 16, scale: 0.98 }}
+            transition={{ duration: 0.25, ease: 'easeOut' }}
+          >
+            <div className="relative overflow-hidden bg-gradient-to-br from-blue-700 via-indigo-700 to-violet-800 px-6 py-7 text-white sm:px-8">
+              <div className="pointer-events-none absolute -right-10 -top-16 h-52 w-52 rounded-full bg-white/10 blur-2xl" />
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Đóng"
+                className="absolute right-5 top-5 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-2xl text-white transition hover:bg-white/25"
+              >
+                ×
+              </button>
+
+              <div className="relative z-10">
+                <span className="inline-flex rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[11px] font-bold tracking-wide text-cyan-100">
+                  QUÀ TẶNG DÀNH CHO HỌC VIÊN
+                </span>
+                <div className="mt-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 text-2xl">
+                  🎤
+                </div>
+                <h2
+                  id="voice-journey-gift-title"
+                  className="mt-4 text-2xl font-extrabold sm:text-3xl"
+                >
+                  Tặng kèm AI Voice Journey
+                </h2>
+                <p className="mt-2 max-w-xl text-sm leading-6 text-blue-100">
+                  Bên cạnh khóa học MC, bạn được trải nghiệm chương trình
+                  luyện giọng AI với 4 tiêu chí hiện đang được mô hình hỗ trợ.
+                  Hãy xem trước nội dung đánh giá trước khi bắt đầu.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-5 p-6 sm:p-8">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">
+                  4 tiêu chí luyện giọng
+                </h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  Trọng số theo cấu hình tiêu chí hiện tại của dự án.
+                </p>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                {[
+                  {
+                    code: 'C01',
+                    title: 'Phát âm & thanh điệu',
+                    weight: '18%',
+                    description:
+                      'Đánh giá khả năng phát âm và sử dụng thanh điệu rõ, đúng.',
+                    icon: '🎙️',
+                  },
+                  {
+                    code: 'C02',
+                    title: 'Độ rõ lời',
+                    weight: '10%',
+                    description:
+                      'Đánh giá mức độ rõ ràng, dễ nghe khi bạn trình bày.',
+                    icon: '🔊',
+                  },
+                  {
+                    code: 'C03',
+                    title: 'Độ chính xác nội dung',
+                    weight: '7%',
+                    description:
+                      'Đánh giá mức độ chính xác của nội dung được thể hiện.',
+                    icon: '📝',
+                  },
+                  {
+                    code: 'C04',
+                    title: 'Hơi thở & cột hơi',
+                    weight: '10%',
+                    description:
+                      'Đánh giá khả năng kiểm soát hơi thở và duy trì giọng nói.',
+                    icon: '🌬️',
+                  },
+                ].map((item) => (
+                  <motion.div
+                    key={item.code}
+                    whileHover={{ y: -3 }}
+                    transition={{ duration: 0.18 }}
+                    className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 text-xl">
+                        {item.icon}
+                      </div>
+                      <span className="rounded-full bg-blue-100 px-3 py-1 text-sm font-bold text-blue-700">
+                        {item.weight}
+                      </span>
+                    </div>
+                    <p className="mt-3 text-[11px] font-bold tracking-wider text-blue-600">
+                      {item.code}
+                    </p>
+                    <h4 className="mt-1 font-bold text-slate-900">
+                      {item.title}
+                    </h4>
+                    <p className="mt-2 text-sm leading-5 text-slate-500">
+                      {item.description}
+                    </p>
+                  </motion.div>
+                ))}
+              </div>
+
+              <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-4">
+                <h4 className="font-bold text-indigo-950">
+                  Bạn sẽ trải nghiệm gì?
+                </h4>
+                <ul className="mt-3 space-y-2 text-sm leading-5 text-indigo-900">
+                  <li>✓ Thực hiện đánh giá giọng nói đầu vào.</li>
+                  <li>✓ Xem kết quả theo các tiêu chí được hỗ trợ.</li>
+                  <li>✓ Luyện tập với bài tập phù hợp trong chương trình.</li>
+                  <li>✓ Theo dõi kết quả luyện tập qua các lần thực hành.</li>
+                </ul>
+              </div>
+
+              <p className="text-xs leading-5 text-slate-400">
+                Lưu ý: 4 tiêu chí và trọng số trên là phạm vi hiện được cung
+                cấp trong chương trình. Không đại diện cho các tiêu chí khác
+                chưa được mô hình huấn luyện hoặc hiệu chuẩn.
+              </p>
+
+              <div className="flex flex-col-reverse gap-3 pt-1 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 sm:flex-1"
+                >
+                  Để sau
+                </button>
+                <button
+                  type="button"
+                  onClick={onStart}
+                  className="rounded-xl bg-gradient-to-r from-blue-600 to-indigo-700 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-200 transition hover:-translate-y-0.5 hover:shadow-xl sm:flex-[2]"
+                >
+                  Đã hiểu – Vào khóa học →
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+};
+
 interface ParsedLearningOutcome {
   code: string;
   title: string;
@@ -94,6 +287,8 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
   onOpenCart,
 }) => {
   const navigate = useNavigate();
+  const [showVoiceJourneyGift, setShowVoiceJourneyGift] = useState(false);
+
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
@@ -172,6 +367,32 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
     lecturesCount: outline.totalLessonCount,
     durationHours: Number((outline.totalDurationMinutes / 60).toFixed(1)),
   } : baseCourse;
+
+  // Nhận diện khóa học có tặng kèm AI Voice Journey từ thông tin khóa học.
+  // Không ảnh hưởng đến các khóa MC thông thường.
+  const voiceJourneyCourseText = [
+    course.title,
+    course.category,
+    course.subtitle,
+    course.description,
+    course.badge,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLocaleLowerCase('vi-VN');
+
+  const hasVoiceJourneyGift =
+    voiceJourneyCourseText.includes('ai voice') ||
+    voiceJourneyCourseText.includes('voice journey');
+
+  const handleEnterCourse = () => {
+    if (hasVoiceJourneyGift) {
+      setShowVoiceJourneyGift(true);
+      return;
+    }
+
+    navigate(`/courses/${course.id}/learn`);
+  };
 
   const { data: learnedCourses } = useLearnedCoursesQuery();
 
@@ -626,7 +847,7 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
 
       <button
         id="sticky-go-to-course-btn"
-        onClick={() => navigate(`/courses/${course.id}/learn`)}
+        onClick={handleEnterCourse}
         className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl shadow-lg shadow-emerald-600/30 hover:shadow-emerald-600/50 transition-all flex items-center justify-center gap-2 cursor-pointer"
       >
         <PlayCircle className="w-5 h-5 fill-white/20" />
@@ -732,6 +953,15 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
         </div>
       </div>
 
+      <VoiceJourneyGiftModal
+        open={showVoiceJourneyGift}
+        onClose={() => setShowVoiceJourneyGift(false)}
+        onStart={() => {
+          setShowVoiceJourneyGift(false);
+          navigate(`/courses/${course.id}/learn`);
+        }}
+      />
+
       {/* MOBILE STICKY BOTTOM ACTION BAR */}
       <div className="fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 p-3.5 flex items-center justify-between gap-3 lg:hidden shadow-[0_-8px_25px_rgba(0,0,0,0.08)]">
         <div className="min-w-0">
@@ -751,7 +981,7 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
         <div className="flex items-center gap-2 shrink-0">
           {isEnrolled ? (
             <button
-              onClick={() => navigate(`/courses/${course.id}/learn`)}
+              onClick={handleEnterCourse}
               className="py-2.5 px-5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5"
             >
               <PlayCircle className="w-4 h-4" />

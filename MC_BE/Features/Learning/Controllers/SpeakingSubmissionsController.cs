@@ -113,7 +113,7 @@ public class SpeakingSubmissionsController : ControllerBase
             var submission = await _submissionService.GetLatestSubmissionByLessonAsync(learnerId.Value, lessonId);
             if (submission == null)
             {
-                return NotFound(ApiResponse<SpeakingSubmissionResponseDto>.FailureResponse("No submission found for this lesson."));
+                return Ok(ApiResponse<SpeakingSubmissionResponseDto>.SuccessResponse(null!, "No submission yet for this lesson."));
             }
 
             return Ok(ApiResponse<SpeakingSubmissionResponseDto>.SuccessResponse(submission, "Submission retrieved successfully."));
@@ -145,7 +145,7 @@ public class SpeakingSubmissionsController : ControllerBase
             var submission = await _submissionService.GetLatestSubmissionByScriptAsync(learnerId.Value, scriptId);
             if (submission == null)
             {
-                return NotFound(ApiResponse<SpeakingSubmissionResponseDto>.FailureResponse("No submission found for this script."));
+                return Ok(ApiResponse<SpeakingSubmissionResponseDto>.SuccessResponse(null!, "No submission yet for this script."));
             }
 
             return Ok(ApiResponse<SpeakingSubmissionResponseDto>.SuccessResponse(submission, "Submission retrieved successfully."));

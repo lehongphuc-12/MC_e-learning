@@ -106,7 +106,7 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
                 throw new ArgumentException("Vui lòng cung cấp LessonId hoặc ScriptId để nộp bài nói.");
             }
 
-            if (!await _courseAccess.CanAccessCourseAsync(courseId, learnerId, isAdmin: false))
+            if (courseId <= 0 || !await _courseAccess.CanAccessCourseAsync(courseId, learnerId, isAdmin: false))
                 throw new InvalidOperationException("Bạn không có quyền truy cập khóa học này.");
 
             if (script?.IsRemedial == true &&

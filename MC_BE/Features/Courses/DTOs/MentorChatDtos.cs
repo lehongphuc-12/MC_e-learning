@@ -1,15 +1,18 @@
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
 namespace MC_BE.Features.Courses.DTOs;
 
 public class MentorChatRequestDto
 {
+    [Required(ErrorMessage = "Nội dung câu hỏi không được để trống.")]
     [JsonPropertyName("message")]
     public string Message { get; set; } = string.Empty;
 
     [JsonPropertyName("lesson_id")]
     public int? LessonId { get; set; }
 
+    [Range(1, 12, ErrorMessage = "top_k phải nằm trong khoảng từ 1 đến 12.")]
     [JsonPropertyName("top_k")]
     public int TopK { get; set; } = 4;
 }
@@ -25,6 +28,7 @@ public class PythonChatRequest
     [JsonPropertyName("lesson_id")]
     public int? LessonId { get; set; }
 
+    [Range(1, 12, ErrorMessage = "top_k phải nằm trong khoảng từ 1 đến 12.")]
     [JsonPropertyName("top_k")]
     public int TopK { get; set; } = 4;
 }
@@ -39,6 +43,12 @@ public class MentorSourceItemDto
 
     [JsonPropertyName("lesson_id")]
     public int? LessonId { get; set; }
+
+    [JsonPropertyName("material_id")]
+    public int? MaterialId { get; set; }
+
+    [JsonPropertyName("page_number")]
+    public int? PageNumber { get; set; }
 
     [JsonPropertyName("snippet")]
     public string Snippet { get; set; } = string.Empty;
@@ -87,6 +97,27 @@ public class MentorIngestResponseDto
 
     [JsonPropertyName("total_chunks")]
     public int TotalChunks { get; set; }
+
+    [JsonPropertyName("message")]
+    public string Message { get; set; } = string.Empty;
+}
+
+public class KnowledgeDeleteResponseDto
+{
+    [JsonPropertyName("course_id")]
+    public int CourseId { get; set; }
+
+    [JsonPropertyName("lesson_id")]
+    public int? LessonId { get; set; }
+
+    [JsonPropertyName("material_id")]
+    public int? MaterialId { get; set; }
+
+    [JsonPropertyName("source_type")]
+    public string? SourceType { get; set; }
+
+    [JsonPropertyName("deleted")]
+    public bool Deleted { get; set; }
 
     [JsonPropertyName("message")]
     public string Message { get; set; } = string.Empty;

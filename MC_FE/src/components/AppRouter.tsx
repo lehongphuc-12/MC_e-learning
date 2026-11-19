@@ -14,6 +14,7 @@ import { CourseManagementPage } from '../features/courses/components/management/
 import { CourseFormPage } from '../features/courses/components/management/CourseFormPage';
 import { CourseLessonsPage } from '../features/courses/components/management/CourseLessonsPage';
 import { CourseLearningPage } from '../features/courses/components/CourseLearningPage';
+import { LearningHistoryPage } from '../features/courses/components/LearningHistoryPage';
 import { CourseLearningAccessGate } from '../features/courses/components/CourseLearningAccessGate';
 import { InstructorDashboard } from '../features/courses/components/InstructorDashboard';
 import { CertificateScreen } from '../features/courses/components/CertificateScreen';
@@ -279,6 +280,8 @@ export const AppRouter: React.FC<AppRouterProps> = ({
         user,
         onToast,
       })}
+
+      <Route path="/learning-history" element={<ProtectedRoute user={user}>{withMainLayout(<LearningHistoryPage />)}</ProtectedRoute>} />
 
       {/* ── FE:03 Instructor Course Management Routes ────────────────────── */}
       <Route

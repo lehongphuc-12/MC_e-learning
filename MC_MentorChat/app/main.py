@@ -25,6 +25,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from app.api.chat import router as api_router
 from app.rag.qdrant_service import init_qdrant
+from app.core.config import settings
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -46,10 +47,10 @@ app = FastAPI(
     lifespan=lifespan   
 )
 
-# Cho phép gọi CORS từ web FE
+# Cho phép gọi CORS từ web FE (tắt wildcard với credentials)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
