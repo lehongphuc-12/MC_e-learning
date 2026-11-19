@@ -1,30 +1,4 @@
-// ====================================================================================================
-// [VỊ TRÍ KIẾN TRÚC]:
-// - Thuộc tầng: Presentation Layer (API Controller / Entry Point).
-// - Nằm trong module: Features/Learning/Controllers.
-// - Kế thừa từ: ControllerBase trong ASP.NET Core Web API.
-// - Định tuyến: [Route("api/speaking-scripts")].
-// - Trang trí: [Authorize] (Yêu cầu xác thực JWT).
-// - Vai trò: Cung cấp toàn bộ các điểm cuối RESTful API phục vụ quản lý, bóc tách và xuất bản Kịch bản luyện nói
-//   (Speaking Scripts) đa cấp độ (Beginner, Intermediate, Advanced) và đa phạm vi (Lesson, Chapter, Final).
-//
-// [MỤC ĐÍCH NGHIỆP VỤ]:
-// - Phục vụ Giảng viên và Quản trị viên:
-//   1. Phân tích tài liệu kịch bản Word/Text trực tiếp (Parse Script Document In-Memory).
-//   2. Lưu và xuất bản kịch bản 3 cấp độ (Publish Speaking Script).
-//   3. Tạo mới, cập nhật, xóa kịch bản nói theo bài học hoặc độc lập (CRUD Speaking Scripts).
-//   4. Chỉnh sửa riêng lẻ từng cấp độ kịch bản.
-// - Phục vụ Học viên:
-//   1. Xem danh sách kịch bản của khóa học.
-//   2. Lấy nội dung chi tiết kịch bản theo từng cấp độ để bắt đầu thu âm luyện nói.
-//
-// [BẢN ĐỒ LUỒNG DỮ LIỆU & DEPENDENCY]:
-// - Client -> Gửi Request kèm Bearer Token tới SpeakingScriptController.
-// - Controller -> Kiểm tra quyền (Roles = "Instructor,Admin" đối với các thao tác ghi) -> Gọi ISpeakingScriptService.
-// - Service -> Phối hợp với SpeakingScriptParserService và ISpeakingScriptRepository để xử lý nghiệp vụ.
-// - Kết quả -> Chuẩn hóa qua ApiResponse<T> -> Trả về Client.
-// ====================================================================================================
-
+﻿
 using System.Security.Claims;
 using MC_BE.Core.DTOs;
 using MC_BE.Core.Enums;
@@ -67,7 +41,6 @@ public class SpeakingScriptController : ControllerBase
     }
 
     /// <summary>
-    /// [Dòng này làm gì & Luồng chạy]:
     /// - Hàm tiện ích (Private Helper) trích xuất ID người dùng đang đăng nhập từ JWT Token Claims.
     /// </summary>
     /// <returns>UserId kiểu int hoặc null nếu token không hợp lệ.</returns>
@@ -87,11 +60,6 @@ public class SpeakingScriptController : ControllerBase
     /// <summary>
     /// GET /api/speaking-scripts
     /// Lọc và tìm kiếm danh sách kịch bản luyện nói theo nhiều tiêu chí (Khóa học, Phạm vi, Chương, Bài học, Từ khóa).
-    /// <para>End-to-End Execution Flow:</para>
-    /// <para>Bước 1: Nhận các Query Parameters (courseId, scope, moduleId, lessonId, search).</para>
-    /// <para>Bước 2: Gọi _scriptService.GetAllScriptsAsync(...) để truy vấn CSDL.</para>
-    /// <para>Bước 3: Trả về HTTP 200 OK bọc trong ApiResponse.</para>
-    /// <para>Bước 4: Bắt ngoại lệ và trả về HTTP 500 nếu có lỗi ngoài ý muốn.</para>
     /// </summary>
     /// <returns>Danh sách SpeakingScriptDto thỏa mãn bộ lọc.</returns>
     [HttpGet]
@@ -127,7 +95,6 @@ public class SpeakingScriptController : ControllerBase
     /// <summary>
     /// GET /api/speaking-scripts/{id:int}
     /// Lấy chi tiết một kịch bản luyện nói theo ScriptId (bao gồm cả 3 cấp độ nói).
-    /// <para>End-to-End Flow: Nhận id từ Route -> Gọi _scriptService.GetScriptByIdAsync(id) -> Nếu null trả về 404 Not Found -> Trả về 200 OK.</para>
     /// </summary>
     /// <param name="id">ID kịch bản.</param>
     /// <returns>ApiResponse chứa SpeakingScriptDto.</returns>
@@ -188,13 +155,6 @@ public class SpeakingScriptController : ControllerBase
     /// POST /api/speaking-scripts
     /// Tạo mới một kịch bản luyện nói kèm 3 cấp độ (hỗ trợ các phạm vi Bài học, Cuối chương hoặc Cuối khóa).
     /// Yêu cầu vai trò: Giảng viên hoặc Quản trị viên.
-    /// <para>End-to-End Execution Flow:</para>
-    /// <para>Bước 1: Trích xuất instructorId từ Token -> Nếu null trả về 401 Unauthorized.</para>
-    /// <para>Bước 2: Kiểm tra ModelState.IsValid -> Nếu vi phạm DataAnnotations trả về 400 Bad Request.</para>
-    /// <para>Bước 3: Gọi _scriptService.CreateScriptAsync(request, instructorId).</para>
-    /// <para>Bước 4: Trả về HTTP 200 OK kèm SpeakingScriptDto vừa tạo.</para>
-    /// <para>Bước 5: Bắt UnauthorizedAccessException -> Trả về 403 Forbidden.</para>
-    /// <para>Bước 6: Bắt KeyNotFoundException -> Trả về 404 Not Found.</para>
     /// </summary>
     /// <param name="request">Dữ liệu tạo mới kịch bản.</param>
     /// <returns>SpeakingScriptDto sau khi tạo thành công.</returns>
@@ -224,6 +184,14 @@ public class SpeakingScriptController : ControllerBase
         catch (KeyNotFoundException ex)
         {
             return NotFound(ApiResponse<SpeakingScriptDto>.FailureResponse(ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<SpeakingScriptDto>.FailureResponse(ex.Message));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ApiResponse<SpeakingScriptDto>.FailureResponse(ex.Message));
         }
         catch (Exception ex)
         {
@@ -257,6 +225,14 @@ public class SpeakingScriptController : ControllerBase
         catch (KeyNotFoundException ex)
         {
             return NotFound(ApiResponse<SpeakingScriptDto>.FailureResponse(ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<SpeakingScriptDto>.FailureResponse(ex.Message));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ApiResponse<SpeakingScriptDto>.FailureResponse(ex.Message));
         }
         catch (Exception ex)
         {
@@ -416,6 +392,14 @@ public class SpeakingScriptController : ControllerBase
         catch (KeyNotFoundException ex)
         {
             return NotFound(ApiResponse<SpeakingScriptDto>.FailureResponse(ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<SpeakingScriptDto>.FailureResponse(ex.Message));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ApiResponse<SpeakingScriptDto>.FailureResponse(ex.Message));
         }
         catch (Exception ex)
         {

@@ -3701,6 +3701,69 @@ namespace MC_BE.Migrations
                     b.ToTable("scenario_nodes", (string)null);
                 });
 
+            modelBuilder.Entity("MC_BE.Core.Entities.SpeakingRubricCriterion", b =>
+                {
+                    b.Property<int>("CriterionId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("CriterionID");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("CriterionId"));
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("Code");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("CreatedAt")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<bool>("IsMandatory")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsMandatory");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("Name");
+
+                    b.Property<int>("OrderIndex")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("OrderIndex");
+
+                    b.Property<int>("ScriptId")
+                        .HasColumnType("integer")
+                        .HasColumnName("ScriptID");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("UpdatedAt")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<decimal>("WeightPercentage")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)")
+                        .HasDefaultValue(0.00m)
+                        .HasColumnName("WeightPercentage");
+
+                    b.HasKey("CriterionId");
+
+                    b.HasIndex("ScriptId");
+
+                    b.ToTable("speaking_rubric_criteria", (string)null);
+                });
+
             modelBuilder.Entity("MC_BE.Core.Entities.SpeakingScript", b =>
                 {
                     b.Property<int>("ScriptId")
@@ -3709,6 +3772,10 @@ namespace MC_BE.Migrations
                         .HasColumnName("ScriptID");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("ScriptId"));
+
+                    b.Property<int?>("BackgroundMusicId")
+                        .HasColumnType("integer")
+                        .HasColumnName("BackgroundMusicId");
 
                     b.Property<int>("CourseId")
                         .HasColumnType("integer")
@@ -3774,6 +3841,8 @@ namespace MC_BE.Migrations
                         .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                     b.HasKey("ScriptId");
+
+                    b.HasIndex("BackgroundMusicId");
 
                     b.HasIndex("CourseId");
 
@@ -5623,8 +5692,24 @@ namespace MC_BE.Migrations
                     b.Navigation("Question");
                 });
 
+            modelBuilder.Entity("MC_BE.Core.Entities.SpeakingRubricCriterion", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.SpeakingScript", "Script")
+                        .WithMany("RubricCriteria")
+                        .HasForeignKey("ScriptId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Script");
+                });
+
             modelBuilder.Entity("MC_BE.Core.Entities.SpeakingScript", b =>
                 {
+                    b.HasOne("MC_BE.Core.Entities.BackgroundMusic", "BackgroundMusic")
+                        .WithMany()
+                        .HasForeignKey("BackgroundMusicId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("MC_BE.Core.Entities.Course", "Course")
                         .WithMany()
                         .HasForeignKey("CourseId")
@@ -5645,6 +5730,8 @@ namespace MC_BE.Migrations
                         .WithMany()
                         .HasForeignKey("ModuleId")
                         .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("BackgroundMusic");
 
                     b.Navigation("Course");
 
@@ -5926,6 +6013,8 @@ namespace MC_BE.Migrations
             modelBuilder.Entity("MC_BE.Core.Entities.SpeakingScript", b =>
                 {
                     b.Navigation("Levels");
+
+                    b.Navigation("RubricCriteria");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.User", b =>

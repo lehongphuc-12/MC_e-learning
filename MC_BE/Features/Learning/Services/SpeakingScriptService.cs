@@ -1,28 +1,4 @@
-// ====================================================================================================
-// [VỊ TRÍ KIẾN TRÚC]:
-// - Thuộc tầng: Service Implementation (Business Logic Layer - Speaking Scripts Domain).
-// - Nằm trong module: Features/Learning/Services.
-// - Triển khai từ: ISpeakingScriptService.
-// - Vai trò: Trung tâm điều phối toàn bộ nghiệp vụ biên soạn, bóc tách tài liệu, cấu hình 3 cấp độ nói
-//   (BEGINNER, INTERMEDIATE, ADVANCED) và quản lý 3 phạm vi đánh giá kịch bản (LESSON, CHAPTER, FINAL).
-//
-// [MỤC ĐÍCH NGHIỆP VỤ]:
-// - Cung cấp bộ công cụ toàn diện cho Giảng viên:
-//   1. Tải file Word/Text (.docx, .txt, .md), tự động bóc tách và xem trước cấu trúc (Direct Preview).
-//   2. Lưu và xuất bản kịch bản cho bài học với cơ chế Fallback thông minh: nếu một cấp độ bị thiếu nội dung,
-//      hệ thống tự động lấy nội dung có sẵn hoặc OriginalContent để bù đắp, không làm gãy giao diện học viên.
-//   3. Tự động sinh CleanScriptForScoring (loại bỏ toàn bộ thẻ cử chỉ/ngắt nghỉ) để cấp cho AI chấm âm thanh.
-//   4. Phân quyền tác giả chặt chẽ (Ownership Verification): Ngăn chặn giảng viên sửa kịch bản của khóa học khác.
-//   5. Quản lý linh hoạt kịch bản ở 3 cấp độ phạm vi: Gắn vào bài học (LESSON), Kiểm tra chương (CHAPTER),
-//      hoặc Thi tốt nghiệp cuối khóa (FINAL).
-//
-// [BẢN ĐỒ LUỒNG DỮ LIỆU & DEPENDENCY]:
-// - Controllers: SpeakingScriptController.
-// - Services phối hợp: SpeakingScriptParserService (Parser Engine in-memory).
-// - Repositories: ISpeakingScriptRepository, IGenericRepository<Lesson>, IUnitOfWork.
-// - Database: Tables SpeakingScripts, SpeakingScriptLevels, Lessons, Courses.
-// ====================================================================================================
-
+﻿
 using MC_BE.Core.Entities;
 using MC_BE.Core.Enums;
 using MC_BE.Features.Learning.DTOs;
@@ -67,7 +43,6 @@ public class SpeakingScriptService : ISpeakingScriptService
     }
 
     /// <summary>
-    /// [Dòng này làm gì & Luồng chạy]:
     /// - Hàm bảo vệ phân quyền (Private Guard): Xác minh quyền sở hữu bài học của giảng viên.
     /// - End-to-End Flow: Nạp Lesson kèm Course -> Kiểm tra null -> So khớp Course.InstructorId với instructorId đăng nhập.
     /// </summary>
@@ -84,7 +59,6 @@ public class SpeakingScriptService : ISpeakingScriptService
             .FirstOrDefaultAsync(l => l.LessonId == lessonId);
 
         // [BƯỚC 2]: Rẽ nhánh kiểm tra sự tồn tại của bài học
-        // - Điều kiện: `lesson == null`.
         // - Trường hợp ĐÚNG (TRUE): Ném KeyNotFoundException dừng luồng ngay.
         if (lesson == null)
         {
@@ -92,7 +66,6 @@ public class SpeakingScriptService : ISpeakingScriptService
         }
 
         // [BƯỚC 3]: Rẽ nhánh kiểm tra quyền tác giả (IDOR Protection)
-        // - Điều kiện: `lesson.Course.InstructorId != instructorId`.
         // - Trường hợp ĐÚNG (TRUE): Ném UnauthorizedAccessException, ngăn chặn hành vi sửa đổi tài nguyên trái phép.
         if (lesson.Course.InstructorId != instructorId)
         {
@@ -103,7 +76,6 @@ public class SpeakingScriptService : ISpeakingScriptService
     }
 
     /// <summary>
-    /// [Dòng này làm gì & Luồng chạy]:
     /// - Hàm bảo vệ phân quyền (Private Guard): Xác minh quyền sở hữu khóa học của giảng viên.
     /// </summary>
     /// <param name="courseId">ID khóa học.</param>
@@ -125,7 +97,6 @@ public class SpeakingScriptService : ISpeakingScriptService
     }
 
     /// <summary>
-    /// [Dòng này làm gì & Luồng chạy]:
     /// - Bóc tách trực tiếp file kịch bản không gắn với bài học nào, phục vụ công cụ xem trước nhanh.
     /// - End-to-End Flow: Gọi _parserService.ParseFileAsync(file) -> Ánh xạ kết quả sang ParsePreviewDto -> Sắp xếp Levels theo SpeakingLevel -> Trả về kết quả.
     /// </summary>
@@ -159,7 +130,6 @@ public class SpeakingScriptService : ISpeakingScriptService
     }
 
     /// <summary>
-    /// [Dòng này làm gì & Luồng chạy]:
     /// - Lưu chính thức và xuất bản kịch bản cho bài học sau khi giảng viên đã xem trước và tinh chỉnh.
     /// - Hỗ trợ cả trường hợp Tạo mới (Insert) và Cập nhật (Upsert / Update).
     /// - End-to-End Execution Flow:
@@ -181,10 +151,7 @@ public class SpeakingScriptService : ISpeakingScriptService
 
         // [BƯỚC 2]: Kiểm tra bài học đã có kịch bản trước đó chưa
         var existingScript = await _scriptRepository.GetByLessonIdAsync(lessonId);
-
-        // ====================================================================================================
         // [BƯỚC 3]: RẼ NHÁNH TẠO MỚI KỊCH BẢN (INSERT FLOW - khi existingScript == null)
-        // ====================================================================================================
         if (existingScript == null)
         {
             existingScript = new SpeakingScript
@@ -227,11 +194,11 @@ public class SpeakingScriptService : ISpeakingScriptService
                 });
             }
 
+            SyncRubricCriteria(existingScript, request.RubricCriteria);
+
             await _scriptRepository.AddAsync(existingScript);
         }
-        // ====================================================================================================
         // [BƯỚC 4]: RẼ NHÁNH CẬP NHẬT KỊCH BẢN HIỆN CÓ (UPDATE / UPSERT FLOW - khi existingScript != null)
-        // ====================================================================================================
         else
         {
             existingScript.CourseId = lesson.CourseId;
@@ -284,6 +251,11 @@ public class SpeakingScriptService : ISpeakingScriptService
                         UpdatedAt = DateTime.UtcNow
                     });
                 }
+            }
+
+            if (request.RubricCriteria != null)
+            {
+                SyncRubricCriteria(existingScript, request.RubricCriteria);
             }
 
             _scriptRepository.Update(existingScript);
@@ -381,10 +353,7 @@ public class SpeakingScriptService : ISpeakingScriptService
         await _unitOfWork.SaveChangesAsync();
         return true;
     }
-
-    // ====================================================================================================
     // CÁC PHƯƠNG THỨC MỞ RỘNG CHO HỆ THỐNG 3 SCOPE (LESSON, CHAPTER, FINAL)
-    // ====================================================================================================
 
     /// <summary>
     /// Lấy danh sách kịch bản lọc theo nhiều tiêu chí động.
@@ -429,12 +398,17 @@ public class SpeakingScriptService : ISpeakingScriptService
             await _context.SpeakingScripts.AnyAsync(x => x.LessonId == request.LessonId && !x.IsRemedial))
             throw new ArgumentException("Bài học này đã có Speaking chính thức. Có thể tạo thêm Speaking bổ trợ riêng.");
 
+        var targetModuleId = request.Scope == SpeakingScope.CHAPTER
+            ? (request.ModuleId ?? request.ChapterId)
+            : (request.Scope == SpeakingScope.LESSON ? (request.ModuleId ?? request.ChapterId) : null);
+
         var script = new SpeakingScript
         {
             CourseId = request.CourseId,
             Scope = request.Scope,
-            ModuleId = request.Scope == SpeakingScope.CHAPTER ? request.ModuleId : (request.Scope == SpeakingScope.LESSON ? request.ModuleId : null),
+            ModuleId = targetModuleId,
             LessonId = request.Scope == SpeakingScope.LESSON ? request.LessonId : null,
+            BackgroundMusicId = request.BackgroundMusicId > 0 ? request.BackgroundMusicId : null,
             Title = request.Title.Trim(),
             OriginalContent = request.OriginalContent,
             PassingScore = request.PassingScore > 0 ? request.PassingScore : 80.00m,
@@ -468,6 +442,8 @@ public class SpeakingScriptService : ISpeakingScriptService
             });
         }
 
+        SyncRubricCriteria(script, request.RubricCriteria);
+
         await _scriptRepository.AddAsync(script);
         await _unitOfWork.SaveChangesAsync();
 
@@ -476,7 +452,6 @@ public class SpeakingScriptService : ISpeakingScriptService
     }
 
     /// <summary>
-    /// [Dòng này làm gì & Luồng chạy]:
     /// - Cập nhật thông tin và cấp độ của một kịch bản theo ScriptId.
     /// - Quản lý cấu trúc rẽ nhánh Scope:
     ///   - Nếu Scope chuyển sang FINAL: Xóa ModuleId và LessonId (bài thi cấp toàn khóa).
@@ -510,6 +485,8 @@ public class SpeakingScriptService : ISpeakingScriptService
             script.CourseId = request.CourseId.Value;
         }
 
+        var targetModuleId = request.ModuleId ?? request.ChapterId;
+
         if (request.Scope.HasValue)
         {
             script.Scope = request.Scope.Value;
@@ -520,19 +497,24 @@ public class SpeakingScriptService : ISpeakingScriptService
             }
             else if (script.Scope == SpeakingScope.CHAPTER)
             {
-                script.ModuleId = request.ModuleId ?? script.ModuleId;
+                script.ModuleId = targetModuleId ?? script.ModuleId;
                 script.LessonId = null;
             }
             else if (script.Scope == SpeakingScope.LESSON)
             {
-                script.ModuleId = request.ModuleId ?? script.ModuleId;
+                script.ModuleId = targetModuleId ?? script.ModuleId;
                 script.LessonId = request.LessonId ?? script.LessonId;
             }
         }
         else
         {
-            if (request.ModuleId.HasValue) script.ModuleId = request.ModuleId.Value;
+            if (targetModuleId.HasValue) script.ModuleId = targetModuleId.Value;
             if (request.LessonId.HasValue) script.LessonId = request.LessonId.Value;
+        }
+
+        if (request.BackgroundMusicId.HasValue)
+        {
+            script.BackgroundMusicId = request.BackgroundMusicId.Value <= 0 ? null : request.BackgroundMusicId.Value;
         }
 
         if (!string.IsNullOrWhiteSpace(request.Title))
@@ -591,6 +573,11 @@ public class SpeakingScriptService : ISpeakingScriptService
             }
         }
 
+        if (request.RubricCriteria != null)
+        {
+            SyncRubricCriteria(script, request.RubricCriteria);
+        }
+
         _scriptRepository.Update(script);
         await _unitOfWork.SaveChangesAsync();
 
@@ -629,9 +616,13 @@ public class SpeakingScriptService : ISpeakingScriptService
             CourseTitle = course?.Title ?? string.Empty,
             Scope = script.Scope.ToString(),
             ModuleId = script.ModuleId ?? module?.ModuleId,
+            ChapterId = script.ModuleId ?? module?.ModuleId,
             ModuleTitle = module?.Title,
             LessonId = script.LessonId,
             LessonTitle = script.Lesson?.Title,
+            BackgroundMusicId = script.BackgroundMusicId,
+            BackgroundMusicTitle = script.BackgroundMusic?.Title,
+            BackgroundMusicUrl = script.BackgroundMusic?.AudioUrl,
             Title = script.Title,
             OriginalContent = script.OriginalContent,
             PassingScore = script.PassingScore,
@@ -649,7 +640,84 @@ public class SpeakingScriptService : ISpeakingScriptService
                 Content = l.Content,
                 CleanScriptForScoring = l.CleanScriptForScoring,
                 UpdatedAt = l.UpdatedAt
-            }).OrderBy(l => l.Level).ToList()
+            }).OrderBy(l => l.Level).ToList(),
+            RubricCriteria = (script.RubricCriteria != null && script.RubricCriteria.Count > 0)
+                ? script.RubricCriteria.Select(r => new SpeakingRubricCriterionDto
+                {
+                    CriterionId = r.CriterionId,
+                    ScriptId = r.ScriptId,
+                    Code = r.Code,
+                    Name = r.Name,
+                    WeightPercentage = r.WeightPercentage,
+                    IsMandatory = r.IsMandatory,
+                    OrderIndex = r.OrderIndex,
+                    UpdatedAt = r.UpdatedAt
+                }).OrderBy(r => r.OrderIndex).ThenBy(r => r.Code).ToList()
+                : DefaultRubricCriteria.Select((d, idx) => new SpeakingRubricCriterionDto
+                {
+                    CriterionId = idx + 1,
+                    ScriptId = script.ScriptId,
+                    Code = d.Code,
+                    Name = d.Name,
+                    WeightPercentage = d.WeightPercentage,
+                    IsMandatory = d.IsMandatory,
+                    OrderIndex = d.OrderIndex,
+                    UpdatedAt = script.UpdatedAt
+                }).ToList()
         };
+    }
+
+    /// <summary>
+    /// Bộ 3 tiêu chí chấm điểm mặc định theo chuẩn MC (tổng khởi điểm 35%).
+    /// </summary>
+    private static readonly List<SaveRubricCriterionDto> DefaultRubricCriteria = new()
+    {
+        new SaveRubricCriterionDto { Code = "C01", Name = "Phát âm & thanh điệu", WeightPercentage = 18m, IsMandatory = true, OrderIndex = 1 },
+        new SaveRubricCriterionDto { Code = "C02", Name = "Độ rõ lời", WeightPercentage = 10m, IsMandatory = true, OrderIndex = 2 },
+        new SaveRubricCriterionDto { Code = "C03", Name = "Độ chính xác nội dung", WeightPercentage = 7m, IsMandatory = true, OrderIndex = 3 },
+    };
+
+    /// <summary>
+    /// Đồng bộ danh sách tiêu chí chấm điểm (Rubric) cho kịch bản luyện nói.
+    /// Đảm bảo dữ liệu hợp lệ và trọng số không âm.
+    /// Chặn không cho phép lưu nếu tổng trọng số vượt quá 100%.
+    /// </summary>
+    private void SyncRubricCriteria(SpeakingScript script, List<SaveRubricCriterionDto>? criteriaDtos)
+    {
+        var criteriaToSave = (criteriaDtos != null && criteriaDtos.Count > 0)
+            ? criteriaDtos
+            : DefaultRubricCriteria;
+
+        var totalWeight = criteriaToSave.Sum(c => c.WeightPercentage);
+        if (totalWeight > 100m)
+        {
+            throw new InvalidOperationException($"Tổng trọng số các tiêu chí chấm điểm ({totalWeight}%) vượt quá 100%. Hệ thống không cho phép lưu thay đổi hoặc tạo bài nói khi vượt quá 100%.");
+        }
+
+        // Xóa các tiêu chí cũ trong navigation property nếu có
+        script.RubricCriteria.Clear();
+
+        int order = 1;
+        foreach (var c in criteriaToSave)
+        {
+            if (string.IsNullOrWhiteSpace(c.Name)) continue;
+
+            var code = string.IsNullOrWhiteSpace(c.Code) ? $"C{order:D2}" : c.Code.Trim();
+            var isMandatory = c.IsMandatory || code is "C01" or "C02" or "C03";
+            var weight = Math.Clamp(c.WeightPercentage, 0m, 100m);
+
+            script.RubricCriteria.Add(new SpeakingRubricCriterion
+            {
+                ScriptId = script.ScriptId,
+                Code = code,
+                Name = c.Name.Trim(),
+                WeightPercentage = weight,
+                IsMandatory = isMandatory,
+                OrderIndex = c.OrderIndex > 0 ? c.OrderIndex : order,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            });
+            order++;
+        }
     }
 }

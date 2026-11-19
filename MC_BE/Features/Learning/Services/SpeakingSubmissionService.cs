@@ -1,33 +1,4 @@
-// ====================================================================================================
-// [VỊ TRÍ KIẾN TRÚC]:
-// - Thuộc tầng: Service Implementation (Business Logic Layer - Speaking Submission & Assessment Domain).
-// - Nằm trong module: Features/Learning/Services.
-// - Triển khai từ: ISpeakingSubmissionService.
-// - Vai trò: Quản lý toàn bộ vòng đời của Bài nộp thực hành nói Speaking: từ lúc học viên tải file ghi âm lên,
-//   lưu trữ đám mây Cloudinary, kiểm tra điều kiện nộp/chặn nộp lại, đến quy trình Giảng viên chấm điểm,
-//   nhận xét và tự động đồng bộ trạng thái hoàn thành bài học sang LessonProgress.
-//
-// [MỤC ĐÍCH NGHIỆP VỤ]:
-// - Kiểm soát chặt chẽ luồng nộp bài luyện nói MC:
-//   1. Thẩm định định dạng âm thanh chuẩn (.mp3, .wav, .m4a, .ogg...).
-//   2. Xác minh quyền ghi danh (Enrollment) và quyền truy cập khóa học của học viên trước khi nộp.
-//   3. CƠ CHẾ KHÓA NỘP BÀI THÔNG MINH (RESUBMISSION LOCK):
-//      - Nếu bài nộp trước đang chờ chấm (Status == SUBMITTED hoặc Score == null): Chặn nộp đè để tránh spam.
-//      - Nếu bài nộp trước đã đạt điểm chuẩn (Score >= 80): Khóa nộp lại vì đã đạt chuẩn đầu ra.
-//      - Nếu bài nộp trước bị trượt (Score < 80 và đã chấm xong): Cho phép ghi đè/nộp lại để cải thiện điểm.
-//   4. Phân quyền chấm điểm khắt khe (Instructor Grading Authorization): Chỉ giảng viên phụ trách khóa học
-//      mới được phép chấm điểm và ghi nhận xét.
-//   5. Đồng bộ liên thông (Cross-entity Synchronization): Khi bài nói được chấm ĐẠT (>= 80), hệ thống tự động
-//      đánh dấu hoàn thành bài học (LessonProgress.IsCompleted = true) để mở khóa bài học tiếp theo.
-//
-// [BẢN ĐỒ LUỒNG DỮ LIỆU & DEPENDENCY]:
-// - Nhận request từ: SpeakingSubmissionsController.
-// - Tương tác Cloud: ICloudinaryService (Upload audio binary).
-// - Repositories: ISpeakingSubmissionRepository, ISpeakingScriptRepository, IGenericRepository<Lesson>,
-//   <Enrollment>, <LessonProgress>, IUnitOfWork.
-// - Dịch vụ phối hợp: ICourseLearningAccessService.
-// ====================================================================================================
-
+﻿
 using MC_BE.Core.Entities;
 using MC_BE.Core.Enums;
 using MC_BE.Features.Learning.DTOs;
@@ -84,7 +55,6 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
     }
 
     /// <summary>
-    /// [Dòng này làm gì & Luồng chạy]:
     /// - Học viên nộp bài tập ghi âm luyện nói theo LessonId hoặc ScriptId.
     /// - End-to-End Execution Flow:
     ///   - Bước 1: Validate file ghi âm (tồn tại, không rỗng, đuôi file âm thanh hợp lệ trong whitelist).
@@ -102,9 +72,7 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
     {
         try
         {
-            // ====================================================================================================
             // [BƯỚC 1]: KIỂM TRA HỢP LỆ CỦA FILE ÂM THANH ĐẦU VÀO
-            // ====================================================================================================
             // [BƯỚC 1.1]: Kiểm tra file có bị null hoặc kích thước 0 byte không
             if (request.AudioFile == null || request.AudioFile.Length == 0)
             {
@@ -122,10 +90,7 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
                 _logger.LogError(errMsg);
                 throw new ArgumentException("Invalid audio file format. Only .mp3 and .wav formats are allowed.");
             }
-
-            // ====================================================================================================
             // [BƯỚC 2]: PHÂN GIẢI NGỮ CẢNH BÀI TẬP (COURSE, SCRIPT, LESSON RESOLUTION)
-            // ====================================================================================================
             int courseId = 0;
             int? scriptId = request.ScriptId;
             int? lessonId = request.LessonId;
@@ -166,10 +131,7 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
             {
                 throw new ArgumentException("Vui lòng cung cấp LessonId hoặc ScriptId để nộp bài nói.");
             }
-
-            // ====================================================================================================
             // [BƯỚC 3]: XÁC MINH QUYỀN TRUY CẬP VÀ GHI DANH KHÓA HỌC
-            // ====================================================================================================
             if (courseId <= 0 || !await _courseAccess.CanAccessCourseAsync(courseId, learnerId, isAdmin: false))
                 throw new InvalidOperationException("Bạn không có quyền truy cập khóa học này.");
 
@@ -187,9 +149,25 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
                  !await _remedialAssignments.CanStartAttemptAsync(learnerId, "SPEAKING", script.ScriptId)))
                 throw new InvalidOperationException("Bài bổ trợ đã hết lượt, đã hoàn thành hoặc khóa học hiện không còn quyền truy cập.");
 
-            // ====================================================================================================
+            // [BƯỚC 3.1]: KIỂM TRA ĐIỀU KIỆN TIÊN QUYẾT HOÀN THÀNH VIDEO BÀI HỌC
+            // Bài luyện nói theo bài học (LESSON) bắt buộc học viên phải hoàn thành video của bài học đó trước khi nộp bài
+            if (lessonId.HasValue && lessonId.Value > 0)
+            {
+                var lessonProgresses = await _lessonProgressRepository.FindAsync(
+                    p => p.LessonId == lessonId.Value &&
+                         p.Enrollment.LearnerId == learnerId &&
+                         p.Enrollment.CourseId == courseId);
+                var progress = lessonProgresses.FirstOrDefault();
+                var isCompleted = progress != null && (progress.IsCompleted || progress.Status == LessonProgressStatus.COMPLETED);
+
+                if (!isCompleted)
+                {
+                    var msg = "Vui lòng hoàn thành video bài học trước khi nộp bài luyện nói.";
+                    _logger.LogWarning("Learner {LearnerId} attempted speaking submission before completing lesson video {LessonId}", learnerId, lessonId.Value);
+                    throw new InvalidOperationException(msg);
+                }
+            }
             // [BƯỚC 4]: QUY CHẾ KHÓA NỘP BÀI (RESUBMISSION LOCK BUSINESS RULES)
-            // ====================================================================================================
             SpeakingSubmission? existingSubmission = null;
             if (scriptId.HasValue)
             {
@@ -228,10 +206,7 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
 
                 // Nếu Score < 80 và Status != SUBMITTED: Học viên bị trượt ở lần trước -> Đi tiếp xuống nộp lại
             }
-
-            // ====================================================================================================
             // [BƯỚC 5]: TẢI TẬP TIN GHI ÂM LÊN ĐÁM MÂY CLOUDINARY
-            // ====================================================================================================
             var uploadResult = await _cloudinaryService.UploadVideoAsync(request.AudioFile, "speaking_submissions");
             if (uploadResult == null || string.IsNullOrEmpty(uploadResult.SecureUrl?.ToString()))
             {
@@ -242,18 +217,32 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
 
             var audioUrl = uploadResult.SecureUrl.ToString();
 
-            // Preserve every resubmission as a separate attempt for audit/history.
+            // Đóng gói cấp độ đã chọn vào Note nếu có
+            var rawNote = request.Note?.Trim() ?? string.Empty;
+            string? encodedNote = rawNote;
+            if (!string.IsNullOrWhiteSpace(request.SelectedLevel))
+            {
+                var cleanLevel = request.SelectedLevel.Trim().ToUpperInvariant();
+                encodedNote = $"[LEVEL:{cleanLevel}]{(string.IsNullOrWhiteSpace(rawNote) ? "" : " " + rawNote)}";
+            }
+            else if (script?.Levels != null && script.Levels.Count > 0)
+            {
+                // Mặc định level đầu tiên nếu không chỉ định
+                encodedNote = $"[LEVEL:BEGINNER]{(string.IsNullOrWhiteSpace(rawNote) ? "" : " " + rawNote)}";
+            }
+
             var submission = new SpeakingSubmission
             {
                 ScriptId = scriptId,
                 LessonId = lessonId,
                 LearnerId = learnerId,
                 AudioUrl = audioUrl,
-                Note = request.Note,
+                Note = encodedNote,
                 Status = SpeakingSubmissionStatus.SUBMITTED,
                 SubmittedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
+
             await _submissionRepository.AddAsync(submission);
 
             // [BƯỚC 7]: Lưu giao dịch vào CSDL
@@ -265,7 +254,26 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
 
             // [BƯỚC 8]: Nạp lại đầy đủ chi tiết quan hệ (Giảng viên, Khóa học, Học viên) và trả về DTO
             var fullSubmission = await _submissionRepository.GetByIdWithDetailsAsync(submission.SubmissionId);
-            return MapToResponseDto(fullSubmission ?? submission);
+
+            // Tính số lần làm
+            int attemptNumber = 1;
+            int totalAttempts = 1;
+            if (scriptId.HasValue)
+            {
+                var allAttempts = (await _submissionRepository.GetSubmissionsByLearnerAndScriptAsync(learnerId, scriptId.Value)).ToList();
+                totalAttempts = allAttempts.Count;
+                var idx = allAttempts.FindIndex(s => s.SubmissionId == submission.SubmissionId);
+                attemptNumber = idx >= 0 ? idx + 1 : totalAttempts;
+            }
+            else if (lessonId.HasValue)
+            {
+                var allAttempts = (await _submissionRepository.GetSubmissionsByLearnerAndLessonAsync(learnerId, lessonId.Value)).ToList();
+                totalAttempts = allAttempts.Count;
+                var idx = allAttempts.FindIndex(s => s.SubmissionId == submission.SubmissionId);
+                attemptNumber = idx >= 0 ? idx + 1 : totalAttempts;
+            }
+
+            return MapToResponseDto(fullSubmission ?? submission, attemptNumber, totalAttempts);
         }
         catch (Exception ex)
         {
@@ -319,7 +327,7 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
         try
         {
             var submissions = await _submissionRepository.GetSubmissionsByLearnerAsync(learnerId);
-            return submissions.Select(MapToResponseDto);
+            return submissions.Select(s => MapToResponseDto(s));
         }
         catch (Exception ex)
         {
@@ -337,7 +345,7 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
         try
         {
             var submissions = await _submissionRepository.GetSubmissionsByInstructorAsync(instructorId);
-            return submissions.Select(MapToResponseDto);
+            return submissions.Select(s => MapToResponseDto(s));
         }
         catch (Exception ex)
         {
@@ -358,7 +366,7 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
             var filtered = submissions.Where(s =>
                 (s.Lesson?.Course?.InstructorId == instructorId) ||
                 (s.SpeakingScript?.Course?.InstructorId == instructorId));
-            return filtered.Select(MapToResponseDto);
+            return filtered.Select(s => MapToResponseDto(s));
         }
         catch (Exception ex)
         {
@@ -369,7 +377,6 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
     }
 
     /// <summary>
-    /// [Dòng này làm gì & Luồng chạy]:
     /// - Giảng viên thực hiện chấm điểm và viết nhận xét cho bài nộp Speaking.
     /// - Tự động cập nhật tiến độ hoàn thành bài học (LessonProgress) nếu điểm đạt chuẩn (>= 80).
     /// - End-to-End Execution Flow:
@@ -414,8 +421,17 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
             // [BƯỚC 4]: Đánh giá Đạt/Không đạt dựa trên ngưỡng chuẩn 80 điểm
             var isPassed = request.Score >= 80;
 
+            // Đóng gói CriterionScores vào Feedback nếu có
+            var cleanFeedback = request.Feedback?.Trim() ?? string.Empty;
+            string finalFeedback = cleanFeedback;
+            if (request.CriterionScores != null && request.CriterionScores.Count > 0)
+            {
+                var rubricJson = System.Text.Json.JsonSerializer.Serialize(request.CriterionScores);
+                finalFeedback = $"{cleanFeedback}\n<!--RUBRIC_SCORES:{rubricJson}-->";
+            }
+
             submission.Score = request.Score;
-            submission.Feedback = request.Feedback;
+            submission.Feedback = finalFeedback;
             submission.GradedById = instructorId;
             submission.GradedAt = DateTime.UtcNow;
             submission.Status = isPassed ? SpeakingSubmissionStatus.GRADED : SpeakingSubmissionStatus.NEEDS_RESUBMISSION;
@@ -486,9 +502,133 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
     }
 
     /// <summary>
+    /// Lấy chi tiết bài nộp theo ID cho học viên (chính chủ) hoặc giảng viên/admin.
+    /// </summary>
+    public async Task<SpeakingSubmissionResponseDto?> GetSubmissionByIdAsync(int submissionId, int userId, bool isInstructorOrAdmin)
+    {
+        try
+        {
+            var submission = await _submissionRepository.GetByIdWithDetailsAsync(submissionId);
+            if (submission == null) return null;
+
+            if (submission.LearnerId != userId && !isInstructorOrAdmin)
+            {
+                var courseInstructorId = submission.Lesson?.Course?.InstructorId
+                    ?? submission.SpeakingScript?.Course?.InstructorId;
+                if (courseInstructorId != userId)
+                {
+                    throw new UnauthorizedAccessException("Bạn không có quyền xem chi tiết bài nộp này.");
+                }
+            }
+
+            int attemptNumber = 1;
+            int totalAttempts = 1;
+            if (submission.ScriptId.HasValue)
+            {
+                var all = (await _submissionRepository.GetSubmissionsByLearnerAndScriptAsync(submission.LearnerId, submission.ScriptId.Value)).ToList();
+                totalAttempts = all.Count > 0 ? all.Count : 1;
+                var idx = all.FindIndex(s => s.SubmissionId == submissionId);
+                attemptNumber = idx >= 0 ? idx + 1 : totalAttempts;
+            }
+            else if (submission.LessonId.HasValue)
+            {
+                var all = (await _submissionRepository.GetSubmissionsByLearnerAndLessonAsync(submission.LearnerId, submission.LessonId.Value)).ToList();
+                totalAttempts = all.Count > 0 ? all.Count : 1;
+                var idx = all.FindIndex(s => s.SubmissionId == submissionId);
+                attemptNumber = idx >= 0 ? idx + 1 : totalAttempts;
+            }
+
+            return MapToResponseDto(submission, attemptNumber, totalAttempts);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in GetSubmissionByIdAsync: {Message}", ex.Message);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Lấy toàn bộ lịch sử các lần nộp bài của học viên cho một kịch bản nói.
+    /// </summary>
+    public async Task<IEnumerable<SpeakingSubmissionHistoryDto>> GetSubmissionHistoryByScriptAsync(int learnerId, int scriptId)
+    {
+        try
+        {
+            var subs = (await _submissionRepository.GetSubmissionsByLearnerAndScriptAsync(learnerId, scriptId)).ToList();
+            return subs.Select((s, index) =>
+            {
+                string? level = null;
+                if (!string.IsNullOrWhiteSpace(s.Note))
+                {
+                    var match = System.Text.RegularExpressions.Regex.Match(s.Note, @"\[LEVEL:([A-Za-z]+)\]");
+                    if (match.Success) level = match.Groups[1].Value.ToUpperInvariant();
+                }
+
+                return new SpeakingSubmissionHistoryDto
+                {
+                    SubmissionId = s.SubmissionId,
+                    ScriptId = s.ScriptId,
+                    LessonId = s.LessonId,
+                    AttemptNumber = index + 1,
+                    Score = s.Score,
+                    Status = s.Status.ToString(),
+                    SubmittedAt = s.SubmittedAt,
+                    GradedAt = s.GradedAt,
+                    AudioUrl = s.AudioUrl,
+                    SelectedLevel = level
+                };
+            }).OrderByDescending(h => h.AttemptNumber).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in GetSubmissionHistoryByScriptAsync for Learner {LearnerId} Script {ScriptId}", learnerId, scriptId);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Lấy toàn bộ lịch sử các lần nộp bài của học viên cho một bài học.
+    /// </summary>
+    public async Task<IEnumerable<SpeakingSubmissionHistoryDto>> GetSubmissionHistoryByLessonAsync(int learnerId, int lessonId)
+    {
+        try
+        {
+            var subs = (await _submissionRepository.GetSubmissionsByLearnerAndLessonAsync(learnerId, lessonId)).ToList();
+            return subs.Select((s, index) =>
+            {
+                string? level = null;
+                if (!string.IsNullOrWhiteSpace(s.Note))
+                {
+                    var match = System.Text.RegularExpressions.Regex.Match(s.Note, @"\[LEVEL:([A-Za-z]+)\]");
+                    if (match.Success) level = match.Groups[1].Value.ToUpperInvariant();
+                }
+
+                return new SpeakingSubmissionHistoryDto
+                {
+                    SubmissionId = s.SubmissionId,
+                    ScriptId = s.ScriptId,
+                    LessonId = s.LessonId,
+                    AttemptNumber = index + 1,
+                    Score = s.Score,
+                    Status = s.Status.ToString(),
+                    SubmittedAt = s.SubmittedAt,
+                    GradedAt = s.GradedAt,
+                    AudioUrl = s.AudioUrl,
+                    SelectedLevel = level
+                };
+            }).OrderByDescending(h => h.AttemptNumber).ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in GetSubmissionHistoryByLessonAsync for Learner {LearnerId} Lesson {LessonId}", learnerId, lessonId);
+            throw;
+        }
+    }
+
+    /// <summary>
     /// Ánh xạ thực thể SpeakingSubmission sang SpeakingSubmissionResponseDto.
     /// </summary>
-    private static SpeakingSubmissionResponseDto MapToResponseDto(SpeakingSubmission submission)
+    private static SpeakingSubmissionResponseDto MapToResponseDto(SpeakingSubmission submission, int attemptNumber = 1, int totalAttempts = 1)
     {
         var script = submission.SpeakingScript ?? submission.Lesson?.SpeakingScript;
         var lesson = submission.Lesson;
@@ -503,6 +643,74 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
             : (!string.IsNullOrWhiteSpace(lesson?.Title) ? lesson.Title : "Bài tập nói");
 
         var scope = script?.Scope.ToString() ?? "FINAL";
+
+        var criteria = (script?.RubricCriteria != null && script.RubricCriteria.Count > 0)
+            ? script.RubricCriteria.Select(r => new SpeakingRubricCriterionDto
+            {
+                CriterionId = r.CriterionId,
+                ScriptId = r.ScriptId,
+                Code = r.Code,
+                Name = r.Name,
+                WeightPercentage = r.WeightPercentage,
+                IsMandatory = r.IsMandatory,
+                OrderIndex = r.OrderIndex,
+                UpdatedAt = r.UpdatedAt
+            }).OrderBy(r => r.OrderIndex).ThenBy(r => r.Code).ToList()
+            : DefaultRubricCriteria;
+
+        // Phân tách SelectedLevel từ Note nếu có
+        string? selectedLevel = null;
+        string? cleanNote = submission.Note;
+        if (!string.IsNullOrWhiteSpace(submission.Note))
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(submission.Note, @"\[LEVEL:([A-Za-z]+)\]");
+            if (match.Success)
+            {
+                selectedLevel = match.Groups[1].Value.ToUpperInvariant();
+                cleanNote = submission.Note.Replace(match.Value, "").Trim();
+                if (string.IsNullOrEmpty(cleanNote)) cleanNote = null;
+            }
+        }
+
+        // Phân tách CriterionScores từ Feedback nếu có
+        string? cleanFeedback = submission.Feedback;
+        List<SubmissionCriterionScoreDto> criterionScores = new();
+        if (!string.IsNullOrWhiteSpace(submission.Feedback))
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(submission.Feedback, @"<!--RUBRIC_SCORES:(.*?)-->", System.Text.RegularExpressions.RegexOptions.Singleline);
+            if (match.Success)
+            {
+                try
+                {
+                    var json = match.Groups[1].Value;
+                    var parsed = System.Text.Json.JsonSerializer.Deserialize<List<SubmissionCriterionScoreDto>>(json,
+                        new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                    if (parsed != null && parsed.Count > 0)
+                    {
+                        criterionScores = parsed;
+                    }
+                }
+                catch { }
+
+                cleanFeedback = submission.Feedback.Replace(match.Value, "").Trim();
+                if (string.IsNullOrEmpty(cleanFeedback)) cleanFeedback = null;
+            }
+        }
+
+        // Nếu đã có điểm nhưng chưa có điểm chi tiết cho từng tiêu chí, tạo tự động từ điểm tổng
+        if (criterionScores.Count == 0 && submission.Score.HasValue && criteria.Count > 0)
+        {
+            criterionScores = criteria.Select(c => new SubmissionCriterionScoreDto
+            {
+                Code = c.Code,
+                Name = c.Name,
+                WeightPercentage = c.WeightPercentage,
+                Score = submission.Score.Value,
+                Feedback = null
+            }).ToList();
+        }
+
+        var passingScore = script?.PassingScore ?? 80m;
 
         return new SpeakingSubmissionResponseDto
         {
@@ -523,15 +731,31 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
             InstructorId = instructor?.UserId ?? 0,
             InstructorName = instructor?.FullName ?? string.Empty,
             AudioUrl = submission.AudioUrl,
-            Note = submission.Note,
+            Note = cleanNote,
+            SelectedLevel = selectedLevel,
+            AttemptNumber = attemptNumber,
+            TotalAttempts = totalAttempts,
+            PassingScore = passingScore,
             Status = submission.Status.ToString(),
             Score = submission.Score,
-            Feedback = submission.Feedback,
+            Feedback = cleanFeedback,
             GradedById = submission.GradedById,
             GradedByName = gradedBy?.FullName,
             GradedAt = submission.GradedAt,
             SubmittedAt = submission.SubmittedAt,
-            UpdatedAt = submission.UpdatedAt
+            UpdatedAt = submission.UpdatedAt,
+            RubricCriteria = criteria,
+            CriterionScores = criterionScores
         };
     }
+
+    /// <summary>
+    /// Tiêu chí chấm điểm mặc định nếu kịch bản chưa cấu hình tiêu chí riêng.
+    /// </summary>
+    private static readonly List<SpeakingRubricCriterionDto> DefaultRubricCriteria = new()
+    {
+        new SpeakingRubricCriterionDto { CriterionId = 1, Code = "C01", Name = "Phát âm & thanh điệu", WeightPercentage = 18m, IsMandatory = true, OrderIndex = 1 },
+        new SpeakingRubricCriterionDto { CriterionId = 2, Code = "C02", Name = "Độ rõ lời", WeightPercentage = 10m, IsMandatory = true, OrderIndex = 2 },
+        new SpeakingRubricCriterionDto { CriterionId = 3, Code = "C03", Name = "Độ chính xác nội dung", WeightPercentage = 7m, IsMandatory = true, OrderIndex = 3 },
+    };
 }

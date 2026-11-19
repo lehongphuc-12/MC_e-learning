@@ -48,6 +48,7 @@ public class SmartMcDbContext : DbContext
     public DbSet<SpeakingSubmission> SpeakingSubmissions { get; set; } = null!;
     public DbSet<SpeakingScript> SpeakingScripts { get; set; } = null!;
     public DbSet<SpeakingScriptLevel> SpeakingScriptLevels { get; set; } = null!;
+    public DbSet<SpeakingRubricCriterion> SpeakingRubricCriteria { get; set; } = null!;
     public DbSet<BackgroundMusic> BackgroundMusics { get; set; } = null!;
     public DbSet<VideoUploadSession> VideoUploadSessions { get; set; } = null!;
     public DbSet<R2ObjectDeletionJob> R2ObjectDeletionJobs { get; set; } = null!;
@@ -703,6 +704,12 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
                 .WithMany()
                 .HasForeignKey(d => d.CreatedBy)
                 .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(d => d.BackgroundMusic)
+                .WithMany()
+                .HasForeignKey(d => d.BackgroundMusicId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<SpeakingScriptLevel>(entity =>
@@ -719,6 +726,34 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
 
             entity.HasOne(d => d.Script)
                 .WithMany(s => s.Levels)
+                .HasForeignKey(d => d.ScriptId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<SpeakingRubricCriterion>(entity =>
+        {
+            entity.ToTable("speaking_rubric_criteria");
+            entity.HasKey(e => e.CriterionId);
+            entity.HasIndex(e => e.ScriptId);
+
+            entity.Property(e => e.WeightPercentage)
+                .HasPrecision(5, 2)
+                .HasDefaultValue(0.00m);
+
+            entity.Property(e => e.IsMandatory)
+                .HasDefaultValue(false);
+
+            entity.Property(e => e.OrderIndex)
+                .HasDefaultValue(0);
+
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasOne(d => d.Script)
+                .WithMany(s => s.RubricCriteria)
                 .HasForeignKey(d => d.ScriptId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
