@@ -11,6 +11,9 @@ import {
   UpdateLevelContentRequest,
   BackgroundMusicDto,
   PreUploadMusicResultDto,
+  SpeakingRubricCriterionDto,
+  SpeakingSubmissionHistoryDto,
+  SubmissionCriterionScoreDto,
 } from '../types/speakingTypes';
 
 export interface SpeakingSubmissionDto {
@@ -32,6 +35,10 @@ export interface SpeakingSubmissionDto {
   instructorName: string;
   audioUrl: string;
   note?: string;
+  selectedLevel?: string;
+  attemptNumber?: number;
+  totalAttempts?: number;
+  passingScore?: number;
   status: 'SUBMITTED' | 'GRADED' | 'NEEDS_RESUBMISSION';
   score?: number;
   feedback?: string;
@@ -42,11 +49,19 @@ export interface SpeakingSubmissionDto {
   updatedAt: string;
   isPassed?: boolean;
   gradeTier?: string;
+  rubricCriteria?: SpeakingRubricCriterionDto[];
+  criterionScores?: SubmissionCriterionScoreDto[];
 }
 
 export interface GradeSpeakingSubmissionRequest {
   score: number;
   feedback?: string;
+  criterionScores?: Array<{
+    code: string;
+    name: string;
+    weightPercentage: number;
+    score: number;
+  }>;
 }
 
 export interface ApiResponse<T> {
@@ -91,6 +106,10 @@ export const speakingApi = {
     return request(`/speaking-scripts/${scriptId}`, {
       method: 'GET',
     });
+  },
+
+  async getScriptById(scriptId: number): Promise<ApiResponse<SpeakingScriptDto>> {
+    return this.getSpeakingScriptById(scriptId);
   },
 
   /**
@@ -361,6 +380,36 @@ export const speakingApi = {
     return request(`/speaking-scripts/lessons/${lessonId}/musics/link`, {
       method: 'POST',
       body: JSON.stringify({ musics }),
+    });
+  },
+
+  /**
+   * GET /api/speaking-submissions/{submissionId}
+   * Get detailed speaking submission by ID
+   */
+  async getSubmissionById(submissionId: number): Promise<ApiResponse<SpeakingSubmissionDto>> {
+    return request(`/speaking-submissions/${submissionId}`, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * GET /api/speaking-submissions/script/{scriptId}/history
+   * Get all submissions history of current learner for a speaking script
+   */
+  async getSubmissionHistoryByScript(scriptId: number): Promise<ApiResponse<SpeakingSubmissionHistoryDto[]>> {
+    return request(`/speaking-submissions/script/${scriptId}/history`, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * GET /api/speaking-submissions/lesson/{lessonId}/history
+   * Get all submissions history of current learner for a lesson
+   */
+  async getSubmissionHistoryByLesson(lessonId: number): Promise<ApiResponse<SpeakingSubmissionHistoryDto[]>> {
+    return request(`/speaking-submissions/lesson/${lessonId}/history`, {
+      method: 'GET',
     });
   },
 };

@@ -17,6 +17,25 @@ export interface ParsePreviewDto {
   levels: LevelPreviewDto[];
 }
 
+export interface SaveRubricCriterionDto {
+  code: string;
+  name: string;
+  weightPercentage: number;
+  isMandatory?: boolean;
+  orderIndex?: number;
+}
+
+export interface SpeakingRubricCriterionDto {
+  criterionId: number;
+  scriptId: number;
+  code: string;
+  name: string;
+  weightPercentage: number;
+  isMandatory: boolean;
+  orderIndex: number;
+  updatedAt: string;
+}
+
 export interface SaveLevelDto {
   level: SpeakingLevel;
   content: string;
@@ -28,37 +47,46 @@ export interface SaveScriptRequest {
   originalContent?: string;
   scope?: SpeakingScope;
   moduleId?: number;
+  chapterId?: number;
   courseId?: number;
+  backgroundMusicId?: number | null;
   passingScore?: number;
   dueAt?: string | null;
   isRemedial?: boolean;
   levels: SaveLevelDto[];
+  rubricCriteria?: SaveRubricCriterionDto[];
 }
 
 export interface CreateSpeakingScriptRequest {
   courseId: number;
   scope: SpeakingScope;
   moduleId?: number | null;
+  chapterId?: number | null;
   lessonId?: number | null;
+  backgroundMusicId?: number | null;
   title: string;
   originalContent?: string;
   passingScore?: number;
   dueAt?: string | null;
   isRemedial?: boolean;
   levels: SaveLevelDto[];
+  rubricCriteria?: SaveRubricCriterionDto[];
 }
 
 export interface UpdateSpeakingScriptRequest {
   courseId?: number;
   scope?: SpeakingScope;
   moduleId?: number | null;
+  chapterId?: number | null;
   lessonId?: number | null;
+  backgroundMusicId?: number | null;
   title?: string;
   originalContent?: string;
   passingScore?: number;
   dueAt?: string | null;
   isRemedial?: boolean;
   levels?: SaveLevelDto[];
+  rubricCriteria?: SaveRubricCriterionDto[];
 }
 
 export interface UpdateLevelContentRequest {
@@ -81,9 +109,13 @@ export interface SpeakingScriptDto {
   courseTitle: string;
   scope: SpeakingScope;
   moduleId?: number | null;
+  chapterId?: number | null;
   moduleTitle?: string | null;
   lessonId?: number | null;
   lessonTitle?: string | null;
+  backgroundMusicId?: number | null;
+  backgroundMusicTitle?: string | null;
+  backgroundMusicUrl?: string | null;
   title: string;
   originalContent?: string;
   passingScore?: number;
@@ -95,8 +127,8 @@ export interface SpeakingScriptDto {
   createdByName?: string;
   status: SpeakingScriptStatus;
   updatedAt: string;
-  durationMinutes?: number;
   levels: SpeakingScriptLevelDto[];
+  rubricCriteria?: SpeakingRubricCriterionDto[];
 }
 
 export interface BackgroundMusicDto {
@@ -273,4 +305,27 @@ export function getSpeakingScopeInfo(scope?: string | null): SpeakingScopeInfo {
     border: 'border-purple-200',
     badgeClass: 'bg-purple-50 text-purple-700 border-purple-200',
   };
+}
+
+export interface SubmissionCriterionScoreDto {
+  code: string;
+  name: string;
+  weightPercentage: number;
+  score: number;
+  feedback?: string;
+}
+
+export interface SpeakingSubmissionHistoryDto {
+  submissionId: number;
+  scriptId?: number | null;
+  lessonId?: number | null;
+  attemptNumber: number;
+  score?: number | null;
+  status: string;
+  isPassed?: boolean | null;
+  gradeTier?: string | null;
+  submittedAt: string;
+  gradedAt?: string | null;
+  audioUrl: string;
+  selectedLevel?: string | null;
 }
