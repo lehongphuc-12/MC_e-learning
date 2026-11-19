@@ -109,6 +109,9 @@ public class QuizService : IQuizService
             if (module.CourseId != request.CourseId) throw new ArgumentException("Chương được chọn không thuộc khóa học này.");
         }
 
+        if (request.Purpose == QuizPurpose.DAILY_PRACTICE && !request.LessonId.HasValue)
+            throw new ArgumentException("Bài luyện tập hằng ngày bắt buộc phải gắn với bài học/video.");
+
         if (request.Purpose == QuizPurpose.PRACTICE && !request.LessonId.HasValue)
             throw new ArgumentException("Quiz luyện tập bắt buộc phải gắn với một bài học.");
 
@@ -165,8 +168,8 @@ public class QuizService : IQuizService
             MaxAttempts = request.MaxAttempts,
             Purpose = request.Purpose,
             ModuleId = request.ModuleId,
-            AvailableFrom = request.AvailableFrom,
-            AvailableUntil = request.AvailableUntil,
+            AvailableFrom = null,
+            AvailableUntil = null,
             Status = request.Status,
             IsRemedial = request.IsRemedial,
             CreatedAt = DateTime.UtcNow
@@ -320,6 +323,9 @@ public class QuizService : IQuizService
                     throw new ArgumentException("Chương được chọn không thuộc khóa học này.");
             }
 
+            if (request.Purpose == QuizPurpose.DAILY_PRACTICE && !quiz.LessonId.HasValue)
+                throw new ArgumentException("Bài luyện tập hằng ngày bắt buộc phải gắn với bài học/video.");
+
             if (request.Purpose == QuizPurpose.PRACTICE && !quiz.LessonId.HasValue)
                 throw new ArgumentException("Quiz luyện tập bắt buộc phải gắn với một bài học.");
 
@@ -362,8 +368,8 @@ public class QuizService : IQuizService
         quiz.TimeLimitMinutes = request.TimeLimitMinutes;
         quiz.PassingScore = 80.00m;
         quiz.MaxAttempts = request.MaxAttempts;
-        quiz.AvailableFrom = request.AvailableFrom;
-        quiz.AvailableUntil = request.AvailableUntil;
+        quiz.AvailableFrom = null;
+        quiz.AvailableUntil = null;
         quiz.Status = request.Status;
         quiz.IsRemedial = request.IsRemedial;
         _quizRepository.Update(quiz);
@@ -788,6 +794,11 @@ public class QuizService : IQuizService
         var attempt = (await _attemptRepository.FindAsync(a => a.AttemptId == request.AttemptId && a.QuizId == quizId && a.UserId == learnerId, a => a.Quiz)).FirstOrDefault();
         if (attempt is null) throw new ArgumentException("Quiz attempt not found.");
         if (attempt.SubmittedAt.HasValue) throw new ArgumentException("This quiz attempt has already been submitted.");
+        // Recheck the access deadline at submission, not only at quiz start.
+        // This prevents submitting after the individual seven-day window closes.
+        var submitAccess = await _access.CheckQuizAsync(learnerId, quizId);
+        if (!submitAccess.Allowed)
+            throw new InvalidOperationException(submitAccess.Reason ?? "Quiz không còn khả dụng.");
         if (attempt.Quiz.TimeLimitMinutes > 0 && DateTime.UtcNow > attempt.StartedAt.AddMinutes(attempt.Quiz.TimeLimitMinutes)) throw new ArgumentException("The quiz time limit has expired.");
         if (request.Answers.GroupBy(x => x.QuestionId).Any(g => g.Count() > 1)) throw new ArgumentException("Each question can only have one answer payload.");
 
