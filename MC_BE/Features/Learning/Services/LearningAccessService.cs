@@ -1,30 +1,4 @@
-// ====================================================================================================
-// [VỊ TRÍ KIẾN TRÚC]:
-// - Thuộc tầng: Domain Service / Access Control Policy Engine (Tầng Dịch vụ nghiệp vụ cốt lõi).
-// - Nằm trong module: Features/Learning/Services.
-// - Triển khai từ: ILearningAccessService.
-// - Thiết kế: `sealed class` (Ngăn chặn kế thừa để tối ưu hóa JIT Compiler Devirtualization)
-//   và `AsNoTracking()` toàn diện để tối ưu hóa hiệu năng đọc dữ liệu.
-// - Vai trò: "Bộ não kiểm soát tiến trình học" (Learning Progression & Prerequisite Engine) của hệ thống MSEEK.
-//   Quyết định chính xác bài học nào được mở (Unlocked), bài nào bị khóa (Locked) và lý do chi tiết vì sao.
-//
-// [MỤC ĐÍCH NGHIỆP VỤ]:
-// - Đảm bảo quy chế đào tạo dẫn chương trình chuyên nghiệp và sư phạm bài bản:
-//   1. HỌC TUẦN TỰ (SEQUENTIAL PROGRESSION): Không cho phép học viên nhảy cóc bài học.
-//      Bài 1 luôn mở; Bài 2 chỉ mở khi Bài 1 đã hoàn thành video và đỗ bài tập thực hành.
-//   2. CHỐNG HỌC ĐỐI PHÓ: Nếu bài học có video, bắt buộc học viên phải xem hết video trước khi mở bài tập.
-//   3. CHỐNG BỎ QUA CHƯƠNG: Muốn chuyển sang Chương mới (Module mới), học viên bắt buộc phải hoàn thành
-//      100% bài học của chương cũ VÀ đỗ bài đánh giá cuối chương (Chapter Assessment).
-//   4. ĐIỀU KIỆN TỐT NGHIỆP KHẮT KHE: Muốn thi cuối khóa (Final Assessment) hoặc nhận Chứng chỉ,
-//      học viên phải vượt qua toàn bộ chốt chặn (Gates) của tất cả các bài học và chương học.
-//
-// [BẢN ĐỒ LUỒNG DỮ LIỆU & DEPENDENCY]:
-// - Được gọi bởi: LearningController (API /locks, /check-lesson), QuizzesController (API /check-quiz),
-//   CertificateService (IssueCertificateAsync).
-// - Tương tác Database: SmartMcDbContext (Modules, Lessons, Quizzes, QuizAttempts, Enrollments, LessonProgresses).
-// - Kết quả trả về: Tuple `(bool Allowed, string? Reason)` hoặc `Dictionary<int, string?>` (Map LessonId -> Lý do khóa).
-// ====================================================================================================
-
+﻿
 using MC_BE.Core.Enums;
 using MC_BE.Features.Learning.Services.Interfaces;
 using MC_BE.Shared.Data;
@@ -44,13 +18,10 @@ public sealed class LearningAccessService : ILearningAccessService
     /// Khởi tạo dịch vụ với DbContext inject từ DI Container.
     /// </summary>
     public LearningAccessService(SmartMcDbContext db) => _db = db;
-
-    // ====================================================================================================
     // CÁC CẤU TRÚC DỮ LIỆU NỘI BỘ (IN-MEMORY VALUE OBJECTS / IMMUTABLE RECORDS):
     // [TẠI SAO DÙNG private sealed record]:
     //   - Tối ưu hóa bộ nhớ RAM: Record là bất biến (immutable), kích thước nhẹ, chỉ lưu đúng các trường
     //     cần thiết để tính toán logic khóa bài mà không giữ lại toàn bộ Entity EF Core nặng nề.
-    // ====================================================================================================
 
     /// <summary>
     /// Node đại diện cho một bài học trong cây tiến trình học tập.
@@ -76,6 +47,15 @@ public sealed class LearningAccessService : ILearningAccessService
     );
 
     /// <summary>
+    /// Node đại diện cho một bài tập luyện nói Speaking gắn với bài học.
+    /// </summary>
+    private sealed record SpeakingScriptNode(
+        int ScriptId,
+        int LessonId,
+        decimal PassingScore
+    );
+
+    /// <summary>
     /// Ảnh chụp trạng thái học tập (In-Memory Learning Snapshot) của học viên tại thời điểm kiểm tra.
     /// Toàn bộ dữ liệu được nạp trước (Pre-loaded) vào HashSet O(1) để thuật toán duyệt cây không chạm DB lần 2.
     /// </summary>
@@ -84,7 +64,10 @@ public sealed class LearningAccessService : ILearningAccessService
         List<QuizNode> Quizzes,
         HashSet<int> PassedQuizIds,
         HashSet<int> CompletedLessonIds,
-        List<int> Modules
+        List<int> Modules,
+        List<SpeakingScriptNode> SpeakingScripts,
+        HashSet<int> PassedSpeakingScriptIds,
+        Dictionary<int, DateTime> LessonCompletionDates
     );
 
     /// <summary>
@@ -152,7 +135,6 @@ public sealed class LearningAccessService : ILearningAccessService
 
 
     /// <summary>
-    /// [Dòng này làm gì & Luồng chạy]:
     /// - Tải toàn bộ ảnh chụp dữ liệu học tập (Snapshot) của học viên trong khóa học vào bộ nhớ RAM.
     /// - End-to-End Execution Flow:
     ///   - Bước 1: Nạp thứ tự các Module theo OrderIndex.
@@ -161,7 +143,6 @@ public sealed class LearningAccessService : ILearningAccessService
     ///   - Bước 4: Nạp danh sách ID các Quiz mà học viên ĐÃ THI ĐỖ (PASSED) vào HashSet O(1).
     ///   - Bước 5: Lấy Enrollment hợp lệ và nạp danh sách LessonId ĐÃ HOÀN THÀNH vào HashSet O(1).
     ///   - Bước 6: Đóng gói thành LearningSnapshot trả về.
-    /// [Tại sao dùng HashSet<int>]: HashSet cung cấp độ phức tạp tìm kiếm O(1) cho hàm .Contains(), tối ưu hóa hiệu năng khi duyệt cây bài học.
     /// </summary>
     /// <param name="learnerId">ID học viên.</param>
     /// <param name="courseId">ID khóa học.</param>
@@ -260,13 +241,61 @@ public sealed class LearningAccessService : ILearningAccessService
                     .Distinct()
                     .ToListAsync()).ToHashSet();
 
-        // [BƯỚC 7]: Trả về bức tranh toàn cảnh (Snapshot) học tập của học viên
+        // [BƯỚC 7]: Lấy danh sách bài luyện nói Speaking gắn với bài học đang PUBLISHED
+        var speakingScripts = await _db.SpeakingScripts.AsNoTracking()
+            .Where(s =>
+                s.CourseId == courseId &&
+                s.LessonId.HasValue &&
+                s.Status == SpeakingScriptStatus.PUBLISHED)
+            .Select(s => new SpeakingScriptNode(
+                s.ScriptId,
+                s.LessonId!.Value,
+                s.PassingScore))
+            .ToListAsync();
+
+        var scriptIds = speakingScripts.Select(s => s.ScriptId).ToList();
+
+        // [BƯỚC 8]: Lấy danh sách SpeakingScript học viên đã thi đạt (Score >= 80 điểm)
+        var passedSpeakingScriptIds = scriptIds.Count == 0
+            ? new HashSet<int>()
+            : (await _db.SpeakingSubmissions.AsNoTracking()
+                .Where(sub =>
+                    sub.LearnerId == learnerId &&
+                    sub.ScriptId.HasValue &&
+                    scriptIds.Contains(sub.ScriptId.Value) &&
+                    sub.Score.HasValue &&
+                    sub.Score.Value >= 80.00m)
+                .Select(sub => sub.ScriptId!.Value)
+                .Distinct()
+                .ToListAsync()).ToHashSet();
+
+        // [BƯỚC 9]: Lấy mốc thời gian hoàn thành video bài học (CompletedAt) để tính quy tắc tự động mở khóa sau 7 ngày
+        var lessonCompletionDates =
+            enrollmentIds.Count == 0 || lessonIds.Count == 0
+                ? new Dictionary<int, DateTime>()
+                : await _db.LessonProgresses.AsNoTracking()
+                    .Where(p =>
+                        enrollmentIds.Contains(p.EnrollmentId) &&
+                        lessonIds.Contains(p.LessonId) &&
+                        (p.IsCompleted || p.Status == LessonProgressStatus.COMPLETED))
+                    .GroupBy(p => p.LessonId)
+                    .Select(g => new
+                    {
+                        LessonId = g.Key,
+                        CompletedAt = g.Min(p => p.CompletedAt ?? p.UpdatedAt)
+                    })
+                    .ToDictionaryAsync(x => x.LessonId, x => x.CompletedAt);
+
+        // [BƯỚC 10]: Trả về bức tranh toàn cảnh (Snapshot) học tập của học viên
         return new LearningSnapshot(
             lessons,
             quizzes,
             passedQuizIds,
             completedLessonIds,
-            moduleOrder
+            moduleOrder,
+            speakingScripts,
+            passedSpeakingScriptIds,
+            lessonCompletionDates
         );
     }
 
@@ -312,7 +341,6 @@ public sealed class LearningAccessService : ILearningAccessService
     // Nếu bài học không có quiz luyện tập thì không phát sinh điều kiện PASS quiz.
 
     /// <summary>
-    /// [Dòng này làm gì & Luồng chạy]:
     /// - Kiểm tra điều kiện hoàn thành bài học: Bắt buộc xem hết video (nếu có video) và đạt toàn bộ Quiz bài tập gắn kèm.
     /// - Trả về null nếu thỏa mãn; ngược lại trả về thông báo lỗi chi tiết.
     /// </summary>
@@ -321,7 +349,6 @@ public sealed class LearningAccessService : ILearningAccessService
         LearningSnapshot data)
     {
         // [BƯỚC 1]: Rẽ nhánh kiểm tra hoàn thành Video bài giảng
-        // - Điều kiện: lesson.HasVideo && !data.CompletedLessonIds.Contains(lesson.Id).
         // - Trường hợp ĐÚNG (TRUE): Bài học có video nhưng học viên chưa xem xong -> Trả về thông báo lỗi.
         // - Trường hợp SAI (FALSE): Đã xem xong video hoặc bài học là tài liệu đọc không có video -> Đi tiếp bước 2.
         if (lesson.HasVideo && !data.CompletedLessonIds.Contains(lesson.Id))
@@ -339,12 +366,36 @@ public sealed class LearningAccessService : ILearningAccessService
             return $"Vui lòng đạt tất cả bài tập luyện tập của bài học {lesson.Id} trước.";
         }
 
+        // [BƯỚC 4]: Kiểm tra bài luyện nói Speaking gắn với bài học
+        var attachedSpeaking = data.SpeakingScripts.FirstOrDefault(s => s.LessonId == lesson.Id);
+        if (attachedSpeaking != null)
+        {
+            var isPassed = data.PassedSpeakingScriptIds.Contains(attachedSpeaking.ScriptId);
+            if (!isPassed)
+            {
+                // Kiểm tra điều kiện mở khóa tự động sau 7 ngày kể từ khi hoàn thành video
+                if (data.LessonCompletionDates.TryGetValue(lesson.Id, out var completedAt))
+                {
+                    var autoUnlockAt = completedAt.AddDays(7);
+                    if (DateTime.UtcNow < autoUnlockAt)
+                    {
+                        var remainingDays = Math.Max(1, (int)Math.Ceiling((autoUnlockAt - DateTime.UtcNow).TotalDays));
+                        return $"Vui lòng đạt bài luyện nói trước đó (từ 80 điểm) hoặc chờ {remainingDays} ngày nữa để tự động mở khóa.";
+                    }
+                    // Đã qua 7 ngày kể từ khi hoàn thành video -> Thỏa mãn Điều kiện B (Tự động mở khóa tiếp tục học bình thường)
+                }
+                else
+                {
+                    return $"Vui lòng hoàn thành video và bài luyện nói của bài học {lesson.Id} trước.";
+                }
+            }
+        }
+
         // Thỏa mãn toàn bộ điều kiện -> Trả về null
         return null;
     }
 
     /// <summary>
-    /// [Dòng này làm gì & Luồng chạy]:
     /// - Thuật toán cốt lõi tính toán điều kiện khóa của một bài học mục tiêu (target) trong chuỗi bài học đã sắp xếp.
     /// </summary>
     private static string? LessonLock(
@@ -414,7 +465,6 @@ public sealed class LearningAccessService : ILearningAccessService
     }
 
     /// <summary>
-    /// [Dòng này làm gì & Luồng chạy]:
     /// - Tính toán ma trận trạng thái khóa/mở cho toàn bộ danh sách bài học của một khóa học.
     /// - Áp dụng cơ chế Khóa dây chuyền (Cascading Lock): Nếu Bài N bị khóa thì toàn bộ Bài N+1, N+2... đều bị khóa.
     /// - End-to-End Flow: Nạp Snapshot -> Sắp xếp danh sách bài học -> Duyệt từng bài -> Tìm lock của bài trước (priorLock) -> Nếu bài trước bị khóa thì kế thừa lý do; nếu không thì tính LessonLock -> Lưu vào Dictionary.
@@ -453,7 +503,6 @@ public sealed class LearningAccessService : ILearningAccessService
     }
 
     /// <summary>
-    /// [Dòng này làm gì & Luồng chạy]:
     /// - Kiểm tra quyền truy cập vào một bài học cụ thể của học viên.
     /// - End-to-End Flow: Lấy CourseId của bài học -> Kiểm tra ghi danh Enrollment -> Gọi GetLessonLocksAsync -> Trả về (true, null) nếu không có lock reason.
     /// </summary>
@@ -503,7 +552,6 @@ public sealed class LearningAccessService : ILearningAccessService
     }
 
     /// <summary>
-    /// [Dòng này làm gì & Luồng chạy]:
     /// - Kiểm tra điều kiện làm bài kiểm tra trắc nghiệm (Quiz Access Gatekeeper).
     /// - Hỗ trợ cả 3 loại bài kiểm tra:
     ///   1. PRACTICE / DAILY_PRACTICE (Luyện tập hằng ngày theo bài học).
@@ -620,10 +668,7 @@ public sealed class LearningAccessService : ILearningAccessService
         var locks = await GetLessonLocksAsync(
             learnerId,
             courseId.Value);
-
-        // ====================================================================================================
         // [NHÁNH 1]: BÀI TẬP LUYỆN TẬP HẰNG NGÀY (PRACTICE / DAILY_PRACTICE)
-        // ====================================================================================================
         if (IsPracticePurpose(quiz.Purpose))
         {
             // Kiểm tra bài tập phải được gắn vào một bài học cụ thể
@@ -660,10 +705,7 @@ public sealed class LearningAccessService : ILearningAccessService
 
             return (true, null);
         }
-
-        // ====================================================================================================
         // [NHÁNH 2]: BÀI ĐÁNH GIÁ CUỐI CHƯƠNG (CHAPTER ASSESSMENT)
-        // ====================================================================================================
         if (quiz.Purpose == QuizPurpose.CHAPTER_ASSESSMENT)
         {
             if (!quiz.ModuleId.HasValue)
@@ -704,10 +746,7 @@ public sealed class LearningAccessService : ILearningAccessService
 
             return (true, null);
         }
-
-        // ====================================================================================================
         // [NHÁNH 3]: BÀI THI ĐÁNH GIÁ CUỐI KHÓA (FINAL ASSESSMENT)
-        // ====================================================================================================
         if (quiz.Purpose == QuizPurpose.FINAL_ASSESSMENT)
         {
             return await CheckCourseGatesAsync(
@@ -720,7 +759,6 @@ public sealed class LearningAccessService : ILearningAccessService
     }
 
     /// <summary>
-    /// [Dòng này làm gì & Luồng chạy]:
     /// - Kiểm tra toàn diện các điều kiện chốt chặn (Gates) của toàn bộ khóa học:
     ///   - Không còn bài học nào bị khóa.
     ///   - Hoàn thành 100% video và đạt tất cả bài tập thực hành.
@@ -807,7 +845,6 @@ public sealed class LearningAccessService : ILearningAccessService
     }
 
     /// <summary>
-    /// [Dòng này làm gì & Luồng chạy]:
     /// - Kiểm tra xem học viên đã đủ điều kiện nhận Chứng chỉ hoàn thành khóa học hay chưa.
     /// - Đòi hỏi vượt qua 100% cổng (bao gồm cả bài thi Final) và số bài học hoàn thành phải bằng tổng số bài học.
     /// </summary>
