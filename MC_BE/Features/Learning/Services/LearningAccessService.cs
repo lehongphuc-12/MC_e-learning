@@ -42,6 +42,58 @@ public sealed class LearningAccessService : ILearningAccessService
         purpose == QuizPurpose.PRACTICE ||
         purpose == QuizPurpose.DAILY_PRACTICE;
 
+    // PRACTICE lesson quizzes and FINAL_ASSESSMENT use individual seven-day windows.
+    // DAILY_PRACTICE keeps its existing scheduled-date behavior.
+    private static bool IsSevenDayQuiz(QuizPurpose purpose, int? lessonId) =>
+        (purpose == QuizPurpose.PRACTICE && lessonId.HasValue) ||
+        purpose == QuizPurpose.FINAL_ASSESSMENT;
+
+    private async Task<(bool Allowed, string? Reason)> CheckSevenDayWindowAsync(
+        int learnerId, int courseId, QuizPurpose purpose, int? lessonId, DateTime now)
+    {
+        if (!IsSevenDayQuiz(purpose, lessonId)) return (true, null);
+
+        int? anchorLessonId = lessonId;
+        if (purpose == QuizPurpose.FINAL_ASSESSMENT)
+        {
+            // Use the last ACTIVE video lesson in curriculum order, not the final quiz itself.
+            // This prevents a circular dependency on course completion.
+            var moduleIds = await _db.Modules.AsNoTracking()
+                .Where(m => m.CourseId == courseId)
+                .OrderBy(m => m.OrderIndex).ThenBy(m => m.ModuleId)
+                .Select(m => m.ModuleId).ToListAsync();
+            var videoLessons = await _db.Lessons.AsNoTracking()
+                .Where(l => l.CourseId == courseId && l.Status == LessonStatus.ACTIVE &&
+                    l.CourseMaterials.Any(m => m.MaterialType == MaterialType.VIDEO &&
+                        ((m.ObjectKey != null && m.ObjectKey != "") ||
+                         (m.FileUrl != null && m.FileUrl != ""))))
+                .Select(l => new { l.LessonId, l.ModuleId, l.OrderIndex }).ToListAsync();
+            anchorLessonId = videoLessons
+                .OrderBy(l => l.ModuleId.HasValue && moduleIds.Contains(l.ModuleId.Value)
+                    ? moduleIds.IndexOf(l.ModuleId.Value) : int.MaxValue)
+                .ThenBy(l => l.OrderIndex).ThenBy(l => l.LessonId)
+                .Select(l => (int?)l.LessonId).LastOrDefault();
+        }
+        if (!anchorLessonId.HasValue)
+            return (false, "Không tìm thấy video làm mốc mở Quiz.");
+
+        // Earliest recorded completion is stable across subsequent progress updates.
+        var completedAt = await _db.LessonProgresses.AsNoTracking()
+            .Where(p => p.LessonId == anchorLessonId.Value &&
+                p.Enrollment.LearnerId == learnerId &&
+                p.Enrollment.CourseId == courseId &&
+                p.Enrollment.Status != "PENDING_PAYMENT" &&
+                (p.IsCompleted || p.Status == LessonProgressStatus.COMPLETED))
+            .OrderBy(p => p.CompletedAt ?? p.UpdatedAt)
+            .Select(p => (DateTime?)(p.CompletedAt ?? p.UpdatedAt))
+            .FirstOrDefaultAsync();
+        if (!completedAt.HasValue)
+            return (false, "Vui lòng hoàn thành video trước khi mở Quiz.");
+        if (now >= completedAt.Value.AddDays(7))
+            return (false, "Quiz đã hết hạn 7 ngày kể từ khi hoàn thành video.");
+        return (true, null);
+    }
+
     private async Task<LearningSnapshot> LoadAsync(
         int learnerId,
         int courseId)
@@ -349,10 +401,11 @@ public sealed class LearningAccessService : ILearningAccessService
 
         var now = DateTime.UtcNow;
 
-        if ((quiz.AvailableFrom.HasValue &&
+        if (!IsSevenDayQuiz(quiz.Purpose, quiz.LessonId) &&
+            ((quiz.AvailableFrom.HasValue &&
              now < quiz.AvailableFrom.Value) ||
             (quiz.AvailableUntil.HasValue &&
-             now >= quiz.AvailableUntil.Value))
+             now >= quiz.AvailableUntil.Value)))
         {
             return (false, "Bài kiểm tra nằm ngoài thời gian được phép làm.");
         }
@@ -380,6 +433,10 @@ public sealed class LearningAccessService : ILearningAccessService
         {
             return (false, "Bài kiểm tra chưa được gắn với khóa học.");
         }
+
+        var sevenDayWindow = await CheckSevenDayWindowAsync(
+            learnerId, courseId.Value, quiz.Purpose, quiz.LessonId, now);
+        if (!sevenDayWindow.Allowed) return sevenDayWindow;
 
         // Kiểm tra ghi danh.
         var enrolled = await _db.Enrollments.AsNoTracking()
