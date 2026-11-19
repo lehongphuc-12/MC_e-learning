@@ -99,9 +99,24 @@ export const useUpdateQuiz = () => {
 // =========================
 // TAKE QUIZ
 // =========================
+export const useDeleteQuiz = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (quizId: number) => {
+      const result = await quizApi.deleteQuiz(quizId);
+      if (!result.success) throw new Error(result.message || 'Không thể lưu trữ Quiz.');
+      return result;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['quizzes'] }),
+  });
+};
+
 export const useTakeQuiz = (quizId: number | null) => {
   return useQuery({
     queryKey: ['take-quiz', quizId],
+    staleTime: 0,
+    refetchOnMount: 'always',
+    retry: false,
 
     queryFn: async () => {
       if (!quizId) {

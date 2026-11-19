@@ -130,8 +130,6 @@ public class CertificateService : ICertificateService
 
     public async Task<CertificateDto?> IssueCertificateAsync(int learnerId, int courseId)
     {
-        if (!await _courseAccess.CanAccessCourseAsync(courseId, learnerId, isAdmin: false))
-            throw new InvalidOperationException("Learner does not currently have access to this course.");
         var enrollments = await _enrollmentRepository.FindAsync(
             e => e.LearnerId == learnerId && e.CourseId == courseId,
             e => e.Course,
@@ -155,6 +153,11 @@ public class CertificateService : ICertificateService
             return MapToDto(existingCert);
         }
 
+        // Existing certificates remain accessible after expiry; new ones do not.
+        if (!await _courseAccess.CanAccessCourseAsync(courseId, learnerId, isAdmin: false))
+            throw new InvalidOperationException("Khóa học đã hết hạn; không thể cấp chứng chỉ mới.");
+
+        // Verify completion rate
         var totalLessonsList = await _lessonRepository.FindAsync(
             l => l.CourseId == courseId && l.Status == Core.Enums.LessonStatus.ACTIVE);
         var totalLessons = totalLessonsList.Count();

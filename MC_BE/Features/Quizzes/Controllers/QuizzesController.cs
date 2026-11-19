@@ -69,6 +69,21 @@ public async Task<ActionResult<ApiResponse<QuizDto>>> GetQuiz(int id)
             quiz,
             "Quiz retrieved successfully."));
 }
+    // Archive instead of physical deletion to preserve learner attempts and certificates.
+    [HttpDelete("{quizId:int}")]
+    [Authorize(Roles = "Instructor,Admin")]
+    public async Task<IActionResult> DeleteQuiz(int quizId)
+    {
+        var quiz = await _db.Quizzes.FirstOrDefaultAsync(q => q.QuizId == quizId);
+        if (quiz is null) return NotFound(new { message = "Không tìm thấy Quiz." });
+        if (!User.IsInRole("Admin") && quiz.CreatedById != GetCurrentUserId()) return Forbid();
+        if (quiz.Status == MC_BE.Core.Enums.QuizStatus.ARCHIVED)
+            return Ok(new { success = true, message = "Quiz đã được lưu trữ." });
+        quiz.Status = MC_BE.Core.Enums.QuizStatus.ARCHIVED;
+        await _db.SaveChangesAsync();
+        return Ok(new { success = true, message = "Đã lưu trữ Quiz, giữ nguyên lịch sử bài làm." });
+    }
+
     [HttpPost]
     [Authorize(Roles = "Instructor")]
     public async Task<ActionResult<ApiResponse<QuizDto>>> CreateQuiz(
