@@ -217,20 +217,33 @@ export const SpeakingResultPage: React.FC = () => {
   const passingScore = submission.passingScore || 80;
   const isGraded = submission.score != null;
   const scoreNumber = isGraded ? Number(submission.score) : null;
-  const isPassed = scoreNumber !== null && scoreNumber >= passingScore;
+  const criteria = submission.rubricCriteria || [];
+  const criterionScores = submission.criterionScores || [];
+
+  const zeroCriteria = criterionScores.filter((c) => Number(c.score) <= 0);
+  const hasZeroCriterion = zeroCriteria.length > 0;
+
+  const isPassed = submission.isPassed !== undefined && submission.isPassed !== null
+    ? submission.isPassed
+    : (scoreNumber !== null && scoreNumber >= passingScore && !hasZeroCriterion && submission.status !== 'NEEDS_RESUBMISSION');
+
   const awaiting = submission.status === 'SUBMITTED' || !isGraded;
   const scoreDisplay = scoreNumber == null || !Number.isFinite(scoreNumber) ? '—' : scoreNumber.toFixed(1);
   const scoreProgress = scoreNumber == null ? 0 : Math.max(0, Math.min(100, scoreNumber));
 
-  const criteria = submission.rubricCriteria || [];
-  const criterionScores = submission.criterionScores || [];
-
   // Categorize criteria
   const lowCriteria = criterionScores.filter((c) => Number(c.score) < passingScore);
-  const highCriteria = criterionScores.filter((c) => Number(c.score) >= passingScore);
+  const highCriteria = criterionScores.filter((c) => Number(c.score) >= passingScore && Number(c.score) > 0);
 
   // Grade tier text
-  const gradeTier = submission.gradeTier || (awaiting ? 'Chờ chấm' : isPassed ? 'Đạt' : 'Cần cải thiện');
+  const isFailedDueToZero = !isPassed && (hasZeroCriterion || (scoreNumber !== null && scoreNumber >= passingScore));
+  const gradeTier = awaiting
+    ? 'Chờ chấm'
+    : isPassed
+    ? (submission.gradeTier || 'Đạt')
+    : isFailedDueToZero
+    ? 'Chưa đạt (Điểm liệt tiêu chí)'
+    : 'Chưa đạt';
 
   // Format level text
   const levelDisplay =
@@ -288,6 +301,8 @@ export const SpeakingResultPage: React.FC = () => {
                 ? 'Đã nộp bài thành công!'
                 : isPassed
                 ? 'Hoàn thành bài luyện nói!'
+                : hasZeroCriterion
+                ? 'Kết quả: Chưa đạt (Do có tiêu chí 0 điểm)'
                 : 'Đã có kết quả đánh giá bài nói'}
             </h1>
 
@@ -296,6 +311,8 @@ export const SpeakingResultPage: React.FC = () => {
                 ? 'Bản ghi âm đã được gửi đến giảng viên. Điểm số và nhận xét chi tiết theo bảng tiêu chí Rubric sẽ được cập nhật sau khi chấm.'
                 : isPassed
                 ? 'Chúc mừng bạn đã đạt yêu cầu bài tập nói! Hãy xem lại chi tiết điểm số và lời góp ý của giảng viên để tiếp tục phát huy.'
+                : hasZeroCriterion
+                ? `Tổng điểm bài làm đạt ${scoreDisplay}/100, tuy nhiên bài nộp Chưa đạt do có tiêu chí bị 0 điểm (Điểm liệt). Quy chế MSEEK yêu cầu tất cả tiêu chí Rubric phải > 0 điểm để đạt.`
                 : 'Hãy xem lại bản ghi âm, điểm từng tiêu chí và nhận xét của giảng viên để cải thiện trong lần thu âm tiếp theo.'}
             </p>
           </div>
@@ -312,7 +329,7 @@ export const SpeakingResultPage: React.FC = () => {
             {awaiting ? <Clock3 size={36} /> : isPassed ? <CheckCircle2 size={36} /> : <FileText size={36} />}
             <div>
               <p className="text-sm font-extrabold">
-                {awaiting ? 'Đang chờ chấm' : isPassed ? 'Đạt yêu cầu' : 'Chưa đạt'}
+                {awaiting ? 'Đang chờ chấm' : isPassed ? 'Đạt yêu cầu' : hasZeroCriterion ? 'Chưa đạt (Điểm liệt)' : 'Chưa đạt'}
               </p>
               <p className="mt-1 text-[11px] text-blue-100">Điểm đạt: {passingScore}/100</p>
             </div>
@@ -368,25 +385,45 @@ export const SpeakingResultPage: React.FC = () => {
                       ) : (
                         <XCircle size={15} />
                       )}
-                      {awaiting ? 'Đang chờ chấm' : isPassed ? `Đạt yêu cầu (${gradeTier})` : `Chưa đạt (${gradeTier})`}
+                      {awaiting
+                        ? 'Đang chờ chấm'
+                        : isPassed
+                        ? `Đạt yêu cầu (${gradeTier})`
+                        : isFailedDueToZero
+                        ? 'Chưa đạt • Có tiêu chí 0 điểm (Điểm liệt)'
+                        : `Chưa đạt (${gradeTier})`}
                     </span>
                   </div>
 
-                  <div className="mt-4 flex items-center gap-3 rounded-xl bg-[#eefaf5] px-4 py-3">
-                    <Trophy className="shrink-0 text-amber-500" size={23} />
-                    <div>
-                      <p className="text-xs font-bold text-emerald-950">
-                        Điểm tối thiểu: {passingScore}/100
-                      </p>
-                      <p className="mt-0.5 text-[11px] text-emerald-700">
-                        {awaiting
-                          ? 'Chờ giảng viên hoàn tất chấm điểm để xác định kết quả.'
-                          : isPassed
-                          ? 'Chúc mừng! Bạn đã vượt qua bài tập nói này.'
-                          : 'Tiếp tục luyện tập và thu âm lại để đạt mục tiêu.'}
-                      </p>
+                  {hasZeroCriterion && !isPassed && !awaiting ? (
+                    <div className="mt-4 flex items-center gap-3 rounded-xl bg-rose-50 border border-rose-200 px-4 py-3">
+                      <AlertTriangle className="shrink-0 text-rose-500" size={23} />
+                      <div>
+                        <p className="text-xs font-bold text-rose-950">
+                          Chưa đạt do vi phạm quy tắc Điểm liệt tiêu chí
+                        </p>
+                        <p className="mt-0.5 text-[11px] text-rose-700">
+                          Có {zeroCriteria.length} tiêu chí bị 0 điểm. Dù tổng điểm {scoreDisplay}/100 đạt ngưỡng ≥ {passingScore}, bài làm vẫn Chưa đạt. Vui lòng thu âm lại để cải thiện.
+                        </p>
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="mt-4 flex items-center gap-3 rounded-xl bg-[#eefaf5] px-4 py-3">
+                      <Trophy className="shrink-0 text-amber-500" size={23} />
+                      <div>
+                        <p className="text-xs font-bold text-emerald-950">
+                          Điểm tối thiểu: {passingScore}/100
+                        </p>
+                        <p className="mt-0.5 text-[11px] text-emerald-700">
+                          {awaiting
+                            ? 'Chờ giảng viên hoàn tất chấm điểm để xác định kết quả.'
+                            : isPassed
+                            ? 'Chúc mừng! Bạn đã vượt qua bài tập nói này.'
+                            : 'Tiếp tục luyện tập và thu âm lại để đạt mục tiêu.'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -687,22 +724,32 @@ export const SpeakingResultPage: React.FC = () => {
                 <div className="mt-4 space-y-3.5">
                   {criterionScores.map((c) => {
                     const cScoreNum = Number(c.score);
-                    const cPassed = cScoreNum >= passingScore;
+                    const isZeroScore = cScoreNum <= 0;
+                    const cPassed = cScoreNum >= passingScore && !isZeroScore;
                     return (
                       <div
                         key={c.code}
                         className={`rounded-xl border p-4 transition-all ${
-                          cPassed
+                          isZeroScore
+                            ? 'border-rose-300 bg-rose-50/60 ring-1 ring-rose-200 shadow-2xs'
+                            : cPassed
                             ? 'border-emerald-100 bg-[#fbfdfb]'
                             : 'border-amber-100 bg-[#fefdfa]'
                         }`}
                       >
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div className="flex items-center gap-2">
-                            <span className="rounded bg-blue-100 px-2 py-0.5 text-[10px] font-black text-blue-800">
+                            <span className={`rounded px-2 py-0.5 text-[10px] font-black ${
+                              isZeroScore ? 'bg-rose-100 text-rose-800 border border-rose-200' : 'bg-blue-100 text-blue-800'
+                            }`}>
                               {c.code}
                             </span>
                             <p className="text-xs font-bold text-slate-800">{c.name}</p>
+                            {isZeroScore && (
+                              <span className="rounded-full bg-rose-600 text-white px-2 py-0.5 text-[9px] font-black shrink-0 flex items-center gap-1 shadow-2xs animate-pulse">
+                                ⚠️ Điểm liệt (0đ)
+                              </span>
+                            )}
                           </div>
 
                           <div className="flex items-center gap-2">
@@ -711,12 +758,14 @@ export const SpeakingResultPage: React.FC = () => {
                             </span>
                             <span
                               className={`rounded-lg px-2.5 py-1 text-xs font-black ${
-                                cPassed
+                                isZeroScore
+                                  ? 'bg-rose-600 text-white shadow-2xs'
+                                  : cPassed
                                   ? 'bg-emerald-100 text-emerald-800'
                                   : 'bg-rose-100 text-rose-700'
                               }`}
                             >
-                              {cScoreNum.toFixed(1)} / 100
+                              {cScoreNum.toFixed(1)} / 100{isZeroScore ? ' • Điểm liệt' : ''}
                             </span>
                           </div>
                         </div>
@@ -725,11 +774,17 @@ export const SpeakingResultPage: React.FC = () => {
                         <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-100">
                           <div
                             className={`h-full transition-all duration-500 ${
-                              cPassed ? 'bg-emerald-500' : 'bg-amber-500'
+                              isZeroScore ? 'bg-rose-600' : cPassed ? 'bg-emerald-500' : 'bg-amber-500'
                             }`}
                             style={{ width: `${Math.max(0, Math.min(100, cScoreNum))}%` }}
                           />
                         </div>
+
+                        {isZeroScore && (
+                          <p className="mt-2 text-xs font-bold text-rose-700 bg-rose-100/90 p-2.5 rounded-lg border border-rose-200 flex items-center gap-1.5 leading-relaxed">
+                            <span>⚠️ <b>Quy chế điểm liệt:</b> Tiêu chí này bị 0 điểm khiến toàn bộ bài làm Chưa đạt dù tổng điểm đạt chuẩn. Bạn cần tập trung cải thiện kỹ năng này và nộp lại.</span>
+                          </p>
+                        )}
 
                         {c.feedback && (
                           <p className="mt-2.5 text-xs text-slate-600 bg-white p-2.5 rounded-lg border border-slate-100 leading-relaxed">
