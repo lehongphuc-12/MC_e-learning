@@ -86,8 +86,7 @@ public sealed class LearningAccessService : ILearningAccessService
     private static bool IsSevenDayQuiz(QuizPurpose purpose, int? lessonId) =>
         purpose == QuizPurpose.PRACTICE ||
         purpose == QuizPurpose.DAILY_PRACTICE ||
-        purpose == QuizPurpose.CHAPTER_ASSESSMENT ||
-        purpose == QuizPurpose.FINAL_ASSESSMENT;
+        purpose == QuizPurpose.CHAPTER_ASSESSMENT;
 
     private async Task<(bool Allowed, string? Reason)> CheckSevenDayWindowAsync(
         int learnerId, int courseId, QuizPurpose purpose, int? lessonId, int? moduleId, DateTime now)
@@ -95,7 +94,7 @@ public sealed class LearningAccessService : ILearningAccessService
         if (!IsSevenDayQuiz(purpose, lessonId)) return (true, null);
 
         int? anchorLessonId = lessonId;
-        if (purpose == QuizPurpose.CHAPTER_ASSESSMENT || purpose == QuizPurpose.FINAL_ASSESSMENT)
+        if (purpose == QuizPurpose.CHAPTER_ASSESSMENT)
         {
             if (purpose == QuizPurpose.CHAPTER_ASSESSMENT && !moduleId.HasValue)
                 return (false, "Bài đánh giá chương chưa được gắn với chương học.");
@@ -227,6 +226,24 @@ public sealed class LearningAccessService : ILearningAccessService
                 .Distinct()
                 .ToListAsync()).ToHashSet();
 
+        // An instructor-approved Practice More completion satisfies the linked
+        // regular assessment gate, without changing the original Quiz score.
+        // The final examination itself can never be substituted.
+        var completedRemedialQuizIds = await _db.RemedialAssignmentRecipients.AsNoTracking()
+            .Where(r => r.StudentId == learnerId && r.Status == "COMPLETED" &&
+                r.Assignment.IsActive && r.Assignment.CourseId == courseId &&
+                r.Assignment.TargetQuizId.HasValue)
+            .Select(r => r.Assignment.TargetQuizId!.Value)
+            .Distinct().ToListAsync();
+        var eligibleRemedialQuizIds = quizzes
+            .Where(q => q.Purpose == QuizPurpose.PRACTICE ||
+                        q.Purpose == QuizPurpose.DAILY_PRACTICE ||
+                        q.Purpose == QuizPurpose.CHAPTER_ASSESSMENT)
+            .Select(q => q.Id).ToHashSet();
+        foreach (var remedialQuizId in completedRemedialQuizIds)
+            if (eligibleRemedialQuizIds.Contains(remedialQuizId))
+                passedQuizIds.Add(remedialQuizId);
+
         // [BƯỚC 5]: Lấy các lượt ghi danh hợp lệ (Không ở trạng thái PENDING_PAYMENT)
         var enrollmentIds = await _db.Enrollments.AsNoTracking()
             .Where(e =>
@@ -337,9 +354,7 @@ public sealed class LearningAccessService : ILearningAccessService
             .Where(q =>
                 IsPracticePurpose(q.Purpose) &&
                 q.LessonId == lessonId &&
-                (q.Purpose == QuizPurpose.PRACTICE
-                    ? IsRequiredAssessment(q, DateTime.UtcNow)
-                    : q.Status == QuizStatus.ACTIVE && (!q.AvailableUntil.HasValue || q.AvailableUntil.Value > DateTime.UtcNow)))
+                IsRequiredAssessment(q, DateTime.UtcNow))
             .ToList();
 
     // Đánh giá chính hết hạn vẫn là điều kiện bắt buộc; grant hợp lệ mới mở lại lượt làm.
@@ -612,20 +627,9 @@ public sealed class LearningAccessService : ILearningAccessService
                 : (false, "Bài bổ trợ chưa được giao cho bạn, đã hoàn thành hoặc đã hết lượt.");
         }
 
-        var hasValidRetakeGrant = await _db.RemedialRetakeGrants.AsNoTracking()
-            .AnyAsync(g => g.LearnerId == learnerId && g.TargetQuizId == quizId &&
-                !g.UsedAt.HasValue && g.AttemptsRemaining > 0 && g.ExpiresAt > now && g.Recipient.Status != "REVOKED" && g.Recipient.Assignment.IsActive);
-        var expiredAvailabilityGrant = hasValidRetakeGrant && quiz.AvailableUntil.HasValue && quiz.AvailableUntil.Value <= now;
-
-        if (quiz.Status != QuizStatus.ACTIVE && !expiredAvailabilityGrant)
-            return (false, "Bài kiểm tra chưa được xuất bản hoặc đã ngừng hoạt động.");
-
-        if (!IsSevenDayQuiz(quiz.Purpose, quiz.LessonId) &&
-            ((quiz.AvailableFrom.HasValue && now < quiz.AvailableFrom.Value) ||
-             (!hasValidRetakeGrant && quiz.AvailableUntil.HasValue && now >= quiz.AvailableUntil.Value)))
-        {
-            return (false, "Bài kiểm tra nằm ngoài thời gian được phép làm.");
-        }
+        // Standard quizzes use per-learner deadlines, never shared AvailableFrom/Until.
+        if (quiz.Status != QuizStatus.ACTIVE)
+            return (false, "Quiz chưa được xuất bản hoặc đã ngừng hoạt động.");
 
         // [BƯỚC 3]: Xác định khóa học chủ quản của Quiz
         var courseId = quiz.CourseId;
@@ -662,7 +666,8 @@ public sealed class LearningAccessService : ILearningAccessService
             .AnyAsync(e =>
                 e.LearnerId == learnerId &&
                 e.CourseId == courseId &&
-                e.Status != "PENDING_PAYMENT");
+                e.Status != "PENDING_PAYMENT" &&
+                (!e.ExpiresAt.HasValue || e.ExpiresAt.Value > now));
 
         if (!enrolled)
             return (false, "Bạn cần đăng ký khóa học để tiếp tục.");
@@ -862,6 +867,13 @@ public sealed class LearningAccessService : ILearningAccessService
         int learnerId,
         int courseId)
     {
+        var validEnrollment = await _db.Enrollments.AsNoTracking()
+            .AnyAsync(e => e.LearnerId == learnerId && e.CourseId == courseId &&
+                e.Status != "PENDING_PAYMENT" &&
+                (!e.ExpiresAt.HasValue || e.ExpiresAt.Value > DateTime.UtcNow));
+        if (!validEnrollment)
+            return (false, "Khóa học đã hết hạn; không thể cấp chứng chỉ mới.");
+
         // [BƯỚC 1]: Kiểm tra toàn bộ chốt chặn khóa học VÀ bài thi cuối khóa (requireFinal = true)
         var gates = await CheckCourseGatesAsync(
             learnerId,

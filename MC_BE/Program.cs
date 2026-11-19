@@ -408,7 +408,12 @@ app.UseMiddleware<GlobalExceptionMiddleware>();
 // ============================================================
 // HTTPS REDIRECT — ensure HTTP requests are upgraded to HTTPS
 // ============================================================
-app.UseHttpsRedirection();
+// Local development uses HTTP (e.g. http://localhost:5239).
+// Redirecting an OPTIONS preflight to HTTPS causes the browser to block CORS.
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 
 // ============================================================
 // DATABASE MIGRATION + PATCH

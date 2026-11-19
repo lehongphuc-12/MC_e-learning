@@ -302,7 +302,7 @@ export const AppRouter: React.FC<AppRouterProps> = ({
       />
       <Route
   path="/ai-practice/history"
-  element={<AIPracticeHistoryPage />}
+  element={withMainLayout(<AIPracticeHistoryPage />)}
 />
 <Route
   path="/instructor/ai-practice"

@@ -19,6 +19,7 @@ public abstract class LearningProgressServiceTestBase : IDisposable
     protected readonly Mock<ICertificateService> CertificateServiceMock = new();
     protected readonly Mock<ICourseLearningAccessService> CourseAccessMock = new();
     protected readonly Mock<ILearningAccessService> AccessMock = new();
+    protected readonly Mock<IRemedialAssignmentService> RemedialAssignmentServiceMock = new();
     protected readonly LearningProgressService Service;
 
     protected LearningProgressServiceTestBase()
@@ -66,7 +67,8 @@ public abstract class LearningProgressServiceTestBase : IDisposable
             CertificateServiceMock.Object,
             CourseAccessMock.Object,
             AccessMock.Object,
-            DbContext
+            DbContext,
+            RemedialAssignmentServiceMock.Object
         );
     }
 

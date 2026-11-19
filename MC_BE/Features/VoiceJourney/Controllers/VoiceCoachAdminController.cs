@@ -42,7 +42,7 @@ public sealed class VoiceCoachAdminController : ControllerBase
     [RequestSizeLimit(MaxVideoSizeBytes)]
     [RequestFormLimits(MultipartBodyLengthLimit = MaxVideoSizeBytes)]
     public async Task<IActionResult> UploadLessonVideo(
-        [FromForm] IFormFile? file,
+        IFormFile? file,
         CancellationToken ct)
     {
         if (file == null || file.Length == 0)
@@ -87,7 +87,7 @@ public sealed class VoiceCoachAdminController : ControllerBase
     [RequestSizeLimit(MaxDocumentSizeBytes)]
     [RequestFormLimits(MultipartBodyLengthLimit = MaxDocumentSizeBytes)]
     public async Task<IActionResult> UploadLessonDocument(
-        [FromForm] IFormFile? file,
+        IFormFile? file,
         CancellationToken ct)
     {
         if (file == null || file.Length == 0)

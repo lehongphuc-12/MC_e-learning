@@ -7,6 +7,7 @@ using MC_BE.Core.Enums;
 using MC_BE.Features.Courses.Services.Interfaces;
 using MC_BE.Features.Learning.Repositories;
 using MC_BE.Features.Learning.Services;
+using MC_BE.Features.Learning.Services.Interfaces;
 using MC_BE.Shared.Data;
 using MC_BE.Shared.Repositories;
 using MC_BE.Shared.Services.Interfaces;
@@ -28,6 +29,7 @@ public abstract class SpeakingSubmissionServiceTestBase : IDisposable
     protected readonly GenericRepository<LessonProgress> LessonProgressRepository;
     protected readonly Mock<ICloudinaryService> CloudinaryServiceMock = new();
     protected readonly Mock<ICourseLearningAccessService> CourseAccessMock = new();
+    protected readonly Mock<IRemedialAssignmentService> RemedialAssignmentServiceMock = new();
     protected readonly Mock<ILogger<SpeakingSubmissionService>> LoggerMock = new();
     protected readonly UnitOfWork UnitOfWork;
     protected readonly SpeakingSubmissionService Service;
@@ -69,7 +71,8 @@ public abstract class SpeakingSubmissionServiceTestBase : IDisposable
             CloudinaryServiceMock.Object,
             UnitOfWork,
             LoggerMock.Object,
-            CourseAccessMock.Object
+            CourseAccessMock.Object,
+            RemedialAssignmentServiceMock.Object
         );
     }
 

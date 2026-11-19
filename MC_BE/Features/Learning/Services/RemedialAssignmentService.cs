@@ -308,9 +308,9 @@ public sealed class RemedialAssignmentService : IRemedialAssignmentService
         var lessonIds = await _db.Lessons.AsNoTracking().Where(x => x.CourseId == courseId && !x.IsRemedial).Select(x => x.LessonId).ToListAsync();
         var quizzes = await _db.Quizzes.AsNoTracking()
             .Where(q => !q.IsRemedial &&
-                (q.Status == QuizStatus.ACTIVE || (q.Status == QuizStatus.INACTIVE && q.AvailableUntil.HasValue && q.AvailableUntil.Value <= now)) &&
+                q.Status == QuizStatus.ACTIVE &&
                 (q.CourseId == courseId || (q.ModuleId.HasValue && moduleIds.Contains(q.ModuleId.Value)) || (q.LessonId.HasValue && lessonIds.Contains(q.LessonId.Value))))
-            .Select(q => new { q.QuizId, q.AvailableUntil })
+            .Select(q => new { q.QuizId, q.Purpose, q.LessonId, q.ModuleId })
             .ToListAsync();
         var scripts = await _db.SpeakingScripts.AsNoTracking()
             .Where(s => s.CourseId == courseId && s.Status == SpeakingScriptStatus.PUBLISHED && !s.IsRemedial)
@@ -323,15 +323,45 @@ public sealed class RemedialAssignmentService : IRemedialAssignmentService
         var submissions = scriptIds.Count == 0 ? new List<SpeakingSubmission>() : await _db.SpeakingSubmissions.AsNoTracking()
             .Where(x => studentIds.Contains(x.LearnerId) && x.ScriptId.HasValue && scriptIds.Contains(x.ScriptId.Value)).ToListAsync();
 
+        // The deadline belongs to the learner, not to the shared Quiz record.
+        var videoLessons = await _db.Lessons.AsNoTracking()
+            .Where(l => l.CourseId == courseId && !l.IsRemedial &&
+                l.Status == LessonStatus.ACTIVE &&
+                l.CourseMaterials.Any(m => m.MaterialType == MaterialType.VIDEO &&
+                    ((m.ObjectKey != null && m.ObjectKey != "") ||
+                     (m.FileUrl != null && m.FileUrl != ""))))
+            .Select(l => new { l.LessonId, l.ModuleId, l.OrderIndex }).ToListAsync();
+        var videoIds = videoLessons.Select(l => l.LessonId).ToList();
+        var progress = await _db.LessonProgresses.AsNoTracking()
+            .Where(x => videoIds.Contains(x.LessonId) &&
+                studentIds.Contains(x.Enrollment.LearnerId) &&
+                x.Enrollment.CourseId == courseId &&
+                (x.IsCompleted || x.Status == LessonProgressStatus.COMPLETED))
+            .Select(x => new { x.Enrollment.LearnerId, x.LessonId,
+                Date = x.CompletedAt ?? x.UpdatedAt }).ToListAsync();
+        var completedAt = progress.GroupBy(x => (x.LearnerId, x.LessonId))
+            .ToDictionary(g => g.Key, g => g.Min(x => x.Date));
+
+        bool IsExpired(int studentId, int? lessonId, int? moduleId, QuizPurpose purpose)
+        {
+            if (purpose == QuizPurpose.FINAL_ASSESSMENT) return false;
+            var anchor = purpose == QuizPurpose.CHAPTER_ASSESSMENT
+                ? videoLessons.Where(l => l.ModuleId == moduleId)
+                    .OrderByDescending(l => l.OrderIndex).ThenByDescending(l => l.LessonId)
+                    .Select(l => (int?)l.LessonId).FirstOrDefault()
+                : lessonId;
+            return anchor.HasValue &&
+                completedAt.TryGetValue((studentId, anchor.Value), out var date) &&
+                now >= date.AddDays(7);
+        }
+
         var unsupported = studentIds.Where(studentId =>
         {
             var quizNeedsSupport = quizzes.Any(quiz =>
             {
                 var learnerAttempts = attempts.Where(x => x.UserId == studentId && x.QuizId == quiz.QuizId).ToList();
                 if (learnerAttempts.Any(x => x.ResultStatus == QuizAttemptStatus.PASSED)) return false;
-                var latest = learnerAttempts.OrderByDescending(x => x.AttemptNumber).FirstOrDefault();
-                return (quiz.AvailableUntil.HasValue && quiz.AvailableUntil.Value <= now) ||
-                    latest?.ResultStatus == QuizAttemptStatus.FAILED;
+                return IsExpired(studentId, quiz.LessonId, quiz.ModuleId, quiz.Purpose);
             });
             var speakingNeedsSupport = scripts.Any(script =>
             {

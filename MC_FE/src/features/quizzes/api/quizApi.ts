@@ -16,6 +16,10 @@ import {
 } from '../types/quizTypes';
 
 export const quizApi = {
+  async deleteQuiz(quizId: number): Promise<{ success: boolean; message: string }> {
+    return request(`/quizzes/${quizId}`, { method: 'DELETE' });
+  },
+
   async createQuiz(data: CreateQuizRequest): Promise<{
     success: boolean;
     message: string;

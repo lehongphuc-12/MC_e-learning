@@ -165,7 +165,7 @@ public class QuizService : IQuizService
             Description = request.Description?.Trim(),
             TimeLimitMinutes = request.TimeLimitMinutes,
             PassingScore = 80.00m,
-            MaxAttempts = request.MaxAttempts,
+            MaxAttempts = request.IsRemedial ? request.MaxAttempts : 0,
             Purpose = request.Purpose,
             ModuleId = request.ModuleId,
             AvailableFrom = null,
@@ -367,7 +367,7 @@ public class QuizService : IQuizService
         quiz.Description = request.Description?.Trim();
         quiz.TimeLimitMinutes = request.TimeLimitMinutes;
         quiz.PassingScore = 80.00m;
-        quiz.MaxAttempts = request.MaxAttempts;
+        quiz.MaxAttempts = request.IsRemedial ? request.MaxAttempts : 0;
         quiz.AvailableFrom = null;
         quiz.AvailableUntil = null;
         quiz.Status = request.Status;
@@ -685,13 +685,13 @@ public class QuizService : IQuizService
         if (attempts.Any(a => a.ResultStatus == QuizAttemptStatus.PENDING_GRADING)) throw new ArgumentException("Your previous attempt is awaiting instructor grading.");
         // MaxAttempts = 0 means unlimited. Only enforce a cap when the instructor explicitly sets one.
         var submittedAttemptCount = attempts.Count(a => a.SubmittedAt.HasValue);
-        if (attempt is null && !quiz.IsRemedial && quiz.MaxAttempts > 0 && submittedAttemptCount >= quiz.MaxAttempts && !hasRetakeGrant)
+        if (attempt is null && quiz.IsRemedial && quiz.MaxAttempts > 0 && submittedAttemptCount >= quiz.MaxAttempts && !hasRetakeGrant)
             throw new InvalidOperationException($"Bạn đã sử dụng hết {quiz.MaxAttempts} lượt làm bài.");
         if (attempt is null)
         {
             // FINAL_ASSESSMENT: after 3 failed submissions, wait 6 hours
             // from the most recent failure before starting another attempt.
-            // MaxAttempts = 0 still means unlimited total attempts within the 7-day window.
+            // MaxAttempts = 0 means unlimited total attempts until enrollment expiry.
             if (!hasRetakeGrant && quiz.Purpose == QuizPurpose.FINAL_ASSESSMENT)
             {
                 var failedAttempts = attempts
