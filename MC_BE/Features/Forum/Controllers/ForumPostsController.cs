@@ -42,7 +42,6 @@ public class ForumPostsController : ControllerBase
         return User.IsInRole("Admin");
     }
 
-    // GET /api/forum/topics
     [HttpGet("topics")]
     [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<List<ForumTopicDto>>>> GetTopics()
@@ -58,7 +57,6 @@ public class ForumPostsController : ControllerBase
         }
     }
 
-    // GET /api/forum/posts
     [HttpGet("posts")]
     [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<PaginatedResult<ForumPostDto>>>> GetPosts([FromQuery] PostQueryParameters query)
@@ -76,7 +74,6 @@ public class ForumPostsController : ControllerBase
         }
     }
 
-    // GET /api/forum/posts/{id}
     [HttpGet("posts/{id:int}")]
     [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<ForumPostDto>>> GetPostById(int id)
@@ -110,7 +107,6 @@ public class ForumPostsController : ControllerBase
         return current.Message;
     }
 
-    // POST /api/forum/posts
     [HttpPost("posts")]
     [Authorize]
     public async Task<ActionResult<ApiResponse<ForumPostDto>>> CreatePost([FromBody] CreatePostRequest request)
@@ -134,7 +130,6 @@ public class ForumPostsController : ControllerBase
         }
     }
 
-    // PUT /api/forum/posts/{id}
     [HttpPut("posts/{id:int}")]
     [Authorize]
     public async Task<ActionResult<ApiResponse<ForumPostDto>>> UpdatePost(int id, [FromBody] UpdatePostRequest request)
@@ -167,7 +162,6 @@ public class ForumPostsController : ControllerBase
         }
     }
 
-    // DELETE /api/forum/posts/{id}
     [HttpDelete("posts/{id:int}")]
     [Authorize]
     public async Task<ActionResult<ApiResponse<bool>>> DeletePost(int id)
@@ -197,7 +191,6 @@ public class ForumPostsController : ControllerBase
         }
     }
 
-    // POST /api/forum/posts/{id}/react
     [HttpPost("posts/{id:int}/react")]
     [Authorize]
     public async Task<ActionResult<ApiResponse<ForumReactionSummaryDto>>> TogglePostReaction(int id, [FromBody] ToggleReactionRequest request)
@@ -224,7 +217,6 @@ public class ForumPostsController : ControllerBase
         }
     }
 
-    // POST /api/forum/posts/{id}/report
     [HttpPost("posts/{id:int}/report")]
     [Authorize]
     public async Task<ActionResult<ApiResponse<bool>>> ReportPost(int id, [FromBody] CreateReportRequest request)
@@ -251,7 +243,6 @@ public class ForumPostsController : ControllerBase
         }
     }
 
-    // POST /api/forum/upload-image
     [HttpPost("upload-image")]
     [Authorize]
     public async Task<ActionResult<ApiResponse<string>>> UploadImage(IFormFile file)
@@ -270,7 +261,6 @@ public class ForumPostsController : ControllerBase
                 return Ok(ApiResponse<string>.SuccessResponse(imageUrl, "Tải ảnh lên thành công."));
             }
 
-            // Fallback to local storage if Cloudinary returns an error
             var localUrl = await SaveFileLocallyAsync(file);
             return Ok(ApiResponse<string>.SuccessResponse(localUrl, "Tải ảnh lên thành công."));
         }
@@ -309,7 +299,6 @@ public class ForumPostsController : ControllerBase
         return $"{baseUrl}/uploads/forum/{fileName}";
     }
 
-    // GET /api/forum/users/{userId:int}/profile
     [HttpGet("users/{userId:int}/profile")]
     [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<ForumUserProfileDto>>> GetUserProfile(int userId)

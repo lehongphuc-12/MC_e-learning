@@ -101,7 +101,7 @@ public class PostQueryParameters
     public int Limit { get; set; } = 10;
     public int? TopicId { get; set; }
     public string? Search { get; set; }
-    public string SortBy { get; set; } = "latest"; // latest, hot, most_commented
+    public string SortBy { get; set; } = "latest";
 }
 
 public class ForumCommentDto
@@ -156,13 +156,13 @@ public class UpdateCommentRequest
 public class ToggleReactionRequest
 {
     [Required]
-    public string TargetType { get; set; } = "POST"; // POST or COMMENT
+    public string TargetType { get; set; } = "POST";
 
     public int? PostId { get; set; }
     public int? CommentId { get; set; }
 
     [Required]
-    public string ReactionType { get; set; } = "LIKE"; // LIKE, LOVE, HELPFUL
+    public string ReactionType { get; set; } = "LIKE";
 }
 
 public class ForumReactionSummaryDto
@@ -175,13 +175,13 @@ public class ForumReactionSummaryDto
 public class CreateReportRequest
 {
     [Required]
-    public string TargetType { get; set; } = "POST"; // POST or COMMENT
+    public string TargetType { get; set; } = "POST";
 
     public int? PostId { get; set; }
     public int? CommentId { get; set; }
 
     [Required]
-    public string Reason { get; set; } = "OTHER"; // SPAM, HARASSMENT, INAPPROPRIATE, MISINFORMATION, OTHER
+    public string Reason { get; set; } = "OTHER";
 
     public string? Details { get; set; }
 }
@@ -216,7 +216,7 @@ public class ForumReportDto
 public class UpdateItemStatusRequest
 {
     [Required]
-    public string Status { get; set; } = "PUBLISHED"; // PUBLISHED/ACTIVE, HIDDEN_BY_ADMIN, DELETED
+    public string Status { get; set; } = "PUBLISHED";
 }
 
 public class ForumUserProfileDto

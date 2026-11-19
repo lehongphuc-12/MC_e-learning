@@ -27,7 +27,6 @@ public class AdminForumController : ControllerBase
         return int.TryParse(claim, out var id) ? id : null;
     }
 
-    // GET /api/admin/forum/reports
     [HttpGet("reports")]
     public async Task<ActionResult<ApiResponse<PaginatedResult<ForumReportDto>>>> GetReports(
         [FromQuery] int page = 1,
@@ -46,7 +45,6 @@ public class AdminForumController : ControllerBase
         }
     }
 
-    // GET /api/admin/forum/posts
     [HttpGet("posts")]
     public async Task<ActionResult<ApiResponse<PaginatedResult<ForumPostDto>>>> GetPosts(
         [FromQuery] int page = 1,
@@ -66,7 +64,6 @@ public class AdminForumController : ControllerBase
         }
     }
 
-    // POST /api/admin/forum/reports/{id}/resolve
     [HttpPost("reports/{id:int}/resolve")]
     public async Task<ActionResult<ApiResponse<bool>>> ResolveReport(int id, [FromQuery] string action = "DISMISS")
     {
@@ -90,7 +87,6 @@ public class AdminForumController : ControllerBase
         }
     }
 
-    // POST /api/admin/forum/posts/{id}/restore
     [HttpPost("posts/{id:int}/restore")]
     public async Task<ActionResult<ApiResponse<bool>>> RestorePost(int id)
     {
@@ -114,7 +110,6 @@ public class AdminForumController : ControllerBase
         }
     }
 
-    // POST /api/admin/forum/posts/{id}/status
     [HttpPost("posts/{id:int}/status")]
     public async Task<ActionResult<ApiResponse<bool>>> UpdatePostStatus(int id, [FromBody] UpdateItemStatusRequest request)
     {
@@ -138,7 +133,6 @@ public class AdminForumController : ControllerBase
         }
     }
 
-    // POST /api/admin/forum/comments/{id}/restore
     [HttpPost("comments/{id:int}/restore")]
     public async Task<ActionResult<ApiResponse<bool>>> RestoreComment(int id)
     {
@@ -162,7 +156,6 @@ public class AdminForumController : ControllerBase
         }
     }
 
-    // POST /api/admin/forum/comments/{id}/status
     [HttpPost("comments/{id:int}/status")]
     public async Task<ActionResult<ApiResponse<bool>>> UpdateCommentStatus(int id, [FromBody] UpdateItemStatusRequest request)
     {
@@ -186,7 +179,6 @@ public class AdminForumController : ControllerBase
         }
     }
 
-    // POST /api/admin/forum/topics
     [HttpPost("topics")]
     public async Task<ActionResult<ApiResponse<ForumTopicDto>>> CreateTopic([FromBody] CreateForumTopicDto request)
     {
@@ -201,7 +193,6 @@ public class AdminForumController : ControllerBase
         }
     }
 
-    // PUT /api/admin/forum/topics/{id}
     [HttpPut("topics/{id:int}")]
     public async Task<ActionResult<ApiResponse<ForumTopicDto>>> UpdateTopic(int id, [FromBody] CreateForumTopicDto request)
     {
@@ -221,7 +212,6 @@ public class AdminForumController : ControllerBase
         }
     }
 
-    // DELETE /api/admin/forum/topics/{id}
     [HttpDelete("topics/{id:int}")]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteTopic(int id)
     {
