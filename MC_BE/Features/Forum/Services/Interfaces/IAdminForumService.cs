@@ -9,7 +9,7 @@ public interface IAdminForumService
 {
     Task<PaginatedResult<ForumReportDto>> GetReportsAsync(int page, int limit, string? status, string? targetType);
     Task<PaginatedResult<ForumPostDto>> GetAdminPostsAsync(int page, int limit, int? topicId, string? status, string? search);
-    Task<bool> ResolveReportAsync(int reportId, int adminId, string action); // action: DISMISS, HIDE, DELETE
+    Task<bool> ResolveReportAsync(int reportId, int adminId, string action);
     Task<bool> RestorePostAsync(int postId, int adminId);
     Task<bool> UpdatePostStatusAsync(int postId, int adminId, string status);
     Task<bool> RestoreCommentAsync(int commentId, int adminId);

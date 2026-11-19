@@ -50,7 +50,6 @@ public class CertificateService : ICertificateService
             c => c.Enrollment.LearnerId == learnerId && c.Status == "ACTIVE",
             c => c.Enrollment);
 
-        // Load navigation properties for Mapping
         var certList = certs.ToList();
         var enrollmentIds = certList.Select(c => c.EnrollmentId).Distinct().ToList();
         var enrollments = await _enrollmentRepository.FindAsync(
@@ -111,13 +110,12 @@ public class CertificateService : ICertificateService
 
         certificate.Enrollment = enrollments.FirstOrDefault() ?? certificate.Enrollment;
 
-        // If currentUserId is passed, ensure learner owns certificate or is instructor/admin
         if (currentUserId.HasValue && certificate.Enrollment?.LearnerId != currentUserId.Value)
         {
-            // Allow if user is instructor of the course
+
             if (certificate.Enrollment?.Course?.InstructorId != currentUserId.Value)
             {
-                // Check if user is admin
+
                 var users = await _userRepository.FindAsync(u => u.UserId == currentUserId.Value, u => u.Role);
                 var user = users.FirstOrDefault();
                 if (user?.Role?.RoleName != "Admin")
@@ -144,7 +142,6 @@ public class CertificateService : ICertificateService
             throw new ArgumentException("Learner is not enrolled in this course.");
         }
 
-        // Idempotency: Return existing certificate if already issued
         var existingCerts = await _certificateRepository.FindAsync(
             c => c.EnrollmentId == enrollment.EnrollmentId);
 
@@ -182,7 +179,6 @@ public class CertificateService : ICertificateService
         var access = await _access.CheckCertificateAsync(learnerId, courseId);
         if (!access.Allowed) throw new InvalidOperationException(access.Reason ?? "Course requirements are incomplete.");
 
-        // Generate unique certificate code: CERT-YYYY-XXXXXX
         string code = GenerateUniqueCertificateCode();
 
         var certificate = new Certificate
@@ -196,7 +192,7 @@ public class CertificateService : ICertificateService
         };
 
         await _certificateRepository.AddAsync(certificate);
-        // The gift is tied to this specific paid-course enrollment, not to the learner globally.
+
         await _courseGiftAccess.RevokeGiftGrantsForCompletedEnrollmentAsync(enrollment.EnrollmentId, DateTime.UtcNow);
         await _unitOfWork.SaveChangesAsync();
 
@@ -274,4 +270,3 @@ public class CertificateService : ICertificateService
         };
     }
 }
-

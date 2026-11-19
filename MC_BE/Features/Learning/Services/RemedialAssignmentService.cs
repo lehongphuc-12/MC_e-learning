@@ -101,7 +101,7 @@ public sealed class RemedialAssignmentService : IRemedialAssignmentService
         if (request.TargetSpeakingScriptId.HasValue && (request.TargetSpeakingScriptId == request.SpeakingScriptId ||
             !await _db.SpeakingScripts.AnyAsync(x => x.ScriptId == request.TargetSpeakingScriptId && x.CourseId == courseId && !x.IsRemedial)))
             throw new KeyNotFoundException("Speaking đích phải là bài chính thức khác nội dung bổ trợ và thuộc khóa học này.");
-        if (request.TargetSpeakingScriptId.HasValue && await _db.SpeakingSubmissions.AnyAsync(x => studentIds.Contains(x.LearnerId) && x.ScriptId == request.TargetSpeakingScriptId && x.Score >= 80))
+        if (request.TargetSpeakingScriptId.HasValue && await _db.SpeakingSubmissions.AnyAsync(x => studentIds.Contains(x.LearnerId) && x.ScriptId == request.TargetSpeakingScriptId && x.Status == SpeakingSubmissionStatus.GRADED && x.Score >= 80))
             throw new InvalidOperationException("Học viên đã đạt bài Speaking này; không cần giao bài bổ trợ để mở lượt làm lại.");
 
         var enrolledIds = await _db.Enrollments.Where(e => e.CourseId == courseId && studentIds.Contains(e.LearnerId) && e.Status == "ACTIVE" && (!e.ExpiresAt.HasValue || e.ExpiresAt.Value > DateTime.UtcNow))
@@ -278,8 +278,6 @@ public sealed class RemedialAssignmentService : IRemedialAssignmentService
         if (!recipient.Assignment.TargetQuizId.HasValue && !recipient.Assignment.TargetSpeakingScriptId.HasValue)
             return;
 
-        // One grant row represents a batch of N one-time attempts. Count every
-        // row for this recipient (including consumed/expired rows) for idempotency.
         if (await _db.RemedialRetakeGrants.AnyAsync(x => x.RecipientId == recipient.RecipientId))
             return;
 
@@ -366,10 +364,10 @@ public sealed class RemedialAssignmentService : IRemedialAssignmentService
             var speakingNeedsSupport = scripts.Any(script =>
             {
                 var learnerSubmissions = submissions.Where(x => x.LearnerId == studentId && x.ScriptId == script.ScriptId).ToList();
-                if (learnerSubmissions.Any(x => x.Score >= 80)) return false;
+                if (learnerSubmissions.Any(x => x.Status == SpeakingSubmissionStatus.GRADED && x.Score >= 80)) return false;
                 var latest = learnerSubmissions.OrderByDescending(x => x.SubmittedAt).FirstOrDefault();
                 if (latest != null && !latest.Score.HasValue) return false;
-                return (script.DueAt.HasValue && script.DueAt.Value <= now) || latest?.Score < 80;
+                return (script.DueAt.HasValue && script.DueAt.Value <= now) || latest?.Status == SpeakingSubmissionStatus.NEEDS_RESUBMISSION || latest?.Score < 80;
             });
             return !quizNeedsSupport && !speakingNeedsSupport;
         }).ToList();

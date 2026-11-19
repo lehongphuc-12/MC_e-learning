@@ -145,7 +145,13 @@ export interface PreUploadMusicResultDto {
   cloudinaryPublicId: string;
 }
 
-export type SpeakingGradeTier = 'Xuất sắc' | 'Giỏi' | 'Cần cải thiện' | 'Trung bình' | 'Yếu';
+export type SpeakingGradeTier =
+  | 'Xuất sắc'
+  | 'Giỏi'
+  | 'Cần cải thiện'
+  | 'Trung bình'
+  | 'Yếu'
+  | 'Chưa đạt (Điểm liệt tiêu chí)';
 
 export interface SpeakingGradeInfo {
   score: number;
@@ -163,8 +169,32 @@ export interface SpeakingGradeInfo {
   defaultFeedback: string;
 }
 
-export function getSpeakingGradeInfo(score: number | null | undefined): SpeakingGradeInfo {
+export function getSpeakingGradeInfo(
+  score: number | null | undefined,
+  isPassedOverride?: boolean | null,
+  hasZeroCriterion?: boolean
+): SpeakingGradeInfo {
   const s = Math.round(Number(score ?? 0));
+
+  // Nếu bài chưa đạt (isPassed = false hoặc bị điểm liệt): TUYỆT ĐỐI KHÔNG xếp loại "Giỏi" hay "Xuất sắc"
+  if (hasZeroCriterion || isPassedOverride === false) {
+    return {
+      score: s,
+      tier: 'Chưa đạt (Điểm liệt tiêu chí)',
+      isPassed: false,
+      statusLabel: 'Chưa đạt (Có tiêu chí 0 điểm)',
+      badgeLabel: 'CHƯA ĐẠT • ĐIỂM LIỆT TIÊU CHÍ',
+      badgeBg: 'bg-rose-50',
+      badgeText: 'text-rose-700',
+      badgeBorder: 'border-rose-300',
+      dotColor: 'bg-rose-500',
+      bannerBg: 'bg-rose-50/70',
+      bannerBorder: 'border-rose-200',
+      scoreText: 'text-rose-700',
+      defaultFeedback: 'Bài làm có tiêu chí bị 0 điểm (Điểm liệt). Quy chế MSEEK yêu cầu tất cả tiêu chí Rubric phải > 0 điểm để Đạt. Cần luyện tập và thu âm lại.',
+    };
+  }
+
   if (s >= 95) {
     return {
       score: s,
@@ -255,11 +285,22 @@ export type SpeakingSubmissionCategory = 'SUBMITTED' | 'PASSED' | 'FAILED';
 export function getSpeakingSubmissionCategory(submission: {
   status?: string;
   score?: number | null;
+  isPassed?: boolean;
+  criterionScores?: Array<{ score: number }>;
 }): SpeakingSubmissionCategory {
   if (submission.score === null || submission.score === undefined || submission.status === 'SUBMITTED') {
     return 'SUBMITTED';
   }
-  return Number(submission.score) >= 80 ? 'PASSED' : 'FAILED';
+  if (submission.isPassed !== undefined && submission.isPassed !== null) {
+    return submission.isPassed ? 'PASSED' : 'FAILED';
+  }
+  if (submission.status === 'NEEDS_RESUBMISSION') {
+    return 'FAILED';
+  }
+  const hasZeroCriterion = submission.criterionScores && submission.criterionScores.length > 0
+    ? submission.criterionScores.some((c) => Number(c.score) <= 0)
+    : false;
+  return Number(submission.score) >= 80 && !hasZeroCriterion ? 'PASSED' : 'FAILED';
 }
 
 export interface SpeakingScopeInfo {

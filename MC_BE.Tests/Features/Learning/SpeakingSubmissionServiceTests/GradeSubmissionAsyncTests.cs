@@ -276,4 +276,87 @@ public class GradeSubmissionAsyncTests : SpeakingSubmissionServiceTestBase
         result.GradeTier.Should().Be("Xuất sắc");
         result.IsPassed.Should().BeTrue();
     }
+
+    [Fact]
+    public async Task GradeSubmissionAsync_WhenScore80OrAbove_ButHasZeroScoreCriterion_MarksNeedsResubmissionAndSetsProgressInProgress()
+    {
+        // Arrange: Tổng điểm 90 nhưng có tiêu chí C04 = 0 điểm (Điểm liệt)
+        var instructor = CreateUser(1, "Instructor", "inst@example.com");
+        var learner = CreateUser(2, "Learner", "learner@example.com");
+        var course = CreateCourse(100, instructor.UserId);
+        var lesson = CreateLesson(10, course.CourseId);
+        var enrollment = CreateEnrollment(1, learner.UserId, course.CourseId);
+        var progress = CreateLessonProgress(1, enrollment.EnrollmentId, lesson.LessonId, isCompleted: false, status: LessonProgressStatus.IN_PROGRESS);
+
+        var submission = CreateSubmission(1, learner.UserId, lesson.LessonId, null);
+
+        var request = new GradeSpeakingSubmissionRequest
+        {
+            Score = 90,
+            Feedback = "Rất tốt ở các phần phát âm nhưng tiêu chí C04 bị 0 điểm.",
+            CriterionScores = new List<CriterionScoreDto>
+            {
+                new() { Code = "C01", Name = "Phát âm & thanh điệu", WeightPercentage = 30, Score = 100 },
+                new() { Code = "C02", Name = "Độ rõ lời", WeightPercentage = 30, Score = 100 },
+                new() { Code = "C03", Name = "Độ chính xác nội dung", WeightPercentage = 30, Score = 100 },
+                new() { Code = "C04", Name = "Biểu cảm & thần thái", WeightPercentage = 10, Score = 0 } // Điểm liệt!
+            }
+        };
+
+        // Act
+        var result = await Service.GradeSubmissionAsync(instructor.UserId, submission.SubmissionId, request);
+
+        // Assert: Dù tổng điểm 90, nhưng do có tiêu chí 0 điểm nên bài phải là Chưa đạt (NEEDS_RESUBMISSION / IsPassed = false)
+        result.Should().NotBeNull();
+        result!.Score.Should().Be(90);
+        result.Status.Should().Be(SpeakingSubmissionStatus.NEEDS_RESUBMISSION.ToString());
+        result.IsPassed.Should().BeFalse();
+
+        var updatedProgress = await DbContext.LessonProgresses.FindAsync(progress.LessonProgressId);
+        updatedProgress.Should().NotBeNull();
+        updatedProgress!.IsCompleted.Should().BeFalse();
+        updatedProgress.Status.Should().Be(LessonProgressStatus.IN_PROGRESS);
+        updatedProgress.CompletedAt.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GradeSubmissionAsync_WhenScore80OrAbove_AndAllCriteriaGreaterThanZero_MarksGradedAndCompletesLessonProgress()
+    {
+        // Arrange: Tổng điểm 85 và tất cả tiêu chí đều > 0 điểm -> Đạt chuẩn
+        var instructor = CreateUser(1, "Instructor", "inst@example.com");
+        var learner = CreateUser(2, "Learner", "learner@example.com");
+        var course = CreateCourse(100, instructor.UserId);
+        var lesson = CreateLesson(10, course.CourseId);
+        var enrollment = CreateEnrollment(1, learner.UserId, course.CourseId);
+        var progress = CreateLessonProgress(1, enrollment.EnrollmentId, lesson.LessonId, isCompleted: false, status: LessonProgressStatus.IN_PROGRESS);
+
+        var submission = CreateSubmission(1, learner.UserId, lesson.LessonId, null);
+
+        var request = new GradeSpeakingSubmissionRequest
+        {
+            Score = 85,
+            Feedback = "Đạt yêu cầu tốt tất cả tiêu chí.",
+            CriterionScores = new List<CriterionScoreDto>
+            {
+                new() { Code = "C01", Name = "Phát âm & thanh điệu", WeightPercentage = 40, Score = 85 },
+                new() { Code = "C02", Name = "Độ rõ lời", WeightPercentage = 30, Score = 85 },
+                new() { Code = "C03", Name = "Độ chính xác nội dung", WeightPercentage = 30, Score = 85 }
+            }
+        };
+
+        // Act
+        var result = await Service.GradeSubmissionAsync(instructor.UserId, submission.SubmissionId, request);
+
+        // Assert: Đạt chuẩn (GRADED / IsPassed = true)
+        result.Should().NotBeNull();
+        result!.Score.Should().Be(85);
+        result.Status.Should().Be(SpeakingSubmissionStatus.GRADED.ToString());
+        result.IsPassed.Should().BeTrue();
+
+        var updatedProgress = await DbContext.LessonProgresses.FindAsync(progress.LessonProgressId);
+        updatedProgress.Should().NotBeNull();
+        updatedProgress!.IsCompleted.Should().BeTrue();
+        updatedProgress.Status.Should().Be(LessonProgressStatus.COMPLETED);
+        updatedProgress.CompletedAt.Should().NotBeNull();
+    }
 }

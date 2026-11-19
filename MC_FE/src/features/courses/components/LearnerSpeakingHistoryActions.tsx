@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mic, Eye, RefreshCw, ChevronDown, ChevronUp, Lock } from 'lucide-react';
+import { Mic, Eye, RefreshCw, ChevronDown, ChevronUp, Lock, Sparkles } from 'lucide-react';
 import { speakingApi } from '../api/speakingApi';
 import type { SpeakingSubmissionHistoryDto } from '../types/speakingTypes';
 
@@ -127,8 +127,8 @@ export const LearnerSpeakingHistoryActions: React.FC<Props> = ({
   }, [fetchHistory]);
 
   const passed = useMemo(
-    () => history.some((a) => a.isPassed === true || (a.score != null && Number(a.score) >= passingScore)),
-    [history, passingScore]
+    () => history.some((a) => a.isPassed === true),
+    [history]
   );
 
   const pending = useMemo(
@@ -147,8 +147,9 @@ export const LearnerSpeakingHistoryActions: React.FC<Props> = ({
 
   const getStatusLabel = (item: SpeakingSubmissionHistoryDto) => {
     if (item.score == null || item.status === 'SUBMITTED') return 'Chờ chấm';
-    const num = Number(item.score);
-    return num >= passingScore ? 'Đạt' : 'Chưa đạt';
+    if (item.isPassed === true) return 'Đạt';
+    if (item.isPassed === false || item.status === 'NEEDS_RESUBMISSION') return 'Chưa đạt';
+    return Number(item.score) >= passingScore ? 'Đạt' : 'Chưa đạt';
   };
 
   return (
@@ -173,6 +174,21 @@ export const LearnerSpeakingHistoryActions: React.FC<Props> = ({
               <Lock size={14} /> Làm bài nói
             </button>
           ) : null
+        )}
+
+        {courseId && (lessonId || scriptId) && (
+          <button
+            type="button"
+            onClick={() => {
+              const targetLessonId = lessonId || 0;
+              navigate(`/courses/${courseId}/lessons/${targetLessonId}/ai-practice`);
+            }}
+            disabled={!canTakeSpeaking}
+            title={!canTakeSpeaking ? 'Vui lòng hoàn thành bài học để mở khóa' : 'Luyện tập phát âm với AI'}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-purple-200 bg-purple-50 px-2.5 py-2 font-bold text-purple-700 transition hover:bg-purple-100 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-2xs"
+          >
+            <Sparkles size={14} /> Luyện với AI
+          </button>
         )}
 
         {history.length > 0 && (
