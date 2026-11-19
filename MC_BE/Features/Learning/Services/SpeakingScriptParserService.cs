@@ -27,12 +27,10 @@ public class SpeakingScriptParserService
 {
     private readonly ILogger<SpeakingScriptParserService> _logger;
 
-    // Level Header Regex: match `## [LEVEL: BEGINNER]` or `[LEVEL: BEGINNER]`
     private static readonly Regex LevelHeaderRegex = new(
         @"(?:##\s*)?\[LEVEL:\s*(BEGINNER|INTERMEDIATE|ADVANCED)\]",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
-    // Tag Regexes
     private static readonly Regex AllTagsRegex = new(@"\[[^\]]*\]", RegexOptions.Compiled);
     private static readonly Regex GuideTagRegex = new(@"\[HƯỚNG DẪN:[^\]]*\]", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex PauseTagRegex = new(@"\[NGẮT NGHỈ:[^\]]*\]", RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -42,15 +40,10 @@ public class SpeakingScriptParserService
         _logger = logger;
     }
 
-    /// <summary>
-    /// Parse uploaded file (.docx, .txt, .md) in-memory without saving to disk.
-    /// Preserves full Vietnamese unicode characters.
-    /// </summary>
     public async Task<ParsedScriptResult> ParseFileAsync(IFormFile file)
     {
         var result = new ParsedScriptResult();
 
-        // 1. Validation: file existence & size (max 10MB)
         if (file == null || file.Length == 0)
         {
             result.Success = false;
@@ -74,7 +67,6 @@ public class SpeakingScriptParserService
             return result;
         }
 
-        // 2. Extract raw text completely in-memory
         string rawText;
         try
         {
@@ -91,11 +83,11 @@ public class SpeakingScriptParserService
                 using var reader = new StreamReader(memoryStream, System.Text.Encoding.UTF8);
                 rawText = await reader.ReadToEndAsync();
             }
-            else // .md
+            else
             {
                 using var reader = new StreamReader(memoryStream, System.Text.Encoding.UTF8);
                 var mdContent = await reader.ReadToEndAsync();
-                // We keep markdown plain text while preserving lines
+
                 rawText = mdContent;
             }
         }
@@ -117,15 +109,11 @@ public class SpeakingScriptParserService
 
         result.OriginalContent = rawText;
 
-        // 3. Parse text into sections by level
         ParseSections(rawText, result);
 
         return result;
     }
 
-    /// <summary>
-    /// Extract text from .docx in memory using Paragraph.InnerText to prevent splitting Vietnamese characters/runs.
-    /// </summary>
     private string ExtractFromDocx(MemoryStream stream)
     {
         using var wordDoc = WordprocessingDocument.Open(stream, false);
@@ -140,10 +128,6 @@ public class SpeakingScriptParserService
         return string.Join("\n", lines);
     }
 
-    /// <summary>
-    /// Parse sections into 3 levels: BEGINNER, INTERMEDIATE, ADVANCED.
-    /// Checks for missing levels and extracts content according to exact specifications.
-    /// </summary>
     public void ParseSections(string rawText, ParsedScriptResult result)
     {
         var matches = LevelHeaderRegex.Matches(rawText);
@@ -152,8 +136,7 @@ public class SpeakingScriptParserService
 
         if (matches.Count == 0)
         {
-            // If the user uploaded a plain script file without level headers,
-            // automatically generate all 3 levels from the raw text!
+
             var cleanText = rawText.Trim();
             foreach (var reqLevel in requiredLevels)
             {
@@ -187,13 +170,8 @@ public class SpeakingScriptParserService
             foundLevels[levelEnum] = sectionContent;
         }
 
-        // If any level is missing, fallback to the available parsed level or rawText
         var defaultFallback = foundLevels.Values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v)) ?? rawText;
 
-        // Extract each level per exact requirements:
-        // BEGINNER: Lời thoại + [HƯỚNG DẪN] + [GIỌNG ĐỌC] + [NGẮT NGHỈ]
-        // INTERMEDIATE: Lời thoại + [GIỌNG ĐỌC] (xóa bỏ [HƯỚNG DẪN] và [NGẮT NGHỈ])
-        // ADVANCED: Chỉ giữ lời thoại thuần, xóa toàn bộ thẻ
         foreach (var reqLevel in requiredLevels)
         {
             var rawContent = foundLevels.ContainsKey(reqLevel) && !string.IsNullOrWhiteSpace(foundLevels[reqLevel])
@@ -213,9 +191,6 @@ public class SpeakingScriptParserService
         result.Success = true;
     }
 
-    /// <summary>
-    /// Processes content for a specific level.
-    /// </summary>
     public string ProcessLevelContent(string rawContent, SpeakingLevel level)
     {
         if (string.IsNullOrWhiteSpace(rawContent)) return string.Empty;
@@ -224,23 +199,20 @@ public class SpeakingScriptParserService
         {
             SpeakingLevel.BEGINNER => rawContent.Trim(),
             SpeakingLevel.INTERMEDIATE =>
-                // Strip [HƯỚNG DẪN:...] and [NGẮT NGHỈ:...]
+
                 PauseTagRegex.Replace(GuideTagRegex.Replace(rawContent, ""), "").Trim(),
             SpeakingLevel.ADVANCED =>
-                // Strip all tags completely
+
                 AllTagsRegex.Replace(rawContent, "").Trim(),
             _ => rawContent.Trim()
         };
     }
 
-    /// <summary>
-    /// Strips all tags `[...]` to obtain 100% clean transcript for pronunciation scoring / speech-to-text.
-    /// </summary>
     public string ExtractCleanScript(string content)
     {
         if (string.IsNullOrWhiteSpace(content)) return string.Empty;
         var clean = AllTagsRegex.Replace(content, "");
-        // Normalize multiple spaces/newlines
+
         clean = Regex.Replace(clean, @"[ \t]+", " ");
         clean = Regex.Replace(clean, @"\n{3,}", "\n\n");
         return clean.Trim();
