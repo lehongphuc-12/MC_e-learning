@@ -32,10 +32,6 @@ public class BackgroundMusicController : ControllerBase
         return int.TryParse(claim, out var id) ? id : null;
     }
 
-    /// <summary>
-    /// GET /api/speaking-scripts/musics/defaults
-    /// Lấy danh sách 4 bài nhạc nền hệ thống mặc định
-    /// </summary>
     [HttpGet("musics/defaults")]
     public async Task<ActionResult<ApiResponse<List<BackgroundMusicDto>>>> GetDefaultMusics()
     {
@@ -52,10 +48,6 @@ public class BackgroundMusicController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// GET /api/speaking-scripts/lessons/{lessonId}/musics
-    /// Lấy danh sách nhạc khả dụng cho bài học (nhạc hệ thống + nhạc giảng viên upload)
-    /// </summary>
     [HttpGet("lessons/{lessonId:int}/musics")]
     public async Task<ActionResult<ApiResponse<List<BackgroundMusicDto>>>> GetMusicsForLesson(int lessonId)
     {
@@ -72,10 +64,6 @@ public class BackgroundMusicController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// POST /api/speaking-scripts/musics/pre-upload
-    /// Upload trước file nhạc lên Cloudinary khi giảng viên chọn file trong modal
-    /// </summary>
     [HttpPost("musics/pre-upload")]
     [Authorize(Roles = "Instructor,Admin")]
     [Consumes("multipart/form-data")]
@@ -108,10 +96,6 @@ public class BackgroundMusicController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// POST /api/speaking-scripts/lessons/{lessonId}/musics/link
-    /// Gán danh sách nhạc đã pre-upload vào bài học sau khi tạo/cập nhật bài học
-    /// </summary>
     [HttpPost("lessons/{lessonId:int}/musics/link")]
     [Authorize(Roles = "Instructor,Admin")]
     public async Task<ActionResult<ApiResponse<List<BackgroundMusicDto>>>> LinkMusicsToLesson(
@@ -142,10 +126,6 @@ public class BackgroundMusicController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// POST /api/speaking-scripts/lessons/{lessonId}/musics/upload
-    /// Giảng viên tải lên trực tiếp file nhạc nền mới cho bài học đã có ID
-    /// </summary>
     [HttpPost("lessons/{lessonId:int}/musics/upload")]
     [Authorize(Roles = "Instructor,Admin")]
     [Consumes("multipart/form-data")]
@@ -188,10 +168,6 @@ public class BackgroundMusicController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// DELETE /api/speaking-scripts/musics/{musicId}
-    /// Giảng viên xóa nhạc nền riêng đã upload
-    /// </summary>
     [HttpDelete("musics/{musicId:int}")]
     [Authorize(Roles = "Instructor,Admin")]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteMusic(int musicId)

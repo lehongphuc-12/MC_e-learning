@@ -137,8 +137,8 @@ public class AdminForumService : IAdminForumService
         if (!string.IsNullOrWhiteSpace(search))
         {
             var s = search.Trim().ToLower();
-            query = query.Where(p => p.Title.ToLower().Contains(s) 
-                || p.Content.ToLower().Contains(s) 
+            query = query.Where(p => p.Title.ToLower().Contains(s)
+                || p.Content.ToLower().Contains(s)
                 || (p.Author != null && p.Author.FullName.ToLower().Contains(s)));
         }
 
@@ -224,13 +224,12 @@ public class AdminForumService : IAdminForumService
         if (post is null) return false;
 
         post.Status = "PUBLISHED";
-        post.RestoredAt = DateTime.UtcNow; // Record restore timestamp!
-        post.ReportsCount = 0; // Reset active reports counter
+        post.RestoredAt = DateTime.UtcNow;
+        post.ReportsCount = 0;
         post.UpdatedAt = DateTime.UtcNow;
 
         _context.ForumPosts.Update(post);
 
-        // Mark all pending reports for this post as RESOLVED so old reports don't trigger auto-hide again
         var pendingReports = await _context.ForumReports
             .Where(r => r.TargetType == "POST" && r.PostId == postId && r.Status == "PENDING")
             .ToListAsync();
@@ -266,13 +265,12 @@ public class AdminForumService : IAdminForumService
         if (comment is null) return false;
 
         comment.Status = "ACTIVE";
-        comment.RestoredAt = DateTime.UtcNow; // Record restore timestamp!
-        comment.ReportsCount = 0; // Reset active reports counter
+        comment.RestoredAt = DateTime.UtcNow;
+        comment.ReportsCount = 0;
         comment.UpdatedAt = DateTime.UtcNow;
 
         _context.ForumComments.Update(comment);
 
-        // Mark all pending reports for this comment as RESOLVED
         var pendingReports = await _context.ForumReports
             .Where(r => r.TargetType == "COMMENT" && r.CommentId == commentId && r.Status == "PENDING")
             .ToListAsync();

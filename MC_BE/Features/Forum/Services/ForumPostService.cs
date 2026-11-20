@@ -39,7 +39,7 @@ public class ForumPostService : IForumPostService
 
         if (!topics.Any())
         {
-            // Seed initial topics if DB is empty
+
             var defaultTopics = new List<ForumTopic>
             {
                 new ForumTopic { Name = "Thảo luận chung", Slug = "thao-luan-chung", Description = "Trao đổi các chủ đề chung về MC và diễn xuất", Icon = "MessageSquare", OrderIndex = 1 },
@@ -73,10 +73,6 @@ public class ForumPostService : IForumPostService
             .Include(p => p.Author).ThenInclude(a => a.Role)
             .AsNoTracking();
 
-        // Filter hidden/deleted posts:
-        // - Admin sees everything except DELETED.
-        // - Author sees their own PUBLISHED or HIDDEN posts.
-        // - Public users only see PUBLISHED.
         if (!isAdmin)
         {
             if (currentUserId.HasValue)
@@ -93,20 +89,17 @@ public class ForumPostService : IForumPostService
             baseQuery = baseQuery.Where(p => p.Status != "DELETED");
         }
 
-        // Filter by Topic
         if (query.TopicId.HasValue && query.TopicId.Value > 0)
         {
             baseQuery = baseQuery.Where(p => p.TopicId == query.TopicId.Value);
         }
 
-        // Search in Title or Content
         if (!string.IsNullOrWhiteSpace(query.Search))
         {
             var search = query.Search.ToLower();
             baseQuery = baseQuery.Where(p => p.Title.ToLower().Contains(search) || p.Content.ToLower().Contains(search));
         }
 
-        // Sorting
         baseQuery = query.SortBy.ToLower() switch
         {
             "hot" => baseQuery.OrderByDescending(p => p.IsPinned).ThenByDescending(p => p.ReactionsCount + p.CommentsCount),
@@ -123,7 +116,6 @@ public class ForumPostService : IForumPostService
             .Take(limit)
             .ToListAsync();
 
-        // Get user reactions and reports for the fetched posts
         var postIds = posts.Select(p => p.PostId).ToList();
         var userReactions = new Dictionary<int, string>();
         var userReports = new HashSet<int>();
@@ -197,13 +189,11 @@ public class ForumPostService : IForumPostService
         if (post is null || post.Status == "DELETED")
             return null;
 
-        // Permission check for hidden post:
         if (post.Status != "PUBLISHED" && !isAdmin && (!currentUserId.HasValue || currentUserId.Value != post.AuthorId))
         {
-            return null; // Not allowed to view hidden post
+            return null;
         }
 
-        // Increment view count
         post.ViewsCount += 1;
         await _context.SaveChangesAsync();
 

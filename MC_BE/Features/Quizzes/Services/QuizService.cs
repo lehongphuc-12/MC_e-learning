@@ -165,7 +165,7 @@ public class QuizService : IQuizService
             Description = request.Description?.Trim(),
             TimeLimitMinutes = request.TimeLimitMinutes,
             PassingScore = 80.00m,
-            MaxAttempts = request.MaxAttempts,
+            MaxAttempts = request.IsRemedial ? request.MaxAttempts : 0,
             Purpose = request.Purpose,
             ModuleId = request.ModuleId,
             AvailableFrom = null,
@@ -367,7 +367,7 @@ public class QuizService : IQuizService
         quiz.Description = request.Description?.Trim();
         quiz.TimeLimitMinutes = request.TimeLimitMinutes;
         quiz.PassingScore = 80.00m;
-        quiz.MaxAttempts = request.MaxAttempts;
+        quiz.MaxAttempts = request.IsRemedial ? request.MaxAttempts : 0;
         quiz.AvailableFrom = null;
         quiz.AvailableUntil = null;
         quiz.Status = request.Status;
@@ -654,37 +654,10 @@ public class QuizService : IQuizService
         var retakeGrant = retakeGrants.FirstOrDefault();
         var hasRetakeGrant = retakeGrant != null;
 
-        // Apply scheduled transitions on demand as well, so an exact-time request
-        // does not have to wait for the background worker's next 30-second cycle.
-        if (!quiz.IsRemedial && quiz.Status == QuizStatus.ARCHIVED &&
-            quiz.AvailableFrom.HasValue &&
-            quiz.AvailableFrom.Value <= now)
-        {
-            quiz.Status = quiz.AvailableUntil.HasValue && quiz.AvailableUntil.Value <= now
-                ? QuizStatus.INACTIVE
-                : QuizStatus.ACTIVE;
-            _quizRepository.Update(quiz);
-            await _unitOfWork.SaveChangesAsync();
-        }
-
-        if (!quiz.IsRemedial && quiz.Status == QuizStatus.ACTIVE &&
-            quiz.AvailableUntil.HasValue &&
-            quiz.AvailableUntil.Value <= now)
-        {
-            quiz.Status = QuizStatus.INACTIVE;
-            _quizRepository.Update(quiz);
-            await _unitOfWork.SaveChangesAsync();
-        }
-
-        var grantReopensExpiredQuiz = hasRetakeGrant &&
-            quiz.Status == QuizStatus.INACTIVE &&
-            quiz.AvailableUntil.HasValue && quiz.AvailableUntil.Value <= now;
-        if (quiz.Status != QuizStatus.ACTIVE && !grantReopensExpiredQuiz)
+        // Learner quizzes are published manually; per-learner deadlines are
+        // enforced by LearningAccessService, not by global AvailableUntil.
+        if (quiz.Status != QuizStatus.ACTIVE)
             throw new ArgumentException("This quiz is not available.");
-        if (!quiz.IsRemedial && quiz.AvailableFrom.HasValue && now < quiz.AvailableFrom.Value)
-            throw new ArgumentException($"Bài tập chưa mở. Thời gian mở: {quiz.AvailableFrom.Value:O}.");
-        if (!quiz.IsRemedial && !hasRetakeGrant && quiz.AvailableUntil.HasValue && now >= quiz.AvailableUntil.Value)
-            throw new ArgumentException("Bài tập đã hết thời gian thực hiện.");
 
         var decision = await _access.CheckQuizAsync(learnerId, quizId);
         if (!decision.Allowed) throw new InvalidOperationException(decision.Reason ?? "Quiz locked.");
@@ -712,37 +685,24 @@ public class QuizService : IQuizService
         if (attempts.Any(a => a.ResultStatus == QuizAttemptStatus.PENDING_GRADING)) throw new ArgumentException("Your previous attempt is awaiting instructor grading.");
         // MaxAttempts = 0 means unlimited. Only enforce a cap when the instructor explicitly sets one.
         var submittedAttemptCount = attempts.Count(a => a.SubmittedAt.HasValue);
-        if (attempt is null && !quiz.IsRemedial && quiz.MaxAttempts > 0 && submittedAttemptCount >= quiz.MaxAttempts && !hasRetakeGrant)
+        if (attempt is null && quiz.IsRemedial && quiz.MaxAttempts > 0 && submittedAttemptCount >= quiz.MaxAttempts && !hasRetakeGrant)
             throw new InvalidOperationException($"Bạn đã sử dụng hết {quiz.MaxAttempts} lượt làm bài.");
         if (attempt is null)
         {
-            // PRACTICE: không áp dụng cooldown.
-            // Assessment: 3 lần FAIL đầu tiên không phải chờ.
-            // Sau lần FAIL thứ 4 trở đi, mỗi lần FAIL đều tạo cooldown mới.
-            // Cooldown được tính từ lần FAIL gần nhất; Chapter = 1 giờ, Final = 6 giờ.
-            if (!hasRetakeGrant && (quiz.Purpose == QuizPurpose.CHAPTER_ASSESSMENT ||
-                quiz.Purpose == QuizPurpose.FINAL_ASSESSMENT)
-               )
+            // FINAL_ASSESSMENT: after 3 failed submissions, wait 6 hours
+            // from the most recent failure before starting another attempt.
+            // MaxAttempts = 0 means unlimited total attempts until enrollment expiry.
+            if (!hasRetakeGrant && quiz.Purpose == QuizPurpose.FINAL_ASSESSMENT)
             {
-                var cooldown = quiz.Purpose == QuizPurpose.CHAPTER_ASSESSMENT
-                    ? TimeSpan.FromHours(1)
-                    : TimeSpan.FromHours(6);
-
-                var failures = attempts
+                var failedAttempts = attempts
                     .Where(a => a.ResultStatus == QuizAttemptStatus.FAILED && a.SubmittedAt.HasValue)
                     .OrderBy(a => a.SubmittedAt!.Value)
                     .ToList();
-
-                if (failures.Count >= 4)
+                if (failedAttempts.Count >= 3)
                 {
-                    var lastFailure = failures[^1];
-                    var unlockAt = lastFailure.SubmittedAt!.Value.Add(cooldown);
-
-                    if (DateTime.UtcNow < unlockAt)
-                    {
-                        throw new InvalidOperationException(
-                            $"Bạn cần chờ đến {unlockAt:O} mới được làm bài tiếp theo.");
-                    }
+                    var retryAt = failedAttempts[^1].SubmittedAt!.Value.AddHours(6);
+                    if (now < retryAt)
+                        throw new InvalidOperationException($"Bạn cần chờ đến {retryAt:O} mới được làm bài tiếp theo.");
                 }
             }
             attempt = new QuizAttempt { QuizId = quizId, UserId = learnerId, AttemptNumber = attempts.Count == 0 ? 1 : attempts.Max(a => a.AttemptNumber) + 1, StartedAt = DateTime.UtcNow };
@@ -1167,18 +1127,15 @@ public class QuizService : IQuizService
         }
 
         DateTime? retryAvailableAt = null;
-        if (attempt.ResultStatus == QuizAttemptStatus.FAILED &&
-            (quiz.Purpose == QuizPurpose.CHAPTER_ASSESSMENT || quiz.Purpose == QuizPurpose.FINAL_ASSESSMENT))
+        if (quiz.Purpose == QuizPurpose.FINAL_ASSESSMENT &&
+            attempt.ResultStatus == QuizAttemptStatus.FAILED)
         {
-            var cooldown = quiz.Purpose == QuizPurpose.CHAPTER_ASSESSMENT
-                ? TimeSpan.FromHours(1)
-                : TimeSpan.FromHours(6);
             var failedAttempts = (await _attemptRepository.FindAsync(x =>
                 x.QuizId == quizId && x.UserId == learnerId &&
                 x.ResultStatus == QuizAttemptStatus.FAILED && x.SubmittedAt.HasValue))
                 .OrderBy(x => x.SubmittedAt).ToList();
-            if (failedAttempts.Count >= 4)
-                retryAvailableAt = failedAttempts[^1].SubmittedAt!.Value.Add(cooldown);
+            if (failedAttempts.Count >= 3)
+                retryAvailableAt = failedAttempts[^1].SubmittedAt!.Value.AddHours(6);
         }
 
         return new QuizResultDto

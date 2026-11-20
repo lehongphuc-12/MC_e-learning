@@ -1,7 +1,7 @@
 import { useAuthStore } from "../store/useAuthStore";
 
 export const API_BASE_URL =
-  import.meta.env.API_BASE_URL || "https://localhost:7187/api";
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:5239/api";
 
 let isRefreshing = false;
 

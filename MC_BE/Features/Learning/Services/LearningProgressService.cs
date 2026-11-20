@@ -14,9 +14,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MC_BE.Features.Learning.Services;
 
-/// <summary>
-/// Lớp triển khai dịch vụ quản lý tiến độ học tập, dòng hoạt động và Gamification Streak.
-/// </summary>
 public class LearningProgressService : ILearningProgressService
 {
     private readonly IGenericRepository<Enrollment> _enrollmentRepository;
@@ -34,9 +31,6 @@ public class LearningProgressService : ILearningProgressService
     private readonly SmartMcDbContext _db;
     private readonly IRemedialAssignmentService _remedialAssignments;
 
-    /// <summary>
-    /// Khởi tạo LearningProgressService với đầy đủ các kho lưu trữ và dịch vụ phối hợp.
-    /// </summary>
     public LearningProgressService(
         IGenericRepository<Enrollment> enrollmentRepository,
         IGenericRepository<Lesson> lessonRepository,
@@ -69,28 +63,11 @@ public class LearningProgressService : ILearningProgressService
         _remedialAssignments = remedialAssignments;
     }
 
-    /// <summary>
-    /// - Lấy bức tranh tiến độ học tập toàn diện của học viên trong một khóa học cụ thể.
-    /// - End-to-End Execution Flow:
-    ///   - Bước 1: Kiểm tra quyền truy cập khóa học qua _courseAccess.CanAccessCourseAsync.
-    ///   - Bước 2: Tìm bản ghi Enrollment kèm danh sách LessonProgresses.
-    ///   - Bước 3: Tải danh sách bài học ACTIVE, sắp xếp theo OrderIndex và map tiến độ từng bài.
-    ///   - Bước 4: Nạp danh sách Chapter Quiz và Final Quiz đang ACTIVE, đếm số Quiz đã PASS.
-    ///   - Bước 5: Nạp danh sách bài tập nói Speaking độc lập, đếm số bài nộp đạt điểm >= 80.
-    ///   - Bước 6: Tính toán tỷ lệ hoàn thành tổng thể (CompletionPercentage) theo công thức chuẩn.
-    ///   - Bước 7: Thẩm định điều kiện nhận chứng chỉ và đồng bộ % mới vào Enrollment nếu có sai lệch.
-    ///   - Bước 8: Trả về CourseLearningProgressDto.
-    /// </summary>
-    /// <param name="learnerId">ID học viên.</param>
-    /// <param name="courseId">ID khóa học.</param>
-    /// <returns>CourseLearningProgressDto hoặc null nếu không có quyền/chưa ghi danh.</returns>
-    public async Task<CourseLearningProgressDto?> GetCourseProgressAsync(int learnerId, int courseId)
+        public async Task<CourseLearningProgressDto?> GetCourseProgressAsync(int learnerId, int courseId)
     {
-        // [BƯỚC 1]: Kiểm tra quyền hạn truy cập khóa học của học viên
-        // Rẽ nhánh: Nếu không có quyền (chưa mua hoặc hết hạn) -> Trả về null ngay
+
         if (!await _courseAccess.CanAccessCourseAsync(courseId, learnerId, isAdmin: false)) return null;
 
-        // [BƯỚC 2]: Truy vấn bản ghi Ghi danh (Enrollment) kèm thông tin bài học và tiến độ đã lưu
         var enrollments = await _enrollmentRepository.FindAsync(
             e => e.LearnerId == learnerId && e.CourseId == courseId,
             e => e.Course,
@@ -98,13 +75,11 @@ public class LearningProgressService : ILearningProgressService
 
         var enrollment = enrollments.FirstOrDefault();
 
-        // Rẽ nhánh: Nếu không tìm thấy bản ghi Enrollment -> Trả về null
         if (enrollment == null)
         {
             return null;
         }
 
-        // [BƯỚC 3]: Lấy danh sách bài học ACTIVE của khóa học và sắp xếp theo OrderIndex
         var lessonsList = await _lessonRepository.FindAsync(
             l => l.CourseId == courseId && l.Status == LessonStatus.ACTIVE && !l.IsRemedial);
 
@@ -114,20 +89,16 @@ public class LearningProgressService : ILearningProgressService
 
         var totalLessons = lessons.Count;
 
-        // Tối ưu hóa tra cứu O(1) bằng Dictionary
         var lessonProgressDict = (enrollment.LessonProgresses ?? new List<LessonProgress>())
             .ToDictionary(lp => lp.LessonId);
 
         var progressDtos = new List<LessonProgressDto>();
         int completedCount = 0;
 
-        // Duyệt từng bài học để ánh xạ dữ liệu tiến độ chi tiết
         foreach (var lesson in lessons)
         {
-            // Rẽ nhánh: Kiểm tra bài học đã có bản ghi tiến độ trong CSDL hay chưa
             if (lessonProgressDict.TryGetValue(lesson.LessonId, out var progress))
             {
-                // Điều kiện hoàn thành: Thuộc tính IsCompleted = true HOẶC Status = COMPLETED
                 bool isDone = progress.IsCompleted || progress.Status == LessonProgressStatus.COMPLETED;
                 if (isDone) completedCount++;
 
@@ -144,7 +115,6 @@ public class LearningProgressService : ILearningProgressService
             }
             else
             {
-                // Trường hợp học viên chưa từng mở bài học này (Tiến độ mặc định 0)
                 progressDtos.Add(new LessonProgressDto
                 {
                     LessonId = lesson.LessonId,
@@ -158,8 +128,6 @@ public class LearningProgressService : ILearningProgressService
             }
         }
 
-        // [BƯỚC 4]: TÍNH TOÁN CÁC ĐẦU MỤC BÀI TẬP BỔ SUNG (QUIZZES & SPEAKING SCRIPTS)
-        // Lấy danh sách ModuleId của khóa học để lọc chính xác Chapter Quiz
         var moduleIds = await _db.Modules.AsNoTracking()
             .Where(m => m.CourseId == courseId)
             .Select(m => m.ModuleId)
@@ -167,7 +135,6 @@ public class LearningProgressService : ILearningProgressService
 
         var lessonIds = lessons.Select(l => l.LessonId).ToList();
 
-        // Lấy các bài đánh giá chương (CHAPTER_ASSESSMENT) ACTIVE
         var activeChapterQuizzes = await _db.Quizzes.AsNoTracking()
             .Where(q =>
                 q.Purpose == QuizPurpose.CHAPTER_ASSESSMENT &&
@@ -178,7 +145,6 @@ public class LearningProgressService : ILearningProgressService
             .Distinct()
             .ToListAsync();
 
-        // Lấy bài Quiz tổng kết cuối khóa (FINAL_ASSESSMENT) ACTIVE
         var activeFinalQuizzes = await _db.Quizzes.AsNoTracking()
             .Where(q =>
                 q.Purpose == QuizPurpose.FINAL_ASSESSMENT &&
@@ -189,7 +155,6 @@ public class LearningProgressService : ILearningProgressService
             .Distinct()
             .ToListAsync();
 
-        // Lấy danh sách các QuizId mà học viên đã làm và ĐẠT (PASSED)
         var requiredQuizIds = activeChapterQuizzes.Concat(activeFinalQuizzes).Distinct().ToList();
         var passedQuizIds = requiredQuizIds.Count == 0
             ? new HashSet<int>()
@@ -205,7 +170,6 @@ public class LearningProgressService : ILearningProgressService
         int passedChapterCount = activeChapterQuizzes.Count(id => passedQuizIds.Contains(id));
         int passedFinalCount = activeFinalQuizzes.Count(id => passedQuizIds.Contains(id));
 
-        // Lấy các bài tập nói độc lập (Scope CHAPTER hoặc FINAL) chưa gắn vào Lesson
         var standaloneSpeakingScripts = await _db.SpeakingScripts.AsNoTracking()
             .Where(s => s.CourseId == courseId && s.LessonId == null && !s.IsRemedial)
             .Select(s => s.ScriptId)
@@ -215,15 +179,13 @@ public class LearningProgressService : ILearningProgressService
         var passedSpeakingIds = standaloneSpeakingScripts.Count == 0
             ? new HashSet<int>()
             : (await _db.SpeakingSubmissions.AsNoTracking()
-                .Where(s => s.LearnerId == learnerId && s.ScriptId.HasValue && standaloneSpeakingScripts.Contains(s.ScriptId.Value) && s.Score.HasValue && s.Score.Value >= 80)
+                .Where(s => s.LearnerId == learnerId && s.ScriptId.HasValue && standaloneSpeakingScripts.Contains(s.ScriptId.Value) && s.Status == SpeakingSubmissionStatus.GRADED && s.Score.HasValue && s.Score.Value >= 80)
                 .Select(s => s.ScriptId!.Value)
                 .Distinct()
                 .ToListAsync()).ToHashSet();
 
         int passedSpeakingCount = standaloneSpeakingScripts.Count(id => passedSpeakingIds.Contains(id));
 
-        // [BƯỚC 5]: TỔNG HỢP CÔNG THỨC TIẾN ĐỘ TOÀN DIỆN (COMPREHENSIVE COMPLETION FORMULA)
-        // Tổng số đầu mục bắt buộc = số bài học ACTIVE + số Chapter Quiz ACTIVE + số Final Quiz ACTIVE + số bài nói độc lập
         int totalRequiredItems = totalLessons + activeChapterQuizzes.Count + activeFinalQuizzes.Count + standaloneSpeakingScripts.Count;
         int completedRequiredItems = completedCount + passedChapterCount + passedFinalCount + passedSpeakingCount;
 
@@ -231,19 +193,15 @@ public class LearningProgressService : ILearningProgressService
             ? Math.Round((decimal)completedRequiredItems / totalRequiredItems * 100, 2)
             : 0m;
 
-        // [BƯỚC 6]: Thẩm định điều kiện nhận chứng chỉ từ LearningAccessService (yêu cầu PASS cả bài thi cuối khóa)
         var certAccess = await _access.CheckCertificateAsync(learnerId, courseId);
 
-        // Kiểm tra xem chứng chỉ đã tồn tại trong CSDL hay chưa
         var certs = await _certificateRepository.FindAsync(
             c => c.EnrollmentId == enrollment.EnrollmentId);
 
         var certificate = certs.FirstOrDefault();
 
-        // Khóa học hoàn thành khi: Đạt 100% tiến độ VÀ thỏa mãn điều kiện chứng chỉ, HOẶC đã có chứng chỉ trong CSDL
         bool isCompleted = (completionPercentage >= 100.00m && certAccess.Allowed) || certificate != null;
 
-        // [BƯỚC 7]: Tự động đồng bộ CompletionPercentage vào bảng Enrollments nếu có sự thay đổi
         if (enrollment.CompletionPercentage != completionPercentage)
         {
             var trackedEnrollment = await _enrollmentRepository.GetByIdAsync(enrollment.EnrollmentId);
@@ -256,7 +214,6 @@ public class LearningProgressService : ILearningProgressService
             }
         }
 
-        // [BƯỚC 8]: Trả về DTO hoàn chỉnh cho Client
         return new CourseLearningProgressDto
         {
             CourseId = courseId,
@@ -272,33 +229,14 @@ public class LearningProgressService : ILearningProgressService
         };
     }
 
-    /// <summary>
-    /// - Cập nhật tiến độ của một bài học (vị trí xem video, tổng thời gian học, cờ hoàn thành).
-    /// - Tự động tính toán lại % khóa học và phát hành chứng chỉ nếu đạt 100%.
-    /// - End-to-End Execution Flow:
-    ///   - Bước 1: Validate bài học và quyền truy cập khóa học.
-    ///   - Bước 2: Tìm Enrollment hợp lệ (ACTIVE/COMPLETED và chưa hết hạn).
-    ///   - Bước 3: Gọi _access.CheckLessonAsync để đảm bảo bài học không bị khóa.
-    ///   - Bước 4: Tạo mới hoặc cập nhật bản ghi LessonProgress trong CSDL.
-    ///   - Bước 5: Bắt ngoại lệ DbUpdateException để triệt tiêu lỗi Race Condition khi heartbeat gửi dồn dập.
-    ///   - Bước 6: Tính toán lại tỷ lệ hoàn thành mới của toàn bộ khóa học.
-    ///   - Bước 7: Nếu newPercentage >= 100% và đủ điều kiện -> Tự động gọi IssueCertificateAsync.
-    ///   - Bước 8: Trả về GetCourseProgressAsync mới nhất.
-    /// </summary>
-    /// <param name="learnerId">ID học viên.</param>
-    /// <param name="lessonId">ID bài học.</param>
-    /// <param name="request">Dữ liệu tiến độ từ video player.</param>
-    /// <returns>CourseLearningProgressDto mới nhất.</returns>
     public async Task<CourseLearningProgressDto?> UpdateLessonProgressAsync(
         int learnerId, int lessonId, UpdateLessonProgressRequest request)
     {
-        // [BƯỚC 1]: Kiểm tra bài học tồn tại và quyền truy cập khóa học
         var lesson = await _lessonRepository.GetByIdAsync(lessonId);
         if (lesson == null) return null;
         if (!await _courseAccess.CanAccessCourseAsync(lesson.CourseId, learnerId, isAdmin: false)) return null;
         if (lesson.IsRemedial && !await _remedialAssignments.CanAccessContentAsync(learnerId, "LESSON", lessonId)) return null;
 
-        // [BƯỚC 2]: Truy vấn bản ghi ghi danh hợp lệ (Ưu tiên bản ghi ACTIVE, còn hạn dùng)
         var now = DateTime.UtcNow;
         var enrollment = await _enrollmentRepository.GetQueryable()
             .Include(e => e.LessonProgresses)
@@ -314,12 +252,9 @@ public class LearningProgressService : ILearningProgressService
 
         if (enrollment == null) return null;
 
-        // [BƯỚC 3]: KIỂM TRA ĐIỀU KIỆN KHÓA BÀI HỌC (POLICY GATE CHECK)
-        // Học viên không thể tự ý gửi request fake tiến độ của bài học đang bị khóa!
         var decision = await _access.CheckLessonAsync(learnerId, lessonId);
         if (!decision.Allowed) throw new InvalidOperationException(decision.Reason ?? "Lesson locked.");
 
-        // [BƯỚC 4]: Tìm kiếm hoặc tạo mới bản ghi LessonProgress
         var existingProgresses = await _progressRepository.FindAsync(
             lp => lp.EnrollmentId == enrollment.EnrollmentId && lp.LessonId == lessonId);
         var progress = existingProgresses.FirstOrDefault();
@@ -343,8 +278,6 @@ public class LearningProgressService : ILearningProgressService
             await _progressRepository.AddAsync(progress);
         }
 
-        // [BƯỚC 5]: Cập nhật các trường dữ liệu theo Request gửi lên
-        // 5.1: Cập nhật trạng thái hoàn thành bài học
         if (request.IsCompleted.HasValue)
         {
             progress.IsCompleted = request.IsCompleted.Value;
@@ -360,13 +293,11 @@ public class LearningProgressService : ILearningProgressService
             }
         }
 
-        // 5.2: Cập nhật vị trí dừng video gần nhất (giây)
         if (request.LastPositionSeconds.HasValue)
         {
             progress.LastPositionSeconds = Math.Max(0, request.LastPositionSeconds.Value);
         }
 
-        // 5.3: Cập nhật tổng thời gian học tích lũy
         if (request.TimeSpentSeconds.HasValue)
         {
             progress.TimeSpentSeconds = Math.Max(progress.TimeSpentSeconds, request.TimeSpentSeconds.Value);
@@ -376,13 +307,6 @@ public class LearningProgressService : ILearningProgressService
         progress.LastAccessedAt = DateTime.UtcNow;
         progress.UpdatedAt = DateTime.UtcNow;
 
-        // EF Core tracks this entity so we don't need to call Update() explicitly
-
-        // [BƯỚC 6]: Xử lý Race Condition khi lưu tiến độ
-        // [TẠI SAO DÙNG TRY/CATCH DbUpdateException]:
-        //   - Trong môi trường thực tế, video player thường gửi heartbeat định kỳ (mỗi 5s - 10s) hoặc khi
-        //     học viên mở 2 tab cùng lúc. DbUpdateException bắt gọn lỗi trùng khóa (Duplicate Key) và bỏ qua an toàn,
-        //     giúp hệ thống không bị crash 500.
         try
         {
             await _unitOfWork.SaveChangesAsync();
@@ -391,12 +315,9 @@ public class LearningProgressService : ILearningProgressService
         }
         catch (DbUpdateException)
         {
-            // Do not hide persistence failures: they may prevent the next lesson from unlocking.
-            // Check the server exception/inner exception for the exact database cause.
-            throw;
+             throw;
         }
 
-        // [BƯỚC 7]: TÍNH TOÁN LẠI TỶ LỆ HOÀN THÀNH MỚI CỦA KHÓA HỌC
         var allLessonsList = await _lessonRepository.FindAsync(
             l => l.CourseId == lesson.CourseId && l.Status == LessonStatus.ACTIVE && !l.IsRemedial);
 
@@ -410,7 +331,6 @@ public class LearningProgressService : ILearningProgressService
         int completedCount = completedProgresses.Count();
         int totalLessons = allLessonIds.Count;
 
-        // Quizzes
         var moduleIds = await _db.Modules.AsNoTracking()
             .Where(m => m.CourseId == lesson.CourseId)
             .Select(m => m.ModuleId)
@@ -460,7 +380,7 @@ public class LearningProgressService : ILearningProgressService
         var passedSpeakingIds = standaloneSpeakingScripts.Count == 0
             ? new HashSet<int>()
             : (await _db.SpeakingSubmissions.AsNoTracking()
-                .Where(s => s.LearnerId == learnerId && s.ScriptId.HasValue && standaloneSpeakingScripts.Contains(s.ScriptId.Value) && s.Score.HasValue && s.Score.Value >= 80)
+                .Where(s => s.LearnerId == learnerId && s.ScriptId.HasValue && standaloneSpeakingScripts.Contains(s.ScriptId.Value) && s.Status == SpeakingSubmissionStatus.GRADED && s.Score.HasValue && s.Score.Value >= 80)
                 .Select(s => s.ScriptId!.Value)
                 .Distinct()
                 .ToListAsync()).ToHashSet();
@@ -477,12 +397,9 @@ public class LearningProgressService : ILearningProgressService
         enrollment.CompletionPercentage = newPercentage;
         enrollment.UpdatedAt = DateTime.UtcNow;
 
-        // EF Core tracks this entity so we don't need to call Update() explicitly
         await _unitOfWork.SaveChangesAsync();
 
-        // [BƯỚC 8]: TỰ ĐỘNG CẤP CHỨNG CHỈ SỐ KHI ĐẠT 100% TIẾN ĐỘ (AUTO-ISSUANCE WORKFLOW)
-        // Auto-issue certificate ONLY if 100% completed AND CheckCertificateAsync is Allowed
-        if (newPercentage >= 100.00m)
+         if (newPercentage >= 100.00m)
         {
             var certAccess = await _access.CheckCertificateAsync(learnerId, lesson.CourseId);
             if (certAccess.Allowed)
@@ -493,8 +410,7 @@ public class LearningProgressService : ILearningProgressService
                 }
                 catch (Exception)
                 {
-                    // Suppress if already issued or concurrent
-                    // Bỏ qua ngoại lệ nếu chứng chỉ đã được cấp bởi tiến trình chạy song song khác
+
                 }
             }
         }
@@ -502,18 +418,10 @@ public class LearningProgressService : ILearningProgressService
         return await GetCourseProgressAsync(learnerId, lesson.CourseId);
     }
 
-    /// <summary>
-    /// - Lấy danh sách các hoạt động học tập gần đây nhất của học viên trên toàn hệ thống
-    ///   (Hoàn thành bài học, Đạt chứng chỉ, Đăng ký khóa học mới, Diễn đàn, Nộp bài nói).
-    /// </summary>
-    /// <param name="learnerId">ID học viên.</param>
-    /// <param name="limit">Số lượng hoạt động tối đa (mặc định 10).</param>
-    /// <returns>Danh sách ActivityLogDto đã format thời gian hiển thị tương đối.</returns>
     public async Task<List<ActivityLogDto>> GetRecentActivitiesAsync(int learnerId, int limit = 10)
     {
         var activities = new List<ActivityLogDto>();
 
-        // [HOẠT ĐỘNG 1]: Hoàn thành bài học
         var completedLessons = await _progressRepository.FindAsync(
             p => p.Enrollment.LearnerId == learnerId && (p.IsCompleted || p.Status == LessonProgressStatus.COMPLETED),
             p => p.Lesson, p => p.Enrollment.Course);
@@ -533,7 +441,6 @@ public class LearningProgressService : ILearningProgressService
             }
         }
 
-        // [HOẠT ĐỘNG 2]: Đạt chứng chỉ khóa học
         var certificates = await _certificateRepository.FindAsync(
             c => c.Enrollment.LearnerId == learnerId,
             c => c.Enrollment.Course);
@@ -550,7 +457,6 @@ public class LearningProgressService : ILearningProgressService
             });
         }
 
-        // [HOẠT ĐỘNG 3]: Đăng ký khóa học mới
         var enrollments = await _enrollmentRepository.FindAsync(
             e => e.LearnerId == learnerId,
             e => e.Course);
@@ -567,7 +473,6 @@ public class LearningProgressService : ILearningProgressService
             });
         }
 
-        // [HOẠT ĐỘNG 4]: Đăng bài viết thảo luận trên diễn đàn
         var forumPosts = await _forumPostRepository.FindAsync(
             p => p.AuthorId == learnerId);
 
@@ -583,7 +488,6 @@ public class LearningProgressService : ILearningProgressService
             });
         }
 
-        // [HOẠT ĐỘNG 5]: Bình luận trên diễn đàn
         var forumComments = await _forumCommentRepository.FindAsync(
             c => c.AuthorId == learnerId,
             c => c.Post);
@@ -600,7 +504,6 @@ public class LearningProgressService : ILearningProgressService
             });
         }
 
-        // [HOẠT ĐỘNG 6]: Thả cảm xúc phản hồi (Reactions)
         var forumReactions = await _forumReactionRepository.FindAsync(
             r => r.UserId == learnerId,
             r => r.Post, r => r.Comment, r => r.Comment!.Post);
@@ -608,7 +511,7 @@ public class LearningProgressService : ILearningProgressService
         foreach (var reaction in forumReactions)
         {
             var targetTitle = reaction.TargetType == "POST" ? reaction.Post?.Title : "a comment";
-            var link = reaction.TargetType == "POST" 
+            var link = reaction.TargetType == "POST"
                 ? $"/forum/posts/{reaction.PostId}"
                 : $"/forum/posts/{reaction.Comment?.PostId}";
 
@@ -622,7 +525,6 @@ public class LearningProgressService : ILearningProgressService
             });
         }
 
-        // [HOẠT ĐỘNG 7]: Nộp bài luyện nói Speaking
         var speakingSubmissions = await _submissionRepository.FindAsync(
             s => s.LearnerId == learnerId,
             s => s.Lesson);
@@ -639,11 +541,10 @@ public class LearningProgressService : ILearningProgressService
             });
         }
 
-        // [BƯỚC CUỐI]: Sắp xếp giảm dần theo ngày, lấy top N và format thời gian tương đối
         return activities
             .OrderByDescending(a => a.CreatedAt)
             .Take(limit)
-            .Select(a => 
+            .Select(a =>
             {
                 var timeSpan = DateTime.UtcNow - a.CreatedAt;
                 if (timeSpan.TotalMinutes < 60)
@@ -652,29 +553,17 @@ public class LearningProgressService : ILearningProgressService
                     a.Time = $"{(int)timeSpan.TotalHours}h ago";
                 else
                     a.Time = $"{(int)timeSpan.TotalDays}d ago";
-                
+
                 return a;
             })
             .ToList();
     }
 
-    /// <summary>
-    /// - Thuật toán Gamification tính toán chuỗi ngày học liên tục (Learning Streak) của học viên
-    ///   theo chuẩn múi giờ Việt Nam (UTC+7).
-    /// </summary>
-    /// <param name="learnerId">ID học viên.</param>
-    /// <returns>LearningStreakDto chứa CurrentStreak và LongestStreak.</returns>
     public async Task<LearningStreakDto> GetLearningStreakAsync(int learnerId)
     {
-        // [BƯỚC 1]: Lấy các bài học mà học viên đã hoàn thành hoặc có mốc thời gian hoàn thành
         var completedLessons = await _progressRepository.FindAsync(
             p => p.Enrollment.LearnerId == learnerId && (p.CompletedAt.HasValue || p.IsCompleted));
 
-        // [BƯỚC 2]: Chuyển đổi toàn bộ mốc thời gian sang ngày lịch theo múi giờ Việt Nam (UTC+7)
-        // [TẠI SAO PHẢI CỘNG 7 GIỜ (AddHours(7))]:
-        //   - Tránh lỗi lệch ngày của múi giờ UTC: Nếu học viên học lúc 23:30 đêm tại Hà Nội (UTC+7),
-        //     giờ UTC sẽ là 16:30 chiều cùng ngày. Việc quy đổi sang giờ địa phương đảm bảo chuỗi ngày
-        //     tính theo đúng ngày thực tế của học viên.
         var dates = completedLessons
             .Select(p => (p.CompletedAt ?? p.UpdatedAt).AddHours(7).Date)
             .Distinct()
@@ -685,7 +574,6 @@ public class LearningProgressService : ILearningProgressService
         int longestStreak = 0;
         var todayVn = DateTime.UtcNow.AddHours(7).Date;
 
-        // [BƯỚC 3]: Thuật toán duyệt chuỗi ngày tăng dần
         if (dates.Count > 0)
         {
             currentStreak = 1;
@@ -693,26 +581,21 @@ public class LearningProgressService : ILearningProgressService
 
             for (int i = 1; i < dates.Count; i++)
             {
-                // Nếu khoảng cách giữa 2 mốc học liên tiếp là đúng 1 ngày -> Chuỗi tăng thêm 1
                 if ((dates[i] - dates[i - 1]).TotalDays == 1)
                 {
                     currentStreak++;
                 }
                 else
                 {
-                    // Ngắt quãng quá 1 ngày -> Reset chuỗi về 1
                     currentStreak = 1;
                 }
 
-                // Cập nhật kỷ lục chuỗi dài nhất
                 if (currentStreak > longestStreak)
                 {
                     longestStreak = currentStreak;
                 }
             }
 
-            // [BƯỚC 4]: Kiểm tra xem chuỗi hiện tại có còn hiệu lực không
-            // Nếu ngày học cuối cùng là từ trước hôm qua (cách > 1 ngày so với hôm nay) -> Chuỗi bị đứt (currentStreak = 0)
             if ((todayVn - dates.Last()).TotalDays > 1)
             {
                 currentStreak = 0;

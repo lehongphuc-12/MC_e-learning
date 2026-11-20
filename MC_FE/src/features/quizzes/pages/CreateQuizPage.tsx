@@ -552,7 +552,7 @@ export const CreateQuizPage: React.FC<CreateQuizPageProps> = ({
       description: description.trim() || null,
       timeLimitMinutes,
       passingScore,
-      maxAttempts,
+      maxAttempts: 0,
       status,
       questions: questions.map(normalizeQuestion),
     };
@@ -626,9 +626,9 @@ export const CreateQuizPage: React.FC<CreateQuizPageProps> = ({
                 <label><span className={labelClass}>Trạng thái</span><select value={status} onChange={e=>setStatus(e.target.value as QuizStatus)} className={inputClass}><option value="DRAFT">Nháp</option><option value="ACTIVE">Đã xuất bản</option><option value="INACTIVE">Ngừng hoạt động</option><option value="ARCHIVED">Lưu trữ</option></select><span className="mt-1 block text-[11px] text-slate-500">Chọn Đã xuất bản để học viên được mở Quiz khi đủ điều kiện học tập.</span></label>
                 <label><span className={labelClass}>Thời gian làm bài (phút)</span><input type="number" min={0} value={timeLimitMinutes} onChange={e=>setTimeLimitMinutes(Math.max(0,Number(e.target.value)))} className={inputClass}/><span className="mt-1 block text-[11px] text-[#8494AB]">0 = không giới hạn thời gian.</span></label>
                 <label><span className={labelClass}>Điểm đạt (%)</span><input type="number" min={0} max={100} value={80} disabled title="Điểm đạt cố định là 80% theo quy định MSEEK" className={inputClass}/></label>
-                <label><span className={labelClass}>Số lần được làm</span><input type="number" min={0} step={1} value={maxAttempts} onChange={e=>setMaxAttempts(Math.max(0, Number(e.target.value)))} className={inputClass}/><span className="mt-1 block text-[11px] text-slate-500">Nhập 0 để không giới hạn tổng số lượt làm bài.</span></label>
-                {isSelfPacedLessonQuiz && <div className="sm:col-span-2 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">Quiz mở khi học viên hoàn thành video, có 7 ngày làm bài tính riêng cho từng học viên. Không cần đặt ngày mở/đóng.</div>}
-                {!isDailyPractice && !isSelfPacedLessonQuiz && <div className="sm:col-span-2 rounded-2xl border border-[#BDD5F6] bg-[#EDF5FF] p-4 sm:p-5"><div className="mb-4 flex items-center gap-2 text-[#174987]"><CalendarClock className="h-5 w-5"/><h3 className="text-sm font-extrabold">Lịch mở và đóng Quiz</h3></div><div className="grid gap-4 sm:grid-cols-2"><label><span className={labelClass}>Ngày và giờ bắt đầu</span><input type="datetime-local" value={availableFrom} onChange={e=>{setAvailableFrom(e.target.value);setErrorMessage('');}} className={inputClass}/></label><label><span className={labelClass}>Ngày và giờ kết thúc</span><input type="datetime-local" min={availableFrom||undefined} value={availableUntil} onChange={e=>{setAvailableUntil(e.target.value);setErrorMessage('');}} className={inputClass}/></label></div><p className="mt-3 text-xs text-[#607DA4]">Để trống nếu không giới hạn. Giờ theo thiết bị, lưu UTC.</p></div>}
+                
+                {isSelfPacedLessonQuiz && <div className="sm:col-span-2 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">Quiz buổi/chương có 7 ngày từ khi hoàn thành video; Quiz cuối khóa mở khi đủ điều kiện và kết thúc theo hạn khóa học. Không giới hạn lượt làm; trượt thi cuối khóa 3 lần thì chờ 6 giờ.</div>}
+                
                <label className="sm:col-span-2 flex cursor-pointer items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4"><input type="checkbox" checked={isRemedial} onChange={e=>setIsRemedial(e.target.checked)} className="mt-0.5 h-4 w-4 rounded border-amber-300 text-amber-600"/><span><b className="block text-sm text-amber-900">Quiz bổ trợ cá nhân</b><span className="mt-1 block text-xs text-amber-800">Có thể tạo nhiều quiz bổ trợ cùng chương hoặc toàn khóa. Không xuất hiện với lớp học chung, không tính vào hoàn thành/chứng chỉ; chỉ học viên được giao mới truy cập.</span></span></label>
               </div>
             </section>

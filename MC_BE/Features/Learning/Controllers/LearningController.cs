@@ -11,9 +11,6 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace MC_BE.Features.Learning.Controllers;
 
-/// <summary>
-/// API Controller quản lý tiến độ học tập, nhật ký hoạt động và Gamification Streak của học viên.
-/// </summary>
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
@@ -22,29 +19,18 @@ public class LearningController : ControllerBase
     private readonly ILearningProgressService _learningProgressService;
     private readonly SmartMcDbContext _db;
 
-    /// <summary>
-    /// Khởi tạo Controller với LearningProgressService và SmartMcDbContext được inject từ DI Container.
-    /// </summary>
     public LearningController(ILearningProgressService learningProgressService, SmartMcDbContext db)
     {
         _learningProgressService = learningProgressService;
         _db = db;
     }
 
-    /// <summary>
-    /// - Hàm tiện ích (Private Helper) trích xuất ID người dùng từ Claims trong JWT Token đã giải mã.
-    /// </summary>
-    /// <returns>UserId kiểu int hoặc null nếu token không hợp lệ.</returns>
     private int? GetCurrentUserId()
     {
         var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         return int.TryParse(claim, out var id) ? id : null;
     }
 
-    /// <summary>
-    /// GET /api/learning/history - Read-only learning history, including expired enrollments.
-    /// Does not grant access to lessons, videos, or new submissions.
-    /// </summary>
     [HttpGet("history")]
     public async Task<IActionResult> GetLearningHistory()
     {
@@ -106,12 +92,6 @@ public class LearningController : ControllerBase
         return Ok(ApiResponse<object>.SuccessResponse(result, "Learning history retrieved successfully."));
     }
 
-    /// <summary>
-    /// GET /api/learning/courses/{courseId}/progress
-    /// Lấy thông tin tiến độ học tập tổng thể của học viên trong một khóa học cụ thể.
-    /// </summary>
-    /// <param name="courseId">ID khóa học.</param>
-    /// <returns>ApiResponse chứa CourseLearningProgressDto.</returns>
     [HttpGet("courses/{courseId:int}/progress")]
     public async Task<ActionResult<ApiResponse<CourseLearningProgressDto>>> GetCourseProgress(int courseId)
     {
@@ -130,14 +110,6 @@ public class LearningController : ControllerBase
         return Ok(ApiResponse<CourseLearningProgressDto>.SuccessResponse(progress, "Course progress retrieved successfully."));
     }
 
-    /// <summary>
-    /// PUT /api/learning/lessons/{lessonId}/progress
-    /// Cập nhật tiến độ của một bài học (vị trí phát video, thời gian học tích lũy, trạng thái hoàn thành).
-    /// Phương thức có tính Bất biến / Chống trùng lặp (Idempotent).
-    /// </summary>
-    /// <param name="lessonId">ID bài học cần cập nhật.</param>
-    /// <param name="request">Payload chứa thông tin tiến độ.</param>
-    /// <returns>ApiResponse chứa CourseLearningProgressDto mới nhất.</returns>
     [HttpPut("lessons/{lessonId:int}/progress")]
     public async Task<ActionResult<ApiResponse<CourseLearningProgressDto>>> UpdateLessonProgress(
         int lessonId, [FromBody] UpdateLessonProgressRequest request)
@@ -158,18 +130,12 @@ public class LearningController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            // Access denials are not internal server failures.
+
             return StatusCode(StatusCodes.Status403Forbidden,
                 ApiResponse<CourseLearningProgressDto>.FailureResponse(ex.Message));
         }
     }
 
-    /// <summary>
-    /// GET /api/learning/activity-logs
-    /// Lấy danh sách các hoạt động học tập gần đây nhất của học viên trên toàn hệ thống.
-    /// </summary>
-    /// <param name="limit">Số lượng hoạt động tối đa (mặc định 10).</param>
-    /// <returns>ApiResponse chứa danh sách ActivityLogDto.</returns>
     [HttpGet("activity-logs")]
     public async Task<ActionResult<ApiResponse<List<ActivityLogDto>>>> GetActivityLogs([FromQuery] int limit = 10)
     {
@@ -183,11 +149,6 @@ public class LearningController : ControllerBase
         return Ok(ApiResponse<List<ActivityLogDto>>.SuccessResponse(activities, "Retrieved activity logs successfully."));
     }
 
-    /// <summary>
-    /// GET /api/learning/streak
-    /// Lấy chỉ số Gamification chuỗi ngày học liên tục (Learning Streak) của học viên theo múi giờ Việt Nam (UTC+7).
-    /// </summary>
-    /// <returns>ApiResponse chứa LearningStreakDto (CurrentStreak, LongestStreak).</returns>
     [HttpGet("streak")]
     public async Task<ActionResult<ApiResponse<LearningStreakDto>>> GetLearningStreak()
     {

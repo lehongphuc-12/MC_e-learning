@@ -313,7 +313,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
               setSubmission(res.data);
               if (
                 res.data.status === 'GRADED' &&
-                (res.data.score ?? 0) >= 80 &&
+                res.data.isPassed === true &&
                 onMarkComplete &&
                 lesson?.lessonId
               ) {
@@ -375,10 +375,10 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
         if (alive) {
           if (res.success && res.data) {
             setSubmission(res.data);
-            // Chỉ đánh dấu hoàn thành bài học khi điểm >= 80 (Đạt / GRADED)
+            // Chỉ đánh dấu hoàn thành bài học khi bài đạt (isPassed === true và GRADED)
             if (
               res.data.status === 'GRADED' &&
-              (res.data.score ?? 0) >= 80 &&
+              res.data.isPassed === true &&
               onMarkComplete
             ) {
               onMarkComplete(lesson.lessonId);
@@ -982,9 +982,16 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
     if (submission) {
       const hasScore = submission.score !== null && submission.score !== undefined;
       const numScore = hasScore ? Number(submission.score) : null;
-      if (numScore !== null && numScore >= 80) {
+      const hasZeroCriterion = submission.criterionScores && submission.criterionScores.length > 0
+        ? submission.criterionScores.some((c) => Number(c.score) <= 0)
+        : false;
+      const isPassed = submission.isPassed !== undefined && submission.isPassed !== null
+        ? submission.isPassed
+        : (numScore !== null && numScore >= 80 && !hasZeroCriterion && submission.status !== 'NEEDS_RESUBMISSION');
+
+      if (isPassed) {
         setIsConfirmModalOpen(false);
-        showToast('Thông báo', 'Bạn đã đạt yêu cầu bài thi nói này (≥ 80 điểm), không cần nộp lại.', 'info');
+        showToast('Thông báo', 'Bạn đã đạt yêu cầu bài thi nói này, không cần nộp lại.', 'info');
         return;
       }
       if (!hasScore || submission.status === 'SUBMITTED') {
@@ -1044,7 +1051,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
         );
         workspaceContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
 
-        if (res.data.status === 'GRADED' && (res.data.score ?? 0) >= 80 && onMarkComplete && lesson?.lessonId) {
+        if (res.data.status === 'GRADED' && res.data.isPassed === true && onMarkComplete && lesson?.lessonId) {
           onMarkComplete(lesson.lessonId);
         }
       } else {
@@ -1268,7 +1275,13 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
       {/* ── Existing Graded / Submitted Banner ── */}
       {submission && (() => {
         const hasScore = submission.score !== null && submission.score !== undefined;
-        const gradeInfo = hasScore ? getSpeakingGradeInfo(submission.score) : null;
+        const hasZeroCriterion = submission.criterionScores && submission.criterionScores.length > 0
+          ? submission.criterionScores.some((c) => Number(c.score) <= 0)
+          : false;
+        const isPassedActual = submission.isPassed !== undefined && submission.isPassed !== null
+          ? submission.isPassed
+          : (hasScore && Number(submission.score) >= 80 && !hasZeroCriterion && submission.status !== 'NEEDS_RESUBMISSION');
+        const gradeInfo = hasScore ? getSpeakingGradeInfo(submission.score, isPassedActual, hasZeroCriterion) : null;
 
         return (
           <div className="mx-5 md:mx-8 mt-4 p-5 rounded-3xl bg-white border border-slate-200 shadow-lg space-y-4">
@@ -1279,22 +1292,26 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                     <Clock className="w-4 h-4 text-amber-600 animate-pulse" />
                     ĐÃ NỘP - CHỜ GIẢNG VIÊN ĐÁNH GIÁ
                   </span>
-                ) : gradeInfo?.isPassed ? (
+                ) : isPassedActual ? (
                   <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-black flex items-center gap-1.5 shadow-2xs">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    ĐÃ ĐẠT • {gradeInfo.tier.toUpperCase()} ({submission.score}/100)
+                    ĐÃ ĐẠT • {gradeInfo?.tier.toUpperCase()} ({submission.score}/100)
                   </span>
                 ) : (
                   <span className="px-3 py-1 rounded-full bg-rose-100 text-rose-800 text-xs font-black flex items-center gap-1.5 shadow-2xs">
                     <AlertCircle className="w-4 h-4 text-rose-600" />
-                    CHƯA ĐẠT • {gradeInfo?.tier.toUpperCase()} ({submission.score}/100) — YÊU CẦU ≥ 80
+                    {hasZeroCriterion || Number(submission.score) >= 80
+                      ? `CHƯA ĐẠT (${submission.score}/100) — CÓ TIÊU CHÍ 0 ĐIỂM (ĐIỂM LIỆT)`
+                      : `CHƯA ĐẠT (${submission.score}/100) — YÊU CẦU ≥ 80`}
                   </span>
                 )}
               </div>
 
-              {hasScore && !gradeInfo?.isPassed && (
+              {hasScore && !isPassedActual && (
                 <span className="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full">
-                  ⚠️ Chưa đạt yêu cầu (≥ 80). Bạn có thể thu âm và nộp lại ở khung bên dưới.
+                  {hasZeroCriterion || Number(submission.score) >= 80
+                    ? '⚠️ Chưa đạt do có tiêu chí bị 0 điểm (Điểm liệt). Bạn có thể thu âm và nộp lại ở khung bên dưới.'
+                    : '⚠️ Chưa đạt yêu cầu (≥ 80). Bạn có thể thu âm và nộp lại ở khung bên dưới.'}
                 </span>
               )}
             </div>
@@ -1302,7 +1319,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
             {hasScore && gradeInfo && (
               <div
                 className={`p-5 rounded-2xl border flex flex-wrap items-center justify-between gap-4 transition-all ${
-                  gradeInfo.isPassed
+                  isPassedActual
                     ? 'bg-emerald-50/70 border-emerald-200 text-emerald-950'
                     : 'bg-rose-50/70 border-rose-200 text-rose-950'
                 }`}
@@ -1315,18 +1332,18 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                     </span>
                     <span
                       className={`px-2.5 py-0.5 rounded-full text-[11px] font-black border ${
-                        gradeInfo.isPassed
+                        isPassedActual
                           ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
                           : 'bg-rose-100 text-rose-800 border-rose-300'
                       }`}
                     >
-                      Xếp loại: {gradeInfo.tier} ({gradeInfo.isPassed ? 'Đạt' : 'Chưa đạt'})
+                      Xếp loại: {isPassedActual ? gradeInfo.tier : (hasZeroCriterion || Number(submission.score) >= 80 ? 'Chưa đạt (Điểm liệt tiêu chí)' : gradeInfo.tier)}
                     </span>
                   </div>
 
                   <p
                     className={`text-3xl font-black ${
-                      gradeInfo.isPassed ? 'text-emerald-700' : 'text-rose-700'
+                      isPassedActual ? 'text-emerald-700' : 'text-rose-700'
                     }`}
                   >
                     {submission.score}{' '}
@@ -1767,8 +1784,15 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                 const hasScore = submission?.score !== null && submission?.score !== undefined;
                 const numScore = hasScore ? Number(submission!.score) : null;
                 const isWaitingForGrading = submission !== null && (!hasScore || submission.status === 'SUBMITTED');
-                const isPassed = submission !== null && numScore !== null && numScore >= 80;
-                const isFailed = submission !== null && numScore !== null && numScore < 80;
+                const hasZeroCriterion = submission?.criterionScores && submission.criterionScores.length > 0
+                  ? submission.criterionScores.some((c) => Number(c.score) <= 0)
+                  : false;
+                const isPassed = submission !== null && !isWaitingForGrading && (
+                  submission.isPassed !== undefined && submission.isPassed !== null
+                    ? submission.isPassed
+                    : (numScore !== null && numScore >= 80 && !hasZeroCriterion && submission.status !== 'NEEDS_RESUBMISSION')
+                );
+                const isFailed = submission !== null && !isWaitingForGrading && !isPassed;
 
                 if (isPassed) {
                   return (
@@ -1796,7 +1820,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                       <div className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-950/70 text-rose-300 border border-rose-600/50 text-xs font-bold whitespace-nowrap shrink-0 shadow-xs">
                         <AlertCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
                         <span>
-                          Chưa đạt ({submission!.score}/100 • {getSpeakingGradeInfo(submission!.score).tier}) — Có thể nộp lại
+                          Chưa đạt ({submission!.score}/100 • {hasZeroCriterion ? 'Điểm liệt 0đ' : getSpeakingGradeInfo(submission!.score).tier}) — Có thể nộp lại
                         </span>
                       </div>
                     )}
@@ -4780,9 +4804,15 @@ export const CourseLearningPage: React.FC = () => {
                           const sub = finalSpeakingSubmissions[item.key];
                           const hasScore = sub?.score != null;
                           const score = hasScore ? Number(sub.score) : null;
-                          const isPassed =
-                            (score !== null && score >= 80) ||
-                            (item.lessonId ? completedLessonIds.includes(item.lessonId) : false);
+                          const hasZeroCriterion = sub?.criterionScores && sub.criterionScores.length > 0
+                            ? sub.criterionScores.some((c) => Number(c.score) <= 0)
+                            : false;
+                          const isSpeakingPassed = sub?.isPassed !== undefined && sub.isPassed !== null
+                            ? sub.isPassed
+                            : (score !== null && score >= 80 && !hasZeroCriterion && sub?.status !== 'NEEDS_RESUBMISSION');
+                          const isPassed = sub
+                            ? isSpeakingPassed
+                            : (item.lessonId ? completedLessonIds.includes(item.lessonId) : false);
 
                           const isActive =
                             (item.lesson && item.lesson.lessonId === activeLesson?.lessonId && !activeSpeakingScript) ||

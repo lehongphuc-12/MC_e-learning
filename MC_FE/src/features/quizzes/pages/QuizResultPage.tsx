@@ -168,7 +168,7 @@ export const QuizResultPage: React.FC = () => {
       </div>
       <div className="mt-5 flex flex-wrap justify-center gap-3">
         <button type="button" onClick={scrollToDetails} className="inline-flex items-center gap-2 rounded-xl border border-[#d7e4f6] bg-white px-5 py-3 text-xs font-bold text-blue-700 transition hover:bg-blue-50"><Eye size={17} /> Xem lại bài làm</button>
-        {failed && !hasPassed && !hasPending && !retryBlocked && <button type="button" onClick={() => qid && navigate(`/quizzes/${qid}/take`, { state: { returnTo } })} className="inline-flex items-center gap-2 rounded-xl border border-[#d7e4f6] bg-white px-5 py-3 text-xs font-bold text-blue-700 transition hover:bg-blue-50"><RotateCcw size={17} /> Làm lại bài này</button>}
+        {failed && !hasPassed && !hasPending && !retryBlocked && <button type="button" onClick={() => { if (!qid) return; void learningQueryClient.removeQueries({ queryKey: ['take-quiz', qid] }); navigate(`/quizzes/${qid}/take`, { state: { returnTo } }); }} className="inline-flex items-center gap-2 rounded-xl border border-[#d7e4f6] bg-white px-5 py-3 text-xs font-bold text-blue-700 transition hover:bg-blue-50"><RotateCcw size={17} /> Làm lại bài này</button>}
         <button type="button" onClick={back} className="inline-flex items-center gap-2 rounded-xl border border-[#d7e4f6] bg-white px-5 py-3 text-xs font-bold text-blue-700 transition hover:bg-blue-50"><BookOpen size={17} /> Quay về khóa học</button>
         <button type="button" onClick={scrollToDetails} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-xs font-bold text-white shadow-lg shadow-blue-100 transition hover:bg-blue-700">Xem chi tiết đầy đủ <ArrowRight size={17} /></button>
       </div>

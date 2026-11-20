@@ -3,6 +3,8 @@
 // =============================================================================
 
 import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { request } from '../../../services/api';
 import { useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -41,6 +43,28 @@ export const InstructorDashboard: React.FC = () => {
     limit: 100,
   });
 
+  // Enrollment statistics are fetched from the instructor-authorized backend endpoint.
+  // Never treat missing enrollment data as zero: show a loading/error state instead.
+  const { data: enrollmentCounts, isLoading: enrollmentsLoading, isError: enrollmentsError, error: enrollmentError, refetch: refetchEnrollments } = useQuery({
+    queryKey: ['enrollments', 'instructor', 'course-stats'],
+    queryFn: async () => {
+      const response = await request<{ success: boolean; data: Array<{ courseId: number; studentCount: number }> }>(
+        '/v1/enrollments/instructor/course-stats',
+      );
+      if (!response.success || !Array.isArray(response.data)) {
+        throw new Error('Không thể tải thống kê học viên');
+      }
+      return new Map(response.data.map((item) => [Number(item.courseId), Number(item.studentCount)]));
+    },
+    staleTime: 60_000,
+    refetchInterval: 60_000,
+    retry: 1,
+  });
+  const enrollmentErrorMessage = enrollmentError instanceof Error ? enrollmentError.message : "Không thể tải thống kê học viên";
+  const enrollmentDisplay = (value: number) => enrollmentsError
+    ? 'Lỗi tải dữ liệu'
+    : enrollmentsLoading || !enrollmentCounts ? '...' : value.toLocaleString('vi-VN');
+  const studentCountFor = (courseId: number) => enrollmentCounts?.get(Number(courseId)) ?? 0;
   const courses = pageData?.data ?? [];
   const totalCount = pageData?.pagination?.total ?? courses.length;
 
@@ -141,7 +165,7 @@ export const InstructorDashboard: React.FC = () => {
                 </div>
               </div>
               <p className="mt-2 text-2xl font-black text-cyan-200">
-                {isLoading ? '...' : courses.reduce((sum, c) => sum + (c.studentsCount || c.studentCount || 0), 0)}
+                {enrollmentDisplay(Array.from(enrollmentCounts?.values() ?? []).reduce((sum, count) => sum + count, 0))}
               </p>
               <p className="text-[10px] text-cyan-200/80 mt-1">Tổng lượt đăng ký</p>
             </div>
@@ -154,14 +178,22 @@ export const InstructorDashboard: React.FC = () => {
                 </div>
               </div>
               <p className="mt-2 text-lg font-black text-pink-200 truncate">
-                {isLoading ? '...' : formatVND(courses.reduce((sum, c) => sum + ((c.studentsCount || c.studentCount || 0) * (c.price || 0)), 0))}
+                {enrollmentsError ? 'Lỗi tải dữ liệu' : enrollmentsLoading || !enrollmentCounts || isLoading ? '...' : formatVND(courses.reduce((sum, c) => sum + studentCountFor(c.courseId) * (c.price || 0), 0))}
               </p>
-              <p className="text-[10px] text-pink-200/80 mt-1">Từ các khóa học đã bán</p>
+              <p className="text-[10px] text-pink-200/80 mt-1">Ước tính theo học phí gốc × học viên đang học; không phải doanh thu thanh toán</p>
             </div>
           </div>
         </div>
       </div>
 
+      {enrollmentsError && (
+        <div role="alert" className="mx-auto max-w-7xl px-6 pt-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            <span>Không tải được thống kê Enrollment: {enrollmentErrorMessage}. Kiểm tra API /api/v1/enrollments/instructor/course-stats và quyền Instructor.</span>
+            <button type="button" onClick={() => void refetchEnrollments()} className="rounded-lg bg-red-100 px-3 py-2 font-semibold hover:bg-red-200">Thử lại</button>
+          </div>
+        </div>
+      )}
       {/* ── Main Content Body ── */}
       <div className="mx-auto max-w-7xl px-6 pt-8 space-y-8">
         {/* Quick Navigation Cards */}
@@ -322,7 +354,7 @@ export const InstructorDashboard: React.FC = () => {
                       <td className="py-3.5 px-4">
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-cyan-50 text-cyan-700 border border-cyan-200/80">
                           <Users className="h-3.5 w-3.5 text-cyan-600" />
-                          <span>{c.studentsCount || c.studentCount || 0} học viên</span>
+                          <span>{enrollmentDisplay(studentCountFor(c.courseId))} học viên</span>
                         </span>
                       </td>
 
