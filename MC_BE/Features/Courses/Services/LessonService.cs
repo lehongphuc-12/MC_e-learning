@@ -404,7 +404,10 @@ public class LessonService : ILessonService
         if (lessons.Count != lessonIds.Count || lessons.Any(lesson => lesson.Course?.InstructorId != instructorId))
             throw new InvalidOperationException("Một hoặc nhiều bài học không tồn tại hoặc không thuộc khóa học của bạn.");
 
-        var expiresAt = DateTime.UtcNow.AddMinutes(15);
+        // Large lesson videos are uploaded directly to R2; allow slow connections
+        // enough time to finish both the signed PUT and the completion request.
+        const int uploadSessionLifetimeMinutes = 60;
+        var expiresAt = DateTime.UtcNow.AddMinutes(uploadSessionLifetimeMinutes);
         var sessions = new List<VideoUploadSession>();
         var response = new List<VideoUploadSessionDto>();
 
@@ -432,7 +435,7 @@ public class LessonService : ILessonService
                 SessionId = session.SessionId,
                 LessonId = session.LessonId,
                 ContentType = session.ContentType,
-                UploadUrl = _r2.GetPresignedPutUrl(objectKey, session.ContentType, 15),
+                UploadUrl = _r2.GetPresignedPutUrl(objectKey, session.ContentType, uploadSessionLifetimeMinutes),
                 ExpiresAt = expiresAt,
             });
         }

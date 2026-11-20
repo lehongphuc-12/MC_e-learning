@@ -482,7 +482,8 @@ export const CourseLessonsPage: React.FC = () => {
       missing.push('Chưa tạo Bài học (Lesson) nào');
     }
 
-    const hasSpeakingAssignment = lessons.some((l) => l.lessonType === 'ASSIGNMENT') || courseSpeakingScripts.some((s) => s.scope === 'FINAL');
+    const hasSpeakingAssignment = lessons.some((l) => l.lessonType === 'ASSIGNMENT' && !l.isRemedial) ||
+      courseSpeakingScripts.some((s) => s.scope === 'FINAL' && !s.isRemedial && s.status === 'PUBLISHED');
     if (!hasSpeakingAssignment) {
       missing.push('Chưa tạo Bài tập nói (Speaking Assignment) cuối khóa nào');
     }

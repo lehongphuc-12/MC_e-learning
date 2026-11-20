@@ -25,6 +25,7 @@ public class CourseService : ICourseService
     private readonly IGenericRepository<QuizAttempt> _quizAttemptRepository;
     private readonly IGenericRepository<User> _userRepository;
     private readonly IGenericRepository<Lesson> _lessonRepository;
+    private readonly IGenericRepository<SpeakingScript> _speakingScriptRepository;
     private readonly IGenericRepository<CourseMaterial> _materialRepository;
     private readonly IGenericRepository<LessonProgress> _lessonProgressRepository;
     private readonly IGenericRepository<Certificate> _certificateRepository;
@@ -50,6 +51,7 @@ public class CourseService : ICourseService
         IGenericRepository<QuizAttempt> quizAttemptRepository,
         IGenericRepository<User> userRepository,
         IGenericRepository<Lesson> lessonRepository,
+        IGenericRepository<SpeakingScript> speakingScriptRepository,
         IGenericRepository<CourseMaterial> materialRepository,
         IGenericRepository<LessonProgress> lessonProgressRepository,
         IGenericRepository<Certificate> certificateRepository,
@@ -73,6 +75,7 @@ public class CourseService : ICourseService
         _quizAttemptRepository = quizAttemptRepository;
         _userRepository = userRepository;
         _lessonRepository = lessonRepository;
+        _speakingScriptRepository = speakingScriptRepository;
         _materialRepository = materialRepository;
         _lessonProgressRepository = lessonProgressRepository;
         _certificateRepository = certificateRepository;
@@ -314,7 +317,14 @@ public class CourseService : ICourseService
         if (!hasLessons)
             missingRequirements.Add("Bài học (Lesson)");
 
-        var hasSpeakingAssignment = await _lessonRepository.AnyAsync(l => l.CourseId == courseId && l.LessonType == LessonType.ASSIGNMENT);
+        var hasLegacySpeakingAssignment = await _lessonRepository.AnyAsync(l =>
+            l.CourseId == courseId && l.LessonType == LessonType.ASSIGNMENT && !l.IsRemedial);
+        var hasFinalSpeakingScript = await _speakingScriptRepository.AnyAsync(script =>
+            script.CourseId == courseId &&
+            script.Scope == SpeakingScope.FINAL &&
+            !script.IsRemedial &&
+            script.Status == SpeakingScriptStatus.PUBLISHED);
+        var hasSpeakingAssignment = hasLegacySpeakingAssignment || hasFinalSpeakingScript;
         if (!hasSpeakingAssignment)
             missingRequirements.Add("Bài tập nói cuối khóa (Speaking Assignment)");
 
