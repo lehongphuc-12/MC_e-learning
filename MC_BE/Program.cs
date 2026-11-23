@@ -47,17 +47,17 @@ using MC_BE.Features.VoiceJourney.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 // ============================================================
-// KESTREL — allow large file uploads (max 500 MB for video)
+// KESTREL — leave room for multipart overhead; lesson files are capped at 700 MB in LessonService.
 // ============================================================
 builder.WebHost.ConfigureKestrel(options =>
 {
     // Per-request limit; individual endpoints can be lower via [RequestSizeLimit]
-    options.Limits.MaxRequestBodySize = 500L * 1024L * 1024L; // 500 MB
+    options.Limits.MaxRequestBodySize = 720L * 1024L * 1024L;
 });
 builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
 {
     options.ValueLengthLimit = int.MaxValue;
-    options.MultipartBodyLengthLimit = 500L * 1024L * 1024L; // 500 MB
+    options.MultipartBodyLengthLimit = 720L * 1024L * 1024L;
     options.MultipartHeadersLengthLimit = int.MaxValue;
 });
 

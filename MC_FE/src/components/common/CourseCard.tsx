@@ -122,7 +122,7 @@ export const CourseCard: React.FC<CourseCardProps> = ({
   return (
     <article
       id={`${idPrefix}-${course.id}`}
-      className="group flex h-full w-full min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-[transform,border-color,box-shadow] duration-300 hover:-translate-y-1 hover:border-blue-200 hover:shadow-xl"
+      className="group flex h-full w-full min-w-0 flex-col overflow-hidden rounded-[22px] border border-blue-100 bg-white transition-[transform,border-color,box-shadow] duration-300 hover:-translate-y-1 hover:border-blue-300 hover:shadow-lg"
     >
       {/* IMAGE */}
       <div className="relative aspect-video overflow-hidden bg-slate-900">
@@ -184,14 +184,14 @@ export const CourseCard: React.FC<CourseCardProps> = ({
           whileHover={{ scale: 1.03 }}
           whileTap={{ scale: 0.95 }}
           onClick={() => onPreview(course)}
-          className="absolute bottom-3 right-3 z-20 flex h-8 items-center gap-1.5 rounded-lg bg-slate-950/75 px-2.5 text-[11px] font-bold text-white opacity-0 shadow-md backdrop-blur-md transition-[opacity,background-color] duration-200 group-hover:opacity-100 hover:bg-slate-950/90"
+          className="absolute bottom-3 left-3 z-20 flex h-9 items-center gap-1.5 rounded-full bg-[#0754ef] px-3 text-[11px] font-extrabold text-white transition-colors duration-200 hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
           title="Xem trước khóa học"
           aria-label="Xem trước khóa học"
         >
           <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white">
             <Play className="h-2 w-2 translate-x-[0.5px] fill-slate-950 text-slate-950" />
           </span>
-          <span>Xem trước</span>
+          <span>Xem thử</span>
         </motion.button>
       </div>
 
@@ -218,11 +218,10 @@ export const CourseCard: React.FC<CourseCardProps> = ({
         </div>
 
         {/* TITLE */}
-        <h3
-          onClick={() => onSelect(course)}
-          className="line-clamp-2 min-h-[44px] cursor-pointer text-sm font-extrabold leading-[22px] text-slate-950 transition-colors group-hover:text-blue-600"
-        >
-          {course.title}
+        <h3 className="line-clamp-2 min-h-[44px] text-sm font-extrabold leading-[22px] text-slate-950">
+          <button type="button" onClick={() => onSelect(course)} className="text-left transition-colors group-hover:text-blue-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600">
+            {course.title}
+          </button>
         </h3>
 
         {/* INSTRUCTOR */}

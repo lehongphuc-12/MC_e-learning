@@ -252,8 +252,8 @@ public class LessonsController : ControllerBase
     // POST /api/lessons/{id}/upload-video  — legacy multipart/form-data upload
     [HttpPost("lessons/{id:int}/upload-video")]
     [Authorize(Roles = "Instructor")]
-    [RequestSizeLimit(500 * 1024 * 1024)] // 500 MB
-    [RequestFormLimits(MultipartBodyLengthLimit = 500 * 1024 * 1024)]
+    [RequestSizeLimit(720L * 1024 * 1024)] // Transport allowance includes multipart overhead; file limit is 700 MB.
+    [RequestFormLimits(MultipartBodyLengthLimit = 720L * 1024 * 1024)]
     public async Task<ActionResult<ApiResponse<LessonDto>>> UploadVideo(int id, IFormFile file)
     {
         if (file == null || file.Length == 0)

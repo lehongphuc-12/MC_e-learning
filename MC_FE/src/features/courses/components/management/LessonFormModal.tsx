@@ -41,7 +41,7 @@ const ALLOWED_VIDEO_TYPES = [
   'video/quicktime', 'video/x-msvideo', 'video/x-matroska', 'video/mpeg',
 ];
 
-const MAX_FILE_SIZE_BYTES = 500 * 1024 * 1024; // 500 MB
+const MAX_FILE_SIZE_BYTES = 700 * 1024 * 1024; // 700 MB
 
 const TEMPLATE_MARKDOWN = `# K\u1ecaCH B\u1ea2N LUY\u1ec6N N\u00d3I M\u1eaaU (3 C\u1ea4P \u0110\u1ed8)
 
@@ -575,7 +575,7 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
       return;
     }
     if (file.size > MAX_FILE_SIZE_BYTES) {
-      setUploadError(`File quá lớn (${formatBytes(file.size)}). Giới hạn tối đa là 500 MB.`);
+      setUploadError(`File quá lớn (${formatBytes(file.size)}). Giới hạn tối đa là 700 MB.`);
       e.target.value = '';
       return;
     }
@@ -1028,7 +1028,7 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
                             Kéo thả file video vào đây hoặc <span className="text-blue-600">bấm để chọn</span>
                           </p>
                           <p className="text-xs text-slate-400 mt-0.5">
-                            Hỗ trợ: MP4, WebM, MOV, AVI, MKV — Tối đa 500 MB
+                            Hỗ trợ: MP4, WebM, MOV, AVI, MKV — Tối đa 700 MB
                           </p>
                         </div>
                       </>

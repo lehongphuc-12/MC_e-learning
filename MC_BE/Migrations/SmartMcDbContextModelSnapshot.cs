@@ -1558,8 +1558,7 @@ namespace MC_BE.Migrations
 
                     b.HasKey("SyllabusVersionId");
 
-                    b.HasIndex("ObjectKey")
-                        .IsUnique();
+                    b.HasIndex("ObjectKey");
 
                     b.HasIndex("ReviewedById");
 

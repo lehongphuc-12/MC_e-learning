@@ -344,6 +344,7 @@ public class CourseService : ICourseService
         bool wasPublishedBeforeSubmission,
         bool keepApprovedSyllabus = false)
     {
+        var createdSubmissionVersion = false;
         var current = keepApprovedSyllabus && course.ApprovedSyllabusVersionId.HasValue
             ? await _syllabusVersionRepository.GetQueryable()
                 .FirstOrDefaultAsync(version => version.CourseId == course.CourseId
@@ -387,6 +388,7 @@ public class CourseService : ICourseService
                 UploadedAt = DateTime.UtcNow,
             };
             await _syllabusVersionRepository.AddAsync(current);
+            createdSubmissionVersion = true;
         }
         else if (current.SyllabusVersionId == course.ApprovedSyllabusVersionId)
             throw new InvalidOperationException("Hãy tải một phiên bản syllabus mới trước khi gửi khóa học Admin duyệt.");
@@ -402,8 +404,20 @@ public class CourseService : ICourseService
         current.PreviewPrerequisites = course.PreviewPrerequisites;
         current.PreviewLearningOutcomes = course.PreviewLearningOutcomes;
         current.PreviewAssessmentOverview = course.PreviewAssessmentOverview;
-        course.SubmittedSyllabusVersionId = current.SyllabusVersionId;
-        _syllabusVersionRepository.Update(current);
+        if (createdSubmissionVersion)
+        {
+            // The database-generated key is still temporary until SaveChanges. Keep the
+            // relationship by navigation so EF can fix up SubmittedSyllabusVersionId
+            // after inserting the new revision; do not call Update on an Added entity.
+            course.SubmittedSyllabusVersionId = null;
+            course.SubmittedSyllabusVersion = current;
+        }
+        else
+        {
+            course.SubmittedSyllabusVersionId = current.SyllabusVersionId;
+            course.SubmittedSyllabusVersion = current;
+            _syllabusVersionRepository.Update(current);
+        }
     }
 
     public async Task<CourseDto?> CreateCourseAsync(int instructorId, CreateCourseRequest request)
@@ -531,7 +545,8 @@ public class CourseService : ICourseService
 
         course.UpdatedAt = DateTime.UtcNow;
 
-        _courseRepository.Update(course);
+        // The course was loaded and is already tracked. Update() marks the entire related
+        // graph Modified, which would incorrectly change a newly Added syllabus revision.
         await _unitOfWork.SaveChangesAsync();
         return await GetCourseByIdAsync(courseId);
     }
@@ -862,7 +877,7 @@ public class CourseService : ICourseService
         course.Status = parsedStatus;
         course.UpdatedAt = DateTime.UtcNow;
 
-        _courseRepository.Update(course);
+        // The course was loaded and is already tracked; let EF persist only the changed fields.
         await _unitOfWork.SaveChangesAsync();
         return await GetCourseByIdAsync(courseId);
     }
@@ -895,7 +910,8 @@ public class CourseService : ICourseService
             course.SubmissionNote = submissionNote;
         course.UpdatedAt = DateTime.UtcNow;
 
-        _courseRepository.Update(course);
+        // The course was loaded and is already tracked. Avoid Update() graph traversal because
+        // SubmittedSyllabusVersion may be a newly Added entity with a temporary generated key.
         await _unitOfWork.SaveChangesAsync();
         return await GetCourseByIdAsync(courseId);
     }

@@ -311,7 +311,9 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
                 .IsUnique()
                 .HasFilter("\"IsCurrent\" = TRUE");
             entity.HasIndex(version => new { version.CourseId, version.ReviewStatus });
-            entity.HasIndex(version => version.ObjectKey).IsUnique();
+            // Multiple immutable revisions may deliberately reference the same uploaded file
+            // when an instructor keeps an already-approved syllabus without uploading again.
+            entity.HasIndex(version => version.ObjectKey);
             entity.Property(version => version.ReviewStatus).HasDefaultValue("DRAFT");
             entity.Property(version => version.IsCurrent).HasDefaultValue(true);
             entity.Property(version => version.UploadedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
