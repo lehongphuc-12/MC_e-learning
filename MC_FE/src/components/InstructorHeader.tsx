@@ -1,3 +1,4 @@
+import { NotificationBell } from './NotificationBell';
 // =============================================================================
 // InstructorHeader.tsx  —  Dedicated Header for Instructor Portal
 // =============================================================================
@@ -50,6 +51,7 @@ export const InstructorHeader: React.FC<InstructorHeaderProps> = ({ user, onLogo
     <header className="sticky top-0 z-40 bg-slate-900 text-slate-100 border-b border-slate-800 shadow-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
+          <div className="order-last"><NotificationBell /></div>
           {/* Logo & Portal Badge */}
           <div className="flex items-center gap-8">
             <button

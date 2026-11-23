@@ -166,6 +166,7 @@ builder.Services.AddScoped<QuizSyncReviewService>();
 builder.Services.AddScoped<QuizSyncSafetyService>();
 builder.Services.AddScoped<QuizFullSyncService>();
 builder.Services.AddHostedService<QuizAutoSyncWorker>();
+builder.Services.AddHostedService<MC_BE.Features.Notifications.NotificationReminderWorker>();
 
 // ============================================================
 // FORUM
