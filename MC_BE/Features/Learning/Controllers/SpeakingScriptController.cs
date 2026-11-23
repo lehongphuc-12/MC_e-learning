@@ -5,6 +5,7 @@ using MC_BE.Core.Enums;
 using MC_BE.Features.Learning.DTOs;
 using MC_BE.Features.Learning.Services.Interfaces;
 using MC_BE.Features.Courses.Services.Interfaces;
+using MC_BE.Shared.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -21,17 +22,20 @@ public class SpeakingScriptController : ControllerBase
     private readonly ILogger<SpeakingScriptController> _logger;
     private readonly IRemedialAssignmentService _remedialAssignments;
     private readonly ICourseLearningAccessService _courseAccess;
+    private readonly ICloudinaryService _cloudinaryService;
 
     public SpeakingScriptController(
         ISpeakingScriptService scriptService,
         ILogger<SpeakingScriptController> logger,
         IRemedialAssignmentService remedialAssignments,
-        ICourseLearningAccessService courseAccess)
+        ICourseLearningAccessService courseAccess,
+        ICloudinaryService cloudinaryService)
     {
         _scriptService = scriptService;
         _logger = logger;
         _remedialAssignments = remedialAssignments;
         _courseAccess = courseAccess;
+        _cloudinaryService = cloudinaryService;
     }
 
     private int? GetCurrentUserId()
@@ -229,6 +233,51 @@ public class SpeakingScriptController : ControllerBase
             _logger.LogError(ex, "Error deleting speaking script {Id}", id);
             return StatusCode(StatusCodes.Status500InternalServerError,
                 ApiResponse<bool>.FailureResponse("Đã xảy ra lỗi khi xóa bài tập nói."));
+        }
+    }
+
+    [HttpPost("upload-sample-audio")]
+    [Authorize(Roles = "Instructor,Admin")]
+    [Consumes("multipart/form-data")]
+    public async Task<ActionResult<ApiResponse<string>>> UploadSampleAudio([FromForm] UploadSampleAudioRequest request)
+    {
+        var instructorId = GetCurrentUserId();
+        if (instructorId == null)
+            return Unauthorized(ApiResponse<string>.FailureResponse("Unauthorized"));
+
+        try
+        {
+            var file = request?.File;
+            if (file == null || file.Length == 0)
+            {
+                return BadRequest(ApiResponse<string>.FailureResponse("Vui lòng chọn tập tin âm thanh đọc mẫu."));
+            }
+
+            var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+            var allowedExtensions = new[] { ".mp3", ".wav", ".m4a", ".ogg", ".webm", ".aac" };
+            if (!allowedExtensions.Contains(extension))
+            {
+                return BadRequest(ApiResponse<string>.FailureResponse("Định dạng âm thanh không hợp lệ. Chỉ chấp nhận các file .mp3, .wav, .m4a, .ogg, .webm, .aac."));
+            }
+
+            if (file.Length > 25 * 1024 * 1024)
+            {
+                return BadRequest(ApiResponse<string>.FailureResponse("Dung lượng tập tin âm thanh mẫu không được vượt quá 25MB."));
+            }
+
+            var uploadResult = await _cloudinaryService.UploadVideoAsync(file, "speaking-scripts/sample-audios");
+            if (uploadResult == null || uploadResult.Error != null || string.IsNullOrEmpty(uploadResult.SecureUrl?.ToString()))
+            {
+                _logger.LogError("Cloudinary sample audio upload failed: {Error}", uploadResult?.Error?.Message);
+                return StatusCode(500, ApiResponse<string>.FailureResponse("Không thể tải tập tin âm thanh lên máy chủ lưu trữ."));
+            }
+
+            return Ok(ApiResponse<string>.SuccessResponse(uploadResult.SecureUrl.ToString(), "Tải lên audio mẫu thành công."));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Lỗi khi upload audio mẫu bài tập nói");
+            return StatusCode(500, ApiResponse<string>.FailureResponse($"Lỗi khi tải file: {ex.Message}"));
         }
     }
 

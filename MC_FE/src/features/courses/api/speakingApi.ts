@@ -103,7 +103,7 @@ export const speakingApi = {
    * GET /api/speaking-scripts/{id}
    */
   async getSpeakingScriptById(scriptId: number): Promise<ApiResponse<SpeakingScriptDto>> {
-    return request(`/speaking-scripts/${scriptId}`, {
+    return request(`/speaking-scripts/${scriptId}?_t=${Date.now()}`, {
       method: 'GET',
     });
   },
@@ -116,7 +116,7 @@ export const speakingApi = {
    * GET /api/speaking-scripts/course/{courseId}
    */
   async getSpeakingScriptsByCourse(courseId: number): Promise<ApiResponse<SpeakingScriptDto[]>> {
-    return request(`/speaking-scripts/course/${courseId}`, {
+    return request(`/speaking-scripts/course/${courseId}?_t=${Date.now()}`, {
       method: 'GET',
     });
   },
@@ -267,7 +267,7 @@ export const speakingApi = {
    * Get speaking script with all 3 levels
    */
   async getScriptByLesson(lessonId: number): Promise<ApiResponse<SpeakingScriptDto>> {
-    return request(`/speaking-scripts/lessons/${lessonId}`, {
+    return request(`/speaking-scripts/lessons/${lessonId}?_t=${Date.now()}`, {
       method: 'GET',
     });
   },
@@ -380,6 +380,19 @@ export const speakingApi = {
     return request(`/speaking-scripts/lessons/${lessonId}/musics/link`, {
       method: 'POST',
       body: JSON.stringify({ musics }),
+    });
+  },
+
+  /**
+   * POST /api/speaking-scripts/upload-sample-audio
+   * Upload instructor sample audio file (.mp3, .wav, .m4a, .ogg, .webm, .aac)
+   */
+  async uploadSampleAudio(file: File): Promise<ApiResponse<string>> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return request('/speaking-scripts/upload-sample-audio', {
+      method: 'POST',
+      body: formData,
     });
   },
 

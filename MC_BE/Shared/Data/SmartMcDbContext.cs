@@ -31,6 +31,7 @@ public class SmartMcDbContext : DbContext
     public DbSet<Role> Roles { get; set; } = null!;
     public DbSet<User> Users { get; set; } = null!;
     public DbSet<UserProfile> UserProfiles { get; set; } = null!;
+    public DbSet<UserLearningPreferences> UserLearningPreferences { get; set; } = null!;
     public DbSet<PasswordResetToken> PasswordResetTokens { get; set; } = null!;
     public DbSet<RefreshToken> RefreshTokens { get; set; } = null!;
 
@@ -357,6 +358,27 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
+        modelBuilder.Entity<UserLearningPreferences>(entity =>
+        {
+            entity.ToTable("UserLearningPreferences");
+
+            entity.HasKey(e => e.Id);
+
+            entity.HasIndex(e => e.UserId)
+                .IsUnique();
+
+            entity.Property(e => e.IsCompleted)
+                .HasDefaultValue(false);
+
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasOne(d => d.User)
+                .WithOne(p => p.LearningPreferences)
+                .HasForeignKey<UserLearningPreferences>(d => d.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<PasswordResetToken>(entity =>
         {
             entity.ToTable("password_reset_tokens");
@@ -460,7 +482,9 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
                 .IsUnique()
                 .HasFilter("\"IsCurrent\" = TRUE");
             entity.HasIndex(version => new { version.CourseId, version.ReviewStatus });
-            entity.HasIndex(version => version.ObjectKey).IsUnique();
+            // Multiple immutable revisions may deliberately reference the same uploaded file
+            // when an instructor keeps an already-approved syllabus without uploading again.
+            entity.HasIndex(version => version.ObjectKey);
             entity.Property(version => version.ReviewStatus).HasDefaultValue("DRAFT");
             entity.Property(version => version.IsCurrent).HasDefaultValue(true);
             entity.Property(version => version.UploadedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");

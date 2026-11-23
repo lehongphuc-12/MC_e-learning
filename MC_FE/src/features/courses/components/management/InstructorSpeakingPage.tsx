@@ -1287,7 +1287,7 @@ const handleAppendRubricToFeedback = () => {
                       <div className="flex items-center gap-1">
                         <button
                           type="button"
-                          onClick={() => handleSetAllCriteriaScores(100)}
+                          onClick={() => handleTotalScoreChange(100)}
                           className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors cursor-pointer"
                           title="Gán tất cả tiêu chí 100 điểm"
                         >
@@ -1295,7 +1295,7 @@ const handleAppendRubricToFeedback = () => {
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleSetAllCriteriaScores(85)}
+                          onClick={() => handleTotalScoreChange(85)}
                           className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors cursor-pointer"
                           title="Gán tất cả tiêu chí 85 điểm"
                         >
@@ -1303,7 +1303,7 @@ const handleAppendRubricToFeedback = () => {
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleSetAllCriteriaScores(80)}
+                          onClick={() => handleTotalScoreChange(80)}
                           className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 transition-colors cursor-pointer"
                           title="Gán tất cả tiêu chí 80 điểm (chuẩn đạt)"
                         >
