@@ -33,6 +33,7 @@ import {
 } from '../../types/speakingTypes';
 import { SpeakingScriptUploadModal } from './SpeakingScriptUploadModal';
 import { ToastType } from '../../../../components/common/Toast';
+import { getLearningHub } from '../../services/learningHub';
 
 interface InstructorSpeakingAssignmentsPageProps {
   onToast?: (title: string, desc?: string, type?: ToastType) => void;
@@ -139,6 +140,37 @@ export const InstructorSpeakingAssignmentsPage: React.FC<InstructorSpeakingAssig
       cancelled = true;
     };
   }, [reloadTrigger]);
+
+  // Real-time SignalR Auto-Reload when Speaking Assignment is updated/created
+  useEffect(() => {
+    const hub = getLearningHub();
+    const handleUpdated = () => {
+      setReloadTrigger((prev) => prev + 1);
+    };
+
+    hub.on('SpeakingAssignmentUpdated', handleUpdated);
+
+    // Auto refresh when instructor focuses or switches back to tab
+    let lastFocus = Date.now();
+    const handleFocus = () => {
+      if (document.visibilityState === 'visible') {
+        const now = Date.now();
+        if (now - lastFocus > 3000) {
+          lastFocus = now;
+          setReloadTrigger((prev) => prev + 1);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleFocus);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      hub.off('SpeakingAssignmentUpdated', handleUpdated);
+      document.removeEventListener('visibilitychange', handleFocus);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, []);
 
   // Filtered Scripts
   const filteredScripts = useMemo(() => {
