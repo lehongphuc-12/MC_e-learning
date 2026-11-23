@@ -25,6 +25,7 @@ public class CourseService : ICourseService
     private readonly IGenericRepository<QuizAttempt> _quizAttemptRepository;
     private readonly IGenericRepository<User> _userRepository;
     private readonly IGenericRepository<Lesson> _lessonRepository;
+    private readonly IGenericRepository<SpeakingScript> _speakingScriptRepository;
     private readonly IGenericRepository<CourseMaterial> _materialRepository;
     private readonly IGenericRepository<LessonProgress> _lessonProgressRepository;
     private readonly IGenericRepository<Certificate> _certificateRepository;
@@ -50,6 +51,7 @@ public class CourseService : ICourseService
         IGenericRepository<QuizAttempt> quizAttemptRepository,
         IGenericRepository<User> userRepository,
         IGenericRepository<Lesson> lessonRepository,
+        IGenericRepository<SpeakingScript> speakingScriptRepository,
         IGenericRepository<CourseMaterial> materialRepository,
         IGenericRepository<LessonProgress> lessonProgressRepository,
         IGenericRepository<Certificate> certificateRepository,
@@ -73,6 +75,7 @@ public class CourseService : ICourseService
         _quizAttemptRepository = quizAttemptRepository;
         _userRepository = userRepository;
         _lessonRepository = lessonRepository;
+        _speakingScriptRepository = speakingScriptRepository;
         _materialRepository = materialRepository;
         _lessonProgressRepository = lessonProgressRepository;
         _certificateRepository = certificateRepository;
@@ -317,7 +320,14 @@ public class CourseService : ICourseService
         if (!hasLessons)
             missingRequirements.Add("Bài học (Lesson)");
 
-        var hasSpeakingAssignment = await _lessonRepository.AnyAsync(l => l.CourseId == courseId && l.LessonType == LessonType.ASSIGNMENT);
+        var hasLegacySpeakingAssignment = await _lessonRepository.AnyAsync(l =>
+            l.CourseId == courseId && l.LessonType == LessonType.ASSIGNMENT && !l.IsRemedial);
+        var hasFinalSpeakingScript = await _speakingScriptRepository.AnyAsync(script =>
+            script.CourseId == courseId &&
+            script.Scope == SpeakingScope.FINAL &&
+            !script.IsRemedial &&
+            script.Status == SpeakingScriptStatus.PUBLISHED);
+        var hasSpeakingAssignment = hasLegacySpeakingAssignment || hasFinalSpeakingScript;
         if (!hasSpeakingAssignment)
             missingRequirements.Add("Bài tập nói cuối khóa (Speaking Assignment)");
 
@@ -337,6 +347,7 @@ public class CourseService : ICourseService
         bool wasPublishedBeforeSubmission,
         bool keepApprovedSyllabus = false)
     {
+        var createdSubmissionVersion = false;
         var current = keepApprovedSyllabus && course.ApprovedSyllabusVersionId.HasValue
             ? await _syllabusVersionRepository.GetQueryable()
                 .FirstOrDefaultAsync(version => version.CourseId == course.CourseId
@@ -380,6 +391,7 @@ public class CourseService : ICourseService
                 UploadedAt = DateTime.UtcNow,
             };
             await _syllabusVersionRepository.AddAsync(current);
+            createdSubmissionVersion = true;
         }
         else if (current.SyllabusVersionId == course.ApprovedSyllabusVersionId)
             throw new InvalidOperationException("Hãy tải một phiên bản syllabus mới trước khi gửi khóa học Admin duyệt.");
@@ -395,8 +407,20 @@ public class CourseService : ICourseService
         current.PreviewPrerequisites = course.PreviewPrerequisites;
         current.PreviewLearningOutcomes = course.PreviewLearningOutcomes;
         current.PreviewAssessmentOverview = course.PreviewAssessmentOverview;
-        course.SubmittedSyllabusVersionId = current.SyllabusVersionId;
-        _syllabusVersionRepository.Update(current);
+        if (createdSubmissionVersion)
+        {
+            // The database-generated key is still temporary until SaveChanges. Keep the
+            // relationship by navigation so EF can fix up SubmittedSyllabusVersionId
+            // after inserting the new revision; do not call Update on an Added entity.
+            course.SubmittedSyllabusVersionId = null;
+            course.SubmittedSyllabusVersion = current;
+        }
+        else
+        {
+            course.SubmittedSyllabusVersionId = current.SyllabusVersionId;
+            course.SubmittedSyllabusVersion = current;
+            _syllabusVersionRepository.Update(current);
+        }
     }
 
     public async Task<CourseDto?> CreateCourseAsync(int instructorId, CreateCourseRequest request)
@@ -528,7 +552,8 @@ public class CourseService : ICourseService
 
         course.UpdatedAt = DateTime.UtcNow;
 
-        _courseRepository.Update(course);
+        // The course was loaded and is already tracked. Update() marks the entire related
+        // graph Modified, which would incorrectly change a newly Added syllabus revision.
         await _unitOfWork.SaveChangesAsync();
         return await GetCourseByIdAsync(courseId);
     }
@@ -859,7 +884,7 @@ public class CourseService : ICourseService
         course.Status = parsedStatus;
         course.UpdatedAt = DateTime.UtcNow;
 
-        _courseRepository.Update(course);
+        // The course was loaded and is already tracked; let EF persist only the changed fields.
         await _unitOfWork.SaveChangesAsync();
         return await GetCourseByIdAsync(courseId);
     }
@@ -892,7 +917,8 @@ public class CourseService : ICourseService
             course.SubmissionNote = submissionNote;
         course.UpdatedAt = DateTime.UtcNow;
 
-        _courseRepository.Update(course);
+        // The course was loaded and is already tracked. Avoid Update() graph traversal because
+        // SubmittedSyllabusVersion may be a newly Added entity with a temporary generated key.
         await _unitOfWork.SaveChangesAsync();
         return await GetCourseByIdAsync(courseId);
     }
