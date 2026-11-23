@@ -14,9 +14,9 @@ import {
   LogOut,
   UserCircle,
   ChevronDown,
-  Bell,
 } from 'lucide-react';
 import { User } from '../types';
+import { NotificationBell } from './NotificationBell';
 
 interface InstructorTopbarProps {
   user: User | null;
@@ -86,11 +86,8 @@ export const InstructorTopbar: React.FC<InstructorTopbarProps> = ({ user, onLogo
           <span>Giao diện Học viên</span>
         </button>
 
-        {/* Notification bell (decorative) */}
-        <button className="relative w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 hover:text-slate-700 transition-all">
-          <Bell className="w-4 h-4" />
-          <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-blue-500" />
-        </button>
+        {/* Chuông thông báo thật của Instructor Portal */}
+        <NotificationBell />
 
         {/* User dropdown */}
         {user && (

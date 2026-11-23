@@ -27,6 +27,7 @@ public class SmartMcDbContext : DbContext
     // Section 1: Auth & User
     // ============================================================
 
+    public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<Role> Roles { get; set; } = null!;
     public DbSet<User> Users { get; set; } = null!;
     public DbSet<UserProfile> UserProfiles { get; set; } = null!;
@@ -138,6 +139,154 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
     public DbSet<VoiceDiagnosticAttempt> VoiceDiagnosticAttempts { get; set; } = null!;
     public DbSet<VoiceSkillModelMapping> VoiceSkillModelMappings { get; set; } = null!;
     public DbSet<VoiceRecommendationSnapshot> VoiceRecommendationSnapshots { get; set; } = null!;
+
+    // Create website notifications from persisted domain events (not browser state).
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        var addedComments = ChangeTracker.Entries<ForumComment>().Where(e => e.State == EntityState.Added).Select(e => e.Entity).ToList();
+        var addedReactions = ChangeTracker.Entries<ForumReaction>().Where(e => e.State == EntityState.Added).Select(e => e.Entity).ToList();
+        var addedCertificates = ChangeTracker.Entries<Certificate>().Where(e => e.State == EntityState.Added).Select(e => e.Entity).ToList();
+        var addedRecipients = ChangeTracker.Entries<RemedialAssignmentRecipient>().Where(e => e.State == EntityState.Added).Select(e => e.Entity).ToList();
+        var submittedQuizzes = ChangeTracker.Entries<QuizAttempt>()
+            .Where(e => e.State == EntityState.Modified && e.Entity.SubmittedAt.HasValue &&
+                e.Property(x => x.SubmittedAt).IsModified && e.Property(x => x.SubmittedAt).OriginalValue == null)
+            .Select(e => e.Entity).ToList();
+        var completedRemedialLessons = ChangeTracker.Entries<RemedialAssignmentRecipient>()
+            .Where(e => e.State == EntityState.Modified && e.Entity.CompletedAt.HasValue &&
+                e.Property(x => x.CompletedAt).IsModified && e.Property(x => x.CompletedAt).OriginalValue == null)
+            .Select(e => e.Entity).ToList();
+        var addedSubmissions = ChangeTracker.Entries<SpeakingSubmission>().Where(e => e.State == EntityState.Added).Select(e => e.Entity).ToList();
+        var addedMessages = ChangeTracker.Entries<ChatMessage>().Where(e => e.State == EntityState.Added).Select(e => e.Entity).ToList();
+        var paid = ChangeTracker.Entries<Payment>().Where(e => e.State == EntityState.Modified && e.Property(x => x.Status).IsModified && string.Equals(e.Entity.Status, "SUCCESS", StringComparison.OrdinalIgnoreCase)).Select(e => e.Entity).ToList();
+        var submittedCourses = ChangeTracker.Entries<Course>().Where(e => e.State == EntityState.Modified && e.Property(x => x.SubmittedAt).IsModified && e.Entity.SubmittedAt != null).Select(e => e.Entity).ToList();
+        // Capture review decisions before EF accepts tracked changes.
+        // A rejected revision of an already-published course can leave Course.Status=PUBLISHED.
+        var approvedCourses = ChangeTracker.Entries<Course>()
+            .Where(e => e.State == EntityState.Modified && e.Property(x => x.Status).IsModified
+                && e.Entity.Status == CourseStatus.PUBLISHED
+                && e.Property(x => x.Status).OriginalValue == CourseStatus.PENDING_APPROVAL)
+            .Select(e => e.Entity).ToList();
+        var rejectedVersions = ChangeTracker.Entries<CourseSyllabusVersion>()
+            .Where(e => e.State == EntityState.Modified && e.Property(x => x.ReviewStatus).IsModified
+                && e.Entity.ReviewStatus == "REJECTED"
+                && e.Property(x => x.ReviewStatus).OriginalValue == "PENDING_APPROVAL")
+            .Select(e => e.Entity).ToList();
+        var result = await base.SaveChangesAsync(cancellationToken);
+        var notices = new List<Notification>();
+        foreach (var attempt in submittedQuizzes)
+        {
+            var quiz = await Quizzes.AsNoTracking().Where(q => q.QuizId == attempt.QuizId)
+                .Select(q => new { q.Title, q.CreatedById, InstructorId = q.CourseId != null
+                    ? (int?)q.Course!.InstructorId
+                    : q.LessonId != null ? (int?)q.Lesson!.Module!.Course.InstructorId
+                    : null })
+                .FirstOrDefaultAsync(cancellationToken);
+            if (quiz == null) continue;
+            var instructorId = quiz.InstructorId ?? quiz.CreatedById;
+            if (instructorId == attempt.UserId) continue;
+            var needsGrading = attempt.ResultStatus == QuizAttemptStatus.PENDING_GRADING;
+            // Automatically graded quizzes do not require instructor action.
+            if (!needsGrading) continue;
+            notices.Add(new Notification
+            {
+                UserId = instructorId, Type = "submission",
+                Title = "Quiz mới cần chấm",
+                Message = $"Bài Quiz '{quiz.Title}' có phần cần chấm thủ công.",
+                Url = $"/instructor/quizzes/{attempt.QuizId}/grading?attemptId={attempt.AttemptId}",
+                DedupKey = $"submission:quiz:{attempt.AttemptId}"
+            });
+        }
+        foreach (var submission in addedSubmissions)
+        {
+            int? instructor = submission.LessonId.HasValue
+                ? await Lessons.AsNoTracking().Where(l => l.LessonId == submission.LessonId)
+                    .Select(l => (int?)l.Module!.Course.InstructorId).FirstOrDefaultAsync(cancellationToken)
+                : null;
+            if (!instructor.HasValue && submission.ScriptId.HasValue)
+                instructor = await SpeakingScripts.AsNoTracking().Where(s => s.ScriptId == submission.ScriptId)
+                    .Select(s => (int?)s.Course.InstructorId).FirstOrDefaultAsync(cancellationToken);
+            if (instructor.HasValue && instructor.Value != submission.LearnerId)
+                notices.Add(new Notification { UserId = instructor.Value, Type = "submission",
+                    Title = "Speaking mới cần chấm", Message = "Học sinh vừa nộp bài Speaking.",
+                    Url = $"/instructor/speaking-submissions?submissionId={submission.SubmissionId}", DedupKey = $"submission:{submission.SubmissionId}" });
+        }
+        // Practice More LESSON is completed without a Quiz/Speaking submission.
+        // Quiz and Speaking Practice More are already notified via their submission events.
+        foreach (var recipient in completedRemedialLessons)
+        {
+            var assignment = await RemedialAssignments.AsNoTracking()
+                .Where(a => a.RemedialAssignmentId == recipient.RemedialAssignmentId)
+                .Select(a => new { a.AssignedById, a.CourseId, a.LessonId, a.QuizId, a.SpeakingScriptId, a.Title })
+                .FirstOrDefaultAsync(cancellationToken);
+            if (assignment == null || !assignment.LessonId.HasValue || assignment.QuizId.HasValue || assignment.SpeakingScriptId.HasValue || assignment.AssignedById == recipient.StudentId) continue;
+            notices.Add(new Notification { UserId = assignment.AssignedById, Type = "submission",
+                Title = "Học sinh hoàn thành Practice More", Message = $"Học sinh đã hoàn thành bài bổ sung '{assignment.Title}'.",
+                Url = $"/instructor/courses/{assignment.CourseId}/students?studentId={recipient.StudentId}", DedupKey = $"practice-more:completed:{recipient.RecipientId}" });
+        }
+        foreach (var c in addedComments)
+        {
+            var post = await ForumPosts.AsNoTracking().Where(x => x.PostId == c.PostId).Select(x => new { x.AuthorId }).FirstOrDefaultAsync(cancellationToken);
+            var recipient = c.ParentCommentId.HasValue ? await ForumComments.AsNoTracking().Where(x => x.CommentId == c.ParentCommentId.Value).Select(x => (int?)x.AuthorId).FirstOrDefaultAsync(cancellationToken) : post?.AuthorId;
+            if (recipient.HasValue && recipient.Value != c.AuthorId) notices.Add(new Notification { UserId = recipient.Value, Type = "forum_comment", Title = "Bình luận mới", Message = "Có người bình luận hoặc trả lời bài viết của bạn.", Url = $"/forum/posts/{c.PostId}", DedupKey = $"forum-comment:{c.CommentId}" });
+        }
+        foreach (var r in addedReactions)
+        {
+            int? recipient = r.CommentId.HasValue ? await ForumComments.AsNoTracking().Where(x => x.CommentId == r.CommentId).Select(x => (int?)x.AuthorId).FirstOrDefaultAsync(cancellationToken) : await ForumPosts.AsNoTracking().Where(x => x.PostId == r.PostId).Select(x => (int?)x.AuthorId).FirstOrDefaultAsync(cancellationToken);
+            var reactionPostId = r.PostId;
+            if (!reactionPostId.HasValue && r.CommentId.HasValue)
+                reactionPostId = await ForumComments.AsNoTracking().Where(x => x.CommentId == r.CommentId.Value).Select(x => (int?)x.PostId).FirstOrDefaultAsync(cancellationToken);
+            if (recipient.HasValue && recipient.Value != r.UserId && reactionPostId.HasValue)
+                notices.Add(new Notification { UserId = recipient.Value, Type = "forum_reaction", Title = "Tương tác mới", Message = "Có người bày tỏ cảm xúc với bài viết hoặc bình luận của bạn.", Url = $"/forum/posts/{reactionPostId.Value}", DedupKey = $"forum-reaction:{r.ReactionId}" });
+        }
+        foreach (var c in addedCertificates)
+        {
+            var learner = await Enrollments.AsNoTracking().Where(e => e.EnrollmentId == c.EnrollmentId).Select(e => (int?)e.LearnerId).FirstOrDefaultAsync(cancellationToken);
+            if (learner.HasValue) notices.Add(new Notification { UserId = learner.Value, Type = "certificate", Title = "Bạn đã nhận chứng chỉ", Message = "Chúc mừng! Chứng chỉ của bạn đã được cấp.", Url = $"/certificates/{c.CertificateId}", DedupKey = $"certificate:{c.CertificateId}" });
+        }
+        foreach (var r in addedRecipients) notices.Add(new Notification { UserId = r.StudentId, Type = "practice_more", Title = "Bài tập Practice More mới", Message = "Giáo viên vừa giao thêm bài tập cho bạn.", Url = "/my-learning", DedupKey = $"practice-more:{r.RecipientId}" });
+        foreach (var pay in paid) notices.Add(new Notification { UserId = pay.LearnerId, Type = "payment", Title = "Thanh toán thành công", Message = "Khoản thanh toán của bạn đã được xác nhận.", Url = "/profile?tab=payment-history", DedupKey = $"payment:{pay.PaymentId}:paid" });
+        foreach (var course in submittedCourses)
+        {
+            var admins = await Users.AsNoTracking().Where(u => u.Role.RoleName.ToUpper() == "ADMIN").Select(u => u.UserId).ToListAsync(cancellationToken);
+            foreach (var admin in admins) notices.Add(new Notification { UserId = admin, Type = "course_review", Title = "Khóa học chờ duyệt", Message = $"Khóa học {course.Title} vừa được gửi duyệt.", Url = $"/admin?tab=courses&courseId={course.CourseId}", DedupKey = $"course-review:{course.CourseId}:{course.SubmittedAt?.Ticks}:{admin}" });
+        }
+        foreach (var course in approvedCourses)
+        {
+            notices.Add(new Notification { UserId = course.InstructorId, Type = "course_review_result",
+                Title = "Khóa học đã được duyệt", Message = $"Khóa học '{course.Title}' đã được duyệt và xuất bản.",
+                Url = $"/instructor/courses/{course.CourseId}/edit",
+                DedupKey = $"course-review:approved:{course.CourseId}:{course.ApprovedSyllabusVersionId}" });
+        }
+        foreach (var version in rejectedVersions)
+        {
+            var owner = await Courses.AsNoTracking().Where(c => c.CourseId == version.CourseId)
+                .Select(c => new { c.InstructorId, c.Title }).FirstOrDefaultAsync(cancellationToken);
+            if (owner != null)
+                notices.Add(new Notification { UserId = owner.InstructorId, Type = "course_review_result",
+                    Title = "Khóa học bị từ chối duyệt",
+                    Message = $"Phiên bản khóa học '{owner.Title}' đã bị từ chối. Vui lòng xem lý do và chỉnh sửa.",
+                    Url = $"/instructor/courses/{version.CourseId}/edit",
+                    DedupKey = $"course-review:rejected:{version.CourseId}:{version.SyllabusVersionId}" });
+        }
+        // Each conversation has its own participant list; never notify the sender.
+        foreach (var msg in addedMessages)
+        {
+            var conversation = await Conversations.AsNoTracking().Where(c => c.ConversationId == msg.ConversationId).Select(c => new { c.User1Id, c.User2Id }).FirstOrDefaultAsync(cancellationToken);
+            if (conversation != null)
+            {
+                var recipient = conversation.User1Id == msg.SenderId ? conversation.User2Id : conversation.User1Id;
+                if (recipient != msg.SenderId) notices.Add(new Notification { UserId = recipient, Type = "chat", Title = "Tin nhắn mới", Message = "Bạn có tin nhắn mới trong cuộc trò chuyện.", Url = "/chat", DedupKey = $"chat:{msg.MessageId}:{recipient}" });
+            }
+        }
+        if (notices.Count > 0)
+        {
+            var keys = notices.Select(n => n.DedupKey!).ToList();
+            var existing = await Notifications.AsNoTracking().Where(n => n.DedupKey != null && keys.Contains(n.DedupKey)).Select(n => n.DedupKey).ToListAsync(cancellationToken);
+            Notifications.AddRange(notices.Where(n => !existing.Contains(n.DedupKey)));
+            await base.SaveChangesAsync(cancellationToken);
+        }
+        return result;
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -333,7 +482,9 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
                 .IsUnique()
                 .HasFilter("\"IsCurrent\" = TRUE");
             entity.HasIndex(version => new { version.CourseId, version.ReviewStatus });
-            entity.HasIndex(version => version.ObjectKey).IsUnique();
+            // Multiple immutable revisions may deliberately reference the same uploaded file
+            // when an instructor keeps an already-approved syllabus without uploading again.
+            entity.HasIndex(version => version.ObjectKey);
             entity.Property(version => version.ReviewStatus).HasDefaultValue("DRAFT");
             entity.Property(version => version.IsCurrent).HasDefaultValue(true);
             entity.Property(version => version.UploadedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");

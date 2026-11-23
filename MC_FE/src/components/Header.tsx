@@ -1,3 +1,4 @@
+import { NotificationBell } from './NotificationBell';
 import {
   ArrowRight,
   BookOpen,
@@ -368,6 +369,7 @@ export const Header: React.FC<HeaderProps> = ({
                 RIGHT ACTIONS
             ====================================================== */}
             <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+              {user && <NotificationBell />}
               {/* WISHLIST */}
               <button
                 id="header-wishlist-btn"

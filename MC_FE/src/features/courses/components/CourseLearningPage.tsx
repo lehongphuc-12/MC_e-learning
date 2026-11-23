@@ -2511,9 +2511,15 @@ export const CourseLearningPage: React.FC = () => {
   const [activeLesson, setActiveLesson] =
     useState<Lesson | null>(null);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
+  const [playbackError, setPlaybackError] = useState<string | null>(null);
   const pendingVideoPositionRef = useRef<number | null>(null);
   const shouldResumeVideoRef = useRef(false);
   const retriedPlaybackLessonRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    setPlaybackError(null);
+    retriedPlaybackLessonRef.current = null;
+  }, [activeLesson?.lessonId]);
 
   useEffect(() => {
     if (!activeLesson) return;
@@ -4376,7 +4382,11 @@ export const CourseLearningPage: React.FC = () => {
                           }
                         }}
                         onError={(e) => {
-                          if (!activeLesson?.hasVideo || retriedPlaybackLessonRef.current === activeLesson.lessonId) return;
+                          if (!activeLesson?.hasVideo) return;
+                          if (retriedPlaybackLessonRef.current === activeLesson.lessonId) {
+                            setPlaybackError('Không phát được video này. Tệp có thể dùng codec không được trình duyệt hỗ trợ hoặc video trên kho lưu trữ bị lỗi. Hãy thử trình duyệt khác; nếu vẫn lỗi, vui lòng báo giảng viên tải lại video dạng MP4 (H.264).');
+                            return;
+                          }
                           retriedPlaybackLessonRef.current = activeLesson.lessonId;
                           const video = e.currentTarget;
                           pendingVideoPositionRef.current = video.currentTime;
@@ -4390,6 +4400,11 @@ export const CourseLearningPage: React.FC = () => {
                         onTimeUpdate={(e) => {
                           const v = e.currentTarget;
                           const lessonId = activeLesson?.lessonId;
+
+                          // A browser can load duration and advance audio while failing to decode video frames.
+                          if (v.currentTime >= 5 && (!v.videoWidth || !v.videoHeight)) {
+                            setPlaybackError('Video đang chạy nhưng trình duyệt không giải mã được hình ảnh. Có thể tệp dùng codec không tương thích; hãy thử trình duyệt khác hoặc nhờ giảng viên tải lại dưới dạng MP4 (H.264).');
+                          }
 
                           handleVideoTimeUpdate(v.currentTime);
                           const watchedEnough = lessonId
@@ -4456,6 +4471,14 @@ export const CourseLearningPage: React.FC = () => {
                     </div>
                   )}
                 </>
+              )}
+              {playbackError && activeLesson && (
+                <div role="alert" className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/90 p-6 text-center">
+                  <div className="max-w-lg rounded-2xl border border-rose-300/30 bg-slate-900 p-6 text-rose-100 shadow-2xl">
+                    <p className="font-bold">Không phát được video bài học</p>
+                    <p className="mt-2 text-sm leading-relaxed text-slate-300">{playbackError}</p>
+                  </div>
+                </div>
               )}
             </div>
 

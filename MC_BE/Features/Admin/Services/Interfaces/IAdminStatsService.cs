@@ -7,7 +7,7 @@ namespace MC_BE.Features.Admin.Services.Interfaces;
 public interface IAdminStatsService
 {
     Task<AdminStatsDto> GetDashboardStatsAsync();
-    Task<List<RevenueDataPointDto>> GetRevenueChartAsync();
+    Task<List<RevenueDataPointDto>> GetRevenueChartAsync(int? year = null);
     Task<List<SystemLogDto>> GetSystemLogsAsync();
     Task<PlatformSettingsDto> GetPlatformSettingsAsync();
     Task<bool> UpdatePlatformSettingsAsync(PlatformSettingsDto settings);
