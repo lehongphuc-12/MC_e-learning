@@ -28,6 +28,7 @@ import type {
   UpdateCourseDto,
   CourseListParams,
   LearnedCourse,
+  RecommendedCourseDto,
 } from '../types/courseTypes';
 
 // ---------------------------------------------------------------------------
@@ -210,6 +211,17 @@ export const courseApi = {
   async getLearnedCourses(): Promise<LearnedCourse[]> {
     const envelope = await request<ApiEnvelope<LearnedCourse[]>>('/courses/learned-courses');
     return envelope.data;
+  },
+
+  // -------------------------------------------------------------------------
+  // READ — Personalized Recommended Courses
+  // GET /courses/recommendations?top=3
+  // -------------------------------------------------------------------------
+  async getRecommendedCourses(top: number = 3): Promise<RecommendedCourseDto[]> {
+    const envelope = await request<ApiEnvelope<RecommendedCourseDto[]>>(
+      `/courses/recommendations?top=${top}`
+    );
+    return envelope.data || [];
   },
 };
 

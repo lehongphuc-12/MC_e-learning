@@ -6,6 +6,7 @@ import {
   Mic2,
   Play,
   ShoppingCart,
+  Sparkles,
   Star,
   Tag,
   UserRound,
@@ -29,6 +30,7 @@ interface CourseCardProps {
   onOpenCart?: () => void;
   onContinuePayment?: (course: Course) => void;
   onGoToCourse?: (course: Course) => void;
+  recommendationReason?: string;
 }
 
 export const CourseCard: React.FC<CourseCardProps> = ({
@@ -46,6 +48,7 @@ export const CourseCard: React.FC<CourseCardProps> = ({
   onOpenCart,
   onContinuePayment,
   onGoToCourse,
+  recommendationReason,
 }) => {
   const hasDiscount =
     !!course.originalPrice &&
@@ -216,6 +219,14 @@ export const CourseCard: React.FC<CourseCardProps> = ({
             <span>{course.durationHours}h</span>
           </div>
         </div>
+
+        {/* RECOMMENDATION REASON BADGE */}
+        {recommendationReason && (
+          <div className="mb-2 inline-flex items-center gap-1.5 self-start rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700 shadow-2xs">
+            <Sparkles className="h-3 w-3 shrink-0 text-blue-600" />
+            <span className="truncate">{recommendationReason}</span>
+          </div>
+        )}
 
         {/* TITLE */}
         <h3

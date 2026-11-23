@@ -191,3 +191,37 @@ export interface LearnedCourse {
   certificateId?: number;
 }
 
+// ---------------------------------------------------------------------------
+// 8. RECOMMENDED COURSE TYPE — returned from GET /courses/recommendations
+// ---------------------------------------------------------------------------
+export interface RecommendedCourseDto {
+  id: number;
+  courseId: number;
+  title: string;
+  slug: string;
+  description?: string | null;
+  thumbnailUrl?: string | null;
+  categoryName?: string | null;
+  categoryId?: number | null;
+  instructorName?: string | null;
+  instructorId: number;
+  level?: string | null;
+  duration: string;
+  rating: number;
+  reviewCount: number;
+  price: number;
+  originalPrice: number;
+  discountPercent: number;
+  isFree: boolean;
+  skillTags?: string | null;
+  prerequisiteCourseId?: number | null;
+  prerequisiteCourseTitle?: string | null;
+  totalScore: number;
+  skillGapScore: number;
+  categoryAndLevelScore: number;
+  nextStepScore: number;
+  popularityScore: number;
+  recommendationReason: string;
+  isColdStartRecommendation: boolean;
+}
+

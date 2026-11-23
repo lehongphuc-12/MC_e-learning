@@ -81,6 +81,7 @@ public class User
     public virtual Role Role { get; set; } = null!;
 
     public virtual UserProfile? UserProfile { get; set; }
+    public virtual UserLearningPreferences? LearningPreferences { get; set; }
 
     public virtual ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
 

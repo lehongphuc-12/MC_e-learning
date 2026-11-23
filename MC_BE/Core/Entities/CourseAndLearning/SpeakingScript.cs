@@ -53,6 +53,12 @@ public class SpeakingScript
     [Column("BackgroundMusicId")]
     public int? BackgroundMusicId { get; set; }
 
+    [Column("SampleAudioUrl")]
+    public string? SampleAudioUrl { get; set; }
+
+    [Column("InstructorNote")]
+    public string? InstructorNote { get; set; }
+
     // Navigation properties
     [ForeignKey("BackgroundMusicId")]
     public virtual BackgroundMusic? BackgroundMusic { get; set; }
