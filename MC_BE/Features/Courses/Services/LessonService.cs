@@ -11,7 +11,7 @@ namespace MC_BE.Features.Courses.Services;
 
 public class LessonService : ILessonService
 {
-    private const long MaxVideoSizeBytes = 500L * 1024 * 1024;
+    private const long MaxVideoSizeBytes = 700L * 1024 * 1024;
     private static readonly HashSet<string> AllowedVideoTypes = new(StringComparer.OrdinalIgnoreCase)
     {
         "video/mp4", "video/webm", "video/ogg", "video/quicktime",
@@ -404,7 +404,10 @@ public class LessonService : ILessonService
         if (lessons.Count != lessonIds.Count || lessons.Any(lesson => lesson.Course?.InstructorId != instructorId))
             throw new InvalidOperationException("Một hoặc nhiều bài học không tồn tại hoặc không thuộc khóa học của bạn.");
 
-        var expiresAt = DateTime.UtcNow.AddMinutes(15);
+        // Large lesson videos are uploaded directly to R2; allow slow connections
+        // enough time to finish both the signed PUT and the completion request.
+        const int uploadSessionLifetimeMinutes = 60;
+        var expiresAt = DateTime.UtcNow.AddMinutes(uploadSessionLifetimeMinutes);
         var sessions = new List<VideoUploadSession>();
         var response = new List<VideoUploadSessionDto>();
 
@@ -432,7 +435,7 @@ public class LessonService : ILessonService
                 SessionId = session.SessionId,
                 LessonId = session.LessonId,
                 ContentType = session.ContentType,
-                UploadUrl = _r2.GetPresignedPutUrl(objectKey, session.ContentType, 15),
+                UploadUrl = _r2.GetPresignedPutUrl(objectKey, session.ContentType, uploadSessionLifetimeMinutes),
                 ExpiresAt = expiresAt,
             });
         }
@@ -499,7 +502,7 @@ public class LessonService : ILessonService
         if (string.IsNullOrWhiteSpace(contentType) || !AllowedVideoTypes.Contains(contentType))
             throw new InvalidOperationException("Chỉ chấp nhận video MP4, WEBM, OGG, MOV, AVI, MKV hoặc MPEG.");
         if (size <= 0 || size > MaxVideoSizeBytes)
-            throw new InvalidOperationException("Video phải có dung lượng từ 1 byte đến 500 MB.");
+            throw new InvalidOperationException("Video phải có dung lượng từ 1 byte đến 700 MB.");
     }
 
     private async Task<string?> AttachVideoObjectAsync(Lesson lesson, int instructorId, string objectKey)

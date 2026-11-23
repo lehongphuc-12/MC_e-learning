@@ -144,8 +144,11 @@ export const AppRouter: React.FC<AppRouterProps> = ({
     const path = location.pathname;
     if (path.startsWith('/admin')) return 'admin';
     if (path === '/my-courses') return 'my-courses';
-    if (path.startsWith('/courses')) return 'courses';
-    if (path.startsWith('/course-detail')) return 'course-detail';
+    if (path === '/courses') return 'courses';
+    if (path.startsWith('/courses/') || path.startsWith('/course-detail')) {
+      if (path.includes('/learn') || path.includes('/lessons')) return 'courses';
+      return 'course-detail';
+    }
     if (path.startsWith('/forum')) return 'forum';
     if (path === '/profile') return 'profile';
     if (path === '/login') return 'login';
@@ -169,7 +172,7 @@ export const AppRouter: React.FC<AppRouterProps> = ({
     document.documentElement.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     document.body.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     setSelectedCourse(course);
-    navigate(`/course-detail?id=${course.id}`);
+    navigate(`/courses/${course.id}`);
   };
 
   // Helper to wrap screens in MainLayout
@@ -203,11 +206,12 @@ export const AppRouter: React.FC<AppRouterProps> = ({
     </InstructorLayout>
   );
 
-  // Sync selectedCourse from URL params on /course-detail
-  const courseIdParam = searchParams.get('id');
-  const activeCourse = (location.pathname === '/course-detail' && courseIdParam)
-    ? (mockCourses.find((c) => c.id === courseIdParam) ||
-      (selectedCourse?.id === courseIdParam ? selectedCourse : null))
+  // Sync selectedCourse from URL params (/courses/:id or /course-detail?id=...)
+  const coursePathMatch = location.pathname.match(/^\/courses\/(\d+)(?:\/|$)/);
+  const matchedCourseId = coursePathMatch ? coursePathMatch[1] : searchParams.get('id');
+  const activeCourse = matchedCourseId
+    ? (mockCourses.find((c) => c.id === matchedCourseId) ||
+      (selectedCourse?.id === matchedCourseId ? selectedCourse : null))
     : selectedCourse;
 
   return (
@@ -231,7 +235,7 @@ export const AppRouter: React.FC<AppRouterProps> = ({
   searchQuery,
   onSearchChange,
   activeCourse,
-  courseIdParam: location.pathname === '/course-detail' ? courseIdParam : null,
+  courseIdParam: matchedCourseId,
   withMainLayout,
   withInstructorLayout,
   user,

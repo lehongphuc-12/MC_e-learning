@@ -49,7 +49,8 @@ public abstract class SpeakingScriptServiceTestBase : IDisposable
             ParserService,
             UnitOfWork,
             DbContext,
-            LoggerMock.Object
+            LoggerMock.Object,
+            Mock.Of<Microsoft.AspNetCore.SignalR.IHubContext<MC_BE.Features.Learning.Hubs.LearningHub>>()
         );
     }
 

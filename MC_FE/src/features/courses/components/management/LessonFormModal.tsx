@@ -41,7 +41,7 @@ const ALLOWED_VIDEO_TYPES = [
   'video/quicktime', 'video/x-msvideo', 'video/x-matroska', 'video/mpeg',
 ];
 
-const MAX_FILE_SIZE_BYTES = 500 * 1024 * 1024; // 500 MB
+const MAX_FILE_SIZE_BYTES = 700 * 1024 * 1024; // 700 MB
 
 const TEMPLATE_MARKDOWN = `# K\u1ecaCH B\u1ea2N LUY\u1ec6N N\u00d3I M\u1eaaU (3 C\u1ea4P \u0110\u1ed8)
 
@@ -104,6 +104,7 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
   // Video upload state
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [selectedVideoPreviewUrl, setSelectedVideoPreviewUrl] = useState<string | null>(null);
+  const [selectedVideoPreviewError, setSelectedVideoPreviewError] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -343,9 +344,11 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
   useEffect(() => {
     if (!selectedFile) {
       setSelectedVideoPreviewUrl(null);
+      setSelectedVideoPreviewError(null);
       return;
     }
 
+    setSelectedVideoPreviewError(null);
     const localUrl = URL.createObjectURL(selectedFile);
     setSelectedVideoPreviewUrl(localUrl);
     return () => URL.revokeObjectURL(localUrl);
@@ -572,7 +575,7 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
       return;
     }
     if (file.size > MAX_FILE_SIZE_BYTES) {
-      setUploadError(`File quá lớn (${formatBytes(file.size)}). Giới hạn tối đa là 500 MB.`);
+      setUploadError(`File quá lớn (${formatBytes(file.size)}). Giới hạn tối đa là 700 MB.`);
       e.target.value = '';
       return;
     }
@@ -1025,7 +1028,7 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
                             Kéo thả file video vào đây hoặc <span className="text-blue-600">bấm để chọn</span>
                           </p>
                           <p className="text-xs text-slate-400 mt-0.5">
-                            Hỗ trợ: MP4, WebM, MOV, AVI, MKV — Tối đa 500 MB
+                            Hỗ trợ: MP4, WebM, MOV, AVI, MKV — Tối đa 700 MB
                           </p>
                         </div>
                       </>
@@ -1115,8 +1118,20 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
                         setDurationMinutes(Math.max(1, Math.round(dur / 60)));
                       }
                     }}
+                    onTimeUpdate={(e) => {
+                      const video = e.currentTarget;
+                      if (video.currentTime >= 5 && (!video.videoWidth || !video.videoHeight)) {
+                        setSelectedVideoPreviewError('Video đang chạy nhưng không giải mã được hình ảnh. Định dạng MP4 chưa đảm bảo codec tương thích; hãy thử phát tệp bằng VLC hoặc chuyển mã sang MP4 H.264 + AAC trước khi tải lên.');
+                      }
+                    }}
+                    onError={() => setSelectedVideoPreviewError('Trình duyệt không đọc được luồng video của tệp này. Hãy thử phát bằng VLC hoặc chuyển mã sang MP4 H.264 + AAC. Tải lên thành công chỉ xác nhận lưu tệp, không chuyển mã video.')}
                     className="w-full max-h-56 rounded-lg bg-black border border-slate-800 shadow-md"
                   />
+                  {selectedVideoPreviewError && (
+                    <p role="alert" className="rounded-lg border border-amber-300/40 bg-amber-400/10 px-3 py-2 text-xs leading-relaxed text-amber-100">
+                      {selectedVideoPreviewError}
+                    </p>
+                  )}
                 </div>
               )}
             </div>

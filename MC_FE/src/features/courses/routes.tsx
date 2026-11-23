@@ -117,6 +117,46 @@ export const renderCourseRoutes = ({
         )}
       />
 
+      {/* Course Detail Routes - Support both /courses/:id and legacy /course-detail */}
+      <Route
+        path="/courses/:id"
+        element={withMainLayout(
+          <CourseDetailScreen
+            course={activeCourse}
+            onNavigate={onNavigate}
+            onEnroll={onEnrollDirectly}
+            onAddToCart={onAddToCart}
+            onToggleWishlist={onToggleWishlist}
+            isWishlisted={
+              activeCourse
+                ? wishlistCourseIds.includes(activeCourse.id)
+                : false
+            }
+            wishlistCourseIds={wishlistCourseIds}
+            onPreviewVideo={onPreviewVideo}
+            isEnrolled={
+              activeCourse
+                ? isCourseEnrolled(activeCourse.id)
+                : false
+            }
+            isCourseEnrolled={isCourseEnrolled}
+            isInCart={
+              activeCourse
+                ? isCourseInCart(activeCourse.id)
+                : false
+            }
+            isCourseInCart={isCourseInCart}
+            isPendingPayment={
+              activeCourse
+                ? isCoursePendingPayment(activeCourse.id)
+                : false
+            }
+            isCoursePendingPayment={isCoursePendingPayment}
+            onOpenCart={onOpenCart}
+          />
+        )}
+      />
+
       <Route
         path="/course-detail"
         element={withMainLayout(
@@ -131,22 +171,26 @@ export const renderCourseRoutes = ({
                 ? wishlistCourseIds.includes(activeCourse.id)
                 : false
             }
+            wishlistCourseIds={wishlistCourseIds}
             onPreviewVideo={onPreviewVideo}
             isEnrolled={
               activeCourse
                 ? isCourseEnrolled(activeCourse.id)
                 : false
             }
+            isCourseEnrolled={isCourseEnrolled}
             isInCart={
               activeCourse
                 ? isCourseInCart(activeCourse.id)
                 : false
             }
+            isCourseInCart={isCourseInCart}
             isPendingPayment={
               activeCourse
                 ? isCoursePendingPayment(activeCourse.id)
                 : false
             }
+            isCoursePendingPayment={isCoursePendingPayment}
             onOpenCart={onOpenCart}
           />
         )}
@@ -166,7 +210,12 @@ export const renderCourseRoutes = ({
       <Route
         path="/my-courses"
         element={withMainLayout(
-          <MyCoursesScreen onNavigate={onNavigate} />
+          <MyCoursesScreen
+            onNavigate={onNavigate}
+            onAddToCart={onAddToCart}
+            onOpenCart={onOpenCart}
+            isCourseInCart={isCourseInCart}
+          />
         )}
       />
 

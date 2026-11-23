@@ -27,7 +27,6 @@ public sealed class R2ObjectDeletionWorker : BackgroundService
             try
             {
                 await ProcessBatchAsync(stoppingToken);
-                await timer.WaitForNextTickAsync(stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -35,7 +34,23 @@ public sealed class R2ObjectDeletionWorker : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to process R2 object deletion jobs.");
+                try
+                {
+                    _logger.LogError(ex, "Failed to process R2 object deletion jobs.");
+                }
+                catch
+                {
+                    Console.Error.WriteLine($"[R2ObjectDeletionWorker] Error: {ex.Message}");
+                }
+            }
+
+            try
+            {
+                await timer.WaitForNextTickAsync(stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
             }
         }
     }

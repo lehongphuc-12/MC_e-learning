@@ -27,7 +27,6 @@ public sealed class VideoUploadSessionCleanupWorker : BackgroundService
             try
             {
                 await CleanupExpiredSessionsAsync(stoppingToken);
-                await timer.WaitForNextTickAsync(stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -35,7 +34,23 @@ public sealed class VideoUploadSessionCleanupWorker : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to clean up expired video upload sessions.");
+                try
+                {
+                    _logger.LogError(ex, "Failed to clean up expired video upload sessions.");
+                }
+                catch
+                {
+                    Console.Error.WriteLine($"[VideoUploadSessionCleanupWorker] Error: {ex.Message}");
+                }
+            }
+
+            try
+            {
+                await timer.WaitForNextTickAsync(stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
             }
         }
     }
