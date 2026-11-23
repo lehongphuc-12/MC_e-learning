@@ -7,6 +7,7 @@ using MC_BE.Features.Learning.Repositories.Interfaces;
 using MC_BE.Features.Learning.Services.Interfaces;
 using MC_BE.Shared.Repositories.Interfaces;
 using MC_BE.Shared.Services.Interfaces;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace MC_BE.Features.Learning.Services;
@@ -83,7 +84,22 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
                     throw new KeyNotFoundException($"Không tìm thấy bài tập nói với ID {scriptId.Value}.");
                 }
                 courseId = script.CourseId != 0 ? script.CourseId : (script.Lesson?.CourseId ?? 0);
-                lessonId = script.LessonId ?? lessonId;
+                if (script.LessonId.HasValue)
+                {
+                    lessonId = script.LessonId.Value;
+                }
+                else if (lessonId.HasValue)
+                {
+                    var reqLesson = await _lessonRepository.GetByIdAsync(lessonId.Value);
+                    if (reqLesson != null && reqLesson.CourseId == courseId && reqLesson.LessonType == LessonType.ASSIGNMENT)
+                    {
+                        lesson = reqLesson;
+                    }
+                    else if (script.Scope == SpeakingScope.FINAL || script.Scope == SpeakingScope.CHAPTER)
+                    {
+                        lessonId = null;
+                    }
+                }
             }
 
             else if (lessonId.HasValue && lessonId.Value > 0)
@@ -126,20 +142,124 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
                  !await _remedialAssignments.CanStartAttemptAsync(learnerId, "SPEAKING", script.ScriptId)))
                 throw new InvalidOperationException("Bài bổ trợ đã hết lượt, đã hoàn thành hoặc khóa học hiện không còn quyền truy cập.");
 
-            if (lessonId.HasValue && lessonId.Value > 0)
-            {
-                var lessonProgresses = await _lessonProgressRepository.FindAsync(
-                    p => p.LessonId == lessonId.Value &&
-                         p.Enrollment.LearnerId == learnerId &&
-                         p.Enrollment.CourseId == courseId);
-                var progress = lessonProgresses.FirstOrDefault();
-                var isCompleted = progress != null && (progress.IsCompleted || progress.Status == LessonProgressStatus.COMPLETED);
+            // Validate điều kiện hoàn thành video bài học theo SpeakingScope và loại bài học
+            var scope = script?.Scope ?? (lesson != null && lesson.LessonType == LessonType.ASSIGNMENT ? SpeakingScope.FINAL : SpeakingScope.LESSON);
 
-                if (!isCompleted)
+            if (scope == SpeakingScope.FINAL)
+            {
+                // Cấp Final: Kiểm tra đã hoàn thành toàn bộ các bài học video của khóa học
+                // KHÔNG kiểm tra điều kiện "đã xem video của lessonId hiện tại"
+                var allLessons = await _lessonRepository.GetQueryable().AsNoTracking()
+                    .Include(l => l.CourseMaterials)
+                    .Where(l => l.CourseId == courseId &&
+                                l.Status == LessonStatus.ACTIVE &&
+                                !l.IsRemedial &&
+                                l.LessonType != LessonType.ASSIGNMENT &&
+                                (!lessonId.HasValue || l.LessonId != lessonId.Value))
+                    .ToListAsync();
+
+                var videoLessons = allLessons
+                    .Where(l => l.CourseMaterials.Any(m => m.MaterialType == MaterialType.VIDEO &&
+                        ((!string.IsNullOrEmpty(m.ObjectKey)) || (!string.IsNullOrEmpty(m.FileUrl)))) ||
+                        l.LessonType == LessonType.VIDEO)
+                    .Select(l => l.LessonId)
+                    .ToList();
+
+                if (videoLessons.Count > 0)
                 {
-                    var msg = "Vui lòng hoàn thành video bài học trước khi nộp bài luyện nói.";
-                    _logger.LogWarning("Learner {LearnerId} attempted speaking submission before completing lesson video {LessonId}", learnerId, lessonId.Value);
-                    throw new InvalidOperationException(msg);
+                    var completedVideoLessonIds = await _lessonProgressRepository.GetQueryable().AsNoTracking()
+                        .Where(p => p.Enrollment.LearnerId == learnerId &&
+                                    p.Enrollment.CourseId == courseId &&
+                                    videoLessons.Contains(p.LessonId) &&
+                                    (p.IsCompleted || p.Status == LessonProgressStatus.COMPLETED))
+                        .Select(p => p.LessonId)
+                        .Distinct()
+                        .ToListAsync();
+
+                    if (completedVideoLessonIds.Count < videoLessons.Count)
+                    {
+                        var msg = "Vui lòng hoàn thành toàn bộ video bài học trước khi nộp bài thi nói cuối khóa.";
+                        _logger.LogWarning("Learner {LearnerId} attempted final speaking submission before completing all course videos for Course {CourseId}", learnerId, courseId);
+                        throw new InvalidOperationException(msg);
+                    }
+                }
+            }
+            else if (scope == SpeakingScope.CHAPTER)
+            {
+                // Cấp Chapter: Kiểm tra đã hoàn thành các bài video trong chương đó
+                var targetModuleId = script?.ModuleId ?? lesson?.ModuleId;
+                if (targetModuleId.HasValue && targetModuleId.Value > 0)
+                {
+                    var chapterLessons = await _lessonRepository.GetQueryable().AsNoTracking()
+                        .Include(l => l.CourseMaterials)
+                        .Where(l => l.ModuleId == targetModuleId.Value &&
+                                    l.Status == LessonStatus.ACTIVE &&
+                                    !l.IsRemedial &&
+                                    l.LessonType != LessonType.ASSIGNMENT &&
+                                    (!lessonId.HasValue || l.LessonId != lessonId.Value))
+                        .ToListAsync();
+
+                    var chapterVideoLessons = chapterLessons
+                        .Where(l => l.CourseMaterials.Any(m => m.MaterialType == MaterialType.VIDEO &&
+                            ((!string.IsNullOrEmpty(m.ObjectKey)) || (!string.IsNullOrEmpty(m.FileUrl)))) ||
+                            l.LessonType == LessonType.VIDEO)
+                        .Select(l => l.LessonId)
+                        .ToList();
+
+                    if (chapterVideoLessons.Count > 0)
+                    {
+                        var completedChapterVideoIds = await _lessonProgressRepository.GetQueryable().AsNoTracking()
+                            .Where(p => p.Enrollment.LearnerId == learnerId &&
+                                        p.Enrollment.CourseId == courseId &&
+                                        chapterVideoLessons.Contains(p.LessonId) &&
+                                        (p.IsCompleted || p.Status == LessonProgressStatus.COMPLETED))
+                            .Select(p => p.LessonId)
+                            .Distinct()
+                            .ToListAsync();
+
+                        if (completedChapterVideoIds.Count < chapterVideoLessons.Count)
+                        {
+                            var msg = "Vui lòng hoàn thành tất cả video bài học trong chương trước khi nộp bài luyện nói.";
+                            _logger.LogWarning("Learner {LearnerId} attempted chapter speaking submission before completing chapter videos for Module {ModuleId}", learnerId, targetModuleId.Value);
+                            throw new InvalidOperationException(msg);
+                        }
+                    }
+                }
+            }
+            else
+            {
+                // Cấp Lesson: Chỉ kiểm tra nếu bài học gắn kèm CÓ VIDEO
+                if (lessonId.HasValue && lessonId.Value > 0)
+                {
+                    if (lesson == null)
+                    {
+                        lesson = await _lessonRepository.GetQueryable().AsNoTracking()
+                            .Include(l => l.CourseMaterials)
+                            .FirstOrDefaultAsync(l => l.LessonId == lessonId.Value);
+                    }
+
+                    bool hasVideo = lesson != null &&
+                        lesson.LessonType != LessonType.ASSIGNMENT &&
+                        (lesson.CourseMaterials.Any(m => m.MaterialType == MaterialType.VIDEO &&
+                            ((!string.IsNullOrEmpty(m.ObjectKey)) || (!string.IsNullOrEmpty(m.FileUrl)))) ||
+                         lesson.LessonType == LessonType.VIDEO);
+
+                    if (hasVideo)
+                    {
+                        var lessonProgresses = await _lessonProgressRepository.FindAsync(
+                            p => p.LessonId == lessonId.Value &&
+                                 p.Enrollment.LearnerId == learnerId &&
+                                 p.Enrollment.CourseId == courseId);
+                        var progress = lessonProgresses.FirstOrDefault();
+                        var isCompleted = progress != null && (progress.IsCompleted || progress.Status == LessonProgressStatus.COMPLETED);
+
+                        if (!isCompleted)
+                        {
+                            var msg = "Vui lòng hoàn thành video bài học trước khi nộp bài luyện nói.";
+                            _logger.LogWarning("Learner {LearnerId} attempted speaking submission before completing lesson video {LessonId}", learnerId, lessonId.Value);
+                            throw new InvalidOperationException(msg);
+                        }
+                    }
                 }
             }
 

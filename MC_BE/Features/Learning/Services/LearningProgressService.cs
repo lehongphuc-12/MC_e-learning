@@ -88,19 +88,45 @@ public class LearningProgressService : ILearningProgressService
             .ToList();
 
         var totalLessons = lessons.Count;
+        var lessonIds = lessons.Select(l => l.LessonId).ToList();
+
+        var passedSpeakingLessonIds = lessonIds.Count == 0
+            ? new HashSet<int>()
+            : (await _db.SpeakingSubmissions.AsNoTracking()
+                .Where(s => s.LearnerId == learnerId &&
+                            s.Status == SpeakingSubmissionStatus.GRADED &&
+                            s.Score.HasValue && s.Score.Value >= 80 &&
+                            ((s.LessonId.HasValue && lessonIds.Contains(s.LessonId.Value)) ||
+                             _db.SpeakingScripts.Any(sc => sc.ScriptId == s.ScriptId && sc.LessonId.HasValue && lessonIds.Contains(sc.LessonId.Value))))
+                .Select(s => s.LessonId ?? _db.SpeakingScripts.Where(sc => sc.ScriptId == s.ScriptId).Select(sc => sc.LessonId).FirstOrDefault() ?? 0)
+                .Distinct()
+                .ToListAsync()).ToHashSet();
 
         var lessonProgressDict = (enrollment.LessonProgresses ?? new List<LessonProgress>())
             .ToDictionary(lp => lp.LessonId);
 
         var progressDtos = new List<LessonProgressDto>();
         int completedCount = 0;
+        bool hasProgressUpdates = false;
 
         foreach (var lesson in lessons)
         {
+            bool isPassedSpeaking = passedSpeakingLessonIds.Contains(lesson.LessonId);
+
             if (lessonProgressDict.TryGetValue(lesson.LessonId, out var progress))
             {
-                bool isDone = progress.IsCompleted || progress.Status == LessonProgressStatus.COMPLETED;
+                bool isDone = progress.IsCompleted || progress.Status == LessonProgressStatus.COMPLETED || isPassedSpeaking;
                 if (isDone) completedCount++;
+
+                if (isPassedSpeaking && (!progress.IsCompleted || progress.Status != LessonProgressStatus.COMPLETED))
+                {
+                    progress.IsCompleted = true;
+                    progress.Status = LessonProgressStatus.COMPLETED;
+                    progress.CompletedAt ??= DateTime.UtcNow;
+                    progress.UpdatedAt = DateTime.UtcNow;
+                    _progressRepository.Update(progress);
+                    hasProgressUpdates = true;
+                }
 
                 progressDtos.Add(new LessonProgressDto
                 {
@@ -115,25 +141,50 @@ public class LearningProgressService : ILearningProgressService
             }
             else
             {
+                bool isDone = isPassedSpeaking;
+                if (isDone) completedCount++;
+
+                if (isPassedSpeaking)
+                {
+                    var newProgress = new LessonProgress
+                    {
+                        EnrollmentId = enrollment.EnrollmentId,
+                        LessonId = lesson.LessonId,
+                        IsCompleted = true,
+                        Status = LessonProgressStatus.COMPLETED,
+                        LastPositionSeconds = 0,
+                        TimeSpentSeconds = 0,
+                        TimeSpentMinutes = 0,
+                        LastAccessedAt = DateTime.UtcNow,
+                        CompletedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    };
+                    await _progressRepository.AddAsync(newProgress);
+                    hasProgressUpdates = true;
+                }
+
                 progressDtos.Add(new LessonProgressDto
                 {
                     LessonId = lesson.LessonId,
-                    IsCompleted = false,
+                    IsCompleted = isDone,
                     LastPositionSeconds = 0,
                     TimeSpentSeconds = 0,
                     TimeSpentMinutes = 0,
                     LastAccessedAt = null,
-                    CompletedAt = null
+                    CompletedAt = isDone ? DateTime.UtcNow : null
                 });
             }
+        }
+
+        if (hasProgressUpdates)
+        {
+            await _unitOfWork.SaveChangesAsync();
         }
 
         var moduleIds = await _db.Modules.AsNoTracking()
             .Where(m => m.CourseId == courseId)
             .Select(m => m.ModuleId)
             .ToListAsync();
-
-        var lessonIds = lessons.Select(l => l.LessonId).ToList();
 
         var activeChapterQuizzes = await _db.Quizzes.AsNoTracking()
             .Where(q =>
