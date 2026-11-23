@@ -852,6 +852,8 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
             entity.Property(e => e.Status)
                 .HasConversion<string>()
                 .HasDefaultValue(SpeakingScriptStatus.DRAFT);
+            entity.Property(e => e.ScriptType)
+                .HasDefaultValue(SpeakingScriptType.Scripted);
             entity.Property(e => e.IsRemedial).HasDefaultValue(false);
 
             entity.Property(e => e.UpdatedAt)
