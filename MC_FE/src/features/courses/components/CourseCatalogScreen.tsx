@@ -1,13 +1,17 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { 
+import {
   ArrowRight,
-  Search, 
-  SlidersHorizontal, 
-  Star, 
-  X, 
-  Check, 
+  ChevronLeft,
+  ChevronRight,
+  Mic2,
+  Play,
+  Search,
+  SlidersHorizontal,
+  Star,
+  X,
+  Check,
   ArrowUpDown,
-  Sparkles
+  Sparkles,
 } from 'lucide-react';
 import { Course, ScreenType } from '../../../types';
 import { CourseCard } from '../../../components/common/CourseCard';
