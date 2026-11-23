@@ -110,6 +110,53 @@ public class LearningController : ControllerBase
         return Ok(ApiResponse<CourseLearningProgressDto>.SuccessResponse(progress, "Course progress retrieved successfully."));
     }
 
+    /// <summary>
+    /// GET /api/courses/{courseId}/completion-summary (hoặc GET /api/learning/courses/{courseId}/completion-summary)
+    /// Báo cáo tổng kết cuối khóa (Course Completion Summary) cho học viên đã hoàn thành khóa học.
+    /// </summary>
+    [HttpGet("courses/{courseId:int}/completion-summary")]
+    [HttpGet("/api/courses/{courseId:int}/completion-summary")]
+    [ProducesResponseType(typeof(ApiResponse<CourseCompletionSummaryDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<CourseCompletionSummaryDto>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<CourseCompletionSummaryDto>), StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(typeof(ApiResponse<CourseCompletionSummaryDto>), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<CourseCompletionSummaryDto>>> GetCourseCompletionSummary(int courseId)
+    {
+        var learnerId = GetCurrentUserId();
+        if (learnerId == null)
+        {
+            return Unauthorized(ApiResponse<CourseCompletionSummaryDto>.FailureResponse("Unauthorized."));
+        }
+
+        // Kiểm tra xem khóa học có tồn tại không
+        var courseExists = await _db.Courses.AsNoTracking().AnyAsync(c => c.CourseId == courseId);
+        if (!courseExists)
+        {
+            return NotFound(ApiResponse<CourseCompletionSummaryDto>.FailureResponse($"Course with ID {courseId} not found."));
+        }
+
+        // Kiểm tra học viên có ghi danh (enrolled) khóa học này không
+        var isEnrolled = await _db.Enrollments.AsNoTracking()
+            .AnyAsync(e => e.LearnerId == learnerId.Value && e.CourseId == courseId && e.Status != "PENDING_PAYMENT");
+
+        if (!isEnrolled)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                ApiResponse<CourseCompletionSummaryDto>.FailureResponse("Bạn chưa ghi danh khóa học này hoặc không có quyền truy cập."));
+        }
+
+        var summary = await _learningProgressService.GetCourseCompletionSummaryAsync(learnerId.Value, courseId);
+        if (summary == null)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden,
+                ApiResponse<CourseCompletionSummaryDto>.FailureResponse("Không tìm thấy thông tin ghi danh khóa học hợp lệ."));
+        }
+
+        return Ok(ApiResponse<CourseCompletionSummaryDto>.SuccessResponse(
+            summary,
+            summary.IsUnlocked ? "Báo cáo tổng kết hành trình khóa học" : summary.Message));
+    }
+
     [HttpPut("lessons/{lessonId:int}/progress")]
     public async Task<ActionResult<ApiResponse<CourseLearningProgressDto>>> UpdateLessonProgress(
         int lessonId, [FromBody] UpdateLessonProgressRequest request)

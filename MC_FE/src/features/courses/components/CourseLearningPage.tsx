@@ -4167,6 +4167,21 @@ export const CourseLearningPage: React.FC = () => {
             </button>
           )}
 
+          {/* Course Completion Summary Button */}
+          {(isCourseFullyCompleted ||
+            certificate ||
+            progressData?.certificateCode ||
+            completionPercentage >= 100) && (
+            <button
+              onClick={() => navigate(`/courses/${courseId}/summary`)}
+              className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-3.5 py-1.5 text-xs font-bold text-white hover:from-blue-500 hover:to-indigo-500 transition-all cursor-pointer shadow-md shadow-blue-500/20"
+              title="Xem Báo cáo Tổng kết Hành trình Khóa học"
+            >
+              <Sparkles className="h-4 w-4 text-amber-300" />
+              <span>Tổng kết hành trình</span>
+            </button>
+          )}
+
           <div className="hidden md:flex items-center gap-1.5 rounded-full bg-violet-50 border border-violet-200 px-3 py-1 text-xs text-violet-700 font-bold">
             <Sparkles className="h-3.5 w-3.5 text-violet-600" />
 

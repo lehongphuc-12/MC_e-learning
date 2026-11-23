@@ -19,6 +19,7 @@ import {
   X,
   ShoppingCart,
   CheckCircle2,
+  Lock,
 } from 'lucide-react';
 import { EnrolledCourse } from '../../../data/mockData';
 import { Course, ScreenType } from '../../../types';
@@ -902,7 +903,7 @@ export const MyCoursesScreen: React.FC<MyCoursesScreenProps> = ({
                 </div>
 
                 {/* ── Section 3: Action Buttons ── */}
-                <div className="p-4 sm:p-5 border-t sm:border-t-0 sm:border-l border-slate-100 flex sm:flex-col justify-center items-center gap-2.5 shrink-0 sm:w-48 bg-slate-50/50">
+                <div className="p-4 sm:p-5 border-t sm:border-t-0 sm:border-l border-slate-100 flex sm:flex-col justify-center items-center gap-2.5 shrink-0 sm:w-52 bg-slate-50/50">
                   <button
                     onClick={() => navigate(`/courses/${item.course.id}/learn`)}
                     className={`w-full inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl text-xs font-bold text-white transition active:scale-[0.98] ${
@@ -912,6 +913,33 @@ export const MyCoursesScreen: React.FC<MyCoursesScreenProps> = ({
                     {isItemCompleted ? <RotateCcw className="h-4 w-4" /> : <PlayCircle className="h-4 w-4" />}
                     {isItemCompleted ? 'Học lại' : 'Tiếp tục học'}
                   </button>
+
+                  {/* Nút Xem tổng kết hành trình */}
+                  {isItemCompleted || displayProgressPercent >= 100 || item.certificateId ? (
+                    <button
+                      onClick={() => navigate(`/courses/${item.course.id}/summary`)}
+                      className="w-full inline-flex h-10 cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-xs font-bold text-white shadow-md shadow-blue-500/20 transition hover:from-blue-500 hover:to-indigo-500 active:scale-[0.98]"
+                    >
+                      <Sparkles className="h-4 w-4 text-amber-300" />
+                      <span>Xem tổng kết hành trình</span>
+                    </button>
+                  ) : (
+                    <div className="w-full group/summary relative">
+                      <button
+                        disabled
+                        className="w-full inline-flex h-10 cursor-not-allowed items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-100/90 text-xs font-semibold text-slate-400 opacity-75"
+                      >
+                        <Lock className="h-3.5 w-3.5 text-slate-400" />
+                        <span>Xem tổng kết hành trình</span>
+                      </button>
+                      <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/summary:flex w-44 flex-col items-center z-20">
+                        <div className="rounded-lg bg-slate-900 px-2.5 py-1.5 text-center text-[10px] font-medium text-white shadow-lg leading-tight">
+                          Hoàn thành 100% khóa học để mở khóa Báo cáo tổng kết
+                        </div>
+                        <div className="h-1.5 w-1.5 -mt-0.5 rotate-45 bg-slate-900" />
+                      </div>
+                    </div>
+                  )}
 
                   {item.certificateId ? (
                     <button
