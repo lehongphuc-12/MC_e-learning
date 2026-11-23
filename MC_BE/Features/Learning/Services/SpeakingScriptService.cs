@@ -4,8 +4,10 @@ using MC_BE.Core.Enums;
 using MC_BE.Features.Learning.DTOs;
 using MC_BE.Features.Learning.Repositories.Interfaces;
 using MC_BE.Features.Learning.Services.Interfaces;
+using MC_BE.Features.Learning.Hubs;
 using MC_BE.Shared.Data;
 using MC_BE.Shared.Repositories.Interfaces;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -19,6 +21,7 @@ public class SpeakingScriptService : ISpeakingScriptService
     private readonly IUnitOfWork _unitOfWork;
     private readonly SmartMcDbContext _context;
     private readonly ILogger<SpeakingScriptService> _logger;
+    private readonly IHubContext<LearningHub> _learningHubContext;
 
     public SpeakingScriptService(
         ISpeakingScriptRepository scriptRepository,
@@ -26,7 +29,8 @@ public class SpeakingScriptService : ISpeakingScriptService
         SpeakingScriptParserService parserService,
         IUnitOfWork unitOfWork,
         SmartMcDbContext context,
-        ILogger<SpeakingScriptService> logger)
+        ILogger<SpeakingScriptService> logger,
+        IHubContext<LearningHub> learningHubContext)
     {
         _scriptRepository = scriptRepository;
         _lessonRepository = lessonRepository;
@@ -34,6 +38,34 @@ public class SpeakingScriptService : ISpeakingScriptService
         _unitOfWork = unitOfWork;
         _context = context;
         _logger = logger;
+        _learningHubContext = learningHubContext;
+    }
+
+    private async Task NotifySpeakingScriptUpdatedAsync(int courseId, int? moduleId, int? lessonId, int scriptId, string action)
+    {
+        try
+        {
+            var payload = new
+            {
+                courseId,
+                moduleId,
+                lessonId,
+                scriptId,
+                speakingScriptId = scriptId,
+                action
+            };
+
+            await _learningHubContext.Clients.All.SendAsync("SpeakingAssignmentUpdated", payload);
+            if (courseId > 0)
+            {
+                await _learningHubContext.Clients.Group($"Course_{courseId}").SendAsync("SpeakingAssignmentUpdated", payload);
+            }
+            _logger.LogInformation("SignalR: Sent SpeakingAssignmentUpdated CourseId={CourseId}, ScriptId={ScriptId}, Action={Action}", courseId, scriptId, action);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to send SpeakingAssignmentUpdated SignalR notification.");
+        }
     }
 
         private async Task<Lesson> VerifyLessonOwnershipAsync(int lessonId, int instructorId)
@@ -111,6 +143,8 @@ public class SpeakingScriptService : ISpeakingScriptService
                 PassingScore = request.PassingScore,
                 DueAt = request.DueAt,
                 IsRemedial = request.IsRemedial ?? false,
+                SampleAudioUrl = string.IsNullOrWhiteSpace(request.SampleAudioUrl) ? null : request.SampleAudioUrl.Trim(),
+                InstructorNote = string.IsNullOrWhiteSpace(request.InstructorNote) ? null : request.InstructorNote.Trim(),
                 CreatedBy = instructorId,
                 Status = SpeakingScriptStatus.PUBLISHED,
                 UpdatedAt = DateTime.UtcNow
@@ -161,6 +195,14 @@ public class SpeakingScriptService : ISpeakingScriptService
             existingScript.UpdatedAt = DateTime.UtcNow;
             existingScript.DueAt = request.DueAt;
             if (request.IsRemedial.HasValue) existingScript.IsRemedial = request.IsRemedial.Value;
+            if (request.SampleAudioUrl != null)
+            {
+                existingScript.SampleAudioUrl = string.IsNullOrWhiteSpace(request.SampleAudioUrl) ? null : request.SampleAudioUrl.Trim();
+            }
+            if (request.InstructorNote != null)
+            {
+                existingScript.InstructorNote = string.IsNullOrWhiteSpace(request.InstructorNote) ? null : request.InstructorNote.Trim();
+            }
 
             var validFallback = request.Levels.FirstOrDefault(l => !string.IsNullOrWhiteSpace(l.Content))?.Content
                 ?? existingScript.OriginalContent
@@ -208,7 +250,9 @@ public class SpeakingScriptService : ISpeakingScriptService
         await _unitOfWork.SaveChangesAsync();
 
         var refreshed = await _scriptRepository.GetByLessonIdAsync(lessonId);
-        return MapToDto(refreshed!);
+        var resultDto = MapToDto(refreshed!);
+        await NotifySpeakingScriptUpdatedAsync(resultDto.CourseId, resultDto.ModuleId, resultDto.LessonId, resultDto.ScriptId, "PUBLISHED");
+        return resultDto;
     }
 
     public async Task<SpeakingScriptDto?> GetScriptByLessonAsync(int lessonId)
@@ -269,7 +313,9 @@ public class SpeakingScriptService : ISpeakingScriptService
         await _unitOfWork.SaveChangesAsync();
 
         var refreshed = await _scriptRepository.GetByIdWithDetailsAsync(scriptId);
-        return MapToDto(refreshed!);
+        var resultDto = MapToDto(refreshed!);
+        await NotifySpeakingScriptUpdatedAsync(resultDto.CourseId, resultDto.ModuleId, resultDto.LessonId, resultDto.ScriptId, "LEVEL_UPDATED");
+        return resultDto;
     }
 
     public async Task<bool> DeleteScriptAsync(int lessonId, int instructorId)
@@ -279,8 +325,14 @@ public class SpeakingScriptService : ISpeakingScriptService
         var script = await _scriptRepository.GetByLessonIdAsync(lessonId);
         if (script == null) return false;
 
+        var courseId = script.CourseId != 0 ? script.CourseId : (script.Lesson?.CourseId ?? 0);
+        var moduleId = script.ModuleId;
+        var sId = script.ScriptId;
+
         _scriptRepository.Remove(script);
         await _unitOfWork.SaveChangesAsync();
+
+        await NotifySpeakingScriptUpdatedAsync(courseId, moduleId, lessonId, sId, "DELETED");
         return true;
     }
 
@@ -331,6 +383,8 @@ public class SpeakingScriptService : ISpeakingScriptService
             PassingScore = request.PassingScore > 0 ? request.PassingScore : 80.00m,
             DueAt = request.DueAt,
             IsRemedial = request.IsRemedial,
+            SampleAudioUrl = string.IsNullOrWhiteSpace(request.SampleAudioUrl) ? null : request.SampleAudioUrl.Trim(),
+            InstructorNote = string.IsNullOrWhiteSpace(request.InstructorNote) ? null : request.InstructorNote.Trim(),
             CreatedBy = instructorId,
             Status = SpeakingScriptStatus.PUBLISHED,
             UpdatedAt = DateTime.UtcNow
@@ -365,7 +419,9 @@ public class SpeakingScriptService : ISpeakingScriptService
         await _unitOfWork.SaveChangesAsync();
 
         var refreshed = await _scriptRepository.GetByIdWithDetailsAsync(script.ScriptId);
-        return MapToDto(refreshed!);
+        var resultDto = MapToDto(refreshed!);
+        await NotifySpeakingScriptUpdatedAsync(resultDto.CourseId, resultDto.ModuleId, resultDto.LessonId, resultDto.ScriptId, "CREATED");
+        return resultDto;
     }
 
         public async Task<SpeakingScriptDto> UpdateScriptAsync(int scriptId, UpdateSpeakingScriptRequest request, int instructorId)
@@ -445,6 +501,18 @@ public class SpeakingScriptService : ISpeakingScriptService
         script.UpdatedAt = DateTime.UtcNow;
         if (request.DueAt.HasValue) script.DueAt = request.DueAt.Value;
         if (request.IsRemedial.HasValue) script.IsRemedial = request.IsRemedial.Value;
+        if (request.ClearSampleAudio == true)
+        {
+            script.SampleAudioUrl = null;
+        }
+        else if (request.SampleAudioUrl != null)
+        {
+            script.SampleAudioUrl = string.IsNullOrWhiteSpace(request.SampleAudioUrl) ? null : request.SampleAudioUrl.Trim();
+        }
+        if (request.InstructorNote != null)
+        {
+            script.InstructorNote = string.IsNullOrWhiteSpace(request.InstructorNote) ? null : request.InstructorNote.Trim();
+        }
 
         if (request.Levels != null && request.Levels.Count > 0)
         {
@@ -492,7 +560,9 @@ public class SpeakingScriptService : ISpeakingScriptService
         await _unitOfWork.SaveChangesAsync();
 
         var refreshed = await _scriptRepository.GetByIdWithDetailsAsync(scriptId);
-        return MapToDto(refreshed!);
+        var resultDto = MapToDto(refreshed!);
+        await NotifySpeakingScriptUpdatedAsync(resultDto.CourseId, resultDto.ModuleId, resultDto.LessonId, resultDto.ScriptId, "UPDATED");
+        return resultDto;
     }
 
     public async Task<bool> DeleteScriptByIdAsync(int scriptId, int instructorId)
@@ -503,8 +573,13 @@ public class SpeakingScriptService : ISpeakingScriptService
         var courseId = script.CourseId != 0 ? script.CourseId : (script.Lesson?.CourseId ?? 0);
         await VerifyCourseOwnershipAsync(courseId, instructorId);
 
+        var moduleId = script.ModuleId;
+        var lId = script.LessonId;
+
         _scriptRepository.Remove(script);
         await _unitOfWork.SaveChangesAsync();
+
+        await NotifySpeakingScriptUpdatedAsync(courseId, moduleId, lId, scriptId, "DELETED");
         return true;
     }
 
@@ -535,6 +610,8 @@ public class SpeakingScriptService : ISpeakingScriptService
             CreatedBy = script.CreatedBy,
             CreatedByName = script.CreatedByUser?.FullName,
             Status = script.Status.ToString(),
+            SampleAudioUrl = script.SampleAudioUrl,
+            InstructorNote = script.InstructorNote,
             UpdatedAt = script.UpdatedAt,
             Levels = script.Levels.Select(l => new SpeakingScriptLevelDto
             {

@@ -30,6 +30,9 @@ public class CourseDto
     public string? ApprovedByName { get; set; }
     public string? SubmissionNote { get; set; }
     public string? RejectionReason { get; set; }
+    public string? SkillTags { get; set; }
+    public int? PrerequisiteCourseId { get; set; }
+    public string? PrerequisiteCourseTitle { get; set; }
 }
 
 // ---------------------------------------------------------------------------
@@ -79,6 +82,10 @@ public class CreateCourseRequest
 
     public CourseLevel? Level { get; set; }
 
+    public string? SkillTags { get; set; }
+
+    public int? PrerequisiteCourseId { get; set; }
+
     public CourseStatus Status { get; set; } = CourseStatus.DRAFT;
 
     public string? SubmissionNote { get; set; }
@@ -111,6 +118,10 @@ public class UpdateCourseRequest
     public bool? IsFree { get; set; }
 
     public CourseLevel? Level { get; set; }
+
+    public string? SkillTags { get; set; }
+
+    public int? PrerequisiteCourseId { get; set; }
 
     public CourseStatus? Status { get; set; }
 

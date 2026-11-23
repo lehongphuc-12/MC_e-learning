@@ -29,6 +29,7 @@ import {
   Volume2,
   CheckCircle,
   Lock,
+  Headphones,
 } from 'lucide-react';
 import { speakingApi } from '../../api/speakingApi';
 import { courseApi } from '../../api/courseApi';
@@ -157,6 +158,14 @@ export const InstructorSpeakingAssignmentFormPage: React.FC<InstructorSpeakingAs
   const [customCriterionWeight, setCustomCriterionWeight] = useState<number>(10);
   const [showAddCustomCriterion, setShowAddCustomCriterion] = useState(false);
 
+  // Instructor Guidance & Sample Audio States
+  const [sampleAudioUrl, setSampleAudioUrl] = useState<string | null>(null);
+  const [sampleAudioFile, setSampleAudioFile] = useState<File | null>(null);
+  const [sampleAudioPreviewUrl, setSampleAudioPreviewUrl] = useState<string | null>(null);
+  const [instructorNote, setInstructorNote] = useState<string>('');
+  const [isUploadingSampleAudio, setIsUploadingSampleAudio] = useState<boolean>(false);
+  const sampleAudioInputRef = useRef<HTMLInputElement | null>(null);
+
   // Tính toán động tổng trọng số %
   const totalWeight = useMemo(() => {
     return criteria.reduce((sum, c) => sum + (Number(c.weightPercentage) || 0), 0);
@@ -215,13 +224,16 @@ export const InstructorSpeakingAssignmentFormPage: React.FC<InstructorSpeakingAs
           if (res.success && res.data) {
             const s = res.data;
 
-            // 1. Map Scope, Khóa học, Tiêu đề, Điểm chuẩn, Nội dung gốc
+            // 1. Map Scope, Khóa học, Tiêu đề, Điểm chuẩn, Nội dung gốc, Hướng dẫn & Audio mẫu
             setScope(s.scope || 'FINAL');
             setSelectedCourseId(s.courseId);
             setScriptTitle(s.title || '');
             setOriginalContent(s.originalContent || '');
             setPassingScore(s.passingScore ?? 80);
             setSelectedBackgroundMusicId(s.backgroundMusicId ?? null);
+            setSampleAudioUrl(s.sampleAudioUrl || null);
+            setSampleAudioPreviewUrl(s.sampleAudioUrl || null);
+            setInstructorNote(s.instructorNote || '');
 
             // 2. Fetch Modules & Lessons của khóa học này ngay lập tức để đồng bộ dropdown
             if (s.courseId) {
@@ -392,6 +404,27 @@ export const InstructorSpeakingAssignmentFormPage: React.FC<InstructorSpeakingAs
     } finally {
       setIsUploadingMusic(false);
     }
+  };
+
+  // Sample Audio Handlers
+  const handleSampleAudioChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setSampleAudioFile(file);
+      const preview = URL.createObjectURL(file);
+      setSampleAudioPreviewUrl(preview);
+      onToast?.('Đã chọn file audio mẫu', `File: ${file.name}`, 'info');
+    }
+  };
+
+  const handleRemoveSampleAudio = () => {
+    setSampleAudioFile(null);
+    setSampleAudioPreviewUrl(null);
+    setSampleAudioUrl(null);
+    if (sampleAudioInputRef.current) {
+      sampleAudioInputRef.current.value = '';
+    }
+    onToast?.('Đã gỡ bỏ audio mẫu', 'Audio mẫu sẽ được xóa khi lưu bài tập.', 'info');
   };
 
   // Parsing file kịch bản
@@ -641,6 +674,32 @@ export const InstructorSpeakingAssignmentFormPage: React.FC<InstructorSpeakingAs
     const targetModuleId = scope === 'CHAPTER' ? selectedModuleId : scope === 'LESSON' ? selectedModuleId : null;
 
     try {
+      // 1. Tải lên file audio mẫu nếu giảng viên đã chọn file mới
+      let finalSampleAudioUrl = sampleAudioUrl;
+      if (sampleAudioFile) {
+        setIsUploadingSampleAudio(true);
+        try {
+          const uploadRes = await speakingApi.uploadSampleAudio(sampleAudioFile);
+          if (uploadRes.success && uploadRes.data) {
+            finalSampleAudioUrl = uploadRes.data;
+          } else {
+            setErrorMsg(uploadRes.message || 'Không thể tải lên file audio mẫu.');
+            setIsSubmitting(false);
+            setIsUploadingSampleAudio(false);
+            return;
+          }
+        } catch (upErr: any) {
+          setErrorMsg(upErr.message || 'Đã xảy ra lỗi khi tải lên file audio mẫu.');
+          setIsSubmitting(false);
+          setIsUploadingSampleAudio(false);
+          return;
+        } finally {
+          setIsUploadingSampleAudio(false);
+        }
+      }
+
+      const shouldClearSampleAudio = isEditMode && !finalSampleAudioUrl && !sampleAudioFile;
+
       if (isEditMode && id) {
         const res = await speakingApi.updateSpeakingScript(Number(id), {
           courseId: selectedCourseId,
@@ -649,6 +708,9 @@ export const InstructorSpeakingAssignmentFormPage: React.FC<InstructorSpeakingAs
           chapterId: targetModuleId,
           lessonId: scope === 'LESSON' ? selectedLessonId : null,
           backgroundMusicId: selectedBackgroundMusicId,
+          sampleAudioUrl: finalSampleAudioUrl,
+          instructorNote: instructorNote.trim() || null,
+          clearSampleAudio: shouldClearSampleAudio,
           title: scriptTitle.trim(),
           originalContent,
           passingScore,
@@ -670,6 +732,8 @@ export const InstructorSpeakingAssignmentFormPage: React.FC<InstructorSpeakingAs
           chapterId: targetModuleId,
           lessonId: scope === 'LESSON' ? selectedLessonId : null,
           backgroundMusicId: selectedBackgroundMusicId,
+          sampleAudioUrl: finalSampleAudioUrl,
+          instructorNote: instructorNote.trim() || null,
           title: scriptTitle.trim(),
           originalContent,
           passingScore,
@@ -1595,6 +1659,128 @@ export const InstructorSpeakingAssignmentFormPage: React.FC<InstructorSpeakingAs
                   {renderFormattedPreview(editableContents[activeTab])}
                 </div>
               )}
+            </div>
+
+            {/* KHỐI 6: Hướng dẫn & Audio đọc mẫu từ giảng viên (Không bắt buộc) */}
+            <div className={cardClass}>
+              <div className="flex items-center justify-between border-b border-blue-50 pb-3 mb-4">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-100">
+                    <Headphones className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-bold text-slate-900">
+                      Hướng dẫn & Audio đọc mẫu từ giảng viên{' '}
+                      <span className="text-xs font-normal text-slate-400">(Không bắt buộc)</span>
+                    </h2>
+                    <p className="text-[11px] text-slate-500">
+                      Cung cấp audio đọc mẫu và lưu ý về ngữ điệu, cảm xúc cho học viên
+                    </p>
+                  </div>
+                </div>
+
+                {(sampleAudioPreviewUrl || instructorNote) && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700 border border-emerald-200">
+                    <CheckCircle className="h-3 w-3" /> Đã có hướng dẫn
+                  </span>
+                )}
+              </div>
+
+              <div className="space-y-4">
+                {/* 1. Audio đọc mẫu */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Volume2 className="h-3.5 w-3.5 text-indigo-600" /> Audio giảng viên đọc mẫu (.mp3, .wav, .m4a, .aac)
+                    </span>
+                    {sampleAudioPreviewUrl && (
+                      <button
+                        type="button"
+                        onClick={handleRemoveSampleAudio}
+                        className="text-[11px] font-bold text-rose-600 hover:text-rose-700 hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <Trash2 className="h-3 w-3" /> Gỡ bỏ file mẫu
+                      </button>
+                    )}
+                  </label>
+
+                  {sampleAudioPreviewUrl ? (
+                    <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-3.5 space-y-2.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-semibold text-indigo-950 flex items-center gap-1.5">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                          {sampleAudioFile ? `File mới chọn: ${sampleAudioFile.name}` : 'File audio mẫu hiện tại trên hệ thống'}
+                        </span>
+                        <span className="text-[10px] text-indigo-500 font-medium">Sẵn sàng phát</span>
+                      </div>
+                      <audio controls src={sampleAudioPreviewUrl} className="w-full h-9 rounded-lg" />
+                      <div className="flex items-center justify-between pt-1">
+                        <span className="text-[11px] text-slate-500">
+                          {sampleAudioFile ? 'File sẽ tự động tải lên khi bạn nhấn Lưu / Xuất bản.' : 'Bạn có thể tải file khác để thay thế.'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => sampleAudioInputRef.current?.click()}
+                          className="text-xs font-bold text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer"
+                        >
+                          Đổi file khác
+                        </button>
+                        <input
+                          ref={sampleAudioInputRef}
+                          type="file"
+                          accept="audio/*"
+                          onChange={handleSampleAudioChange}
+                          className="hidden"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => sampleAudioInputRef.current?.click()}
+                      className="border-2 border-dashed border-slate-200 hover:border-indigo-400 bg-slate-50/50 hover:bg-indigo-50/30 rounded-2xl p-4 text-center cursor-pointer transition-all group"
+                    >
+                      <input
+                        ref={sampleAudioInputRef}
+                        type="file"
+                        accept="audio/*"
+                        onChange={handleSampleAudioChange}
+                        className="hidden"
+                      />
+                      <div className="flex flex-col items-center gap-1.5">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white shadow-2xs group-hover:scale-110 transition-transform">
+                          <UploadCloud className="h-4 w-4 text-indigo-600" />
+                        </div>
+                        <p className="text-xs font-bold text-slate-700">
+                          Chọn hoặc kéo thả file âm thanh đọc mẫu vào đây
+                        </p>
+                        <p className="text-[11px] text-slate-400">
+                          Hỗ trợ MP3, WAV, M4A, AAC (Dung lượng khuyến nghị dưới 20MB)
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. Dặn dò của giảng viên */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Edit3 className="h-3.5 w-3.5 text-indigo-600" /> Dặn dò & Lưu ý của giảng viên
+                    </span>
+                    <span className="text-[11px] text-slate-400 font-normal">Hiển thị trong phòng luyện nói</span>
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={instructorNote}
+                    onChange={(e) => setInstructorNote(e.target.value)}
+                    placeholder="Nhập dặn dò về nhịp thở, ngữ điệu, điểm nhấn hoặc lỗi cần tránh (Ví dụ: Hãy chú ý ngắt nghỉ đúng 2 giây sau câu chào mở đầu. Đoạn cao trào hãy mở khẩu hình rộng hơn để giọng vang...)"
+                    className="w-full rounded-xl border border-slate-200 p-3 text-xs leading-relaxed text-slate-800 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100 bg-slate-50/30"
+                  />
+                  <p className="mt-1 text-[11px] text-slate-400">
+                    Nội dung này sẽ hiển thị trực quan ngay trên Teleprompter để học viên đọc trước khi thu âm.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </div>

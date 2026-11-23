@@ -50,6 +50,8 @@ export interface SaveScriptRequest {
   chapterId?: number;
   courseId?: number;
   backgroundMusicId?: number | null;
+  sampleAudioUrl?: string | null;
+  instructorNote?: string | null;
   passingScore?: number;
   dueAt?: string | null;
   isRemedial?: boolean;
@@ -64,6 +66,8 @@ export interface CreateSpeakingScriptRequest {
   chapterId?: number | null;
   lessonId?: number | null;
   backgroundMusicId?: number | null;
+  sampleAudioUrl?: string | null;
+  instructorNote?: string | null;
   title: string;
   originalContent?: string;
   passingScore?: number;
@@ -80,6 +84,9 @@ export interface UpdateSpeakingScriptRequest {
   chapterId?: number | null;
   lessonId?: number | null;
   backgroundMusicId?: number | null;
+  sampleAudioUrl?: string | null;
+  instructorNote?: string | null;
+  clearSampleAudio?: boolean;
   title?: string;
   originalContent?: string;
   passingScore?: number;
@@ -118,6 +125,8 @@ export interface SpeakingScriptDto {
   backgroundMusicUrl?: string | null;
   title: string;
   originalContent?: string;
+  sampleAudioUrl?: string | null;
+  instructorNote?: string | null;
   passingScore?: number;
   dueAt?: string | null;
   isRemedial?: boolean;
@@ -311,6 +320,8 @@ export interface SpeakingScopeInfo {
   text: string;
   border: string;
   badgeClass: string;
+  color: string;
+  badge: string;
 }
 
 export function getSpeakingScopeInfo(scope?: string | null): SpeakingScopeInfo {
@@ -324,6 +335,8 @@ export function getSpeakingScopeInfo(scope?: string | null): SpeakingScopeInfo {
       text: 'text-sky-700',
       border: 'border-sky-200',
       badgeClass: 'bg-sky-50 text-sky-700 border-sky-200',
+      color: '#0284c7',
+      badge: 'Bài học',
     };
   }
   if (s === 'CHAPTER') {
@@ -335,6 +348,8 @@ export function getSpeakingScopeInfo(scope?: string | null): SpeakingScopeInfo {
       text: 'text-amber-800',
       border: 'border-amber-200',
       badgeClass: 'bg-amber-50 text-amber-800 border-amber-200',
+      color: '#d97706',
+      badge: 'Theo chương',
     };
   }
   return {
@@ -345,6 +360,8 @@ export function getSpeakingScopeInfo(scope?: string | null): SpeakingScopeInfo {
     text: 'text-purple-700',
     border: 'border-purple-200',
     badgeClass: 'bg-purple-50 text-purple-700 border-purple-200',
+    color: '#7c3aed',
+    badge: 'Cuối khóa',
   };
 }
 

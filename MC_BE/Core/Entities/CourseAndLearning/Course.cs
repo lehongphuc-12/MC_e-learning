@@ -59,6 +59,13 @@ public class Course
     [Column("Level")]
     public CourseLevel? Level { get; set; }
 
+    [MaxLength(500)]
+    [Column("SkillTags")]
+    public string? SkillTags { get; set; }
+
+    [Column("PrerequisiteCourseID")]
+    public int? PrerequisiteCourseId { get; set; }
+
     [Column("Status")]
     public CourseStatus Status { get; set; } = CourseStatus.DRAFT;
 
@@ -100,6 +107,9 @@ public class Course
 
     [ForeignKey("ApprovedById")]
     public virtual User? ApprovedBy { get; set; }
+
+    [ForeignKey("PrerequisiteCourseId")]
+    public virtual Course? PrerequisiteCourse { get; set; }
 
     public virtual ICollection<Module> Modules { get; set; } = new List<Module>();
     public virtual ICollection<Lesson> Lessons { get; set; } = new List<Lesson>();

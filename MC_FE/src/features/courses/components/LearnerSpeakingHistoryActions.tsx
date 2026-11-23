@@ -12,6 +12,7 @@ interface Props {
   returnTo: string;
   onTake?: () => void;
   canTakeSpeaking?: boolean;
+  hideActionButtons?: boolean;
 }
 
 export const LearnerSpeakingHistoryActions: React.FC<Props> = ({
@@ -22,6 +23,7 @@ export const LearnerSpeakingHistoryActions: React.FC<Props> = ({
   returnTo,
   onTake,
   canTakeSpeaking = true,
+  hideActionButtons = false,
 }) => {
   const navigate = useNavigate();
   const [history, setHistory] = useState<SpeakingSubmissionHistoryDto[]>([]);
@@ -155,7 +157,7 @@ export const LearnerSpeakingHistoryActions: React.FC<Props> = ({
   return (
     <div className="mt-2 w-full space-y-2 text-xs">
       <div className="flex flex-wrap items-center gap-2">
-        {onTake && (
+        {!hideActionButtons && onTake && (
           canRecord ? (
             <button
               type="button"
@@ -176,7 +178,7 @@ export const LearnerSpeakingHistoryActions: React.FC<Props> = ({
           ) : null
         )}
 
-        {courseId && (lessonId || scriptId) && (
+        {!hideActionButtons && courseId && (lessonId || scriptId) && (
           <button
             type="button"
             onClick={() => {

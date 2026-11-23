@@ -20,6 +20,7 @@ using MC_BE.Features.Learning.Repositories;
 using MC_BE.Features.Learning.Repositories.Interfaces;
 using MC_BE.Features.Learning.Services;
 using MC_BE.Features.Learning.Services.Interfaces;
+using MC_BE.Features.Learning.Hubs;
 using MC_BE.Features.Chat.Hubs;
 using MC_BE.Features.Chat.Services;
 using MC_BE.Features.Chat.Services.Interfaces;
@@ -48,6 +49,20 @@ var builder = WebApplication.CreateBuilder(args);
 
 // ============================================================
 // KESTREL — leave room for multipart overhead; lesson files are capped at 700 MB in LessonService.
+// LOGGING & HOST OPTIONS (Safe on Windows, prevent EventLog crash from stopping host)
+// ============================================================
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+builder.Logging.AddDebug();
+
+builder.Services.Configure<HostOptions>(options =>
+{
+    // Prevent unhandled exception in background workers from crashing the entire web API server
+    options.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.Ignore;
+});
+
+// ============================================================
+// KESTREL — allow large file uploads (max 700 MB for video)
 // ============================================================
 builder.WebHost.ConfigureKestrel(options =>
 {
@@ -139,6 +154,7 @@ builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserProfileService, UserProfileService>();
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IUserPreferenceService, UserPreferenceService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<IAdminStatsService, AdminStatsService>();
 
@@ -146,6 +162,7 @@ builder.Services.AddScoped<IAdminStatsService, AdminStatsService>();
 // COURSE MANAGEMENT
 // ============================================================
 builder.Services.AddScoped<ICourseService, CourseService>();
+builder.Services.AddScoped<ICourseRecommendationService, CourseRecommendationService>();
 builder.Services.AddScoped<ICourseSyllabusService, CourseSyllabusService>();
 builder.Services.AddScoped<ICourseMaterialsReadRepository, CourseMaterialsReadRepository>();
 builder.Services.AddScoped<ICourseMaterialsReadService, CourseMaterialsReadService>();
@@ -274,7 +291,7 @@ builder.Services.AddAuthentication(options =>
             var accessToken = context.Request.Query["access_token"];
             var path = context.HttpContext.Request.Path;
             if (!string.IsNullOrEmpty(accessToken) &&
-                (path.StartsWithSegments("/hubs/chat") || path.StartsWithSegments("/hubs/call")))
+                (path.StartsWithSegments("/hubs/chat") || path.StartsWithSegments("/hubs/call") || path.StartsWithSegments("/hubs/learning")))
             {
                 context.Token = accessToken;
             }
@@ -498,6 +515,7 @@ app.UseAuthorization();
 // ============================================================
 app.MapHub<ChatHub>("/hubs/chat");
 app.MapHub<CallHub>("/hubs/call");
+app.MapHub<LearningHub>("/hubs/learning");
 
 // ============================================================
 // SWAGGER — only expose UI in Development environment

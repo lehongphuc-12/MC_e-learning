@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { 
   Star, 
   Award, 
@@ -38,11 +38,15 @@ interface CourseDetailScreenProps {
   onEnroll: (course: Course) => void;
   onAddToCart: (course: Course) => void;
   onToggleWishlist: (courseId: string) => void;
-  isWishlisted: boolean;
+  isWishlisted?: boolean;
+  wishlistCourseIds?: string[];
   onPreviewVideo: (course: Course, lessonId?: number, lessonTitle?: string) => void;
   isEnrolled?: boolean;
+  isCourseEnrolled?: (courseId: string | number) => boolean;
   isInCart?: boolean;
+  isCourseInCart?: (courseId: string | number) => boolean;
   isPendingPayment?: boolean;
+  isCoursePendingPayment?: (courseId: string | number) => boolean;
   onOpenCart?: () => void;
 }
 
@@ -279,28 +283,38 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
   onEnroll,
   onAddToCart,
   onToggleWishlist,
-  isWishlisted,
+  isWishlisted: isWishlistedProp = false,
+  wishlistCourseIds,
   onPreviewVideo,
   isEnrolled: isEnrolledProp,
-  isInCart = false,
-  isPendingPayment = false,
+  isCourseEnrolled,
+  isInCart: isInCartProp = false,
+  isCourseInCart,
+  isPendingPayment: isPendingPaymentProp = false,
+  isCoursePendingPayment,
   onOpenCart,
 }) => {
   const navigate = useNavigate();
+  const routeParams = useParams<{ id?: string; courseId?: string }>();
+  const [searchParams] = useSearchParams();
   const [showVoiceJourneyGift, setShowVoiceJourneyGift] = useState(false);
-
-
-  useEffect(() => {
-    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-  }, [courseId, initialCourse?.id]);
 
   // ============================================================
   // COURSE ID
   // Chỉ sử dụng CourseID thật từ backend.
-  // Không dùng ID của mock course để gọi API.
+  // Nhận từ routeParams (/courses/:id), searchParams (?id=...), hoặc props.
   // ============================================================
 
-  const rawCourseId = courseId ?? initialCourse?.id;
+  const rawCourseId =
+    courseId ??
+    routeParams.id ??
+    routeParams.courseId ??
+    searchParams.get('id') ??
+    initialCourse?.id;
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [rawCourseId]);
 
   const parsedCourseId =
     rawCourseId !== undefined &&
@@ -397,12 +411,25 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
   const { data: learnedCourses } = useLearnedCoursesQuery();
 
   const isEnrolled =
-    isEnrolledProp ??
+    (isCourseEnrolled ? isCourseEnrolled(course.id) : false) ||
+    isEnrolledProp ||
     learnedCourses?.some(
       (item) =>
         String(item.course.id) ===
         String(course.id)
     );
+
+  const isInCart =
+    (isCourseInCart ? isCourseInCart(course.id) : false) ||
+    isInCartProp;
+
+  const isPendingPayment =
+    (isCoursePendingPayment ? isCoursePendingPayment(course.id) : false) ||
+    isPendingPaymentProp;
+
+  const isWishlisted =
+    (wishlistCourseIds ? wishlistCourseIds.includes(course.id) : false) ||
+    isWishlistedProp;
 
   const [showFullSyllabus, setShowFullSyllabus] = useState(false);
   useEffect(() => { setShowFullSyllabus(false); }, [course.id]);

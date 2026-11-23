@@ -15,6 +15,7 @@ import { Toast } from './components/common/Toast';
 import { CartDrawer } from './components/modals/CartDrawer';
 import { CheckoutModal } from './components/modals/CheckoutModal';
 import { VideoPreviewModal } from './components/modals/VideoPreviewModal';
+import { OnboardingSurveyModal } from './features/preferences/components/OnboardingSurveyModal';
 
 import { useAppStore } from './hooks/useAppStore';
 import { useAuth } from './hooks/useAuth';
@@ -614,6 +615,11 @@ export default function App() {
           handleCheckoutSuccess
         }
       />
+
+      {/* ======================================================
+          ONBOARDING SURVEY MODAL (Cá nhân hóa lộ trình MC)
+      ====================================================== */}
+      <OnboardingSurveyModal onToast={store.showToast} />
     </div>
   );
 }

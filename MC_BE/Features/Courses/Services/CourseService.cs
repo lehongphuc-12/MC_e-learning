@@ -138,6 +138,9 @@ public class CourseService : ICourseService
         ApprovedByName = course.ApprovedBy?.FullName,
         SubmissionNote = course.SubmissionNote,
         RejectionReason = course.RejectionReason,
+        SkillTags = course.SkillTags,
+        PrerequisiteCourseId = course.PrerequisiteCourseId,
+        PrerequisiteCourseTitle = course.PrerequisiteCourse?.Title,
     };
 
     // -------------------------------------------------------------------------
@@ -462,6 +465,8 @@ public class CourseService : ICourseService
             Price = price,
             IsFree = isFree,
             Level = request.Level,
+            SkillTags = request.SkillTags,
+            PrerequisiteCourseId = request.PrerequisiteCourseId,
             Status = status,
             SubmissionNote = request.SubmissionNote,
             SubmittedAt = null,
@@ -527,6 +532,8 @@ public class CourseService : ICourseService
             course.Price = 0;
         ValidatePricing(course.IsFree, course.Price);
         if (request.Level.HasValue) course.Level = request.Level;
+        if (request.SkillTags is not null) course.SkillTags = request.SkillTags;
+        if (request.PrerequisiteCourseId.HasValue) course.PrerequisiteCourseId = request.PrerequisiteCourseId;
         if (request.Status.HasValue)
         {
             // Instructors cannot directly publish courses; any edit defaults to DRAFT unless submitted for approval

@@ -11,6 +11,12 @@ public class ParseScriptFileRequest
     public IFormFile File { get; set; } = null!;
 }
 
+public class UploadSampleAudioRequest
+{
+    [Required(ErrorMessage = "Tập tin âm thanh đọc mẫu là bắt buộc.")]
+    public IFormFile File { get; set; } = null!;
+}
+
 public class LevelPreviewDto
 {
 
@@ -50,6 +56,8 @@ public class SaveScriptRequest
     public decimal PassingScore { get; set; } = 80.00m;
     public DateTime? DueAt { get; set; }
     public bool? IsRemedial { get; set; }
+    public string? SampleAudioUrl { get; set; }
+    public string? InstructorNote { get; set; }
     [Required(ErrorMessage = "Phải cung cấp đủ nội dung các cấp độ.")]
     [MinLength(3, ErrorMessage = "Phải cung cấp đủ 3 cấp độ (BEGINNER, INTERMEDIATE, ADVANCED).")]
     public List<SaveLevelDto> Levels { get; set; } = new();
@@ -73,6 +81,8 @@ public class CreateSpeakingScriptRequest
     public decimal PassingScore { get; set; } = 80.00m;
     public DateTime? DueAt { get; set; }
     public bool IsRemedial { get; set; }
+    public string? SampleAudioUrl { get; set; }
+    public string? InstructorNote { get; set; }
     [Required(ErrorMessage = "Phải cung cấp đủ nội dung các cấp độ.")]
     [MinLength(3, ErrorMessage = "Phải cung cấp đủ 3 cấp độ (BEGINNER, INTERMEDIATE, ADVANCED).")]
     public List<SaveLevelDto> Levels { get; set; } = new();
@@ -94,6 +104,9 @@ public class UpdateSpeakingScriptRequest
     public decimal? PassingScore { get; set; }
     public DateTime? DueAt { get; set; }
     public bool? IsRemedial { get; set; }
+    public string? SampleAudioUrl { get; set; }
+    public string? InstructorNote { get; set; }
+    public bool? ClearSampleAudio { get; set; }
     public List<SaveLevelDto>? Levels { get; set; }
 
     public List<SaveRubricCriterionDto>? RubricCriteria { get; set; }
@@ -138,6 +151,8 @@ public class SpeakingScriptDto
     public int? CreatedBy { get; set; }
     public string? CreatedByName { get; set; }
     public string Status { get; set; } = string.Empty;
+    public string? SampleAudioUrl { get; set; }
+    public string? InstructorNote { get; set; }
     public DateTime UpdatedAt { get; set; }
     public List<SpeakingScriptLevelDto> Levels { get; set; } = new();
     public List<SpeakingRubricCriterionDto> RubricCriteria { get; set; } = new();
