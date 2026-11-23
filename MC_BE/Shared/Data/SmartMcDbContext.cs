@@ -30,6 +30,7 @@ public class SmartMcDbContext : DbContext
     public DbSet<Role> Roles { get; set; } = null!;
     public DbSet<User> Users { get; set; } = null!;
     public DbSet<UserProfile> UserProfiles { get; set; } = null!;
+    public DbSet<UserLearningPreferences> UserLearningPreferences { get; set; } = null!;
     public DbSet<PasswordResetToken> PasswordResetTokens { get; set; } = null!;
     public DbSet<RefreshToken> RefreshTokens { get; set; } = null!;
 
@@ -205,6 +206,27 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
             entity.HasOne(d => d.User)
                 .WithOne(p => p.UserProfile)
                 .HasForeignKey<UserProfile>(d => d.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<UserLearningPreferences>(entity =>
+        {
+            entity.ToTable("UserLearningPreferences");
+
+            entity.HasKey(e => e.Id);
+
+            entity.HasIndex(e => e.UserId)
+                .IsUnique();
+
+            entity.Property(e => e.IsCompleted)
+                .HasDefaultValue(false);
+
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasOne(d => d.User)
+                .WithOne(p => p.LearningPreferences)
+                .HasForeignKey<UserLearningPreferences>(d => d.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
