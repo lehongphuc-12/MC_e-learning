@@ -1,3 +1,4 @@
+import { NotificationBell } from '../../../components/NotificationBell';
 
 import React, { useState } from 'react';
 import {
@@ -157,18 +158,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
           </button>
 
           {/* Notifications */}
-          <div className="relative">
-            <button
-              type="button"
-              className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 relative transition cursor-pointer"
-            >
-              <Bell className="w-5 h-5" />
-
-              {pendingApprovalsCount > 0 && (
-                <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-amber-500 rounded-full ring-2 ring-slate-900 animate-pulse" />
-              )}
-            </button>
-          </div>
+          <NotificationBell />
 
           {/* User Profile */}
           <div className="flex items-center space-x-3 pl-2 border-l border-slate-800">

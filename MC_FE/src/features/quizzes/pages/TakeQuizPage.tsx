@@ -1,3 +1,4 @@
+import { QuizNotice, friendlyQuizError } from '../components/QuizNotice';
 import { useQueryClient } from '@tanstack/react-query';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, ArrowLeft, Check, ChevronLeft, ChevronRight, Clock3, Flag, Mic2, BookOpen, FileText, CheckCircle2, GripVertical, Headphones, ListChecks, RotateCcw, Send, Sparkles, Trash2 } from 'lucide-react';
@@ -94,13 +95,13 @@ export const TakeQuizPage: React.FC = () => {
       const message = e instanceof Error ? e.message : 'Không thể nộp bài Quiz. Vui lòng thử lại.';
       const match = message.match(/Question\s+(\d+)\s+is required/i);
       const index = match ? questions.findIndex(q => q.questionId === Number(match[1])) : -1;
-      setSubmitError(index >= 0 ? `Bạn chưa trả lời câu hỏi số ${index + 1}. Vui lòng kiểm tra lại câu trả lời.` : match ? 'Có câu hỏi bắt buộc chưa được trả lời. Vui lòng kiểm tra lại bài làm.' : message);
+      setSubmitError(index >= 0 ? `Bạn chưa trả lời câu hỏi số ${index + 1}. Vui lòng kiểm tra lại câu trả lời.` : match ? 'Có câu hỏi bắt buộc chưa được trả lời. Vui lòng kiểm tra lại bài làm.' : friendlyQuizError(message).description);
       setConfirm(true);
     }
   };
   useEffect(() => { if (quiz && timed && left === 0 && !submitted.current) void doSubmit(true); }, [quiz?.attemptId, left]);
   if (isLoading) return <div className="flex min-h-[70vh] items-center justify-center"><div className="h-10 w-10 animate-spin rounded-full border-4 border-blue-100 border-t-blue-600"/></div>;
-  if (isError || !quiz || !question) return <div className="mx-auto max-w-xl p-10 text-center"><AlertCircle className="mx-auto h-10 w-10 text-red-500"/><p className="mt-3 font-semibold">{error instanceof Error ? error.message : 'Không thể tải bài Quiz.'}</p></div>;
+  if (isError || !quiz || !question) return <QuizNotice error={error} onBack={() => navigate(returnTo || "/courses")} onRetry={() => window.location.reload()} />;
   const locate = ['LISTEN_LOCATE_ERROR', 'ERROR_CORRECTION_LAB'].includes(question.questionType);
   return <div className="min-h-screen bg-[#f3f8ff] pb-12 text-[#0b2354]">
     <div className="mx-auto max-w-[1510px] px-3 pt-4 sm:px-6">

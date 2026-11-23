@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, BookOpenCheck, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, ClipboardCheck, FileText, Filter, Loader2, Mic2, RefreshCw, Save, Search, Sparkles, Star, UserRound, X } from 'lucide-react';
 import { quizApi } from '../api/quizApi';
 import type { InstructorQuizAttemptDto } from '../types/instructorGradingTypes';
@@ -49,6 +49,9 @@ const inputClass = 'w-full rounded-xl border border-[#D4E2F5] bg-white px-3.5 py
 
 export const InstructorQuizGradingPage: React.FC = () => {
   const { quizId: param } = useParams(); const quizId = Number(param); const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const requestedAttemptId = Number(searchParams.get('attemptId'));
+  const autoOpenedAttemptRef = useRef<number | null>(null);
   const [attempts, setAttempts] = useState<InstructorQuizAttemptDto[]>([]); const [selected, setSelected] = useState<number | null>(null);
   const [result, setResult] = useState<QuizResultDto | null>(null); const [scores, setScores] = useState<Record<number, string>>({});
   const [feedback, setFeedback] = useState<Record<number, string>>({}); const [busy, setBusy] = useState(false); const [loading, setLoading] = useState(true);
@@ -68,6 +71,13 @@ export const InstructorQuizGradingPage: React.FC = () => {
     catch (e) { setError(e instanceof Error ? e.message : 'Không tải được bài làm.'); }
     finally { setDetailLoading(false); }
   };
+  useEffect(() => {
+    if (!Number.isSafeInteger(requestedAttemptId) || requestedAttemptId <= 0 || loading) return;
+    if (attempts.some(a => a.attemptId === requestedAttemptId) && autoOpenedAttemptRef.current !== requestedAttemptId) {
+      autoOpenedAttemptRef.current = requestedAttemptId;
+      void open(requestedAttemptId);
+    }
+  }, [requestedAttemptId, loading, attempts, selected]);
   const grade = async (answer: QuizAnswerResultDto) => {
     const score = Number(scores[answer.quizAnswerId]);
     if (!scores[answer.quizAnswerId]?.trim() || !Number.isFinite(score) || score < 0 || score > (answer.maxScore ?? 0)) { setError(`Điểm phải từ 0 đến ${answer.maxScore ?? 0}.`); return; }

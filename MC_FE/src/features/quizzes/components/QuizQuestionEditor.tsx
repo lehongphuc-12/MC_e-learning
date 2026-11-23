@@ -541,6 +541,8 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                 />
                 Đúng
               </label>
+              <label className="block min-w-0 text-xs font-semibold text-slate-700">
+                <span className="mb-1.5 block">Nội dung đáp án</span>
               <input
                 value={choice.choiceText}
                 onChange={(e) =>
@@ -552,6 +554,9 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                 disabled={question.questionType === 'TRUE_FALSE'}
                 className="rounded-lg border border-[#dce5f3] bg-white px-3 py-2 text-sm outline-none focus:border-[#3154e8]"
               />
+              </label>
+              <label className="block min-w-0 text-xs font-semibold text-slate-700">
+                <span className="mb-1.5 block">Giá trị đáp án (không bắt buộc)</span>
               <input
                 value={choice.optionValue ?? ''}
                 onChange={(e) =>
@@ -562,6 +567,7 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                 placeholder="Giá trị (tuỳ chọn)"
                 className="rounded-lg border border-[#dce5f3] bg-white px-3 py-2 text-sm outline-none focus:border-[#3154e8]"
               />
+              </label>
               <button
                 type="button"
                 disabled={
@@ -573,6 +579,8 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
               >
                 <Trash2 className="h-4 w-4" />
               </button>
+              <label className="block min-w-0 text-xs font-semibold text-slate-700 md:col-start-2 md:col-span-2">
+                <span className="mb-1.5 block">Giải thích đáp án (không bắt buộc)</span>
               <input
                 value={choice.explanation ?? ''}
                 onChange={(e) =>
@@ -581,8 +589,9 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                   })
                 }
                 placeholder="Giải thích đáp án (không bắt buộc)"
-                className="md:col-start-2 md:col-span-2 rounded-lg border border-[#dce5f3] bg-white px-3 py-2 text-sm outline-none focus:border-[#3154e8]"
+                className="w-full rounded-lg border border-[#dce5f3] bg-white px-3 py-2 text-sm outline-none focus:border-[#3154e8]"
               />
+              </label>
             </div>
           ))}
         </div>
@@ -606,6 +615,8 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
         description="Nhập đáp án đúng dùng để chấm tự động."
         icon={<FileText className="h-5 w-5" />}
       >
+        <label className="block min-w-0 text-xs font-semibold text-slate-700">
+          <span className="mb-1.5 block">Đáp án đúng để chấm tự động</span>
         <input
           value={answer.optionValue ?? answer.choiceText ?? ''}
           onChange={(e) => {
@@ -623,6 +634,7 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
           placeholder="Ví dụ: phát âm"
           className="w-full rounded-xl border border-[#dce5f3] px-4 py-3 text-sm outline-none focus:border-[#3154e8]"
         />
+        </label>
       </Section>
     );
   };
@@ -646,6 +658,8 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
               className="rounded-xl border border-[#dce5f3] bg-[#f6f9fe] p-3"
             >
               <div className="grid gap-3 md:grid-cols-[150px_minmax(0,1fr)_180px_auto]">
+                <label className="block min-w-0 text-xs font-semibold text-slate-700">
+                  <span className="mb-1.5 block">Loại tệp đính kèm</span>
                 <select
                   value={media.mediaType}
                   onChange={(e) =>
@@ -659,6 +673,9 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                   <option value="VIDEO">Video</option>
                   <option value="IMAGE">Hình ảnh</option>
                 </select>
+                </label>
+                <label className="block min-w-0 text-xs font-semibold text-slate-700">
+                  <span className="mb-1.5 block">Đường dẫn tệp đính kèm</span>
                 <input
                   value={media.mediaUrl ?? ''}
                   onChange={(e) =>
@@ -669,6 +686,9 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                   placeholder="URL media..."
                   className="rounded-lg border border-[#dce5f3] bg-white px-3 py-2 text-sm outline-none focus:border-[#3154e8]"
                 />
+                </label>
+                <label className="block min-w-0 text-xs font-semibold text-slate-700">
+                  <span className="mb-1.5 block">Tên hiển thị (không bắt buộc)</span>
                 <input
                   value={media.label ?? ''}
                   onChange={(e) =>
@@ -679,6 +699,7 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                   placeholder="Nhãn"
                   className="rounded-lg border border-[#dce5f3] bg-white px-3 py-2 text-sm outline-none focus:border-[#3154e8]"
                 />
+                </label>
                 <button
                   type="button"
                   onClick={() => removeMedia(index)}
@@ -879,6 +900,8 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                 className="rounded-xl border border-blue-100 bg-[#eef4ff]/40 p-4"
               >
                 <div className="grid gap-3 md:grid-cols-4">
+                  <label className="block min-w-0 text-xs font-semibold text-slate-700">
+                    <span className="mb-1.5 block">Loại đánh dấu</span>
                   <select
                     value={annotation.annotationType}
                     onChange={(e) =>
@@ -894,6 +917,9 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                     <option value="PITCH_RISE">Pitch Rise</option>
                     <option value="PITCH_FALL">Pitch Fall</option>
                   </select>
+                  </label>
+                  <label className="block min-w-0 text-xs font-semibold text-slate-700">
+                    <span className="mb-1.5 block">Vị trí bắt đầu</span>
                   <input
                     type="number"
                     min={0}
@@ -906,6 +932,9 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                     placeholder="Start index"
                     className={inputClass}
                   />
+                  </label>
+                  <label className="block min-w-0 text-xs font-semibold text-slate-700">
+                    <span className="mb-1.5 block">Vị trí kết thúc</span>
                   <input
                     type="number"
                     min={0}
@@ -918,6 +947,7 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                     placeholder="End index"
                     className={inputClass}
                   />
+                  </label>
                   <button
                     type="button"
                     onClick={() => removeAnnotation(index)}
@@ -927,6 +957,8 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                   </button>
                 </div>
                 <div className="mt-3 grid gap-3 md:grid-cols-3">
+                  <label className="block min-w-0 text-xs font-semibold text-slate-700">
+                    <span className="mb-1.5 block">Giá trị đánh dấu (không bắt buộc)</span>
                   <input
                     value={annotation.annotationValue ?? ''}
                     onChange={(e) =>
@@ -937,6 +969,9 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                     placeholder="Giá trị annotation"
                     className={inputClass}
                   />
+                  </label>
+                  <label className="block min-w-0 text-xs font-semibold text-slate-700">
+                    <span className="mb-1.5 block">Giải thích đánh dấu (không bắt buộc)</span>
                   <input
                     value={annotation.explanation ?? ''}
                     onChange={(e) =>
@@ -947,6 +982,9 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                     placeholder="Giải thích"
                     className={inputClass}
                   />
+                  </label>
+                  <label className="block min-w-0 text-xs font-semibold text-slate-700">
+                    <span className="mb-1.5 block">Điểm cho đánh dấu</span>
                   <input
                     type="number"
                     min={0}
@@ -960,6 +998,7 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                     placeholder="Điểm"
                     className={inputClass}
                   />
+                  </label>
                 </div>
               </div>
             )
@@ -1060,7 +1099,7 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
           </Field>
         </div>
         <div className="mt-4 grid gap-3 md:grid-cols-2">
-          <Field label="Required Elements JSON">
+          <Field label="Các nội dung bắt buộc (JSON)">
             <textarea
               value={config.requiredElementsJson ?? ''}
               onChange={(e) =>
@@ -1073,7 +1112,7 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
               className={`${inputClass} resize-none font-mono text-xs`}
             />
           </Field>
-          <Field label="Grading Rubric JSON">
+          <Field label="Tiêu chí chấm điểm (JSON)">
             <textarea
               value={config.gradingRubricJson ?? ''}
               onChange={(e) =>
@@ -1199,7 +1238,7 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                 </button>
               </div>
               <div className="mt-4 grid gap-3 md:grid-cols-2">
-                <Field label="Client Key">
+                <Field label="Mã định danh bước">
                   <input
                     value={node.clientKey ?? ''}
                     onChange={(e) =>
@@ -1210,7 +1249,7 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                     className={inputClass}
                   />
                 </Field>
-                <Field label="Loại node">
+                <Field label="Loại bước">
                   <select
                     value={node.nodeType}
                     onChange={(e) =>
@@ -1237,7 +1276,7 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                     className={inputClass}
                   />
                 </Field>
-                <Field label="Media URL">
+                <Field label="Đường dẫn tệp đính kèm">
                   <input
                     value={node.mediaUrl ?? ''}
                     onChange={(e) =>
@@ -1328,7 +1367,7 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                                 className={inputClass}
                               />
                             </Field>
-                            <Field label="Đi tới node">
+                            <Field label="Chuyển đến bước">
                               <select
                                 value={
                                   choice.nextNodeClientKey ?? ''
@@ -1386,7 +1425,7 @@ export const QuizQuestionEditor: React.FC<QuizQuestionEditorProps> = ({
                                 className={inputClass}
                               />
                             </Field>
-                            <Field label="Feedback">
+                            <Field label="Nhận xét dành cho học viên">
                               <input
                                 value={choice.feedback ?? ''}
                                 onChange={(e) =>

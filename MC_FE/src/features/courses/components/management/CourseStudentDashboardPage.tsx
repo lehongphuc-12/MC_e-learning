@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, AlertCircle, BookOpen, CheckCircle2, Clock3, LoaderCircle, Search, Users } from 'lucide-react';
 import { useCourseDetail } from '../../hooks/useInstructorCourses';
 import { useCourseStudentInsights } from '../../../payment/hooks/useCourseStudents';
@@ -36,6 +36,8 @@ const formatDate = (value?: string | null) => value ? new Date(value).toLocaleDa
 
 export const CourseStudentDashboardPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const requestedStudentId = Number(searchParams.get('studentId'));
   const { id } = useParams<{ id: string }>();
   const courseId = Number(id);
   const [search, setSearch] = useState('');
@@ -50,6 +52,11 @@ export const CourseStudentDashboardPage: React.FC = () => {
     const matchesSearch = `${student.fullName} ${student.email}`.toLowerCase().includes(search.trim().toLowerCase());
     return matchesSearch && (filter === 'ALL' || student.riskStatus === filter);
   }), [students, search, filter]);
+  React.useEffect(() => {
+    if (Number.isSafeInteger(requestedStudentId) && requestedStudentId > 0 && students.some(s => s.userId === requestedStudentId)) {
+      setSelectedStudentId(requestedStudentId);
+    }
+  }, [requestedStudentId, students]);
   const selected = students.find(student => student.userId === selectedStudentId) ?? null;
   React.useEffect(() => {
     if (!selected) { setRemedialAssignments([]); return; }
