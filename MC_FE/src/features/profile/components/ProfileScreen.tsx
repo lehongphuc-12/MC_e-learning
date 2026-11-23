@@ -12,7 +12,8 @@ import {
   ShieldCheck,
   User
 } from 'lucide-react';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { User as UserType } from '../../../types';
 import { PasswordForm } from './profile/PasswordForm';
 import { PreferencesForm } from './profile/PreferencesForm';
@@ -35,8 +36,20 @@ const roleColor: Record<string, string> = {
   student: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
 };
 
+type ProfileTab = 'overview' | 'certificates' | 'purchases' | 'profile' | 'password' | 'settings';
+
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({ user, onNavigate, onUpdateUser, onToast }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'certificates' | 'purchases' | 'profile' | 'password' | 'settings'>('overview');
+  const [searchParams] = useSearchParams();
+  const requestedTab = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState<ProfileTab>(() =>
+    requestedTab === 'payment-history' && user.role === 'student' ? 'purchases' : 'overview'
+  );
+
+  useEffect(() => {
+    if (requestedTab === 'payment-history' && user.role === 'student') {
+      setActiveTab('purchases');
+    }
+  }, [requestedTab, user.role]);
   const { data: myCertificates = [], isLoading: isCertsLoading } = useMyCertificates();
   
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');

@@ -52,7 +52,6 @@ export const adminApi = {
     return response.data?.message ?? response.message ?? (approve ? 'Đã xử lý yêu cầu xóa.' : 'Đã từ chối yêu cầu.');
   },
 
-  // Stats
   async getDashboardStats(): Promise<AdminStats> {
     try {
       const res = await request<{ success: boolean; data: any }>('/admin/stats');
@@ -87,12 +86,13 @@ export const adminApi = {
     };
   },
 
-  async getRevenueChart(): Promise<RevenueDataPoint[]> {
-    try {
-      const res = await request<{ success: boolean; data: any }>('/admin/stats/revenue-chart');
-      if (res && res.success && Array.isArray(res.data)) return res.data;
-    } catch (_) {}
-    return [];
+  async getRevenueChart(year?: number): Promise<RevenueDataPoint[]> {
+    const url = `/admin/stats/revenue-chart${year !== undefined ? `?year=${year}` : ''}`;
+    const res = await request<{ success: boolean; data: RevenueDataPoint[] }>(url);
+    if (!res?.success || !Array.isArray(res.data)) {
+      throw new Error(`API doanh thu không trả dữ liệu hợp lệ: ${url}`);
+    }
+    return res.data;
   },
 
   // Users
@@ -404,7 +404,6 @@ export const adminApi = {
   },
 
 
-  // Payouts
   async getPayoutRequests(): Promise<PayoutRequest[]> {
     try {
       const res = await request<{ success: boolean; data: PayoutRequest[] }>('/admin/payouts');
@@ -413,7 +412,6 @@ export const adminApi = {
     return [];
   },
 
-  // System Logs & Settings
   async getSystemLogs(): Promise<SystemLog[]> {
     try {
       const res = await request<{ success: boolean; data: SystemLog[] }>('/admin/logs');

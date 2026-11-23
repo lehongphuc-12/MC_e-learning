@@ -1046,6 +1046,10 @@ namespace MC_BE.Migrations
                         .HasColumnType("text")
                         .HasColumnName("Level");
 
+                    b.Property<int?>("PrerequisiteCourseId")
+                        .HasColumnType("integer")
+                        .HasColumnName("PrerequisiteCourseID");
+
                     b.Property<string>("PreviewAssessmentOverview")
                         .HasColumnType("text")
                         .HasColumnName("PreviewAssessmentOverview");
@@ -1071,6 +1075,11 @@ namespace MC_BE.Migrations
                     b.Property<string>("RejectionReason")
                         .HasColumnType("text")
                         .HasColumnName("RejectionReason");
+
+                    b.Property<string>("SkillTags")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("SkillTags");
 
                     b.Property<string>("Slug")
                         .IsRequired()
@@ -1123,6 +1132,8 @@ namespace MC_BE.Migrations
                     b.HasIndex("CategoryId");
 
                     b.HasIndex("InstructorId");
+
+                    b.HasIndex("PrerequisiteCourseId");
 
                     b.HasIndex("Slug")
                         .IsUnique();
@@ -1558,8 +1569,7 @@ namespace MC_BE.Migrations
 
                     b.HasKey("SyllabusVersionId");
 
-                    b.HasIndex("ObjectKey")
-                        .IsUnique();
+                    b.HasIndex("ObjectKey");
 
                     b.HasIndex("ReviewedById");
 
@@ -2221,6 +2231,51 @@ namespace MC_BE.Migrations
                     b.HasIndex("CourseId");
 
                     b.ToTable("modules", (string)null);
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.Notification", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DedupKey")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<bool>("IsRead")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(250)
+                        .HasColumnType("character varying(250)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<string>("Url")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("notifications");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.PasswordResetToken", b =>
@@ -3789,6 +3844,10 @@ namespace MC_BE.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("DueAt");
 
+                    b.Property<string>("InstructorNote")
+                        .HasColumnType("text")
+                        .HasColumnName("InstructorNote");
+
                     b.Property<bool>("IsRemedial")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -3813,6 +3872,10 @@ namespace MC_BE.Migrations
                         .HasColumnType("decimal(5,2)")
                         .HasDefaultValue(80.00m)
                         .HasColumnName("PassingScore");
+
+                    b.Property<string>("SampleAudioUrl")
+                        .HasColumnType("text")
+                        .HasColumnName("SampleAudioUrl");
 
                     b.Property<string>("Scope")
                         .IsRequired()
@@ -4069,6 +4132,54 @@ namespace MC_BE.Migrations
                     b.HasIndex("RoleId");
 
                     b.ToTable("users", (string)null);
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.UserLearningPreferences", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("Id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ExperienceLevel")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("ExperienceLevel");
+
+                    b.Property<string>("FocusSkills")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("FocusSkills");
+
+                    b.Property<bool>("IsCompleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("IsCompleted");
+
+                    b.Property<string>("TargetCategories")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("TargetCategories");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("UpdatedAt")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer")
+                        .HasColumnName("UserId");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .IsUnique();
+
+                    b.ToTable("UserLearningPreferences", (string)null);
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.UserProfile", b =>
@@ -4921,6 +5032,10 @@ namespace MC_BE.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("MC_BE.Core.Entities.Course", "PrerequisiteCourse")
+                        .WithMany()
+                        .HasForeignKey("PrerequisiteCourseId");
+
                     b.HasOne("MC_BE.Core.Entities.CourseSyllabusVersion", "SubmittedSyllabusVersion")
                         .WithMany()
                         .HasForeignKey("SubmittedSyllabusVersionId")
@@ -4933,6 +5048,8 @@ namespace MC_BE.Migrations
                     b.Navigation("Category");
 
                     b.Navigation("Instructor");
+
+                    b.Navigation("PrerequisiteCourse");
 
                     b.Navigation("SubmittedSyllabusVersion");
                 });
@@ -5796,6 +5913,17 @@ namespace MC_BE.Migrations
                     b.Navigation("Role");
                 });
 
+            modelBuilder.Entity("MC_BE.Core.Entities.UserLearningPreferences", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.User", "User")
+                        .WithOne("LearningPreferences")
+                        .HasForeignKey("MC_BE.Core.Entities.UserLearningPreferences", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("MC_BE.Core.Entities.UserProfile", b =>
                 {
                     b.HasOne("MC_BE.Core.Entities.User", "User")
@@ -6034,6 +6162,8 @@ namespace MC_BE.Migrations
                     b.Navigation("Enrollments");
 
                     b.Navigation("InstructedCourses");
+
+                    b.Navigation("LearningPreferences");
 
                     b.Navigation("MessageReactions");
 

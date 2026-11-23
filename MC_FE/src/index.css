@@ -393,3 +393,25 @@
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
 }
+/* Gentle highlight on the learner catalog headline and hero carousel movement. */
+@keyframes catalogTitleShimmer {
+  0%, 18% { background-position: 100% 0; }
+  55%, 100% { background-position: -100% 0; }
+}
+.catalog-title-sparkle {
+  color: transparent;
+  background-image: linear-gradient(105deg, #fff 0%, #fff 42%, #c8e3ff 50%, #fff 58%, #fff 100%);
+  background-size: 220% 100%;
+  background-position: 100% 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: catalogTitleShimmer 7s ease-in-out infinite;
+}
+@keyframes catalogCarouselSlide {
+  from { opacity: .45; transform: translateX(12px) scale(.985); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
+}
+.catalog-carousel-slide { animation: catalogCarouselSlide .45s ease-out both; }
+@media (prefers-reduced-motion: reduce) {
+  .catalog-title-sparkle, .catalog-carousel-slide { animation: none !important; }
+}

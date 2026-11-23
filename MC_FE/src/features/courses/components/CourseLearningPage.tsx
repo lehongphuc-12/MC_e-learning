@@ -42,6 +42,7 @@ import {
   LockKeyhole,
   Target,
   ListChecks,
+  Headphones,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { WaveformVisualizer } from '@/components/ui/waveform-visualizer';
@@ -66,6 +67,12 @@ import { Toast, ToastMessage } from '../../../components/common/Toast';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { lessonApi } from '../api/lessonApi';
 import { remedialAssignmentApi, type RemedialAssignmentDto } from '../api/remedialAssignmentApi';
+import {
+  getLearningHub,
+  joinCourseGroup,
+  leaveCourseGroup,
+  type SpeakingAssignmentUpdatedEvent,
+} from '../services/learningHub';
 
 import type { Lesson } from '../types/lessonTypes';
 import type { Certificate } from '../types/learningTypes';
@@ -137,19 +144,31 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
   const [scriptData, setScriptData] = useState<SpeakingScriptDto | null>(null);
   const [isLoadingScript, setIsLoadingScript] = useState<boolean>(true);
 
+  // Unified speaking script: seamlessly merges remote fetched scriptData with parent scriptOverride
+  const activeScript = useMemo<SpeakingScriptDto | null>(() => {
+    if (scriptData && scriptOverride) {
+      return { ...scriptOverride, ...scriptData };
+    }
+    return scriptData || scriptOverride || null;
+  }, [scriptData, scriptOverride]);
+
   // Rubric Collapse/Expand State
   const [isRubricExpanded, setIsRubricExpanded] = useState<boolean>(true);
 
+  // Instructor Guidance & Sample Audio Collapse/Expand & Ref
+  const [isGuideExpanded, setIsGuideExpanded] = useState<boolean>(true);
+  const instructorSampleAudioRef = useRef<HTMLAudioElement | null>(null);
+
   // Compute Rubric Criteria with Fallback
   const rubricCriteria = useMemo(() => {
-    const list = scriptData?.rubricCriteria ?? scriptOverride?.rubricCriteria ?? submission?.rubricCriteria;
+    const list = activeScript?.rubricCriteria ?? submission?.rubricCriteria;
     if (list && list.length > 0) return list;
     return [
       { criterionId: 1, scriptId: 0, code: 'C01', name: 'Phát âm & thanh điệu', weightPercentage: 18, isMandatory: true, orderIndex: 1, updatedAt: '' },
       { criterionId: 2, scriptId: 0, code: 'C02', name: 'Độ rõ lời', weightPercentage: 10, isMandatory: true, orderIndex: 2, updatedAt: '' },
       { criterionId: 3, scriptId: 0, code: 'C03', name: 'Độ chính xác nội dung', weightPercentage: 7, isMandatory: true, orderIndex: 3, updatedAt: '' },
     ];
-  }, [scriptData, scriptOverride, submission]);
+  }, [activeScript, submission]);
 
   // Active Practice Level
   const [selectedLevel, setSelectedLevel] = useState<SpeakingLevel>('BEGINNER');
@@ -303,6 +322,17 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
     if (scriptOverride) {
       setScriptData(scriptOverride);
       setIsLoadingScript(false);
+      // Fetch fresh detail from server in background to ensure latest audio / notes are loaded
+      if (scriptOverride.scriptId) {
+        speakingApi
+          .getSpeakingScriptById(scriptOverride.scriptId)
+          .then((res) => {
+            if (alive && res.success && res.data) {
+              setScriptData((prev) => (prev ? { ...prev, ...res.data } : res.data));
+            }
+          })
+          .catch(() => {});
+      }
       setIsLoadingSubmission(true);
       setErrorMsg(null);
       speakingApi
@@ -403,6 +433,106 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
       if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
     };
   }, [lesson?.lessonId, scriptOverride?.scriptId]);
+
+  // Sync scriptData when parent scriptOverride prop updates in real-time
+  useEffect(() => {
+    if (scriptOverride) {
+      setScriptData((prev) => (prev ? { ...prev, ...scriptOverride } : scriptOverride));
+    }
+  }, [scriptOverride]);
+
+  // Silent refetch speaking script detail for real-time synchronization without UI interruptions
+  const silentRefetchSpeakingDetail = useCallback(async (notifyToast = true) => {
+    try {
+      let updatedScript: SpeakingScriptDto | null = null;
+      const targetScriptId = scriptOverride?.scriptId || scriptData?.scriptId;
+
+      if (targetScriptId) {
+        const res = await speakingApi.getSpeakingScriptById(targetScriptId);
+        if (res.success && res.data) {
+          updatedScript = res.data;
+        }
+      } else if (lesson?.lessonId) {
+        const res = await speakingApi.getScriptByLesson(lesson.lessonId);
+        if (res.success && res.data) {
+          updatedScript = res.data;
+        }
+      }
+
+      if (updatedScript) {
+        // If sample audio changed, pause and reset player to 0:00
+        const currentAudioUrl = activeScript?.sampleAudioUrl;
+        if (updatedScript.sampleAudioUrl !== currentAudioUrl && instructorSampleAudioRef.current) {
+          if (!instructorSampleAudioRef.current.paused) {
+            instructorSampleAudioRef.current.pause();
+          }
+          instructorSampleAudioRef.current.currentTime = 0;
+        }
+
+        // Update scriptData state smoothly without resetting teleprompter scroll, font size or recording stream
+        setScriptData(updatedScript);
+
+        if (notifyToast) {
+          showToast(
+            'Giảng viên vừa cập nhật hướng dẫn!',
+            'Audio mẫu và lưu ý bài tập nói đã được tự động làm mới.',
+            'info'
+          );
+        }
+      }
+    } catch (err) {
+      console.warn('Silent refetch speaking detail error:', err);
+    }
+  }, [scriptOverride?.scriptId, scriptData?.scriptId, activeScript?.sampleAudioUrl, lesson?.lessonId]);
+
+  // Real-time SignalR listener for speaking assignment updates
+  useEffect(() => {
+    const hub = getLearningHub();
+
+    const onSpeakingUpdated = (payload: SpeakingAssignmentUpdatedEvent) => {
+      const currentScriptId = scriptOverride?.scriptId || scriptData?.scriptId;
+      const currentLessonId = lesson?.lessonId;
+
+      const isMatch =
+        (payload.scriptId && payload.scriptId === currentScriptId) ||
+        (payload.speakingScriptId && payload.speakingScriptId === currentScriptId) ||
+        (payload.lessonId && payload.lessonId === currentLessonId) ||
+        (payload.courseId === courseId);
+
+      if (isMatch) {
+        void silentRefetchSpeakingDetail(true);
+      }
+    };
+
+    hub.on('SpeakingAssignmentUpdated', onSpeakingUpdated);
+
+    return () => {
+      hub.off('SpeakingAssignmentUpdated', onSpeakingUpdated);
+    };
+  }, [scriptOverride?.scriptId, scriptData?.scriptId, lesson?.lessonId, courseId, silentRefetchSpeakingDetail]);
+
+  // Fallback auto-revalidation when switching back to tab / window focus
+  useEffect(() => {
+    let lastRefetch = Date.now();
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible') {
+        const now = Date.now();
+        // Throttle 4 seconds
+        if (now - lastRefetch > 4000) {
+          lastRefetch = now;
+          void silentRefetchSpeakingDetail(false);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+    window.addEventListener('focus', handleVisibilityOrFocus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+    };
+  }, [silentRefetchSpeakingDetail]);
 
   // Helper function to strictly filter tags according to each level specification
   const filterContentByLevel = (text: string, level: SpeakingLevel): string => {
@@ -804,6 +934,10 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
       mediaRecorder.start();
       setIsRecording(true);
       setIsRubricExpanded(false);
+      setIsGuideExpanded(false);
+      if (instructorSampleAudioRef.current) {
+        instructorSampleAudioRef.current.pause();
+      }
       setRecordingTime(0);
 
       // Play background music if learner selected one
@@ -829,6 +963,9 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
   const handleStartRecording = () => {
     if (isRecording || countdown !== null) return;
     setErrorMsg(null);
+    if (instructorSampleAudioRef.current) {
+      instructorSampleAudioRef.current.pause();
+    }
 
     // 3.. 2.. 1.. Studio countdown before recording & auto-scrolling
     setCountdown(3);
@@ -1010,10 +1147,14 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
 
     try {
       const formData = new FormData();
-      if (scriptOverride) {
-        formData.append('ScriptId', scriptOverride.scriptId.toString());
+      const targetScript = scriptOverride ?? scriptData;
+      if (targetScript?.scriptId) {
+        formData.append('ScriptId', targetScript.scriptId.toString());
       }
-      if (lesson?.lessonId) {
+      if (targetScript?.scope) {
+        formData.append('Scope', targetScript.scope);
+      }
+      if (lesson?.lessonId && (!targetScript?.lessonId || targetScript.lessonId === lesson.lessonId || lesson.lessonType?.toUpperCase() === 'ASSIGNMENT')) {
         formData.append('LessonId', lesson.lessonId.toString());
       }
 
@@ -1082,7 +1223,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
               <span>PHÒNG LUYỆN NÓI STUDIO TELEPROMPTER</span>
             </div>
             <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
-              {scriptOverride?.title || lesson?.title || 'Bài tập luyện nói'}
+              {activeScript?.title || scriptOverride?.title || lesson?.title || 'Bài tập luyện nói'}
               {lesson?.isLocked && (
                 <span className="ml-2 text-xs font-semibold text-slate-400">· Chưa mở khóa</span>
               )}
@@ -1151,7 +1292,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                   Tiêu chí chấm điểm & Yêu cầu từ giảng viên
                 </h3>
                 <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-800 px-2.5 py-0.5 text-[10px] font-black border border-emerald-300">
-                  <Award className="h-3 w-3 text-emerald-600" /> Điểm chuẩn Đạt: ≥ {scriptData?.passingScore ?? 80}/100 đ
+                  <Award className="h-3 w-3 text-emerald-600" /> Điểm chuẩn Đạt: ≥ {activeScript?.passingScore ?? 80}/100 đ
                 </span>
               </div>
               <p className="text-[11px] text-slate-500 font-medium mt-0.5">
@@ -1255,6 +1396,80 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
           </div>
         )}
       </div>
+
+      {/* ── Instructor Guidance & Sample Audio Panel ── */}
+      {Boolean(activeScript?.sampleAudioUrl || activeScript?.instructorNote) && (
+        <div className="mx-5 md:mx-8 mt-4 rounded-3xl border border-indigo-200/90 bg-gradient-to-r from-indigo-50/70 via-blue-50/40 to-slate-50/80 p-4 md:p-5 shadow-xs transition-all">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-gradient-to-tr from-indigo-600 to-blue-600 text-white shadow-xs shrink-0">
+                <Headphones className="h-4 w-4" />
+              </div>
+              <div>
+                <h3 className="text-xs md:text-sm font-black text-slate-900 tracking-tight flex items-center gap-2">
+                  Hướng dẫn & Audio mẫu từ giảng viên
+                </h3>
+                <p className="text-[11px] text-slate-500 font-medium">
+                  Tham khảo giọng đọc mẫu và lời dặn dò chuyên môn trước khi thực hiện thu âm
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsGuideExpanded((prev) => !prev)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-indigo-200 bg-white/80 hover:bg-white text-xs font-bold text-indigo-700 transition-colors shadow-2xs cursor-pointer"
+            >
+              <span>{isGuideExpanded ? 'Thu gọn' : 'Xem hướng dẫn'}</span>
+              <ChevronDown
+                className={`h-3.5 w-3.5 transition-transform duration-200 ${
+                  isGuideExpanded ? 'rotate-180' : ''
+                }`}
+              />
+            </button>
+          </div>
+
+          {isGuideExpanded && (
+            <div className="mt-4 pt-4 border-t border-indigo-100/80 space-y-3.5 animate-in fade-in duration-200">
+              {/* Audio đọc mẫu */}
+              {Boolean(activeScript?.sampleAudioUrl) && (
+                <div className="rounded-2xl bg-white/90 border border-indigo-100 p-3.5 shadow-2xs">
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                    <span className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+                      <Volume2 className="h-3.5 w-3.5 text-indigo-600" />
+                      Nghe giọng đọc mẫu để tham khảo nhịp điệu & nhấn nhá:
+                    </span>
+                    <span className="text-[11px] font-semibold text-indigo-600/80 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200/50">
+                      Giọng giảng viên chuẩn
+                    </span>
+                  </div>
+                  <audio
+                    ref={instructorSampleAudioRef}
+                    controls
+                    src={activeScript?.sampleAudioUrl || undefined}
+                    className="w-full h-10 rounded-xl"
+                  />
+                </div>
+              )}
+
+              {/* Dặn dò của giảng viên */}
+              {Boolean(activeScript?.instructorNote) && (
+                <div className="rounded-2xl bg-blue-50/70 border-l-4 border-blue-500 p-4 shadow-2xs">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <FileText className="h-4 w-4 text-blue-600 shrink-0" />
+                    <span className="text-xs font-black uppercase tracking-wider text-blue-900">
+                      Dặn dò & Lưu ý của giảng viên:
+                    </span>
+                  </div>
+                  <p className="text-xs font-medium text-slate-800 leading-relaxed whitespace-pre-line pl-6">
+                    {activeScript?.instructorNote}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Error Banner ── */}
       {errorMsg && (
@@ -1982,7 +2197,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
     </div>
   );
 };
-export function getEmbedVideoUrl(url?: string): string | null {
+export function getEmbedVideoUrl(url?: string | null): string | null {
   if (!url) return null;
 
   // Handle YouTube
@@ -2069,6 +2284,19 @@ export const CourseLearningPage: React.FC = () => {
   const [isRemedialPanelOpen, setIsRemedialPanelOpen] = useState(false);
   const [remedialAssignmentsError, setRemedialAssignmentsError] = useState<string | null>(null);
   const [remedialAssignmentsReloadKey, setRemedialAssignmentsReloadKey] = useState(0);
+  const [pageToastMessage, setPageToastMessage] = useState<ToastMessage | null>(null);
+  const pageToastTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const showPageToast = useCallback((title: string, desc?: string, type: 'success' | 'info' | 'warning' | 'error' = 'warning') => {
+    setPageToastMessage({ title, desc, type });
+    if (pageToastTimerRef.current) clearTimeout(pageToastTimerRef.current);
+    pageToastTimerRef.current = setTimeout(() => setPageToastMessage(null), 3500);
+  }, []);
+  const toast = useMemo(() => ({
+    warning: (msg: string) => showPageToast('Thông báo', msg, 'warning'),
+    error: (msg: string) => showPageToast('Lỗi', msg, 'error'),
+    success: (msg: string) => showPageToast('Thành công', msg, 'success'),
+    info: (msg: string) => showPageToast('Thông báo', msg, 'info'),
+  }), [showPageToast]);
 
   const initialLessonId = searchParams.get('lessonId')
     ? Number(searchParams.get('lessonId'))
@@ -2088,7 +2316,7 @@ export const CourseLearningPage: React.FC = () => {
       loading = true;
       try {
         const response = await remedialAssignmentApi.getForLearner(courseId);
-        if (!response.success) throw new Error(response.message || 'Không thể tải danh sách bài bổ trợ.');
+        if (!response.success) throw new Error((response as any).message || 'Không thể tải danh sách bài bổ trợ.');
         if (active) {
           setLearnerRemedialAssignments(response.data ?? []);
           setRemedialAssignmentsError(null);
@@ -2283,9 +2511,15 @@ export const CourseLearningPage: React.FC = () => {
   const [activeLesson, setActiveLesson] =
     useState<Lesson | null>(null);
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
+  const [playbackError, setPlaybackError] = useState<string | null>(null);
   const pendingVideoPositionRef = useRef<number | null>(null);
   const shouldResumeVideoRef = useRef(false);
   const retriedPlaybackLessonRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    setPlaybackError(null);
+    retriedPlaybackLessonRef.current = null;
+  }, [activeLesson?.lessonId]);
 
   useEffect(() => {
     if (!activeLesson) return;
@@ -2296,6 +2530,140 @@ export const CourseLearningPage: React.FC = () => {
       setActiveLesson(refreshed);
     }
   }, [orderedLessons, activeLesson]);
+
+  // Real-time SignalR Synchronization for Course Speaking Scripts & Active Speaking Item
+  useEffect(() => {
+    if (!courseId) return;
+    let isSubscribed = true;
+
+    void joinCourseGroup(courseId);
+
+    const hub = getLearningHub();
+    const handleSpeakingAssignmentUpdated = async (payload: SpeakingAssignmentUpdatedEvent) => {
+      if (!isSubscribed) return;
+      if (payload.courseId === courseId) {
+        try {
+          const res = await speakingApi.getSpeakingScriptsByCourse(courseId);
+          if (isSubscribed && res.success && res.data) {
+            setCourseSpeakingScripts(res.data);
+            const targetScriptId = activeSpeakingScript?.scriptId || payload.scriptId || payload.speakingScriptId;
+            if (targetScriptId) {
+              const matched = res.data.find((s) => s.scriptId === targetScriptId);
+              if (matched) {
+                setActiveSpeakingScript(matched);
+                return;
+              }
+            }
+            if (activeLesson) {
+              const matched = res.data.find(
+                (s) =>
+                  s.lessonId === activeLesson.lessonId ||
+                  (s.scope === 'FINAL' && activeLesson.lessonType?.toUpperCase() === 'ASSIGNMENT')
+              );
+              if (matched) {
+                setActiveSpeakingScript(matched);
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('Real-time sync speaking scripts failed:', e);
+        }
+      }
+    };
+
+    hub.on('SpeakingAssignmentUpdated', handleSpeakingAssignmentUpdated);
+
+    return () => {
+      isSubscribed = false;
+      hub.off('SpeakingAssignmentUpdated', handleSpeakingAssignmentUpdated);
+      void leaveCourseGroup(courseId);
+    };
+  }, [courseId, activeSpeakingScript?.scriptId, activeLesson]);
+
+  // Fallback Auto-revalidation when returning to Course Learning tab
+  useEffect(() => {
+    if (!courseId) return;
+    let lastSyncTime = Date.now();
+
+    const handleWindowFocusSync = () => {
+      if (document.visibilityState === 'visible') {
+        const now = Date.now();
+        if (now - lastSyncTime > 4000) {
+          lastSyncTime = now;
+          speakingApi
+            .getSpeakingScriptsByCourse(courseId)
+            .then((res) => {
+              if (res.success && res.data) {
+                setCourseSpeakingScripts(res.data);
+                const targetScriptId = activeSpeakingScript?.scriptId;
+                if (targetScriptId) {
+                  const matched = res.data.find((s) => s.scriptId === targetScriptId);
+                  if (matched) {
+                    setActiveSpeakingScript(matched);
+                    return;
+                  }
+                }
+                if (activeLesson) {
+                  const matched = res.data.find(
+                    (s) =>
+                      s.lessonId === activeLesson.lessonId ||
+                      (s.scope === 'FINAL' && activeLesson.lessonType?.toUpperCase() === 'ASSIGNMENT')
+                  );
+                  if (matched) {
+                    setActiveSpeakingScript(matched);
+                  }
+                }
+              }
+            })
+            .catch(() => {});
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleWindowFocusSync);
+    window.addEventListener('focus', handleWindowFocusSync);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleWindowFocusSync);
+      window.removeEventListener('focus', handleWindowFocusSync);
+    };
+  }, [courseId, activeSpeakingScript?.scriptId, activeLesson]);
+
+  // Auto-bind activeSpeakingScript on load, F5, or when courseSpeakingScripts is fetched
+  useEffect(() => {
+    if (courseSpeakingScripts.length === 0) return;
+    const targetLessonId = initialLessonId || activeLesson?.lessonId;
+    const currentLesson = orderedLessons.find((l) => l.lessonId === targetLessonId) || activeLesson;
+
+    if (activeSpeakingScript) {
+      const updated = courseSpeakingScripts.find((s) => s.scriptId === activeSpeakingScript.scriptId);
+      if (
+        updated &&
+        (updated.sampleAudioUrl !== activeSpeakingScript.sampleAudioUrl ||
+          updated.instructorNote !== activeSpeakingScript.instructorNote ||
+          updated.passingScore !== activeSpeakingScript.passingScore ||
+          updated.title !== activeSpeakingScript.title)
+      ) {
+        setActiveSpeakingScript(updated);
+      }
+      return;
+    }
+
+    if (!currentLesson) return;
+
+    const matched =
+      courseSpeakingScripts.find((s) => s.lessonId === currentLesson.lessonId) ||
+      courseSpeakingScripts.find(
+        (s) =>
+          s.scope === 'FINAL' &&
+          (s.title.trim().toLowerCase() === currentLesson.title.trim().toLowerCase() ||
+            currentLesson.lessonType?.toUpperCase() === 'ASSIGNMENT')
+      );
+
+    if (matched) {
+      setActiveSpeakingScript(matched);
+    }
+  }, [courseSpeakingScripts, activeLesson, initialLessonId, orderedLessons, activeSpeakingScript]);
 
   const lessonMaterials = courseMaterials.filter(m => m.lessonId == null || (activeLesson?.isLocked !== true && m.lessonId === activeLesson?.lessonId));
 
@@ -2397,6 +2765,25 @@ export const CourseLearningPage: React.FC = () => {
       alive = false;
     };
   }, [finalSpeakingItems, user?.id, completedLessonIds]);
+
+  // Đồng bộ completedLessonIds khi bài thi nói cuối khóa (dạng lesson) đã đạt yêu cầu (≥ 80đ)
+  useEffect(() => {
+    finalSpeakingItems.forEach((item) => {
+      if (!item.lessonId) return;
+      const sub = finalSpeakingSubmissions[item.key];
+      if (!sub) return;
+      const score = sub.score != null ? Number(sub.score) : null;
+      const hasZeroCriterion = sub.criterionScores && sub.criterionScores.length > 0
+        ? sub.criterionScores.some((c) => Number(c.score) <= 0)
+        : false;
+      const isSpeakingPassed = sub.isPassed !== undefined && sub.isPassed !== null
+        ? sub.isPassed
+        : (score !== null && score >= 80 && !hasZeroCriterion && sub.status !== 'NEEDS_RESUBMISSION');
+      if (isSpeakingPassed) {
+        setCompletedLessonIds((prev) => (prev.includes(item.lessonId!) ? prev : [...prev, item.lessonId!]));
+      }
+    });
+  }, [finalSpeakingSubmissions, finalSpeakingItems]);
 
   const [isVideoEnded, setIsVideoEnded] =
     useState(false);
@@ -3262,7 +3649,8 @@ export const CourseLearningPage: React.FC = () => {
         toast.warning(matchLesson.lockReason || 'Bài học này đang bị khóa!');
         return;
       }
-      if (!completedLessonIds.includes(script.lessonId)) {
+      const isAssignment = matchLesson?.lessonType?.toUpperCase() === 'ASSIGNMENT';
+      if (!isAssignment && !completedLessonIds.includes(script.lessonId)) {
         toast.warning('Vui lòng hoàn thành video bài học trước khi làm bài luyện nói!');
         return;
       }
@@ -3979,7 +4367,11 @@ export const CourseLearningPage: React.FC = () => {
                           }
                         }}
                         onError={(e) => {
-                          if (!activeLesson?.hasVideo || retriedPlaybackLessonRef.current === activeLesson.lessonId) return;
+                          if (!activeLesson?.hasVideo) return;
+                          if (retriedPlaybackLessonRef.current === activeLesson.lessonId) {
+                            setPlaybackError('Không phát được video này. Tệp có thể dùng codec không được trình duyệt hỗ trợ hoặc video trên kho lưu trữ bị lỗi. Hãy thử trình duyệt khác; nếu vẫn lỗi, vui lòng báo giảng viên tải lại video dạng MP4 (H.264).');
+                            return;
+                          }
                           retriedPlaybackLessonRef.current = activeLesson.lessonId;
                           const video = e.currentTarget;
                           pendingVideoPositionRef.current = video.currentTime;
@@ -3993,6 +4385,11 @@ export const CourseLearningPage: React.FC = () => {
                         onTimeUpdate={(e) => {
                           const v = e.currentTarget;
                           const lessonId = activeLesson?.lessonId;
+
+                          // A browser can load duration and advance audio while failing to decode video frames.
+                          if (v.currentTime >= 5 && (!v.videoWidth || !v.videoHeight)) {
+                            setPlaybackError('Video đang chạy nhưng trình duyệt không giải mã được hình ảnh. Có thể tệp dùng codec không tương thích; hãy thử trình duyệt khác hoặc nhờ giảng viên tải lại dưới dạng MP4 (H.264).');
+                          }
 
                           handleVideoTimeUpdate(v.currentTime);
                           const watchedEnough = lessonId
@@ -4059,6 +4456,14 @@ export const CourseLearningPage: React.FC = () => {
                     </div>
                   )}
                 </>
+              )}
+              {playbackError && activeLesson && (
+                <div role="alert" className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/90 p-6 text-center">
+                  <div className="max-w-lg rounded-2xl border border-rose-300/30 bg-slate-900 p-6 text-rose-100 shadow-2xl">
+                    <p className="font-bold">Không phát được video bài học</p>
+                    <p className="mt-2 text-sm leading-relaxed text-slate-300">{playbackError}</p>
+                  </div>
+                </div>
               )}
             </div>
 
@@ -4387,7 +4792,7 @@ export const CourseLearningPage: React.FC = () => {
                 <p className="text-[11px] text-slate-500 mt-0.5 font-medium">
                   {completedLessonIds.length}/
                   {totalLessonCount}{' '}
-                  bài đã xem
+                  bài hoàn thành
                 </p>
               </div>
 
@@ -4798,6 +5203,9 @@ export const CourseLearningPage: React.FC = () => {
                           const handleClickSelect = () => {
                             if (item.lesson) {
                               handleSelectLesson(item.lesson);
+                              if (item.script) {
+                                setActiveSpeakingScript(item.script);
+                              }
                             } else if (item.script) {
                               handleSelectSpeakingScript(item.script);
                             }
@@ -4905,6 +5313,7 @@ export const CourseLearningPage: React.FC = () => {
                                   returnTo={getQuizReturnTo(item.lessonId)}
                                   onTake={handleClickSelect}
                                   canTakeSpeaking={!item.isLocked}
+                                  hideActionButtons={true}
                                 />
                               </div>
                             </div>
@@ -5142,6 +5551,9 @@ export const CourseLearningPage: React.FC = () => {
           }
         }}
       />
+
+      {/* Global Page Toast Notification */}
+      <Toast toast={pageToastMessage} onClose={() => setPageToastMessage(null)} />
     </div>
   );
 };
