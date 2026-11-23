@@ -3873,6 +3873,10 @@ namespace MC_BE.Migrations
                         .HasDefaultValue(80.00m)
                         .HasColumnName("PassingScore");
 
+                    b.Property<string>("PromptContent")
+                        .HasColumnType("text")
+                        .HasColumnName("PromptContent");
+
                     b.Property<string>("SampleAudioUrl")
                         .HasColumnType("text")
                         .HasColumnName("SampleAudioUrl");
@@ -3884,12 +3888,26 @@ namespace MC_BE.Migrations
                         .HasDefaultValue("FINAL")
                         .HasColumnName("Scope");
 
+                    b.Property<int>("ScriptType")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("ScriptType");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
                         .HasColumnType("text")
                         .HasDefaultValue("DRAFT")
                         .HasColumnName("Status");
+
+                    b.Property<string>("StructureHints")
+                        .HasColumnType("text")
+                        .HasColumnName("StructureHints");
+
+                    b.Property<int?>("TargetDurationSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("TargetDurationSeconds");
 
                     b.Property<string>("Title")
                         .IsRequired()
@@ -4014,6 +4032,10 @@ namespace MC_BE.Migrations
                         .HasColumnType("text")
                         .HasDefaultValue("SUBMITTED")
                         .HasColumnName("Status");
+
+                    b.Property<string>("StudentNote")
+                        .HasColumnType("text")
+                        .HasColumnName("StudentNote");
 
                     b.Property<DateTime>("SubmittedAt")
                         .ValueGeneratedOnAdd()

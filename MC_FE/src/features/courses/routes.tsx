@@ -19,6 +19,7 @@ import { InstructorSpeakingPage } from './components/management/InstructorSpeaki
 import { InstructorSpeakingAssignmentsPage } from './components/management/InstructorSpeakingAssignmentsPage';
 import { InstructorSpeakingAssignmentFormPage } from './components/management/InstructorSpeakingAssignmentFormPage';
 import { SpeakingResultPage } from './pages/SpeakingResultPage';
+import { CourseCompletionSummaryPage } from './pages/CourseCompletionSummaryPage';
 import { ProtectedRoute } from '../../components/common/ProtectedRoute';
 import { ToastType } from '../../components/common/Toast';
 
@@ -203,6 +204,24 @@ export const renderCourseRoutes = ({
             <CourseLearningAccessGate user={user}>
               <CourseLearningPage />
             </CourseLearningAccessGate>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/courses/:id/summary"
+        element={
+          <ProtectedRoute user={user}>
+            {withMainLayout(<CourseCompletionSummaryPage />)}
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/courses/:id/completion-summary"
+        element={
+          <ProtectedRoute user={user}>
+            {withMainLayout(<CourseCompletionSummaryPage />)}
           </ProtectedRoute>
         }
       />

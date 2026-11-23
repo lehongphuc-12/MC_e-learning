@@ -52,6 +52,7 @@ public class SpeakingScriptController : ControllerBase
         (!script.IsRemedial || await _remedialAssignments.CanAccessContentAsync(learnerId, "SPEAKING", script.ScriptId));
 
     [HttpGet]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public async Task<ActionResult<ApiResponse<IEnumerable<SpeakingScriptDto>>>> GetScripts(
         [FromQuery] int? courseId,
         [FromQuery] SpeakingScope? scope,
@@ -59,6 +60,7 @@ public class SpeakingScriptController : ControllerBase
         [FromQuery] int? lessonId,
         [FromQuery] string? search)
     {
+        Response.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
         try
         {
             var scripts = await _scriptService.GetAllScriptsAsync(courseId, scope, moduleId, lessonId, search);
@@ -82,8 +84,10 @@ public class SpeakingScriptController : ControllerBase
     }
 
     [HttpGet("{id:int}")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public async Task<ActionResult<ApiResponse<SpeakingScriptDto>>> GetScriptById(int id)
     {
+        Response.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
         try
         {
             var script = await _scriptService.GetScriptByIdAsync(id);
@@ -104,8 +108,10 @@ public class SpeakingScriptController : ControllerBase
     }
 
     [HttpGet("course/{courseId:int}")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public async Task<ActionResult<ApiResponse<IEnumerable<SpeakingScriptDto>>>> GetScriptsByCourse(int courseId)
     {
+        Response.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
         try
         {
             var scripts = await _scriptService.GetScriptsByCourseAsync(courseId);
@@ -404,8 +410,10 @@ public class SpeakingScriptController : ControllerBase
     }
 
     [HttpGet("lessons/{lessonId:int}")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public async Task<ActionResult<ApiResponse<SpeakingScriptDto>>> GetScriptByLesson(int lessonId)
     {
+        Response.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
         try
         {
             var script = await _scriptService.GetScriptByLessonAsync(lessonId);
@@ -426,8 +434,10 @@ public class SpeakingScriptController : ControllerBase
     }
 
     [HttpGet("lessons/{lessonId:int}/level/{level}")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public async Task<ActionResult<ApiResponse<SpeakingScriptLevelDto>>> GetLevelContent(int lessonId, SpeakingLevel level)
     {
+        Response.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
         try
         {
             var script = await _scriptService.GetScriptByLessonAsync(lessonId);

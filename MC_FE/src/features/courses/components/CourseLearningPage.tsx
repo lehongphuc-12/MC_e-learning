@@ -92,6 +92,10 @@ import {
   Zap,
   Sprout,
   Hourglass,
+  Lightbulb,
+  Check,
+  Trash2,
+  Plus,
 } from 'lucide-react';
 import { request } from '../../../services/api';
 
@@ -151,6 +155,96 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
     }
     return scriptData || scriptOverride || null;
   }, [scriptData, scriptOverride]);
+
+  const user = useAuthStore((state) => state.user);
+
+  // Check if current script is OpenPrompt (ScriptType === 'OpenPrompt' or 2)
+  const isOpenPrompt = useMemo(() => {
+    const type = activeScript?.scriptType ?? scriptOverride?.scriptType;
+    return type === 'OpenPrompt' || type === 2;
+  }, [activeScript?.scriptType, scriptOverride?.scriptType]);
+
+  const assignmentId = activeScript?.scriptId || scriptOverride?.scriptId || lesson?.lessonId || 0;
+  const draftStorageKey = useMemo(() => {
+    return `mseek_speaking_draft_${user?.id || 'guest'}_${assignmentId}`;
+  }, [user?.id, assignmentId]);
+
+  const [studentDraftNote, setStudentDraftNote] = useState<string>('');
+  const [draftSavedText, setDraftSavedText] = useState<string | null>(null);
+  const [isStructureHintsExpanded, setIsStructureHintsExpanded] = useState<boolean>(false);
+
+  // Restore draft note on mount / assignment change
+  useEffect(() => {
+    if (!draftStorageKey) return;
+    try {
+      const saved = localStorage.getItem(draftStorageKey);
+      if (saved !== null && saved !== undefined) {
+        setStudentDraftNote(saved);
+        if (saved.trim()) {
+          setDraftSavedText('Đã khôi phục nháp trên trình duyệt');
+        }
+      } else {
+        setStudentDraftNote('');
+        setDraftSavedText(null);
+      }
+    } catch (e) {
+      console.warn('Failed to load draft from localStorage', e);
+    }
+  }, [draftStorageKey]);
+
+  // Debounced auto-save draft note to localStorage (~300ms)
+  useEffect(() => {
+    if (!draftStorageKey) return;
+    const timer = setTimeout(() => {
+      try {
+        if (studentDraftNote.trim()) {
+          localStorage.setItem(draftStorageKey, studentDraftNote);
+          setDraftSavedText('Đã tự động lưu nháp trên trình duyệt');
+        } else {
+          localStorage.removeItem(draftStorageKey);
+          setDraftSavedText(null);
+        }
+      } catch (e) {
+        console.warn('Failed to save draft to localStorage', e);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [studentDraftNote, draftStorageKey]);
+
+  const [cueCardModal, setCueCardModal] = useState<'INSERT' | 'CLEAR' | null>(null);
+
+  const executeInsertTemplate = () => {
+    const template = `• Mở đầu (Chào & dẫn nhập): \n• Thân bài (Giải quyết tình huống): \n• Kết thúc (Chốt ý & chuyển tiếp): `;
+    if (studentDraftNote.trim()) {
+      setStudentDraftNote((prev) => `${prev.trim()}\n\n${template}`);
+    } else {
+      setStudentDraftNote(template);
+    }
+    setCueCardModal(null);
+  };
+
+  const handleInsertTemplate = () => {
+    if (studentDraftNote.trim()) {
+      setCueCardModal('INSERT');
+    } else {
+      executeInsertTemplate();
+    }
+  };
+
+  const handleClearDraft = () => {
+    if (isRecording || !studentDraftNote.trim()) return;
+    setCueCardModal('CLEAR');
+  };
+
+  const executeClearDraft = () => {
+    setStudentDraftNote('');
+    try {
+      localStorage.removeItem(draftStorageKey);
+    } catch {}
+    setDraftSavedText(null);
+    setCueCardModal(null);
+  };
 
   // Rubric Collapse/Expand State
   const [isRubricExpanded, setIsRubricExpanded] = useState<boolean>(true);
@@ -443,6 +537,8 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
 
   // Silent refetch speaking script detail for real-time synchronization without UI interruptions
   const silentRefetchSpeakingDetail = useCallback(async (notifyToast = true) => {
+    // If student is currently recording, DO NOT refetch to avoid any glitch or audio interruption
+    if (isRecording) return;
     try {
       let updatedScript: SpeakingScriptDto | null = null;
       const targetScriptId = scriptOverride?.scriptId || scriptData?.scriptId;
@@ -483,7 +579,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
     } catch (err) {
       console.warn('Silent refetch speaking detail error:', err);
     }
-  }, [scriptOverride?.scriptId, scriptData?.scriptId, activeScript?.sampleAudioUrl, lesson?.lessonId]);
+  }, [scriptOverride?.scriptId, scriptData?.scriptId, activeScript?.sampleAudioUrl, lesson?.lessonId, isRecording]);
 
   // Real-time SignalR listener for speaking assignment updates
   useEffect(() => {
@@ -1074,20 +1170,27 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
         }
       }
 
+      const targetScript = isOpenPrompt
+        ? `${activeScript?.promptContent || ''}${studentDraftNote.trim() ? `\n\n[DÀN Ý CUE CARD CỦA BẠN]:\n${studentDraftNote.trim()}` : ''}`
+        : cleanScriptForScoring;
+
       const targetLessonId = lesson?.lessonId ?? 0;
       navigate(`/courses/${courseId}/lessons/${targetLessonId}/ai-practice`, {
         state: {
-          prefillScriptText: cleanScriptForScoring,
+          prefillScriptText: targetScript,
           prefillAudioFile: targetFile,
           fromTeleprompter: true,
         },
       });
     } catch (err) {
       console.error('Failed to prepare audio for AI practice:', err);
+      const targetScript = isOpenPrompt
+        ? `${activeScript?.promptContent || ''}${studentDraftNote.trim() ? `\n\n[DÀN Ý CUE CARD CỦA BẠN]:\n${studentDraftNote.trim()}` : ''}`
+        : cleanScriptForScoring;
       const targetLessonId = lesson?.lessonId ?? 0;
       navigate(`/courses/${courseId}/lessons/${targetLessonId}/ai-practice`, {
         state: {
-          prefillScriptText: cleanScriptForScoring,
+          prefillScriptText: targetScript,
           fromTeleprompter: true,
         },
       });
@@ -1168,6 +1271,10 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
         formData.append('Note', learnerNote.trim());
       }
 
+      if (isOpenPrompt && studentDraftNote.trim()) {
+        formData.append('StudentNote', studentDraftNote.trim());
+      }
+
       formData.append('SelectedLevel', selectedLevel);
 
       const res = await speakingApi.submitSpeakingAssignment(formData);
@@ -1184,6 +1291,11 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
           URL.revokeObjectURL(uploadedAudioUrl);
           setUploadedAudioUrl(null);
         }
+        // Remove autosaved draft on successful submit
+        try {
+          localStorage.removeItem(draftStorageKey);
+          setDraftSavedText(null);
+        } catch {}
         setIsConfirmModalOpen(false);
         showToast(
           'Nộp bài ghi âm thành công!',
@@ -1220,7 +1332,7 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-xs font-bold mb-1">
               <Mic className="w-3.5 h-3.5" />
-              <span>PHÒNG LUYỆN NÓI STUDIO TELEPROMPTER</span>
+              <span>{isOpenPrompt ? 'PHÒNG LUYỆN NÓI STUDIO • ĐỀ MỞ / ỨNG BIẾN' : 'PHÒNG LUYỆN NÓI STUDIO TELEPROMPTER'}</span>
             </div>
             <h2 className="text-xl md:text-2xl font-black text-slate-900 tracking-tight">
               {activeScript?.title || scriptOverride?.title || lesson?.title || 'Bài tập luyện nói'}
@@ -1238,44 +1350,68 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
           </div>
         </div>
 
-        {/* ── 4.1 Bộ chọn Level (Level Switcher Tabs) ── */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
-          {LEVEL_TABS.map((tab) => {
-            const isSelected = selectedLevel === tab.key;
-            return (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => {
-                  setSelectedLevel(tab.key);
-                  handleResetScroll();
-                }}
-                className={`p-3 rounded-2xl border text-left transition-all cursor-pointer relative overflow-hidden ${
-                  isSelected
-                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-blue-600 shadow-md shadow-blue-500/25 scale-[1.01]'
-                    : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-300'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">{tab.icon}</span>
-                  <div>
-                    <h4 className="text-xs font-black tracking-tight">{tab.label}</h4>
-                    <p
-                      className={`text-[11px] ${
-                        isSelected ? 'text-blue-100 font-medium' : 'text-slate-400'
-                      }`}
-                    >
-                      {tab.desc}
-                    </p>
+        {/* ── 4.1 Bộ chọn Level (Level Switcher Tabs) hoặc Banner Đề Mở ── */}
+        {isOpenPrompt ? (
+          <div className="rounded-2xl border border-indigo-200 bg-gradient-to-r from-indigo-50/90 via-purple-50/60 to-blue-50/90 p-3.5 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-600 to-purple-600 text-white font-bold text-sm shadow-xs shrink-0">
+                💡
+              </span>
+              <div>
+                <h4 className="text-xs font-black text-indigo-950 tracking-tight">
+                  CHẾ ĐỘ ĐỀ MỞ • ỨNG BIẾN THEO TÌNH HUỐNG
+                </h4>
+                <p className="text-[11px] text-indigo-900/80 font-medium mt-0.5">
+                  Đọc kỹ tình huống đề bài bên trái, ghi nhanh dàn ý vào Cue Card bên phải và luyện nói tự do.
+                </p>
+              </div>
+            </div>
+            {activeScript?.targetDurationSeconds ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white text-indigo-700 border border-indigo-200 text-xs font-black shadow-2xs">
+                <Clock className="w-3.5 h-3.5 text-indigo-600" />
+                Thời lượng mục tiêu: {formatTime(activeScript.targetDurationSeconds)}
+              </span>
+            ) : null}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+            {LEVEL_TABS.map((tab) => {
+              const isSelected = selectedLevel === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => {
+                    setSelectedLevel(tab.key);
+                    handleResetScroll();
+                  }}
+                  className={`p-3 rounded-2xl border text-left transition-all cursor-pointer relative overflow-hidden ${
+                    isSelected
+                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-blue-600 shadow-md shadow-blue-500/25 scale-[1.01]'
+                      : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">{tab.icon}</span>
+                    <div>
+                      <h4 className="text-xs font-black tracking-tight">{tab.label}</h4>
+                      <p
+                        className={`text-[11px] ${
+                          isSelected ? 'text-blue-100 font-medium' : 'text-slate-400'
+                        }`}
+                      >
+                        {tab.desc}
+                      </p>
+                    </div>
                   </div>
-                </div>
-                {isSelected && (
-                  <div className="absolute right-3 top-3 w-2 h-2 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400 animate-pulse" />
-                )}
-              </button>
-            );
-          })}
-        </div>
+                  {isSelected && (
+                    <div className="absolute right-3 top-3 w-2 h-2 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400 animate-pulse" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* ── Rubric Criteria Panel (Tiêu chí chấm điểm & Yêu cầu từ Giảng viên) ── */}
@@ -1604,6 +1740,18 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                 <audio src={submission.audioUrl} controls className="w-full h-10" />
               </div>
             )}
+
+            {submission.studentNote && (
+              <div className="mt-3 p-3.5 rounded-2xl bg-indigo-50/70 border border-indigo-100">
+                <p className="text-xs font-bold text-indigo-900 flex items-center gap-1.5 mb-1">
+                  <FileText className="w-3.5 h-3.5 text-indigo-600" />
+                  Dàn ý Cue Card bạn đã chuẩn bị khi nói:
+                </p>
+                <p className="text-xs font-mono text-indigo-950 whitespace-pre-line bg-white/90 p-3 rounded-xl border border-indigo-200/60 leading-relaxed">
+                  {submission.studentNote}
+                </p>
+              </div>
+            )}
           </div>
         );
       })()}
@@ -1638,6 +1786,153 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
             </div>
           )}
 
+          {isOpenPrompt ? (
+            <>
+              {/* Top Control Bar for Open Prompt */}
+              <div className="px-4 py-2.5 bg-slate-800/95 border-b border-slate-700 flex flex-wrap items-center justify-between gap-2.5 z-10 backdrop-blur-md">
+                <div className="flex items-center gap-2.5">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 text-xs font-black">
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>ĐỀ MỞ • ỨNG BIẾN TỰ DO</span>
+                  </span>
+
+                  {activeScript?.targetDurationSeconds && (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900/80 text-amber-300 border border-amber-400/30 text-xs font-bold font-mono">
+                      <Clock className="w-3.5 h-3.5 text-amber-400" />
+                      Mục tiêu: {formatTime(activeScript.targetDurationSeconds)}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setFontSize((s) => (s === 'normal' ? 'large' : 'normal'))}
+                    className="px-3 py-1.5 rounded-lg bg-slate-700/80 hover:bg-slate-700 text-slate-200 text-xs font-bold transition-all cursor-pointer border border-slate-600/40"
+                  >
+                    Cỡ chữ: {fontSize === 'large' ? 'To (Studio)' : 'Vừa'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={toggleFullscreen}
+                    className="p-1.5 rounded-xl bg-slate-700/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-all cursor-pointer"
+                    title={isFullscreen ? 'Thu nhỏ' : 'Toàn màn hình'}
+                  >
+                    {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Split-view Responsive Workspace */}
+              <div className="flex-1 min-h-0 overflow-y-auto lg:overflow-hidden grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-slate-800">
+                {/* Cột trái (45% - 5 cols): Đề bài & Gợi ý sườn bài */}
+                <div className="lg:col-span-5 flex flex-col h-full min-h-[220px] lg:min-h-0 overflow-y-auto p-4 sm:p-5 space-y-4 bg-slate-900/50">
+                  <div className="flex items-center gap-2 text-indigo-400 text-xs font-black tracking-wider uppercase">
+                    <FileText className="w-4 h-4" />
+                    <span>Tình huống / Đề bài</span>
+                  </div>
+
+                  {/* Prompt Content */}
+                  <div
+                    className={`text-slate-100 font-medium leading-relaxed whitespace-pre-line ${
+                      fontSize === 'large' ? 'text-base md:text-lg' : 'text-sm'
+                    }`}
+                  >
+                    {activeScript?.promptContent || 'Chưa có nội dung đề bài cho bài tập nói này.'}
+                  </div>
+
+                  {/* Accordion Gợi ý cấu trúc (Structure Hints) */}
+                  {activeScript?.structureHints && (
+                    <div className="mt-4 pt-3 border-t border-slate-800">
+                      <button
+                        type="button"
+                        onClick={() => setIsStructureHintsExpanded((p) => !p)}
+                        className="w-full inline-flex items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-amber-300 transition-all cursor-pointer"
+                      >
+                        <span className="flex items-center gap-2">
+                          <Lightbulb className="w-4 h-4 text-amber-400" />
+                          <span>💡 Xem gợi ý cấu trúc</span>
+                        </span>
+                        <ChevronDown
+                          className={`w-4 h-4 text-amber-300 transition-transform duration-200 ${
+                            isStructureHintsExpanded ? 'rotate-180' : ''
+                          }`}
+                        />
+                      </button>
+
+                      {isStructureHintsExpanded && (
+                        <div className="mt-2 p-3.5 rounded-xl bg-amber-500/10 border border-amber-400/20 text-amber-200 text-xs leading-relaxed whitespace-pre-line font-mono animate-in fade-in duration-200">
+                          {activeScript.structureHints}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Cột phải (55% - 7 cols): Cue Card / Giấy nháp của học viên */}
+                <div className="lg:col-span-7 flex flex-col h-full min-h-[300px] lg:min-h-0 p-4 sm:p-5 bg-slate-950/40 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-emerald-400 text-xs font-black tracking-wider uppercase">
+                      <ClipboardList className="w-4 h-4" />
+                      <span>Cue Card (Dàn ý của bạn)</span>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleInsertTemplate}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-bold border border-slate-700 transition-colors cursor-pointer"
+                        title="Chèn cấu trúc gợi ý gồm 3 phần: Mở đầu, Thân bài, Kết thúc"
+                      >
+                        <Plus className="w-3.5 h-3.5 text-blue-400" />
+                        <span>+ Chèn khung sườn</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleClearDraft}
+                        disabled={isRecording || !studentDraftNote.trim()}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-rose-950/50 text-slate-300 hover:text-rose-300 text-[11px] font-bold border border-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                        title={isRecording ? 'Không thể xóa nháp trong lúc đang thu âm' : 'Xóa nội dung nháp'}
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                        <span>Xóa nháp</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Textarea for student draft note */}
+                  <div className="flex-1 min-h-[180px] flex flex-col">
+                    <textarea
+                      value={studentDraftNote}
+                      onChange={(e) => setStudentDraftNote(e.target.value)}
+                      placeholder="Ghi nhanh các từ khóa hoặc gạch đầu dòng ý chính tại đây trước khi bấm Bắt đầu thu âm..."
+                      className={`w-full flex-1 rounded-2xl bg-slate-800/80 text-white placeholder-slate-500 border border-slate-700/80 p-4 font-mono leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-400 transition-all ${
+                        fontSize === 'large' ? 'text-base md:text-lg' : 'text-xs md:text-sm'
+                      }`}
+                    />
+                  </div>
+
+                  {/* Autosave Status Indicator */}
+                  <div className="flex items-center justify-between text-[11px] text-slate-400 px-1 pt-1">
+                    <span className="flex items-center gap-1.5 text-emerald-400/90 font-medium">
+                      {draftSavedText && (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>{draftSavedText}</span>
+                        </>
+                      )}
+                    </span>
+                    <span className="text-slate-500">
+                      {studentDraftNote.trim().length} ký tự
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
           {/* Teleprompter Top Control Bar */}
           <div className="px-3.5 py-2.5 bg-slate-800/95 border-b border-slate-700 flex flex-nowrap items-center justify-between gap-2 z-10 backdrop-blur-md overflow-x-auto">
             {/* Play / Pause / Reset */}
@@ -1835,6 +2130,8 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
           </div>
 
           </div>
+            </>
+          )}
 
           {/* ── 4.3 Integrated Bottom Action Bar (Cố định ở chân khung Teleprompter) ── */}
           <div className="border-t border-slate-700/80 bg-slate-900/95 px-3 sm:px-4 py-2.5 sm:py-3 flex flex-wrap items-center justify-start gap-2.5 sm:gap-3 z-10 backdrop-blur-md shrink-0 max-w-full overflow-x-auto scrollbar-none">
@@ -2187,6 +2484,102 @@ const LearnerSpeakingWorkspace: React.FC<LearnerSpeakingWorkspaceProps> = ({
                   )}
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Cue Card Custom Confirmation Modals ── */}
+        {cueCardModal && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+            onClick={() => setCueCardModal(null)}
+          >
+            <div
+              className="w-full max-w-md rounded-3xl bg-white border border-slate-200 shadow-2xl p-6 relative animate-in zoom-in-95 duration-200"
+              onClick={(e) => e.stopPropagation()}
+              role="alertdialog"
+              aria-modal="true"
+            >
+              {/* Close Button */}
+              <button
+                type="button"
+                onClick={() => setCueCardModal(null)}
+                className="absolute top-4 right-4 p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+
+              {cueCardModal === 'INSERT' ? (
+                <>
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 border border-indigo-100 shadow-sm">
+                      <Plus className="h-6 w-6" />
+                    </div>
+                    <div className="pt-0.5 pr-6">
+                      <h3 className="text-lg font-black text-slate-900 leading-snug">
+                        Chèn khung sườn mẫu
+                      </h3>
+                      <p className="mt-2 text-xs leading-relaxed text-slate-600">
+                        Ô nháp của bạn đang có nội dung. Bạn có muốn chèn thêm khung sườn mẫu gồm 3 phần (<b>Mở đầu</b>, <b>Thân bài</b>, <b>Kết thúc</b>) vào cuối dàn ý hiện tại không?
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 flex items-center justify-end gap-3 border-t border-slate-100 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => setCueCardModal(null)}
+                      className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 hover:bg-slate-100 active:scale-95 transition-all cursor-pointer"
+                    >
+                      Hủy bỏ
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={executeInsertTemplate}
+                      className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-xs font-black shadow-md shadow-indigo-500/25 active:scale-95 transition-all cursor-pointer"
+                    >
+                      <Plus className="h-4 w-4" />
+                      <span>Chèn vào cuối</span>
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-rose-50 text-rose-600 border border-rose-100 shadow-sm">
+                      <Trash2 className="h-6 w-6" />
+                    </div>
+                    <div className="pt-0.5 pr-6">
+                      <h3 className="text-lg font-black text-slate-900 leading-snug">
+                        Xác nhận xóa dàn ý nháp
+                      </h3>
+                      <p className="mt-2 text-xs leading-relaxed text-slate-600">
+                        Bạn có chắc chắn muốn xóa toàn bộ nội dung trong ô Cue Card này không? Nội dung nháp sẽ bị xóa và không thể khôi phục.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 flex items-center justify-end gap-3 border-t border-slate-100 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => setCueCardModal(null)}
+                      className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-bold text-slate-700 hover:bg-slate-100 active:scale-95 transition-all cursor-pointer"
+                    >
+                      Hủy bỏ
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={executeClearDraft}
+                      className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black shadow-md shadow-rose-500/25 active:scale-95 transition-all cursor-pointer"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      <span>Xóa toàn bộ</span>
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -4170,6 +4563,21 @@ export const CourseLearningPage: React.FC = () => {
                   ? 'Xem Chứng Chỉ'
                   : 'Nhận Chứng Chỉ'}
               </span>
+            </button>
+          )}
+
+          {/* Course Completion Summary Button */}
+          {(isCourseFullyCompleted ||
+            certificate ||
+            progressData?.certificateCode ||
+            completionPercentage >= 100) && (
+            <button
+              onClick={() => navigate(`/courses/${courseId}/summary`)}
+              className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-3.5 py-1.5 text-xs font-bold text-white hover:from-blue-500 hover:to-indigo-500 transition-all cursor-pointer shadow-md shadow-blue-500/20"
+              title="Xem Báo cáo Tổng kết Hành trình Khóa học"
+            >
+              <Sparkles className="h-4 w-4 text-amber-300" />
+              <span>Tổng kết hành trình</span>
             </button>
           )}
 

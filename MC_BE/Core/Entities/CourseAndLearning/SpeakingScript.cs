@@ -50,6 +50,18 @@ public class SpeakingScript
     [Column("Status")]
     public SpeakingScriptStatus Status { get; set; } = SpeakingScriptStatus.DRAFT;
 
+    [Column("ScriptType")]
+    public SpeakingScriptType ScriptType { get; set; } = SpeakingScriptType.Scripted;
+
+    [Column("PromptContent")]
+    public string? PromptContent { get; set; }
+
+    [Column("StructureHints")]
+    public string? StructureHints { get; set; }
+
+    [Column("TargetDurationSeconds")]
+    public int? TargetDurationSeconds { get; set; }
+
     [Column("BackgroundMusicId")]
     public int? BackgroundMusicId { get; set; }
 

@@ -30,6 +30,8 @@ import {
   CheckCircle,
   Lock,
   Headphones,
+  Clock,
+  Lightbulb,
 } from 'lucide-react';
 import { speakingApi } from '../../api/speakingApi';
 import { courseApi } from '../../api/courseApi';
@@ -114,6 +116,10 @@ export const InstructorSpeakingAssignmentFormPage: React.FC<InstructorSpeakingAs
   );
   const [selectedModuleId, setSelectedModuleId] = useState<number | null>(null);
   const [selectedLessonId, setSelectedLessonId] = useState<number | null>(null);
+  const [scriptType, setScriptType] = useState<'Scripted' | 'OpenPrompt'>('Scripted');
+  const [promptContent, setPromptContent] = useState('');
+  const [structureHints, setStructureHints] = useState('');
+  const [targetDurationSeconds, setTargetDurationSeconds] = useState<number | ''>('');
   const [scriptTitle, setScriptTitle] = useState('');
   const [passingScore, setPassingScore] = useState<number>(80);
   const [originalContent, setOriginalContent] = useState('');
@@ -226,6 +232,11 @@ export const InstructorSpeakingAssignmentFormPage: React.FC<InstructorSpeakingAs
 
             // 1. Map Scope, Khóa học, Tiêu đề, Điểm chuẩn, Nội dung gốc, Hướng dẫn & Audio mẫu
             setScope(s.scope || 'FINAL');
+            const isOP = s.scriptType === 'OpenPrompt' || s.scriptType === 2;
+            setScriptType(isOP ? 'OpenPrompt' : 'Scripted');
+            setPromptContent(s.promptContent || '');
+            setStructureHints(s.structureHints || '');
+            setTargetDurationSeconds(s.targetDurationSeconds ?? '');
             setSelectedCourseId(s.courseId);
             setScriptTitle(s.title || '');
             setOriginalContent(s.originalContent || '');
@@ -625,14 +636,21 @@ export const InstructorSpeakingAssignmentFormPage: React.FC<InstructorSpeakingAs
       return;
     }
 
-    const hasContent =
-      editableContents.BEGINNER.trim() ||
-      editableContents.INTERMEDIATE.trim() ||
-      editableContents.ADVANCED.trim();
+    if (scriptType === 'OpenPrompt') {
+      if (!promptContent.trim()) {
+        setErrorMsg('Vui lòng nhập nội dung đề bài / tình huống mở cho bài tập nói.');
+        return;
+      }
+    } else {
+      const hasContent =
+        editableContents.BEGINNER.trim() ||
+        editableContents.INTERMEDIATE.trim() ||
+        editableContents.ADVANCED.trim();
 
-    if (!hasContent) {
-      setErrorMsg('Vui lòng cung cấp nội dung kịch bản cho ít nhất một cấp độ.');
-      return;
+      if (!hasContent) {
+        setErrorMsg('Vui lòng cung cấp nội dung kịch bản cho ít nhất một cấp độ.');
+        return;
+      }
     }
 
     // CHẶN TUYỆT ĐỐI NẾU TỔNG TRỌNG SỐ VƯỢT QUÁ 100% (KHÔNG LƯU THAY ĐỔI, KHÔNG TẠO BÀI NÓI)
@@ -655,18 +673,18 @@ export const InstructorSpeakingAssignmentFormPage: React.FC<InstructorSpeakingAs
       if (!confirmProceed) return;
     }
 
-    // Tự động fallback nội dung cho cấp độ còn trống
+    // Tự động fallback nội dung cho cấp độ còn trống nếu là Scripted
     const validFallback =
       editableContents.BEGINNER.trim() ||
       editableContents.INTERMEDIATE.trim() ||
       editableContents.ADVANCED.trim() ||
       originalContent.trim();
 
-    const finalLevels = [
+    const finalLevels = scriptType === 'Scripted' ? [
       { level: 'BEGINNER' as SpeakingLevel, content: editableContents.BEGINNER.trim() || validFallback },
       { level: 'INTERMEDIATE' as SpeakingLevel, content: editableContents.INTERMEDIATE.trim() || validFallback },
       { level: 'ADVANCED' as SpeakingLevel, content: editableContents.ADVANCED.trim() || validFallback },
-    ];
+    ] : [];
 
     setIsSubmitting(true);
     setErrorMsg(null);
@@ -704,6 +722,10 @@ export const InstructorSpeakingAssignmentFormPage: React.FC<InstructorSpeakingAs
         const res = await speakingApi.updateSpeakingScript(Number(id), {
           courseId: selectedCourseId,
           scope,
+          scriptType,
+          promptContent: scriptType === 'OpenPrompt' ? promptContent.trim() : null,
+          structureHints: scriptType === 'OpenPrompt' && structureHints.trim() ? structureHints.trim() : null,
+          targetDurationSeconds: scriptType === 'OpenPrompt' && Number(targetDurationSeconds) > 0 ? Number(targetDurationSeconds) : null,
           moduleId: targetModuleId,
           chapterId: targetModuleId,
           lessonId: scope === 'LESSON' ? selectedLessonId : null,
@@ -712,9 +734,9 @@ export const InstructorSpeakingAssignmentFormPage: React.FC<InstructorSpeakingAs
           instructorNote: instructorNote.trim() || null,
           clearSampleAudio: shouldClearSampleAudio,
           title: scriptTitle.trim(),
-          originalContent,
+          originalContent: scriptType === 'Scripted' ? originalContent : undefined,
           passingScore,
-          levels: finalLevels,
+          levels: scriptType === 'Scripted' ? finalLevels : [],
           rubricCriteria: criteria,
         });
 
@@ -728,6 +750,10 @@ export const InstructorSpeakingAssignmentFormPage: React.FC<InstructorSpeakingAs
         const res = await speakingApi.createSpeakingScript({
           courseId: selectedCourseId,
           scope,
+          scriptType,
+          promptContent: scriptType === 'OpenPrompt' ? promptContent.trim() : null,
+          structureHints: scriptType === 'OpenPrompt' && structureHints.trim() ? structureHints.trim() : null,
+          targetDurationSeconds: scriptType === 'OpenPrompt' && Number(targetDurationSeconds) > 0 ? Number(targetDurationSeconds) : null,
           moduleId: targetModuleId,
           chapterId: targetModuleId,
           lessonId: scope === 'LESSON' ? selectedLessonId : null,
@@ -735,9 +761,9 @@ export const InstructorSpeakingAssignmentFormPage: React.FC<InstructorSpeakingAs
           sampleAudioUrl: finalSampleAudioUrl,
           instructorNote: instructorNote.trim() || null,
           title: scriptTitle.trim(),
-          originalContent,
+          originalContent: scriptType === 'Scripted' ? originalContent : undefined,
           passingScore,
-          levels: finalLevels,
+          levels: scriptType === 'Scripted' ? finalLevels : [],
           rubricCriteria: criteria,
         });
 
@@ -1495,171 +1521,316 @@ export const InstructorSpeakingAssignmentFormPage: React.FC<InstructorSpeakingAs
 
           {/* CỘT PHẢI (7 COLS): Tải file kịch bản & Biên soạn 3 Cấp độ nói */}
           <div className="lg:col-span-7 space-y-6">
-            {/* KHỐI 4: Tải file kịch bản */}
+            {/* KHỐI CHỌN LOẠI BÀI NÓI (SCRIPT TYPE) */}
             <div className={cardClass}>
               <div className="flex items-center justify-between border-b border-blue-50 pb-3 mb-4">
                 <div className="flex items-center gap-2.5">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 text-blue-700 border border-blue-100">
-                    <UploadCloud className="h-4 w-4" />
+                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-100">
+                    <Layers className="h-4 w-4" />
                   </div>
                   <div>
-                    <h2 className="text-sm font-bold text-slate-900">Tải lên file kịch bản (.docx, .txt, .md)</h2>
-                    <p className="text-[11px] text-slate-500">Tự động phân tách 3 cấp độ nói thông minh</p>
+                    <h2 className="text-sm font-bold text-slate-900">Hình thức bài tập nói</h2>
+                    <p className="text-[11px] text-slate-500">Chọn chế độ có kịch bản cuộn chữ hoặc đề mở ứng biến tự do</p>
                   </div>
                 </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setScriptType('Scripted')}
+                  className={`relative flex flex-col p-4 rounded-2xl border-2 text-left transition-all cursor-pointer ${
+                    scriptType === 'Scripted'
+                      ? 'border-blue-600 bg-blue-50/50 shadow-xs'
+                      : 'border-slate-200 bg-white hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-black text-slate-900">
+                      <FileText className="h-4 w-4 text-blue-600" />
+                      Có kịch bản (Teleprompter)
+                    </span>
+                    {scriptType === 'Scripted' && (
+                      <CheckCircle2 className="h-4 w-4 text-blue-600" />
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                    Có văn bản mẫu cuộn chữ tự động, phân tách 3 cấp độ (Beginner, Intermediate, Advanced) và so khớp phát âm AI.
+                  </p>
+                </button>
 
                 <button
                   type="button"
-                  onClick={handleDownloadTemplate}
-                  className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
+                  onClick={() => setScriptType('OpenPrompt')}
+                  className={`relative flex flex-col p-4 rounded-2xl border-2 text-left transition-all cursor-pointer ${
+                    scriptType === 'OpenPrompt'
+                      ? 'border-indigo-600 bg-indigo-50/50 shadow-xs'
+                      : 'border-slate-200 bg-white hover:border-slate-300'
+                  }`}
                 >
-                  <Download className="h-3.5 w-3.5" />
-                  <span>Tải kịch bản mẫu (.md)</span>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-black text-slate-900">
+                      <Sparkles className="h-4 w-4 text-indigo-600" />
+                      Đề mở / Ứng biến (Cue Card)
+                    </span>
+                    {scriptType === 'OpenPrompt' && (
+                      <CheckCircle2 className="h-4 w-4 text-indigo-600" />
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                    Đưa ra tình huống thực tế. Học viên tự lập dàn ý ngắn (Cue Card) và ứng biến nói theo thời lượng mục tiêu.
+                  </p>
                 </button>
               </div>
-
-              <div
-                onClick={() => fileInputRef.current?.click()}
-                className="group relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-blue-200 bg-blue-50/20 p-6 text-center hover:border-blue-500 hover:bg-blue-50/40 transition-all cursor-pointer"
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".docx,.txt,.md"
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
-                <div className="mb-3 rounded-2xl bg-blue-100 p-3 text-blue-700 group-hover:scale-110 transition-transform shadow-xs">
-                  {isParsing ? (
-                    <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
-                  ) : (
-                    <UploadCloud className="h-6 w-6" />
-                  )}
-                </div>
-                <p className="text-xs font-bold text-slate-800">
-                  {selectedFile ? (
-                    <span className="text-blue-700 font-extrabold">{selectedFile.name}</span>
-                  ) : (
-                    <>Kéo thả file kịch bản hoặc <span className="text-blue-600 underline">chọn từ máy tính</span></>
-                  )}
-                </p>
-                <p className="mt-1 text-[11px] text-slate-400">
-                  Hỗ trợ Word (.docx), Markdown (.md), Text (.txt) - Hệ thống tự bóc tách thẻ đạo diễn
-                </p>
-              </div>
             </div>
 
-            {/* KHỐI 5: Studio 3 Cấp độ nói */}
-            <div className={cardClass}>
-              {/* Studio Header & Mode Switches */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-blue-50 pb-4 mb-4">
-                <div className="flex items-center gap-2.5">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-50 text-amber-700 border border-amber-200">
-                    <Sparkles className="h-4 w-4" />
+            {scriptType === 'OpenPrompt' ? (
+              /* KHỐI BIÊN SOẠN ĐỀ MỞ (OPEN PROMPT) */
+              <div className={cardClass}>
+                <div className="flex items-center justify-between border-b border-blue-50 pb-3 mb-4">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-100">
+                      <Sparkles className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <h2 className="text-sm font-bold text-slate-900">Nội dung Đề bài & Tình huống mở</h2>
+                      <p className="text-[11px] text-slate-500">Cung cấp tình huống thực tế và gợi ý cấu trúc để học viên chuẩn bị nói</p>
+                    </div>
                   </div>
+                </div>
+
+                <div className="space-y-4">
+                  {/* Prompt Content */}
                   <div>
-                    <h2 className="text-sm font-bold text-slate-900">Biên soạn 3 Cấp độ luyện nói</h2>
-                    <p className="text-[11px] text-slate-500">Beginner (Dễ) • Intermediate (Trung bình) • Advanced (Chuyên nghiệp)</p>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      Nội dung Đề bài / Tình huống thực tế <span className="text-red-500">*</span>
+                    </label>
+                    <textarea
+                      rows={8}
+                      value={promptContent}
+                      onChange={(e) => setPromptContent(e.target.value)}
+                      placeholder="Ví dụ: Bạn là MC dẫn chương trình Lễ Khai mạc Hội thao Doanh nghiệp mở rộng 2026. Hãy chào mừng đại biểu, công bố thể thức thi đấu và phát biểu truyền cảm hứng..."
+                      className="w-full rounded-2xl border border-slate-200 p-4 text-xs leading-relaxed text-slate-800 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100 bg-slate-50/30"
+                    />
+                    <p className="mt-1 text-[11px] text-slate-400">
+                      Đề bài sẽ hiển thị ở cột bên trái trong không gian làm bài của học viên.
+                    </p>
                   </div>
-                </div>
 
-                <div className="flex items-center gap-2">
-                  {/* View Mode Toggle */}
-                  <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200/80">
-                    <button
-                      type="button"
-                      onClick={() => setViewMode('EDIT')}
-                      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1 text-xs font-bold transition-all cursor-pointer ${
-                        viewMode === 'EDIT'
-                          ? 'bg-blue-600 text-white shadow-xs'
-                          : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                    >
-                      <Edit3 className="h-3.5 w-3.5" />
-                      <span>Chỉnh sửa</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setViewMode('PREVIEW')}
-                      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1 text-xs font-bold transition-all cursor-pointer ${
-                        viewMode === 'PREVIEW'
-                          ? 'bg-blue-600 text-white shadow-xs'
-                          : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                    >
-                      <Eye className="h-3.5 w-3.5" />
-                      <span>Xem trước</span>
-                    </button>
+                  {/* Structure Hints */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <Lightbulb className="h-3.5 w-3.5 text-amber-500" /> Gợi ý sườn bài / Từ khóa chính (Tùy chọn)
+                      </span>
+                      <span className="text-[11px] text-slate-400 font-normal">Học viên có thể bấm xem gợi ý nếu cần</span>
+                    </label>
+                    <textarea
+                      rows={5}
+                      value={structureHints}
+                      onChange={(e) => setStructureHints(e.target.value)}
+                      placeholder="Ví dụ:&#10;• Phần 1 (30s): Lời chào trân trọng, nêu bối cảnh buổi lễ&#10;• Phần 2 (60s): Tinh thần thể thao 'Đoàn kết - Trung thực - Cao thượng'&#10;• Phần 3 (30s): Tuyên bố khai mạc & lời chúc các vận động viên"
+                      className="w-full rounded-2xl border border-slate-200 p-4 text-xs leading-relaxed text-slate-800 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100 bg-slate-50/30 font-mono"
+                    />
+                  </div>
+
+                  {/* Target Duration Seconds */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5 flex items-center gap-1.5">
+                      <Clock className="h-3.5 w-3.5 text-indigo-600" /> Thời lượng nói mục tiêu (Giây - Tùy chọn)
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="number"
+                        min={10}
+                        max={1800}
+                        step={10}
+                        value={targetDurationSeconds ?? ''}
+                        onChange={(e) => {
+                          const val = e.target.value ? Number(e.target.value) : null;
+                          setTargetDurationSeconds(val);
+                        }}
+                        placeholder="120"
+                        className="w-36 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-800 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                      />
+                      <span className="text-xs text-slate-500">
+                        {targetDurationSeconds && Number(targetDurationSeconds) > 0
+                          ? `Tương đương ~${Math.floor(Number(targetDurationSeconds) / 60)} phút ${Number(targetDurationSeconds) % 60 > 0 ? `${Number(targetDurationSeconds) % 60} giây` : ''}`
+                          : 'Không giới hạn thời lượng cụ thể'}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
+            ) : (
+              <>
+                {/* KHỐI 4: Tải file kịch bản */}
+                <div className={cardClass}>
+                  <div className="flex items-center justify-between border-b border-blue-50 pb-3 mb-4">
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 text-blue-700 border border-blue-100">
+                        <UploadCloud className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <h2 className="text-sm font-bold text-slate-900">Tải lên file kịch bản (.docx, .txt, .md)</h2>
+                        <p className="text-[11px] text-slate-500">Tự động phân tách 3 cấp độ nói thông minh</p>
+                      </div>
+                    </div>
 
-              {/* Level Tabs */}
-              <div className="flex items-center gap-2 mb-4">
-                {[
-                  { key: 'BEGINNER' as SpeakingLevel, label: 'Cấp độ 1: Dễ (Beginner)', color: 'text-emerald-800 bg-emerald-50 border-emerald-300 ring-emerald-500' },
-                  { key: 'INTERMEDIATE' as SpeakingLevel, label: 'Cấp độ 2: Trung bình', color: 'text-blue-800 bg-blue-50 border-blue-300 ring-blue-500' },
-                  { key: 'ADVANCED' as SpeakingLevel, label: 'Cấp độ 3: Chuyên nghiệp', color: 'text-purple-800 bg-purple-50 border-purple-300 ring-purple-500' },
-                ].map((tab) => (
-                  <button
-                    key={tab.key}
-                    type="button"
-                    onClick={() => setActiveTab(tab.key)}
-                    className={`flex-1 rounded-xl border py-2.5 px-3 text-xs font-black transition-all text-center cursor-pointer ${
-                      activeTab === tab.key
-                        ? `${tab.color} ring-2 ring-offset-1 shadow-xs`
-                        : 'border-slate-200 bg-slate-50/70 text-slate-600 hover:bg-slate-100'
-                    }`}
+                    <button
+                      type="button"
+                      onClick={handleDownloadTemplate}
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline cursor-pointer"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      <span>Tải kịch bản mẫu (.md)</span>
+                    </button>
+                  </div>
+
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className="group relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-blue-200 bg-blue-50/20 p-6 text-center hover:border-blue-500 hover:bg-blue-50/40 transition-all cursor-pointer"
                   >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Tag Legend Hint */}
-              <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl bg-blue-50/50 p-3 text-[11px] text-slate-700 border border-blue-100">
-                <span className="font-bold text-slate-800 flex items-center gap-1">
-                  <Info className="h-3.5 w-3.5 text-blue-600" /> Thẻ kịch bản gợi ý:
-                </span>
-                <span className="rounded-full bg-blue-100 px-2.5 py-0.5 font-bold text-blue-800 border border-blue-200">
-                  [HƯỚNG DẪN: ...]
-                </span>
-                <span className="rounded-full bg-purple-100 px-2.5 py-0.5 font-bold text-purple-800 border border-purple-200">
-                  [GIỌNG ĐỌC: ...]
-                </span>
-                <span className="rounded-full bg-amber-100 px-2.5 py-0.5 font-bold text-amber-800 border border-amber-200">
-                  [NGẮT NGHỈ: 2s]
-                </span>
-              </div>
-
-              {/* Main Content Area: Edit vs Preview */}
-              {viewMode === 'EDIT' ? (
-                <div>
-                  <textarea
-                    rows={16}
-                    value={editableContents[activeTab]}
-                    onChange={(e) =>
-                      setEditableContents((prev) => ({
-                        ...prev,
-                        [activeTab]: e.target.value,
-                      }))
-                    }
-                    placeholder={`Nhập nội dung kịch bản cho ${activeTab} kèm các chỉ dẫn đạo diễn [HƯỚNG DẪN:...], [GIỌNG ĐỌC:...]...`}
-                    className="w-full rounded-2xl border border-slate-200 p-4 font-mono text-xs leading-relaxed text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 bg-slate-50/30"
-                  />
-                  <div className="flex items-center justify-between mt-2 text-[11px] text-slate-500">
-                    <span className="font-medium">
-                      Số từ: {editableContents[activeTab].trim() ? editableContents[activeTab].trim().split(/\s+/).length : 0} từ
-                    </span>
-                    <span className="text-blue-600 font-medium">Hệ thống tự động loại bỏ thẻ đạo diễn khi so khớp phát âm AI</span>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".docx,.txt,.md"
+                      onChange={handleFileChange}
+                      className="hidden"
+                    />
+                    <div className="mb-3 rounded-2xl bg-blue-100 p-3 text-blue-700 group-hover:scale-110 transition-transform shadow-xs">
+                      {isParsing ? (
+                        <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+                      ) : (
+                        <UploadCloud className="h-6 w-6" />
+                      )}
+                    </div>
+                    <p className="text-xs font-bold text-slate-800">
+                      {selectedFile ? (
+                        <span className="text-blue-700 font-extrabold">{selectedFile.name}</span>
+                      ) : (
+                        <>Kéo thả file kịch bản hoặc <span className="text-blue-600 underline">chọn từ máy tính</span></>
+                      )}
+                    </p>
+                    <p className="mt-1 text-[11px] text-slate-400">
+                      Hỗ trợ Word (.docx), Markdown (.md), Text (.txt) - Hệ thống tự bóc tách thẻ đạo diễn
+                    </p>
                   </div>
                 </div>
-              ) : (
-                <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-6 min-h-[380px]">
-                  {renderFormattedPreview(editableContents[activeTab])}
+
+                {/* KHỐI 5: Studio 3 Cấp độ nói */}
+                <div className={cardClass}>
+                  {/* Studio Header & Mode Switches */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-blue-50 pb-4 mb-4">
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-50 text-amber-700 border border-amber-200">
+                        <Sparkles className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <h2 className="text-sm font-bold text-slate-900">Biên soạn 3 Cấp độ luyện nói</h2>
+                        <p className="text-[11px] text-slate-500">Beginner (Dễ) • Intermediate (Trung bình) • Advanced (Chuyên nghiệp)</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {/* View Mode Toggle */}
+                      <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200/80">
+                        <button
+                          type="button"
+                          onClick={() => setViewMode('EDIT')}
+                          className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1 text-xs font-bold transition-all cursor-pointer ${
+                            viewMode === 'EDIT'
+                              ? 'bg-blue-600 text-white shadow-xs'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          <Edit3 className="h-3.5 w-3.5" />
+                          <span>Chỉnh sửa</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setViewMode('PREVIEW')}
+                          className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1 text-xs font-bold transition-all cursor-pointer ${
+                            viewMode === 'PREVIEW'
+                              ? 'bg-blue-600 text-white shadow-xs'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          <span>Xem trước</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Level Tabs */}
+                  <div className="flex items-center gap-2 mb-4">
+                    {[
+                      { key: 'BEGINNER' as SpeakingLevel, label: 'Cấp độ 1: Dễ (Beginner)', color: 'text-emerald-800 bg-emerald-50 border-emerald-300 ring-emerald-500' },
+                      { key: 'INTERMEDIATE' as SpeakingLevel, label: 'Cấp độ 2: Trung bình', color: 'text-blue-800 bg-blue-50 border-blue-300 ring-blue-500' },
+                      { key: 'ADVANCED' as SpeakingLevel, label: 'Cấp độ 3: Chuyên nghiệp', color: 'text-purple-800 bg-purple-50 border-purple-300 ring-purple-500' },
+                    ].map((tab) => (
+                      <button
+                        key={tab.key}
+                        type="button"
+                        onClick={() => setActiveTab(tab.key)}
+                        className={`flex-1 rounded-xl border py-2.5 px-3 text-xs font-black transition-all text-center cursor-pointer ${
+                          activeTab === tab.key
+                            ? `${tab.color} ring-2 ring-offset-1 shadow-xs`
+                            : 'border-slate-200 bg-slate-50/70 text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Tag Legend Hint */}
+                  <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl bg-blue-50/50 p-3 text-[11px] text-slate-700 border border-blue-100">
+                    <span className="font-bold text-slate-800 flex items-center gap-1">
+                      <Info className="h-3.5 w-3.5 text-blue-600" /> Thẻ kịch bản gợi ý:
+                    </span>
+                    <span className="rounded-full bg-blue-100 px-2.5 py-0.5 font-bold text-blue-800 border border-blue-200">
+                      [HƯỚNG DẪN: ...]
+                    </span>
+                    <span className="rounded-full bg-purple-100 px-2.5 py-0.5 font-bold text-purple-800 border border-purple-200">
+                      [GIỌNG ĐỌC: ...]
+                    </span>
+                    <span className="rounded-full bg-amber-100 px-2.5 py-0.5 font-bold text-amber-800 border border-amber-200">
+                      [NGẮT NGHỈ: 2s]
+                    </span>
+                  </div>
+
+                  {/* Main Content Area: Edit vs Preview */}
+                  {viewMode === 'EDIT' ? (
+                    <div>
+                      <textarea
+                        rows={16}
+                        value={editableContents[activeTab]}
+                        onChange={(e) =>
+                          setEditableContents((prev) => ({
+                            ...prev,
+                            [activeTab]: e.target.value,
+                          }))
+                        }
+                        placeholder={`Nhập nội dung kịch bản cho ${activeTab} kèm các chỉ dẫn đạo diễn [HƯỚNG DẪN:...], [GIỌNG ĐỌC:...]...`}
+                        className="w-full rounded-2xl border border-slate-200 p-4 font-mono text-xs leading-relaxed text-slate-800 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100 bg-slate-50/30"
+                      />
+                      <div className="flex items-center justify-between mt-2 text-[11px] text-slate-500">
+                        <span className="font-medium">
+                          Số từ: {editableContents[activeTab].trim() ? editableContents[activeTab].trim().split(/\s+/).length : 0} từ
+                        </span>
+                        <span className="text-blue-600 font-medium">Hệ thống tự động loại bỏ thẻ đạo diễn khi so khớp phát âm AI</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-6 min-h-[380px]">
+                      {renderFormattedPreview(editableContents[activeTab])}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              </>
+            )}
 
             {/* KHỐI 6: Hướng dẫn & Audio đọc mẫu từ giảng viên (Không bắt buộc) */}
             <div className={cardClass}>
