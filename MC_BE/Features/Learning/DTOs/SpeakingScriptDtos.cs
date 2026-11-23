@@ -42,11 +42,15 @@ public class SaveLevelDto
     public string? CleanScriptForScoring { get; set; }
 }
 
-public class SaveScriptRequest
+public class SaveScriptRequest : IValidatableObject
 {
     [Required(ErrorMessage = "Tiêu đề kịch bản không được để trống.")]
     [MaxLength(500)]
     public string Title { get; set; } = string.Empty;
+    public SpeakingScriptType ScriptType { get; set; } = SpeakingScriptType.Scripted;
+    public string? PromptContent { get; set; }
+    public string? StructureHints { get; set; }
+    public int? TargetDurationSeconds { get; set; }
     public string? OriginalContent { get; set; }
     public SpeakingScope Scope { get; set; } = SpeakingScope.FINAL;
     public int? ModuleId { get; set; }
@@ -58,17 +62,41 @@ public class SaveScriptRequest
     public bool? IsRemedial { get; set; }
     public string? SampleAudioUrl { get; set; }
     public string? InstructorNote { get; set; }
-    [Required(ErrorMessage = "Phải cung cấp đủ nội dung các cấp độ.")]
-    [MinLength(3, ErrorMessage = "Phải cung cấp đủ 3 cấp độ (BEGINNER, INTERMEDIATE, ADVANCED).")]
     public List<SaveLevelDto> Levels { get; set; } = new();
 
     public List<SaveRubricCriterionDto>? RubricCriteria { get; set; }
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        if (ScriptType == SpeakingScriptType.OpenPrompt)
+        {
+            if (string.IsNullOrWhiteSpace(PromptContent))
+            {
+                yield return new ValidationResult(
+                    "Nội dung tình huống / đề bài mở không được để trống khi chọn loại đề mở.",
+                    new[] { nameof(PromptContent) });
+            }
+        }
+        else
+        {
+            if (Levels == null || Levels.Count < 3)
+            {
+                yield return new ValidationResult(
+                    "Phải cung cấp đủ 3 cấp độ (BEGINNER, INTERMEDIATE, ADVANCED) cho bài nói có kịch bản.",
+                    new[] { nameof(Levels) });
+            }
+        }
+    }
 }
 
-public class CreateSpeakingScriptRequest
+public class CreateSpeakingScriptRequest : IValidatableObject
 {
     [Required(ErrorMessage = "Khóa học là bắt buộc.")]
     public int CourseId { get; set; }
+    public SpeakingScriptType ScriptType { get; set; } = SpeakingScriptType.Scripted;
+    public string? PromptContent { get; set; }
+    public string? StructureHints { get; set; }
+    public int? TargetDurationSeconds { get; set; }
     public SpeakingScope Scope { get; set; } = SpeakingScope.FINAL;
     public int? ModuleId { get; set; }
     public int? ChapterId { get; set; }
@@ -83,16 +111,40 @@ public class CreateSpeakingScriptRequest
     public bool IsRemedial { get; set; }
     public string? SampleAudioUrl { get; set; }
     public string? InstructorNote { get; set; }
-    [Required(ErrorMessage = "Phải cung cấp đủ nội dung các cấp độ.")]
-    [MinLength(3, ErrorMessage = "Phải cung cấp đủ 3 cấp độ (BEGINNER, INTERMEDIATE, ADVANCED).")]
     public List<SaveLevelDto> Levels { get; set; } = new();
 
     public List<SaveRubricCriterionDto>? RubricCriteria { get; set; }
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        if (ScriptType == SpeakingScriptType.OpenPrompt)
+        {
+            if (string.IsNullOrWhiteSpace(PromptContent))
+            {
+                yield return new ValidationResult(
+                    "Nội dung tình huống / đề bài mở không được để trống khi chọn loại đề mở.",
+                    new[] { nameof(PromptContent) });
+            }
+        }
+        else
+        {
+            if (Levels == null || Levels.Count < 3)
+            {
+                yield return new ValidationResult(
+                    "Phải cung cấp đủ 3 cấp độ (BEGINNER, INTERMEDIATE, ADVANCED) cho bài nói có kịch bản.",
+                    new[] { nameof(Levels) });
+            }
+        }
+    }
 }
 
-public class UpdateSpeakingScriptRequest
+public class UpdateSpeakingScriptRequest : IValidatableObject
 {
     public int? CourseId { get; set; }
+    public SpeakingScriptType? ScriptType { get; set; }
+    public string? PromptContent { get; set; }
+    public string? StructureHints { get; set; }
+    public int? TargetDurationSeconds { get; set; }
     public SpeakingScope? Scope { get; set; }
     public int? ModuleId { get; set; }
     public int? ChapterId { get; set; }
@@ -110,6 +162,19 @@ public class UpdateSpeakingScriptRequest
     public List<SaveLevelDto>? Levels { get; set; }
 
     public List<SaveRubricCriterionDto>? RubricCriteria { get; set; }
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        if (ScriptType.HasValue && ScriptType.Value == SpeakingScriptType.OpenPrompt)
+        {
+            if (PromptContent != null && string.IsNullOrWhiteSpace(PromptContent))
+            {
+                yield return new ValidationResult(
+                    "Nội dung tình huống / đề bài mở không được để trống khi chọn loại đề mở.",
+                    new[] { nameof(PromptContent) });
+            }
+        }
+    }
 }
 
 public class UpdateLevelContentRequest
@@ -151,6 +216,10 @@ public class SpeakingScriptDto
     public int? CreatedBy { get; set; }
     public string? CreatedByName { get; set; }
     public string Status { get; set; } = string.Empty;
+    public SpeakingScriptType ScriptType { get; set; } = SpeakingScriptType.Scripted;
+    public string? PromptContent { get; set; }
+    public string? StructureHints { get; set; }
+    public int? TargetDurationSeconds { get; set; }
     public string? SampleAudioUrl { get; set; }
     public string? InstructorNote { get; set; }
     public DateTime UpdatedAt { get; set; }
