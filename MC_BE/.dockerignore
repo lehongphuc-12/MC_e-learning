@@ -1,0 +1,13 @@
+**/.git
+**/.gitignore
+**/.vs
+**/.vscode
+**/bin
+**/obj
+**/*.user
+appsettings.json
+appsettings.*.json
+migration_review.sql
+pending_migration.sql
+quiz_migration_preview.sql
+seed_data_demo.sql
