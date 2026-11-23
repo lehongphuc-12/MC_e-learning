@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Mic,
   Mic2,
@@ -71,6 +71,9 @@ interface InstructorSpeakingPageProps {
 export const InstructorSpeakingPage: React.FC<InstructorSpeakingPageProps> = ({ onToast }) => {
   const { courseId: courseIdParam } = useParams<{ courseId: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const requestedSubmissionId = Number(searchParams.get('submissionId'));
+  const autoOpenedSubmissionRef = useRef<number | null>(null);
 
   const [submissions, setSubmissions] = useState<SpeakingSubmissionDto[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
@@ -606,6 +609,16 @@ const handleAppendRubricToFeedback = () => {
       setFeedbackInput(defaultRemark);
     }
   };
+
+  // Mở đúng bài nói được chỉ định trong URL thông báo.
+  useEffect(() => {
+    if (!Number.isSafeInteger(requestedSubmissionId) || requestedSubmissionId <= 0 || isLoading) return;
+    if (autoOpenedSubmissionRef.current === requestedSubmissionId) return;
+    const target = submissions.find(sub => sub.submissionId === requestedSubmissionId);
+    if (!target) return;
+    autoOpenedSubmissionRef.current = requestedSubmissionId;
+    void handleOpenGradingModal(target);
+  }, [requestedSubmissionId, isLoading, submissions]);
 
   return (
     <div className="min-h-screen bg-slate-50 pb-20 text-slate-900">

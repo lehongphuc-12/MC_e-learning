@@ -57,11 +57,14 @@ public class AdminController : ControllerBase
     // ============================================================
 
     [HttpGet("stats/revenue-chart")]
-    public async Task<ActionResult<ApiResponse<List<RevenueDataPointDto>>>> GetRevenueChart()
+    public async Task<ActionResult<ApiResponse<List<RevenueDataPointDto>>>> GetRevenueChart([FromQuery] int? year = null)
     {
         try
         {
-            var chartData = await _adminStatsService.GetRevenueChartAsync();
+            if (year.HasValue && (year.Value < 2000 || year.Value > DateTime.UtcNow.Year))
+                return BadRequest(ApiResponse<List<RevenueDataPointDto>>.FailureResponse("Năm không hợp lệ."));
+
+            var chartData = await _adminStatsService.GetRevenueChartAsync(year);
             return Ok(ApiResponse<List<RevenueDataPointDto>>.SuccessResponse(chartData, "Lấy dữ liệu biểu đồ doanh thu thành công."));
         }
         catch (Exception ex)

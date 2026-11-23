@@ -1,3 +1,4 @@
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -27,19 +28,24 @@ public class AdminStatsService : IAdminStatsService
         var totalUsers = await _context.Users.CountAsync();
 
         var roles = await _context.Roles.AsNoTracking().ToListAsync();
+
         var instructorRoleIds = roles
-            .Where(r => r.RoleName.Contains("Instructor", StringComparison.OrdinalIgnoreCase) ||
-                        r.RoleName.Contains("Giảng viên", StringComparison.OrdinalIgnoreCase))
+            .Where(r =>
+                r.RoleName.Contains("Instructor", StringComparison.OrdinalIgnoreCase) ||
+                r.RoleName.Contains("Giảng viên", StringComparison.OrdinalIgnoreCase))
             .Select(r => r.RoleId)
             .ToList();
 
         var adminRoleIds = roles
-            .Where(r => r.RoleName.Contains("Admin", StringComparison.OrdinalIgnoreCase))
+            .Where(r =>
+                r.RoleName.Contains("Admin", StringComparison.OrdinalIgnoreCase))
             .Select(r => r.RoleId)
             .ToList();
 
         var studentCount = await _context.Users
-            .CountAsync(u => !instructorRoleIds.Contains(u.RoleId) && !adminRoleIds.Contains(u.RoleId));
+            .CountAsync(u =>
+                !instructorRoleIds.Contains(u.RoleId) &&
+                !adminRoleIds.Contains(u.RoleId));
 
         var instructorCount = await _context.Users
             .CountAsync(u => instructorRoleIds.Contains(u.RoleId));
@@ -55,7 +61,8 @@ public class AdminStatsService : IAdminStatsService
 
         decimal totalRevenue = successfulPayments.Sum(p => p.Amount);
 
-        // Fallback: If no payment records in DB yet, compute potential revenue from paid course enrollments
+        // Fallback: If no payment records in DB yet,
+        // compute potential revenue from paid course enrollments.
         if (totalRevenue == 0)
         {
             var enrolledCourses = await _context.Enrollments
@@ -82,26 +89,51 @@ public class AdminStatsService : IAdminStatsService
         };
     }
 
-    public async Task<List<RevenueDataPointDto>> GetRevenueChartAsync()
+    public async Task<List<RevenueDataPointDto>> GetRevenueChartAsync(int? year = null)
     {
         var result = new List<RevenueDataPointDto>();
         var now = DateTime.UtcNow;
 
-        for (int i = 5; i >= 0; i--)
-        {
-            var targetMonthDate = now.AddMonths(-i);
-            int year = targetMonthDate.Year;
-            int month = targetMonthDate.Month;
-            string monthLabel = $"T{month}/{year}";
+        // Có chọn năm: lấy đủ 12 tháng.
+        // Không chọn năm: lấy 6 tháng gần nhất.
+        int totalMonths = year.HasValue ? 12 : 6;
 
+        for (int i = 0; i < totalMonths; i++)
+        {
+            var targetMonthDate = year.HasValue
+                ? new DateTime(
+                    year.Value,
+                    i + 1,
+                    1,
+                    0,
+                    0,
+                    0,
+                    DateTimeKind.Utc)
+                : now.AddMonths(i - 5);
+
+            // Đổi tên để không trùng với tham số year.
+            int targetYear = targetMonthDate.Year;
+            int targetMonth = targetMonthDate.Month;
+
+            string monthLabel = $"T{targetMonth}/{targetYear}";
+
+            // Lấy doanh thu thanh toán thành công trong tháng.
             var monthlyPayments = await _context.Payments
-                .Where(p => (p.Status == "SUCCESS" || p.Status == "COMPLETED") &&
-                            p.CreatedAt.Year == year && p.CreatedAt.Month == month)
+                .AsNoTracking()
+                .Where(p =>
+                    (p.Status == "SUCCESS" || p.Status == "COMPLETED") &&
+                    p.CreatedAt.Year == targetYear &&
+                    p.CreatedAt.Month == targetMonth)
                 .ToListAsync();
 
             decimal monthRevenue = monthlyPayments.Sum(p => p.Amount);
+
+            // Đếm lượt đăng ký khóa học trong tháng.
             int enrollmentsCount = await _context.Enrollments
-                .CountAsync(e => e.CreatedAt.Year == year && e.CreatedAt.Month == month);
+                .AsNoTracking()
+                .CountAsync(e =>
+                    e.CreatedAt.Year == targetYear &&
+                    e.CreatedAt.Month == targetMonth);
 
             result.Add(new RevenueDataPointDto
             {
@@ -118,7 +150,7 @@ public class AdminStatsService : IAdminStatsService
     {
         var logs = new List<SystemLogDto>();
 
-        // Generate logs dynamically based on real system records
+        // Generate logs dynamically based on real system records.
         var recentCourses = await _context.Courses
             .Include(c => c.Instructor)
             .OrderByDescending(c => c.CreatedAt)
@@ -131,10 +163,14 @@ public class AdminStatsService : IAdminStatsService
             {
                 Id = $"log-course-{c.CourseId}",
                 Timestamp = c.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss"),
-                Action = c.Status == CourseStatus.PUBLISHED ? "Duyệt khóa học" : "Cập nhật khóa học",
+                Action = c.Status == CourseStatus.PUBLISHED
+                    ? "Duyệt khóa học"
+                    : "Cập nhật khóa học",
                 PerformedBy = c.Instructor?.FullName ?? "Hệ thống",
                 Details = $"Khóa học: {c.Title} (Trạng thái: {c.Status})",
-                Type = c.Status == CourseStatus.PUBLISHED ? "success" : "info"
+                Type = c.Status == CourseStatus.PUBLISHED
+                    ? "success"
+                    : "info"
             });
         }
 
@@ -156,7 +192,9 @@ public class AdminStatsService : IAdminStatsService
             });
         }
 
-        return logs.OrderByDescending(l => l.Timestamp).ToList();
+        return logs
+            .OrderByDescending(l => l.Timestamp)
+            .ToList();
     }
 
     public Task<PlatformSettingsDto> GetPlatformSettingsAsync()
