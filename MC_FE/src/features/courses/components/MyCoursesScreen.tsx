@@ -17,14 +17,20 @@ import {
   ChevronRight,
   AlertCircle,
   X,
+  ShoppingCart,
+  CheckCircle2,
 } from 'lucide-react';
 import { EnrolledCourse } from '../../../data/mockData';
-import { ScreenType } from '../../../types';
-import { useLearnedCoursesQuery } from '../hooks/useCoursesQuery';
+import { Course, ScreenType } from '../../../types';
+import { useLearnedCoursesQuery, useRecommendedCoursesQuery, mapRecommendedToUICourse } from '../hooks/useCoursesQuery';
 import { useAuthStore } from '../../../store/useAuthStore';
+import { useOnboardingSurveyStore } from '../../preferences/store/useOnboardingSurveyStore';
 
 interface MyCoursesScreenProps {
   onNavigate: (screen: ScreenType) => void;
+  onAddToCart?: (course: Course) => void;
+  onOpenCart?: () => void;
+  isCourseInCart?: (courseId: string | number) => boolean;
 }
 
 type TabKey = 'all' | 'in-progress' | 'completed';
@@ -338,10 +344,55 @@ const CourseCardSkeleton: React.FC = () => (
 /*  Main screen                                                        */
 /* ------------------------------------------------------------------ */
 
-export const MyCoursesScreen: React.FC<MyCoursesScreenProps> = ({ onNavigate }) => {
+export const MyCoursesScreen: React.FC<MyCoursesScreenProps> = ({
+  onNavigate,
+  onAddToCart,
+  onOpenCart,
+  isCourseInCart,
+}) => {
   const navigate = useNavigate();
   const user = useAuthStore(state => state.user);
   const { data: apiEnrolledCourses, isLoading, isError } = useLearnedCoursesQuery();
+  const recommendedQuery = useRecommendedCoursesQuery(3);
+  const { openSurvey } = useOnboardingSurveyStore();
+
+  const recommendedCourses = React.useMemo(() => {
+    return (recommendedQuery.data || []).map(mapRecommendedToUICourse);
+  }, [recommendedQuery.data]);
+
+  const isRecInCart = (courseId: string | number) => {
+    if (isCourseInCart) return isCourseInCart(courseId);
+    try {
+      const u = useAuthStore.getState().user;
+      const key = u ? `mseek_cart_user_${u.id}` : 'mseek_cart_guest';
+      const raw = localStorage.getItem(key);
+      const cart: Course[] = raw ? JSON.parse(raw) : [];
+      return cart.some((c) => String(c.id) === String(courseId));
+    } catch {
+      return false;
+    }
+  };
+
+  const handleAddRecToCart = (course: Course) => {
+    if (onAddToCart) {
+      onAddToCart(course);
+      return;
+    }
+    try {
+      const u = useAuthStore.getState().user;
+      const key = u ? `mseek_cart_user_${u.id}` : 'mseek_cart_guest';
+      const raw = localStorage.getItem(key);
+      const cart: Course[] = raw ? JSON.parse(raw) : [];
+      if (!cart.some((c) => String(c.id) === String(course.id))) {
+        cart.push(course);
+        localStorage.setItem(key, JSON.stringify(cart));
+        window.dispatchEvent(new CustomEvent('mseek:cart-updated', { detail: { courseId: course.id } }));
+      }
+      onOpenCart?.();
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   // Pure API data (100% real backend data)
   const enrolledCourses: EnrolledCourse[] = (apiEnrolledCourses as EnrolledCourse[]) || [];
@@ -602,9 +653,13 @@ export const MyCoursesScreen: React.FC<MyCoursesScreenProps> = ({ onNavigate }) 
           </div>
         </section>
 
-        {/* ---------------- Bộ lọc: mọi ô cùng cao 40px ---------------- */}
-        <div
-          ref={toolbarRef}
+        {/* ---------------- Bố cục 2 cột trên Desktop (lg:grid-cols-12) ---------------- */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Cột trái: Tab, tìm kiếm, sắp xếp, danh sách khóa học và phân trang */}
+          <div className={recommendedCourses.length > 0 ? "lg:col-span-8 xl:col-span-8 space-y-6" : "lg:col-span-12 space-y-6"}>
+            {/* ---------------- Bộ lọc: mọi ô cùng cao 40px ---------------- */}
+            <div
+              ref={toolbarRef}
           className="mc-rise flex scroll-mt-24 flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200/80 bg-white p-2.5"
           style={delay(120)}
         >
@@ -754,7 +809,11 @@ export const MyCoursesScreen: React.FC<MyCoursesScreenProps> = ({ onNavigate }) 
                 className="bg-white rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col sm:flex-row sm:h-56 group hover:border-blue-200"
               >
                 {/* ── Section 1: Thumbnail (Bên Trái - Cố định chiều cao theo card) ── */}
-                <div className="relative sm:w-64 md:w-72 h-44 sm:h-full shrink-0 bg-slate-900 overflow-hidden">
+                <div
+                  onClick={() => navigate(`/courses/${item.course.id}`)}
+                  className="relative sm:w-64 md:w-72 h-44 sm:h-full shrink-0 bg-slate-900 overflow-hidden cursor-pointer"
+                  title="Xem chi tiết khóa học"
+                >
                   <img
                     src={item.course.thumbnail}
                     alt={item.course.title}
@@ -791,7 +850,11 @@ export const MyCoursesScreen: React.FC<MyCoursesScreenProps> = ({ onNavigate }) 
                       </span>
                     </div>
 
-                    <h3 className="font-bold text-slate-900 text-base sm:text-lg leading-snug line-clamp-2 group-hover:text-blue-600 transition-colors">
+                    <h3
+                      onClick={() => navigate(`/courses/${item.course.id}`)}
+                      className="font-bold text-slate-900 text-base sm:text-lg leading-snug line-clamp-2 group-hover:text-blue-600 transition-colors cursor-pointer"
+                      title="Xem chi tiết khóa học"
+                    >
                       {item.course.title}
                     </h3>
 
@@ -935,6 +998,125 @@ export const MyCoursesScreen: React.FC<MyCoursesScreenProps> = ({ onNavigate }) 
             </p>
           </div>
         )}
+          </div>
+
+          {/* Cột phải: Card container Gợi ý tiếp theo cho bạn */}
+          {recommendedCourses.length > 0 && (
+            <aside className="lg:col-span-4 space-y-4">
+              <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm sticky top-24 pb-20">
+                <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                      <Sparkles className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900">Gợi ý tiếp theo cho bạn</h3>
+                      <p className="text-[11px] text-slate-500">Dựa trên tiến độ và định hướng học tập</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={openSurvey}
+                    className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded-lg transition-colors cursor-pointer"
+                    title="Cập nhật mục tiêu học tập"
+                  >
+                    <span>Mục tiêu</span>
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  {recommendedCourses.slice(0, 3).map((recCourse) => (
+                    <div
+                      key={`sidebar-rec-${recCourse.id}`}
+                      className="group rounded-xl border border-slate-200 bg-white p-3 hover:border-blue-300 hover:shadow-md transition-all duration-200 flex flex-col gap-2.5"
+                    >
+                      {/* Ảnh thumbnail 16:9 */}
+                      <div
+                        className="relative aspect-video w-full overflow-hidden rounded-lg bg-slate-900 cursor-pointer"
+                        onClick={() => navigate(`/courses/${recCourse.id}`)}
+                      >
+                        <img
+                          src={recCourse.thumbnail}
+                          alt={recCourse.title}
+                          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        />
+                        {recCourse.badge && (
+                          <span className="absolute top-2 left-2 rounded-md bg-amber-500 px-2 py-0.5 text-[9px] font-extrabold text-white uppercase shadow-xs">
+                            {recCourse.badge}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Badge lý do đề xuất */}
+                      <div className="inline-flex items-center gap-1.5 self-start rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">
+                        <Sparkles className="h-3 w-3 shrink-0 text-blue-600" />
+                        <span className="line-clamp-1">{recCourse.recommendationReason}</span>
+                      </div>
+
+                      {/* Tên khóa học (giới hạn 2 dòng line-clamp-2) */}
+                      <h4
+                        onClick={() => navigate(`/courses/${recCourse.id}`)}
+                        className="line-clamp-2 text-xs font-bold text-slate-900 hover:text-blue-600 cursor-pointer transition-colors leading-snug"
+                        title={recCourse.title}
+                      >
+                        {recCourse.title}
+                      </h4>
+
+                      {/* Giảng viên & Giá */}
+                      <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-100">
+                        <span className="truncate text-slate-500 max-w-[55%]">
+                          GV: <strong className="text-slate-700 font-semibold">{recCourse.instructor.name}</strong>
+                        </span>
+                        <span className="font-extrabold text-slate-900 shrink-0">
+                          {recCourse.price === 0 ? (
+                            <span className="text-emerald-600 font-extrabold">Miễn phí</span>
+                          ) : (
+                            `${recCourse.price.toLocaleString('vi-VN')} đ`
+                          )}
+                        </span>
+                      </div>
+
+                      {/* 2 nút hành động nhỏ gọn */}
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        {isRecInCart(recCourse.id) ? (
+                          <button
+                            type="button"
+                            onClick={() => onOpenCart?.()}
+                            className="flex h-8 items-center justify-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2 text-[11px] font-bold text-blue-700 hover:bg-blue-100 transition-colors"
+                            title="Đã có trong giỏ hàng"
+                          >
+                            <CheckCircle2 className="h-3 w-3 shrink-0" />
+                            <span>Trong giỏ</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleAddRecToCart(recCourse)}
+                            className="flex h-8 items-center justify-center gap-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white px-2 text-[11px] font-bold shadow-xs hover:shadow-md transition-all active:scale-95"
+                            title="Thêm vào giỏ hàng"
+                          >
+                            <ShoppingCart className="h-3 w-3 shrink-0" />
+                            <span>Thêm giỏ</span>
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/courses/${recCourse.id}`)}
+                          className="flex h-8 items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-2 text-[11px] font-bold shadow-2xs transition-colors active:scale-95"
+                          title="Xem chi tiết khóa học"
+                        >
+                          <span>Chi tiết</span>
+                          <ArrowUpRight className="h-3 w-3 shrink-0" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </aside>
+          )}
+        </div>
       </div>
     </div>
   );

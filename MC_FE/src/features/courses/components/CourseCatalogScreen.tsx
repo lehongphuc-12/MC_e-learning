@@ -5,13 +5,15 @@ import {
   Star, 
   X, 
   Check, 
-  ArrowUpDown
+  ArrowUpDown,
+  Sparkles
 } from 'lucide-react';
 import { Course, ScreenType } from '../../../types';
 import { CourseCard } from '../../../components/common/CourseCard';
-import { useCoursesQuery } from '../hooks/useCoursesQuery';
+import { useCoursesQuery, useRecommendedCoursesQuery, mapRecommendedToUICourse } from '../hooks/useCoursesQuery';
 import { useCategoriesQuery } from '../hooks/useInstructorCourses';
 import { useNavigate } from 'react-router-dom';
+import { useOnboardingSurveyStore } from '../../preferences/store/useOnboardingSurveyStore';
 
 interface CourseCatalogScreenProps {
   onNavigate: (screen: ScreenType) => void;
@@ -65,6 +67,12 @@ export const CourseCatalogScreen: React.FC<CourseCatalogScreenProps> = ({
 
   const coursesQuery = useCoursesQuery();
   const categoriesQuery = useCategoriesQuery();
+  const recommendedQuery = useRecommendedCoursesQuery(3);
+  const { openSurvey } = useOnboardingSurveyStore();
+
+  const recommendedCourses = useMemo(() => {
+    return (recommendedQuery.data || []).map(mapRecommendedToUICourse);
+  }, [recommendedQuery.data]);
 
   const allCourses = coursesQuery.data || [];
   const rawCategories = categoriesQuery.data || [];
@@ -291,6 +299,60 @@ export const CourseCatalogScreen: React.FC<CourseCatalogScreenProps> = ({
 
         {/* Right Catalog Grid */}
         <main className="lg:col-span-9 space-y-5">
+          {/* Section Gợi ý dành riêng cho bạn */}
+          {recommendedCourses.length > 0 && (
+            <section className="border-b border-gray-200 pb-6 mb-6">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600 border border-blue-100 shadow-2xs">
+                    <Sparkles className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                      Gợi ý dành riêng cho bạn
+                    </h2>
+                    <p className="text-xs text-slate-500">
+                      Dựa trên tiến độ học tập và kỹ năng cần cải thiện của bạn
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={openSurvey}
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700 shadow-2xs hover:bg-blue-100 transition-colors cursor-pointer"
+                  title="Thay đổi mục tiêu để cập nhật khóa học gợi ý"
+                >
+                  <SlidersHorizontal className="h-3.5 w-3.5 text-blue-600" />
+                  <span>Cập nhật mục tiêu học tập</span>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+                {recommendedCourses.map((course) => (
+                  <CourseCard
+                    key={`rec-${course.id}`}
+                    idPrefix="recommended-card"
+                    course={course}
+                    recommendationReason={course.recommendationReason}
+                    isWishlisted={wishlistCourseIds.includes(course.id)}
+                    onSelect={onSelectCourse}
+                    onPreview={onPreviewVideo}
+                    onToggleWishlist={onToggleWishlist}
+                    onAddToCart={onAddToCart}
+                    showCartButton={true}
+                    isInCart={isCourseInCart(course.id)}
+                    isEnrolled={isCourseEnrolled(course.id)}
+                    isPendingPayment={isCoursePendingPayment(course.id)}
+                    onOpenCart={onOpenCart}
+                    onContinuePayment={onContinuePayment}
+                    onGoToCourse={(selectedCourse) => onNavigateToLearning(selectedCourse)}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200/80 bg-white px-5 py-4 shadow-sm">
             <div><p className="text-sm font-extrabold text-slate-900">Thư viện khóa học</p><p className="mt-1 text-xs text-slate-500">Hiển thị {displayedCourses.length} trong {filteredCourses.length} khóa học</p></div>
             <span className="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700">Trang {currentPage} / {totalPages}</span>
