@@ -63,6 +63,7 @@ import {
 } from '../hooks/useCertificateQueries';
 import { CertificateModal } from './CertificateModal';
 import { CourseChatDrawer } from './CourseChatDrawer';
+import { LessonDiscussionTab } from './LessonDiscussionTab';
 import { Toast, ToastMessage } from '../../../components/common/Toast';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { lessonApi } from '../api/lessonApi';
@@ -2694,10 +2695,13 @@ export const CourseLearningPage: React.FC = () => {
   const initialLessonId = searchParams.get('lessonId')
     ? Number(searchParams.get('lessonId'))
     : null;
+  const requestedTab = searchParams.get('tab');
+  const stateOpenTab = (location.state as { openTab?: string } | null)?.openTab;
 
   const user = useAuthStore((state) => state.user);
+  const isStaffView = user?.role === 'instructor' || user?.role === 'admin';
   useEffect(() => {
-    if (!courseId || !user) {
+    if (!courseId || !user || user.role !== 'student') {
       setLearnerRemedialAssignments([]);
       setRemedialAssignmentsError(null);
       return;
@@ -2781,6 +2785,9 @@ export const CourseLearningPage: React.FC = () => {
 
   // Course Speaking Scripts (3 Scopes: LESSON, CHAPTER, FINAL)
   const [courseSpeakingScripts, setCourseSpeakingScripts] = useState<SpeakingScriptDto[]>([]);
+  const [viewMode, setViewMode] = useState<'video' | 'speaking'>(() =>
+    searchParams.get('mode') === 'speaking' ? 'speaking' : 'video'
+  );
   const [activeSpeakingScript, setActiveSpeakingScript] = useState<SpeakingScriptDto | null>(null);
 
   useEffect(() => {
@@ -2939,20 +2946,9 @@ export const CourseLearningPage: React.FC = () => {
           const res = await speakingApi.getSpeakingScriptsByCourse(courseId);
           if (isSubscribed && res.success && res.data) {
             setCourseSpeakingScripts(res.data);
-            const targetScriptId = activeSpeakingScript?.scriptId || payload.scriptId || payload.speakingScriptId;
+            const targetScriptId = activeSpeakingScript?.scriptId;
             if (targetScriptId) {
               const matched = res.data.find((s) => s.scriptId === targetScriptId);
-              if (matched) {
-                setActiveSpeakingScript(matched);
-                return;
-              }
-            }
-            if (activeLesson) {
-              const matched = res.data.find(
-                (s) =>
-                  s.lessonId === activeLesson.lessonId ||
-                  (s.scope === 'FINAL' && activeLesson.lessonType?.toUpperCase() === 'ASSIGNMENT')
-              );
               if (matched) {
                 setActiveSpeakingScript(matched);
               }
@@ -2993,17 +2989,6 @@ export const CourseLearningPage: React.FC = () => {
                   const matched = res.data.find((s) => s.scriptId === targetScriptId);
                   if (matched) {
                     setActiveSpeakingScript(matched);
-                    return;
-                  }
-                }
-                if (activeLesson) {
-                  const matched = res.data.find(
-                    (s) =>
-                      s.lessonId === activeLesson.lessonId ||
-                      (s.scope === 'FINAL' && activeLesson.lessonType?.toUpperCase() === 'ASSIGNMENT')
-                  );
-                  if (matched) {
-                    setActiveSpeakingScript(matched);
                   }
                 }
               }
@@ -3022,13 +3007,32 @@ export const CourseLearningPage: React.FC = () => {
     };
   }, [courseId, activeSpeakingScript?.scriptId, activeLesson]);
 
-  // Auto-bind activeSpeakingScript on load, F5, or when courseSpeakingScripts is fetched
+  // Sync activeSpeakingScript ONLY when viewMode === 'speaking' or standalone ASSIGNMENT lesson
   useEffect(() => {
     if (courseSpeakingScripts.length === 0) return;
-    const targetLessonId = initialLessonId || activeLesson?.lessonId;
-    const currentLesson = orderedLessons.find((l) => l.lessonId === targetLessonId) || activeLesson;
+    const currentLesson =
+      activeLesson ||
+      (initialLessonId ? orderedLessons.find((l) => l.lessonId === initialLessonId) : undefined);
+
+    const isAssignmentLesson = currentLesson?.lessonType?.toUpperCase() === 'ASSIGNMENT';
+
+    if (viewMode !== 'speaking' && !isAssignmentLesson) {
+      if (activeSpeakingScript !== null) {
+        setActiveSpeakingScript(null);
+      }
+      return;
+    }
 
     if (activeSpeakingScript) {
+      if (
+        currentLesson &&
+        activeSpeakingScript.lessonId !== currentLesson.lessonId &&
+        !(activeSpeakingScript.scope === 'FINAL' && isAssignmentLesson)
+      ) {
+        setActiveSpeakingScript(null);
+        return;
+      }
+
       const updated = courseSpeakingScripts.find((s) => s.scriptId === activeSpeakingScript.scriptId);
       if (
         updated &&
@@ -3050,13 +3054,13 @@ export const CourseLearningPage: React.FC = () => {
         (s) =>
           s.scope === 'FINAL' &&
           (s.title.trim().toLowerCase() === currentLesson.title.trim().toLowerCase() ||
-            currentLesson.lessonType?.toUpperCase() === 'ASSIGNMENT')
+            isAssignmentLesson)
       );
 
     if (matched) {
       setActiveSpeakingScript(matched);
     }
-  }, [courseSpeakingScripts, activeLesson, initialLessonId, orderedLessons, activeSpeakingScript]);
+  }, [courseSpeakingScripts, activeLesson, initialLessonId, orderedLessons, activeSpeakingScript, viewMode]);
 
   const lessonMaterials = courseMaterials.filter(m => m.lessonId == null || (activeLesson?.isLocked !== true && m.lessonId === activeLesson?.lessonId));
 
@@ -3066,8 +3070,23 @@ export const CourseLearningPage: React.FC = () => {
 
   const [activeTab, setActiveTab] =
     useState<'overview' | 'notes' | 'discussion'>(
-      'overview',
+      requestedTab === 'discussion' || stateOpenTab === 'discussion'
+        ? 'discussion'
+        : requestedTab === 'notes'
+          ? 'notes'
+          : 'overview',
     );
+  const discussionSectionRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (requestedTab === 'discussion' || stateOpenTab === 'discussion') {
+      setActiveTab('discussion');
+      const timer = window.setTimeout(() => {
+        discussionSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 250);
+      return () => window.clearTimeout(timer);
+    }
+  }, [requestedTab, stateOpenTab, initialLessonId]);
 
   const [completedLessonIds, setCompletedLessonIds] =
     useState<number[]>([]);
@@ -3978,7 +3997,7 @@ export const CourseLearningPage: React.FC = () => {
               initialLessonId,
           );
 
-        if (found && !found.isLocked) {
+        if (found && (isStaffView || !found.isLocked)) {
           setActiveLesson(found);
           return;
         }
@@ -3995,14 +4014,14 @@ export const CourseLearningPage: React.FC = () => {
         const firstUncompleted =
           orderedLessons.find(
             (l) =>
-              !l.isLocked && !completedLessonIds.includes(
+              (isStaffView || !l.isLocked) && !completedLessonIds.includes(
                 l.lessonId,
               ),
           );
 
         const targetLesson =
           firstUncompleted ||
-          orderedLessons.find(l => !l.isLocked) || null;
+          orderedLessons.find(l => isStaffView || !l.isLocked) || null;
 
         setActiveLesson(
           targetLesson,
@@ -4013,14 +4032,16 @@ export const CourseLearningPage: React.FC = () => {
     orderedLessons,
     initialLessonId,
     completedLessonIds,
+    isStaffView,
   ]);
 
   const handleSelectLesson = (
     lesson: Lesson,
   ) => {
-    if (lesson.isLocked) return;
+    if (!isStaffView && lesson.isLocked) return;
     setIsVideoEnded(false);
     setReplayKey(0);
+    setViewMode(lesson.lessonType?.toUpperCase() === 'ASSIGNMENT' ? 'speaking' : 'video');
     setActiveSpeakingScript(null);
     setActiveLesson(lesson);
 
@@ -4038,18 +4059,19 @@ export const CourseLearningPage: React.FC = () => {
   const handleSelectSpeakingScript = (script: SpeakingScriptDto) => {
     if (script.lessonId) {
       const matchLesson = orderedLessons.find((l) => l.lessonId === script.lessonId);
-      if (matchLesson?.isLocked) {
+      if (!isStaffView && matchLesson?.isLocked) {
         toast.warning(matchLesson.lockReason || 'Bài học này đang bị khóa!');
         return;
       }
       const isAssignment = matchLesson?.lessonType?.toUpperCase() === 'ASSIGNMENT';
-      if (!isAssignment && !completedLessonIds.includes(script.lessonId)) {
+      if (!isStaffView && !isAssignment && !completedLessonIds.includes(script.lessonId)) {
         toast.warning('Vui lòng hoàn thành video bài học trước khi làm bài luyện nói!');
         return;
       }
     }
     setIsVideoEnded(false);
     setReplayKey(0);
+    setViewMode('speaking');
     setActiveSpeakingScript(script);
     if (script.lessonId) {
       const matchLesson = orderedLessons.find((l) => l.lessonId === script.lessonId);
@@ -4058,6 +4080,7 @@ export const CourseLearningPage: React.FC = () => {
         setSearchParams(
           {
             lessonId: matchLesson.lessonId.toString(),
+            mode: 'speaking',
           },
           {
             replace: true,
@@ -4644,15 +4667,16 @@ export const CourseLearningPage: React.FC = () => {
             <div
               onContextMenu={(event) => event.preventDefault()}
               className={`relative w-full overflow-hidden rounded-2xl border border-slate-200/80 shadow-2xl group ${
-                activeSpeakingScript !== null ||
+                viewMode === 'speaking' ||
                 activeLesson?.lessonType?.toUpperCase() === 'ASSIGNMENT' ||
                 (!effectiveVideoUrl && activeLesson !== null && !activeLesson.hasVideo)
                   ? 'min-h-[550px] bg-[#f4f7fa]'
                   : 'aspect-video bg-black'
               }`}
             >
-              {activeSpeakingScript !== null || activeLesson?.lessonType?.toUpperCase() === 'ASSIGNMENT' ? (
+              {viewMode === 'speaking' || activeLesson?.lessonType?.toUpperCase() === 'ASSIGNMENT' ? (
                 <LearnerSpeakingWorkspace
+                  key={`${activeLesson?.lessonId ?? 'none'}-${activeSpeakingScript?.scriptId ?? 'none'}`}
                   lesson={activeLesson}
                   scriptOverride={activeSpeakingScript}
                   courseId={courseId}
@@ -4993,7 +5017,7 @@ export const CourseLearningPage: React.FC = () => {
                 </button>
               ) : (
                 <button
-                  disabled={!nextLesson || nextLesson.isLocked}
+                  disabled={!nextLesson || (!isStaffView && nextLesson.isLocked)}
                   onClick={() =>
                     nextLesson &&
                     handleSelectLesson(
@@ -5060,7 +5084,7 @@ export const CourseLearningPage: React.FC = () => {
 
               {/* Tabs */}
 
-              <div className="border-b border-slate-200 flex items-center gap-6 text-xs font-semibold text-slate-500 pt-2">
+              <div ref={discussionSectionRef} className="border-b border-slate-200 flex items-center gap-6 text-xs font-semibold text-slate-500 pt-2">
                 <button
                   onClick={() =>
                     setActiveTab(
@@ -5154,23 +5178,16 @@ export const CourseLearningPage: React.FC = () => {
                   </div>
                 )}
 
-                {activeTab ===
-                  'discussion' && (
-                  <div className="space-y-3">
-                    <p className="text-slate-500">
-                      Bình luận và trao đổi ý kiến với học viên & giảng viên:
-                    </p>
-
-                    <div className="flex items-center gap-3 rounded-xl bg-white p-3 border border-slate-200">
-                      <MessageSquare className="h-5 w-5 text-violet-600" />
-
-                      <input
-                        type="text"
-                        placeholder="Viết câu hỏi hoặc nhận xét của bạn..."
-                        className="w-full bg-transparent text-xs text-slate-900 outline-none placeholder:text-slate-400"
-                      />
-                    </div>
-                  </div>
+                {activeTab === 'discussion' && (
+                  activeLesson ? (
+                    <LessonDiscussionTab
+                      lessonId={activeLesson.lessonId}
+                      courseId={courseId}
+                      onToast={showPageToast}
+                    />
+                  ) : (
+                    <p className="text-slate-500 py-4">Vui lòng chọn một bài học để xem và gửi thảo luận.</p>
+                  )
                 )}
               </div>
             </div>
@@ -5609,13 +5626,10 @@ export const CourseLearningPage: React.FC = () => {
                             (item.script && item.script.scriptId === activeSpeakingScript?.scriptId);
 
                           const handleClickSelect = () => {
-                            if (item.lesson) {
-                              handleSelectLesson(item.lesson);
-                              if (item.script) {
-                                setActiveSpeakingScript(item.script);
-                              }
-                            } else if (item.script) {
+                            if (item.script) {
                               handleSelectSpeakingScript(item.script);
+                            } else if (item.lesson) {
+                              handleSelectLesson(item.lesson);
                             }
                           };
 
