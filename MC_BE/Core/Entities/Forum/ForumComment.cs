@@ -13,9 +13,11 @@ public class ForumComment
     [Column("CommentID")]
     public int CommentId { get; set; }
 
-    [Required]
     [Column("PostID")]
-    public int PostId { get; set; }
+    public int? PostId { get; set; }
+
+    [Column("LessonID")]
+    public int? LessonId { get; set; }
 
     [Required]
     [Column("AuthorID")]
@@ -59,7 +61,10 @@ public class ForumComment
 
     // Navigation properties
     [ForeignKey("PostId")]
-    public virtual ForumPost Post { get; set; } = null!;
+    public virtual ForumPost? Post { get; set; }
+
+    [ForeignKey("LessonId")]
+    public virtual Lesson? Lesson { get; set; }
 
     [ForeignKey("AuthorId")]
     public virtual User Author { get; set; } = null!;
