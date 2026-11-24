@@ -507,6 +507,18 @@ export const SpeakingResultPage: React.FC = () => {
                     <p className="mt-1 text-xs text-slate-700 italic">"{submission.note}"</p>
                   </div>
                 )}
+
+                {submission.studentNote && (
+                  <div className="mt-4 rounded-xl bg-indigo-50/70 p-3.5 border border-indigo-100">
+                    <p className="text-[11px] font-bold text-indigo-900 flex items-center gap-1.5 mb-1">
+                      <FileText size={14} className="text-indigo-600" />
+                      Dàn ý Cue Card bạn đã chuẩn bị khi nói:
+                    </p>
+                    <p className="mt-1 text-xs text-indigo-950 font-mono whitespace-pre-line bg-white/90 p-2.5 rounded-lg border border-indigo-200/60 leading-relaxed">
+                      {submission.studentNote}
+                    </p>
+                  </div>
+                )}
               </section>
             )}
 

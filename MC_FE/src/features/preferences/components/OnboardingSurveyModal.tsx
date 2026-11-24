@@ -93,7 +93,7 @@ export const OnboardingSurveyModal: React.FC<OnboardingSurveyModalProps> = ({ on
 
   // Auto-check survey status on mount when user is student
   useEffect(() => {
-    const isStudent = user && (user.role?.toLowerCase() === 'student' || user.role === 'STUDENT');
+    const isStudent = user && user.role?.toLowerCase() === 'student';
     if (!isStudent) return;
 
     const isSkippedThisSession = sessionStorage.getItem(SESSION_STORAGE_KEY) === 'true';

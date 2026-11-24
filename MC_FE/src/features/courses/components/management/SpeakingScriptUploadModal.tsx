@@ -19,6 +19,8 @@ import {
   Loader2,
   BookOpen,
   FolderOpen,
+  Clock,
+  Lightbulb,
 } from 'lucide-react';
 import { speakingApi } from '../../api/speakingApi';
 import { courseApi } from '../../api/courseApi';
@@ -27,6 +29,7 @@ import { lessonApi } from '../../api/lessonApi';
 import {
   SpeakingLevel,
   SpeakingScope,
+  SpeakingScriptType,
   ParsePreviewDto,
   SpeakingScriptDto,
   BackgroundMusicDto,
@@ -118,6 +121,19 @@ export const SpeakingScriptUploadModal: React.FC<SpeakingScriptUploadModalProps>
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
+  const [scriptType, setScriptType] = useState<SpeakingScriptType>(
+    scriptToEdit?.scriptType || 'Scripted'
+  );
+  const [promptContent, setPromptContent] = useState<string>(
+    scriptToEdit?.promptContent || ''
+  );
+  const [structureHints, setStructureHints] = useState<string>(
+    scriptToEdit?.structureHints || ''
+  );
+  const [targetDurationSeconds, setTargetDurationSeconds] = useState<number | null>(
+    scriptToEdit?.targetDurationSeconds ?? null
+  );
+
   const [scriptTitle, setScriptTitle] = useState(
     scriptToEdit?.title || lessonTitle || ''
   );
@@ -155,6 +171,10 @@ export const SpeakingScriptUploadModal: React.FC<SpeakingScriptUploadModalProps>
       setSelectedCourseId(scriptToEdit.courseId);
       setSelectedModuleId(scriptToEdit.moduleId ?? null);
       setSelectedLessonId(scriptToEdit.lessonId ?? null);
+      setScriptType(scriptToEdit.scriptType || 'Scripted');
+      setPromptContent(scriptToEdit.promptContent || '');
+      setStructureHints(scriptToEdit.structureHints || '');
+      setTargetDurationSeconds(scriptToEdit.targetDurationSeconds ?? null);
       setScriptTitle(scriptToEdit.title || '');
       setOriginalContent(scriptToEdit.originalContent || '');
 
@@ -169,6 +189,10 @@ export const SpeakingScriptUploadModal: React.FC<SpeakingScriptUploadModalProps>
       setEditableContents(newContents);
     } else {
       setScope(initialScope || 'FINAL');
+      setScriptType('Scripted');
+      setPromptContent('');
+      setStructureHints('');
+      setTargetDurationSeconds(null);
       if (courseId) setSelectedCourseId(courseId);
       if (lessonId) setSelectedLessonId(lessonId);
       if (lessonTitle) setScriptTitle(lessonTitle);
@@ -382,26 +406,33 @@ export const SpeakingScriptUploadModal: React.FC<SpeakingScriptUploadModalProps>
       return;
     }
 
-    const hasContent = editableContents.BEGINNER.trim() ||
-      editableContents.INTERMEDIATE.trim() ||
-      editableContents.ADVANCED.trim();
+    if (scriptType === 'OpenPrompt') {
+      if (!promptContent.trim()) {
+        setErrorMsg('Vui lòng nhập nội dung đề bài / tình huống mở cho bài tập nói.');
+        return;
+      }
+    } else {
+      const hasContent = editableContents.BEGINNER.trim() ||
+        editableContents.INTERMEDIATE.trim() ||
+        editableContents.ADVANCED.trim();
 
-    if (!hasContent) {
-      setErrorMsg('Vui lòng cung cấp nội dung kịch bản cho ít nhất một cấp độ.');
-      return;
+      if (!hasContent) {
+        setErrorMsg('Vui lòng cung cấp nội dung kịch bản cho ít nhất một cấp độ.');
+        return;
+      }
     }
 
-    // Auto fallback for empty levels
+    // Auto fallback for empty levels if Scripted
     const validFallback = editableContents.BEGINNER.trim() ||
       editableContents.INTERMEDIATE.trim() ||
       editableContents.ADVANCED.trim() ||
       originalContent.trim();
 
-    const finalLevels = [
+    const finalLevels = scriptType === 'Scripted' ? [
       { level: 'BEGINNER' as SpeakingLevel, content: editableContents.BEGINNER.trim() || validFallback },
       { level: 'INTERMEDIATE' as SpeakingLevel, content: editableContents.INTERMEDIATE.trim() || validFallback },
       { level: 'ADVANCED' as SpeakingLevel, content: editableContents.ADVANCED.trim() || validFallback },
-    ];
+    ] : [];
 
     setIsPublishing(true);
     setErrorMsg(null);
@@ -411,10 +442,14 @@ export const SpeakingScriptUploadModal: React.FC<SpeakingScriptUploadModalProps>
         const res = await speakingApi.updateSpeakingScript(scriptToEdit.scriptId, {
           courseId: selectedCourseId,
           scope,
+          scriptType,
+          promptContent: scriptType === 'OpenPrompt' ? promptContent.trim() : null,
+          structureHints: scriptType === 'OpenPrompt' && structureHints.trim() ? structureHints.trim() : null,
+          targetDurationSeconds: scriptType === 'OpenPrompt' && Number(targetDurationSeconds) > 0 ? Number(targetDurationSeconds) : null,
           moduleId: scope === 'CHAPTER' ? selectedModuleId : (scope === 'LESSON' ? selectedModuleId : null),
           lessonId: scope === 'LESSON' ? selectedLessonId : null,
           title: scriptTitle.trim(),
-          originalContent,
+          originalContent: scriptType === 'Scripted' ? originalContent : undefined,
           levels: finalLevels,
           passingScore: 80,
           dueAt: dueAt ? new Date(dueAt).toISOString() : null,
@@ -432,10 +467,14 @@ export const SpeakingScriptUploadModal: React.FC<SpeakingScriptUploadModalProps>
         const res = await speakingApi.createSpeakingScript({
           courseId: selectedCourseId,
           scope,
+          scriptType,
+          promptContent: scriptType === 'OpenPrompt' ? promptContent.trim() : null,
+          structureHints: scriptType === 'OpenPrompt' && structureHints.trim() ? structureHints.trim() : null,
+          targetDurationSeconds: scriptType === 'OpenPrompt' && Number(targetDurationSeconds) > 0 ? Number(targetDurationSeconds) : null,
           moduleId: scope === 'CHAPTER' ? selectedModuleId : (scope === 'LESSON' ? selectedModuleId : null),
           lessonId: scope === 'LESSON' ? selectedLessonId : null,
           title: scriptTitle.trim(),
-          originalContent,
+          originalContent: scriptType === 'Scripted' ? originalContent : undefined,
           levels: finalLevels,
           passingScore: 80,
           dueAt: dueAt ? new Date(dueAt).toISOString() : null,
@@ -686,145 +725,254 @@ export const SpeakingScriptUploadModal: React.FC<SpeakingScriptUploadModalProps>
               <label className="block text-[11px] font-bold text-slate-600">Hạn nộp (tùy chọn)<input type="datetime-local" value={dueAt} onChange={e=>setDueAt(e.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium"/></label>
               <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3"><input type="checkbox" checked={isRemedial} onChange={e=>setIsRemedial(e.target.checked)} className="mt-0.5 h-4 w-4 rounded text-amber-600"/><span><b className="block text-xs text-amber-900">Bài Speaking bổ trợ riêng</b><span className="mt-1 block text-[10px] text-amber-800">Có thể tạo nhiều bài bổ trợ cho cùng một lesson. Không tính vào chứng chỉ; chỉ người được giao thấy.</span></span></label>
             </div>
+
+            {/* Bộ chọn Loại bài nói (Script Type) */}
+            <div className="pt-2 border-t border-slate-100">
+              <label className="text-[11px] font-bold text-slate-600 mb-2 block">
+                Hình thức bài tập nói *
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setScriptType('Scripted')}
+                  className={`p-3 rounded-xl border-2 text-left transition-all cursor-pointer ${
+                    scriptType === 'Scripted'
+                      ? 'border-blue-600 bg-blue-50/60 shadow-xs'
+                      : 'border-slate-200 bg-white hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                      <FileText className="w-3.5 h-3.5 text-blue-600" />
+                      Có kịch bản (Teleprompter)
+                    </span>
+                    {scriptType === 'Scripted' && <CheckCircle2 className="w-4 h-4 text-blue-600" />}
+                  </div>
+                  <p className="text-[10px] text-slate-500">
+                    Cuộn chữ tự động, bóc tách 3 cấp độ (Beginner/Intermediate/Advanced)
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setScriptType('OpenPrompt')}
+                  className={`p-3 rounded-xl border-2 text-left transition-all cursor-pointer ${
+                    scriptType === 'OpenPrompt'
+                      ? 'border-indigo-600 bg-indigo-50/60 shadow-xs'
+                      : 'border-slate-200 bg-white hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                      Đề mở / Ứng biến (Cue Card)
+                    </span>
+                    {scriptType === 'OpenPrompt' && <CheckCircle2 className="w-4 h-4 text-indigo-600" />}
+                  </div>
+                  <p className="text-[10px] text-slate-500">
+                    Tình huống thực tế, học viên tự lập dàn ý Cue Card và ứng biến nói
+                  </p>
+                </button>
+              </div>
+            </div>
           </div>
 
-          {/* 2. File Upload / Auto Parser Box */}
-          <div className="p-5 md:p-6 rounded-2xl border-2 border-dashed border-blue-200 bg-blue-50/30 flex flex-col items-center justify-center text-center relative hover:bg-blue-50/50 transition-colors">
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileChange}
-              accept=".docx,.txt,.md"
-              className="hidden"
-            />
-            <div className="w-12 h-12 rounded-2xl bg-blue-600/10 text-blue-600 flex items-center justify-center mb-3">
-              <UploadCloud className="w-6 h-6" />
+          {scriptType === 'OpenPrompt' ? (
+            /* Open Prompt Form Block */
+            <div className="p-5 md:p-6 rounded-2xl border border-indigo-200 bg-indigo-50/20 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1.5">
+                  Nội dung Đề bài / Tình huống thực tế <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  rows={6}
+                  value={promptContent}
+                  onChange={(e) => setPromptContent(e.target.value)}
+                  placeholder="Ví dụ: Bạn là MC dẫn chương trình Lễ Khai mạc Hội thao Doanh nghiệp mở rộng 2026. Hãy chào mừng đại biểu, công bố thể thức thi đấu và phát biểu truyền cảm hứng..."
+                  className="w-full text-xs font-medium p-3.5 rounded-xl border border-slate-200 bg-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 leading-relaxed text-slate-800"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1.5 flex items-center gap-1.5">
+                  <Lightbulb className="w-3.5 h-3.5 text-amber-500" /> Gợi ý sườn bài / Từ khóa chính (Tùy chọn)
+                </label>
+                <textarea
+                  rows={4}
+                  value={structureHints}
+                  onChange={(e) => setStructureHints(e.target.value)}
+                  placeholder="Ví dụ:&#10;• Phần 1 (30s): Lời chào trân trọng, bối cảnh buổi lễ&#10;• Phần 2 (60s): Tinh thần thể thao 'Đoàn kết - Trung thực'&#10;• Phần 3 (30s): Tuyên bố khai mạc & lời chúc"
+                  className="w-full text-xs font-medium p-3.5 rounded-xl border border-slate-200 bg-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 leading-relaxed text-slate-800 font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1.5 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-indigo-600" /> Thời lượng nói mục tiêu (Giây - Tùy chọn)
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="number"
+                    min={10}
+                    max={1800}
+                    step={10}
+                    value={targetDurationSeconds ?? ''}
+                    onChange={(e) => {
+                      const val = e.target.value ? Number(e.target.value) : null;
+                      setTargetDurationSeconds(val);
+                    }}
+                    placeholder="120"
+                    className="w-36 text-xs font-bold px-3 py-2 rounded-xl border border-slate-200 bg-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 text-slate-800"
+                  />
+                  <span className="text-xs text-slate-500">
+                    {targetDurationSeconds && Number(targetDurationSeconds) > 0
+                      ? `~${Math.floor(Number(targetDurationSeconds) / 60)} phút ${Number(targetDurationSeconds) % 60 > 0 ? `${Number(targetDurationSeconds) % 60}s` : ''}`
+                      : 'Không giới hạn thời lượng cụ thể'}
+                  </span>
+                </div>
+              </div>
             </div>
-            <h3 className="text-sm font-bold text-slate-800">
-              Tải lên tài liệu kịch bản (.docx, .txt, .md)
-            </h3>
-            <p className="text-xs text-slate-500 max-w-md mt-1 mb-4">
-              Hệ thống sẽ tự động phân tích và trích xuất thành 3 cấp độ: <b>Dễ (Beginner)</b>,{' '}
-              <b>Trung bình (Intermediate)</b>, và <b>Chuyên nghiệp (Advanced)</b>.
-            </p>
+          ) : (
+            <>
+              {/* 2. File Upload / Auto Parser Box */}
+              <div className="p-5 md:p-6 rounded-2xl border-2 border-dashed border-blue-200 bg-blue-50/30 flex flex-col items-center justify-center text-center relative hover:bg-blue-50/50 transition-colors">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  accept=".docx,.txt,.md"
+                  className="hidden"
+                />
+                <div className="w-12 h-12 rounded-2xl bg-blue-600/10 text-blue-600 flex items-center justify-center mb-3">
+                  <UploadCloud className="w-6 h-6" />
+                </div>
+                <h3 className="text-sm font-bold text-slate-800">
+                  Tải lên tài liệu kịch bản (.docx, .txt, .md)
+                </h3>
+                <p className="text-xs text-slate-500 max-w-md mt-1 mb-4">
+                  Hệ thống sẽ tự động phân tích và trích xuất thành 3 cấp độ: <b>Dễ (Beginner)</b>,{' '}
+                  <b>Trung bình (Intermediate)</b>, và <b>Chuyên nghiệp (Advanced)</b>.
+                </p>
 
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isParsing}
-                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
-              >
-                {isParsing ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Đang phân tích kịch bản...</span>
-                  </>
-                ) : (
-                  <>
-                    <FileText className="w-4 h-4" />
-                    <span>Chọn tập tin từ máy</span>
-                  </>
-                )}
-              </button>
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isParsing}
+                    className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    {isParsing ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Đang phân tích kịch bản...</span>
+                      </>
+                    ) : (
+                      <>
+                        <FileText className="w-4 h-4" />
+                        <span>Chọn tập tin từ máy</span>
+                      </>
+                    )}
+                  </button>
 
-              <button
-                type="button"
-                onClick={handleDownloadTemplate}
-                className="px-4 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
-              >
-                <Download className="w-4 h-4 text-slate-500" />
-                <span>Tải kịch bản mẫu (.md)</span>
-              </button>
-            </div>
-          </div>
+                  <button
+                    type="button"
+                    onClick={handleDownloadTemplate}
+                    className="px-4 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Download className="w-4 h-4 text-slate-500" />
+                    <span>Tải kịch bản mẫu (.md)</span>
+                  </button>
+                </div>
+              </div>
 
-          {/* 3. 3-Level Studio Editors */}
-          <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-xs">
-            <div className="border-b border-slate-200 bg-slate-50 p-2 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-1">
-                {(
-                  [
-                    { key: 'BEGINNER', label: '1. Dễ (Beginner)', badge: 'Đầy đủ nhịp thở & focus' },
-                    { key: 'INTERMEDIATE', label: '2. Trung bình', badge: 'Điểm nhấn & gợi ý' },
-                    { key: 'ADVANCED', label: '3. Chuyên nghiệp', badge: 'Kịch bản trơn thực chiến' },
-                  ] as const
-                ).map((tab) => {
-                  const isActive = activeTab === tab.key;
-                  return (
+              {/* 3. 3-Level Studio Editors */}
+              <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-xs">
+                <div className="border-b border-slate-200 bg-slate-50 p-2 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-1">
+                    {(
+                      [
+                        { key: 'BEGINNER', label: '1. Dễ (Beginner)', badge: 'Đầy đủ nhịp thở & focus' },
+                        { key: 'INTERMEDIATE', label: '2. Trung bình', badge: 'Điểm nhấn & gợi ý' },
+                        { key: 'ADVANCED', label: '3. Chuyên nghiệp', badge: 'Kịch bản trơn thực chiến' },
+                      ] as const
+                    ).map((tab) => {
+                      const isActive = activeTab === tab.key;
+                      return (
+                        <button
+                          key={tab.key}
+                          onClick={() => setActiveTab(tab.key)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                            isActive
+                              ? 'bg-blue-600 text-white shadow-xs'
+                              : 'text-slate-600 hover:bg-slate-200/60'
+                          }`}
+                        >
+                          <span>{tab.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="flex items-center gap-1 bg-slate-200/60 p-1 rounded-xl">
                     <button
-                      key={tab.key}
-                      onClick={() => setActiveTab(tab.key)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                        isActive
-                          ? 'bg-blue-600 text-white shadow-xs'
-                          : 'text-slate-600 hover:bg-slate-200/60'
+                      type="button"
+                      onClick={() => setViewMode('EDIT')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                        viewMode === 'EDIT'
+                          ? 'bg-white text-slate-900 shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
                       }`}
                     >
-                      <span>{tab.label}</span>
+                      <Edit3 className="w-3.5 h-3.5" />
+                      <span>Soạn thảo</span>
                     </button>
-                  );
-                })}
-              </div>
-
-              <div className="flex items-center gap-1 bg-slate-200/60 p-1 rounded-xl">
-                <button
-                  type="button"
-                  onClick={() => setViewMode('EDIT')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                    viewMode === 'EDIT'
-                      ? 'bg-white text-slate-900 shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Edit3 className="w-3.5 h-3.5" />
-                  <span>Soạn thảo</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setViewMode('PREVIEW')}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                    viewMode === 'PREVIEW'
-                      ? 'bg-white text-slate-900 shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <Eye className="w-3.5 h-3.5" />
-                  <span>Xem trước</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="p-4 md:p-5">
-              {viewMode === 'EDIT' ? (
-                <div>
-                  <textarea
-                    rows={12}
-                    value={editableContents[activeTab]}
-                    onChange={(e) =>
-                      setEditableContents((prev) => ({
-                        ...prev,
-                        [activeTab]: e.target.value,
-                      }))
-                    }
-                    placeholder={`Nhập nội dung kịch bản cho cấp độ ${activeTab}... Bạn có thể sử dụng các tag: [HƯỚNG DẪN: ...], [GIỌNG ĐỌC: ...], [NGẮT NGHỈ: 2s]`}
-                    className="w-full text-xs md:text-sm font-mono leading-relaxed p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 text-slate-800 resize-y"
-                  />
-                  <div className="flex items-center justify-between mt-2 text-[11px] text-slate-400">
-                    <span>
-                      Hỗ trợ tag: <code>[HƯỚNG DẪN: ...]</code>, <code>[GIỌNG ĐỌC: ...]</code>,{' '}
-                      <code>[NGẮT NGHỈ: Xs]</code>
-                    </span>
-                    <span>{editableContents[activeTab].length} ký tự</span>
+                    <button
+                      type="button"
+                      onClick={() => setViewMode('PREVIEW')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                        viewMode === 'PREVIEW'
+                          ? 'bg-white text-slate-900 shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>Xem trước</span>
+                    </button>
                   </div>
                 </div>
-              ) : (
-                <div className="min-h-[240px] p-4 rounded-xl bg-slate-50 border border-slate-200/80">
-                  {renderFormattedPreview(editableContents[activeTab])}
+
+                <div className="p-4 md:p-5">
+                  {viewMode === 'EDIT' ? (
+                    <div>
+                      <textarea
+                        rows={12}
+                        value={editableContents[activeTab]}
+                        onChange={(e) =>
+                          setEditableContents((prev) => ({
+                            ...prev,
+                            [activeTab]: e.target.value,
+                          }))
+                        }
+                        placeholder={`Nhập nội dung kịch bản cho cấp độ ${activeTab}... Bạn có thể sử dụng các tag: [HƯỚNG DẪN: ...], [GIỌNG ĐỌC: ...], [NGẮT NGHỈ: 2s]`}
+                        className="w-full text-xs md:text-sm font-mono leading-relaxed p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 text-slate-800 resize-y"
+                      />
+                      <div className="flex items-center justify-between mt-2 text-[11px] text-slate-400">
+                        <span>
+                          Hỗ trợ tag: <code>[HƯỚNG DẪN: ...]</code>, <code>[GIỌNG ĐỌC: ...]</code>,{' '}
+                          <code>[NGẮT NGHỈ: Xs]</code>
+                        </span>
+                        <span>{editableContents[activeTab].length} ký tự</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="min-h-[240px] p-4 rounded-xl bg-slate-50 border border-slate-200/80">
+                      {renderFormattedPreview(editableContents[activeTab])}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </div>
+              </div>
+            </>
+          )}
 
           {/* 4. Background Music Section */}
           <div className="p-5 rounded-2xl border border-slate-200 bg-slate-50 space-y-3">

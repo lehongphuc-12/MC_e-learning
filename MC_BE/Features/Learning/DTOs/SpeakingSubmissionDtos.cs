@@ -16,6 +16,8 @@ public class CreateSpeakingSubmissionRequest
 
     public string? Note { get; set; }
 
+    public string? StudentNote { get; set; }
+
     public string? SelectedLevel { get; set; }
 }
 
@@ -75,6 +77,7 @@ public class SpeakingSubmissionHistoryDto
     public DateTime SubmittedAt { get; set; }
     public DateTime? GradedAt { get; set; }
     public string AudioUrl { get; set; } = string.Empty;
+    public string? StudentNote { get; set; }
     public string? SelectedLevel { get; set; }
 }
 
@@ -116,6 +119,8 @@ public class SpeakingSubmissionResponseDto
     public string AudioUrl { get; set; } = string.Empty;
 
     public string? Note { get; set; }
+
+    public string? StudentNote { get; set; }
 
     public string Status { get; set; } = string.Empty;
 

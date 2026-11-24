@@ -324,6 +324,10 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
                 encodedNote = $"[LEVEL:BEGINNER]{(string.IsNullOrWhiteSpace(rawNote) ? "" : " " + rawNote)}";
             }
 
+            var studentNote = !string.IsNullOrWhiteSpace(request.StudentNote)
+                ? request.StudentNote.Trim()
+                : (!string.IsNullOrWhiteSpace(rawNote) ? rawNote : null);
+
             var submission = new SpeakingSubmission
             {
                 ScriptId = scriptId,
@@ -331,6 +335,7 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
                 LearnerId = learnerId,
                 AudioUrl = audioUrl,
                 Note = encodedNote,
+                StudentNote = studentNote,
                 Status = SpeakingSubmissionStatus.SUBMITTED,
                 SubmittedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
@@ -647,6 +652,11 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
                     }
                 }
 
+                var rawCleanNote = !string.IsNullOrWhiteSpace(s.Note)
+                    ? System.Text.RegularExpressions.Regex.Replace(s.Note, @"\[LEVEL:([A-Za-z]+)\]", "").Trim()
+                    : null;
+                var effectiveStudentNote = s.StudentNote ?? (string.IsNullOrEmpty(rawCleanNote) ? null : rawCleanNote);
+
                 return new SpeakingSubmissionHistoryDto
                 {
                     SubmissionId = s.SubmissionId,
@@ -660,6 +670,7 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
                     SubmittedAt = s.SubmittedAt,
                     GradedAt = s.GradedAt,
                     AudioUrl = s.AudioUrl,
+                    StudentNote = effectiveStudentNote,
                     SelectedLevel = level
                 };
             }).OrderByDescending(h => h.AttemptNumber).ToList();
@@ -722,6 +733,11 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
                     }
                 }
 
+                var rawCleanNote = !string.IsNullOrWhiteSpace(s.Note)
+                    ? System.Text.RegularExpressions.Regex.Replace(s.Note, @"\[LEVEL:([A-Za-z]+)\]", "").Trim()
+                    : null;
+                var effectiveStudentNote = s.StudentNote ?? (string.IsNullOrEmpty(rawCleanNote) ? null : rawCleanNote);
+
                 return new SpeakingSubmissionHistoryDto
                 {
                     SubmissionId = s.SubmissionId,
@@ -735,6 +751,7 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
                     SubmittedAt = s.SubmittedAt,
                     GradedAt = s.GradedAt,
                     AudioUrl = s.AudioUrl,
+                    StudentNote = effectiveStudentNote,
                     SelectedLevel = level
                 };
             }).OrderByDescending(h => h.AttemptNumber).ToList();
@@ -847,6 +864,7 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
             InstructorName = instructor?.FullName ?? string.Empty,
             AudioUrl = submission.AudioUrl,
             Note = cleanNote,
+            StudentNote = submission.StudentNote ?? cleanNote,
             SelectedLevel = selectedLevel,
             AttemptNumber = attemptNumber,
             TotalAttempts = totalAttempts,

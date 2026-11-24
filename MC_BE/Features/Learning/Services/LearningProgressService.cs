@@ -2,6 +2,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using MC_BE.Core.Entities;
 using MC_BE.Core.Enums;
@@ -657,6 +659,307 @@ public class LearningProgressService : ILearningProgressService
         {
             CurrentStreak = currentStreak,
             LongestStreak = longestStreak
+        };
+    }
+
+    private static readonly List<SubmissionCriterionScoreDto> DefaultRubricCriteriaList = new()
+    {
+        new SubmissionCriterionScoreDto { Code = "C01", Name = "Phát âm & thanh điệu", WeightPercentage = 18m },
+        new SubmissionCriterionScoreDto { Code = "C02", Name = "Độ rõ lời", WeightPercentage = 10m },
+        new SubmissionCriterionScoreDto { Code = "C03", Name = "Độ chính xác nội dung", WeightPercentage = 7m },
+    };
+
+    public async Task<CourseCompletionSummaryDto?> GetCourseCompletionSummaryAsync(int learnerId, int courseId)
+    {
+        // 1. Kiểm tra enrollment & quyền truy cập
+        var enrollment = await _db.Enrollments.AsNoTracking()
+            .Include(e => e.Course)
+            .Where(e => e.LearnerId == learnerId && e.CourseId == courseId && e.Status != "PENDING_PAYMENT")
+            .OrderByDescending(e => e.Status == "ACTIVE")
+            .ThenByDescending(e => e.EnrolledAt ?? e.CreatedAt)
+            .ThenByDescending(e => e.EnrollmentId)
+            .FirstOrDefaultAsync();
+
+        if (enrollment == null)
+        {
+            return null; // Không có thông tin ghi danh hợp lệ
+        }
+
+        // 2. Kiểm tra tiến độ hoàn thành dựa theo logic progress và cấp chứng chỉ hiện tại
+        var progress = await GetCourseProgressAsync(learnerId, courseId);
+        var currentProgress = progress?.CompletionPercentage ?? enrollment.CompletionPercentage;
+
+        // Lấy chứng chỉ của khóa học nếu đã được cấp
+        var certificate = await _db.Certificates.AsNoTracking()
+            .Where(c => c.EnrollmentId == enrollment.EnrollmentId && c.Status == "ACTIVE")
+            .OrderByDescending(c => c.IssuedAt)
+            .FirstOrDefaultAsync();
+
+        bool isUnlocked = (progress != null && progress.IsCompleted) ||
+                          certificate != null ||
+                          currentProgress >= 100.00m;
+
+        if (!isUnlocked)
+        {
+            return new CourseCompletionSummaryDto
+            {
+                IsUnlocked = false,
+                CurrentProgress = currentProgress,
+                Message = "Hoàn thành 100% khóa học để mở khóa Báo cáo tổng kết hành trình"
+            };
+        }
+
+        // 3. Khóa học đã mở khóa -> Tổng hợp dữ liệu bằng truy vấn tối ưu (.AsNoTracking)
+        // 3.1. Remedial assignments học viên từng nhận trong khóa
+        var remedialRecipients = await _db.RemedialAssignmentRecipients.AsNoTracking()
+            .Include(r => r.Assignment)
+            .Where(r => r.StudentId == learnerId && r.Assignment.CourseId == courseId)
+            .ToListAsync();
+
+        int remedialCount = remedialRecipients.Count;
+        int passedRemedialCount = remedialRecipients.Count(r => r.Status == "COMPLETED" || r.CompletedAt != null);
+
+        // 3.2. Toàn bộ bài nộp Speaking của học viên trong khóa (tối ưu nạp kèm Script, Lesson, RubricCriteria)
+        var submissions = await _db.SpeakingSubmissions.AsNoTracking()
+            .Include(s => s.Lesson)
+            .Include(s => s.SpeakingScript!)
+                .ThenInclude(sc => sc.RubricCriteria)
+            .Where(s => s.LearnerId == learnerId &&
+                ((s.Lesson != null && s.Lesson.CourseId == courseId) ||
+                 (s.SpeakingScript != null && s.SpeakingScript.CourseId == courseId)))
+            .OrderBy(s => s.SubmittedAt)
+            .ToListAsync();
+
+        // Xử lý và chuẩn hóa feedback, rubric scores cho từng submission
+        var parsedSubmissions = submissions.Select(s =>
+        {
+            var script = s.SpeakingScript ?? s.Lesson?.SpeakingScript;
+            var lesson = s.Lesson;
+            var title = !string.IsNullOrWhiteSpace(script?.Title)
+                ? script.Title
+                : (!string.IsNullOrWhiteSpace(lesson?.Title) ? lesson.Title : "Bài luyện nói");
+
+            var scope = (script?.Scope ?? (lesson != null ? SpeakingScope.LESSON : SpeakingScope.FINAL)).ToString();
+            bool isRemedial = (script?.IsRemedial ?? false) || (lesson?.IsRemedial ?? false);
+
+            string? cleanFeedback = s.Feedback;
+            List<SubmissionCriterionScoreDto> criterionScores = new();
+
+            if (!string.IsNullOrWhiteSpace(s.Feedback))
+            {
+                var match = Regex.Match(s.Feedback, @"<!--RUBRIC_SCORES:(.*?)-->", RegexOptions.Singleline);
+                if (match.Success)
+                {
+                    try
+                    {
+                        var json = match.Groups[1].Value;
+                        var parsed = JsonSerializer.Deserialize<List<SubmissionCriterionScoreDto>>(json,
+                            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                        if (parsed != null && parsed.Count > 0)
+                        {
+                            criterionScores = parsed;
+                        }
+                    }
+                    catch { }
+
+                    cleanFeedback = s.Feedback.Replace(match.Value, "").Trim();
+                }
+                else
+                {
+                    cleanFeedback = s.Feedback.Trim();
+                }
+            }
+
+            if (string.IsNullOrEmpty(cleanFeedback)) cleanFeedback = null;
+
+            if (criterionScores.Count == 0 && s.Score.HasValue)
+            {
+                var criteria = (script?.RubricCriteria != null && script.RubricCriteria.Count > 0)
+                    ? script.RubricCriteria.Select(r => new SubmissionCriterionScoreDto
+                    {
+                        Code = r.Code,
+                        Name = r.Name,
+                        WeightPercentage = r.WeightPercentage,
+                        Score = s.Score.Value,
+                        Feedback = null
+                    }).ToList()
+                    : DefaultRubricCriteriaList.Select(r => new SubmissionCriterionScoreDto
+                    {
+                        Code = r.Code,
+                        Name = r.Name,
+                        WeightPercentage = r.WeightPercentage,
+                        Score = s.Score.Value,
+                        Feedback = null
+                    }).ToList();
+
+                criterionScores = criteria;
+            }
+
+            bool isGraded = s.Score.HasValue && (s.Status == SpeakingSubmissionStatus.GRADED || s.Status == SpeakingSubmissionStatus.NEEDS_RESUBMISSION || s.Score.Value > 0);
+
+            return new
+            {
+                Submission = s,
+                Title = title,
+                Scope = scope,
+                IsRemedial = isRemedial,
+                CleanFeedback = cleanFeedback,
+                CriterionScores = criterionScores,
+                IsGraded = isGraded
+            };
+        }).ToList();
+
+        // Trường hợp bổ sung: nếu recipient không có bản ghi nhưng submission mang cờ remedial
+        if (remedialCount == 0)
+        {
+            var remedialSubs = parsedSubmissions.Where(x => x.IsRemedial).ToList();
+            if (remedialSubs.Count > 0)
+            {
+                remedialCount = remedialSubs.Count;
+                passedRemedialCount = remedialSubs.Count(x => x.Submission.Score.HasValue && x.Submission.Score.Value >= 80);
+            }
+        }
+
+        // Danh sách các bài Speaking đã được chấm điểm (sắp xếp theo SubmittedAt tăng dần)
+        var gradedList = parsedSubmissions.Where(x => x.IsGraded).OrderBy(x => x.Submission.SubmittedAt).ToList();
+
+        // 1. Overview
+        double finalScore = gradedList.Count > 0
+            ? Math.Round((double)gradedList.Average(x => x.Submission.Score!.Value), 1)
+            : 0.0;
+
+        DateTime? completedAt = certificate?.IssuedAt ?? enrollment.UpdatedAt;
+
+        string journeySummaryText = remedialCount > 0
+            ? $"Bạn từng nhận {remedialCount} bài tập bổ trợ để khắc phục điểm yếu, nhưng đã hoàn thành xuất sắc để đạt trạng thái An toàn với điểm tổng kết {finalScore}/100."
+            : "Phong độ ổn định: Bạn đã duy trì trạng thái An toàn (Xanh) xuyên suốt 100% lộ trình khóa học.";
+
+        var overview = new CourseCompletionOverviewDto
+        {
+            CourseId = courseId,
+            CourseTitle = enrollment.Course?.Title ?? progress?.CourseTitle ?? string.Empty,
+            CompletedAt = completedAt,
+            FinalScore = finalScore,
+            CertificateId = certificate?.CertificateId,
+            CertificateUrl = certificate?.CertificateUrl,
+            RemedialCount = remedialCount,
+            PassedRemedialCount = passedRemedialCount,
+            JourneySummaryText = journeySummaryText
+        };
+
+        // 2. BeforeAfterComparison
+        BeforeAfterComparisonDto? beforeAfterComparison = null;
+        var comparisonCandidates = gradedList.Where(x => !x.IsRemedial).ToList();
+        if (comparisonCandidates.Count == 0)
+        {
+            comparisonCandidates = gradedList;
+        }
+
+        if (comparisonCandidates.Count > 0)
+        {
+            var initial = comparisonCandidates.First();
+            var final = comparisonCandidates.LastOrDefault(x => x.Scope == "FINAL") ?? comparisonCandidates.Last();
+
+            beforeAfterComparison = new BeforeAfterComparisonDto
+            {
+                InitialSubmission = new SubmissionComparisonItemDto
+                {
+                    SubmissionId = initial.Submission.SubmissionId,
+                    AssignmentTitle = initial.Title,
+                    Scope = initial.Scope,
+                    SubmittedAt = initial.Submission.SubmittedAt,
+                    AudioUrl = initial.Submission.AudioUrl,
+                    Score = (double)initial.Submission.Score!.Value,
+                    InstructorFeedback = initial.CleanFeedback ?? string.Empty
+                },
+                FinalSubmission = new SubmissionComparisonItemDto
+                {
+                    SubmissionId = final.Submission.SubmissionId,
+                    AssignmentTitle = final.Title,
+                    Scope = final.Scope,
+                    SubmittedAt = final.Submission.SubmittedAt,
+                    AudioUrl = final.Submission.AudioUrl,
+                    Score = (double)final.Submission.Score!.Value,
+                    InstructorFeedback = final.CleanFeedback ?? string.Empty
+                }
+            };
+        }
+
+        // 3. GrowthMetrics
+        var scoreTimeline = gradedList.Select(x => new ScoreTimelineItemDto
+        {
+            SubmissionId = x.Submission.SubmissionId,
+            Title = x.Title,
+            Scope = x.Scope,
+            IsRemedial = x.IsRemedial,
+            Score = (double)x.Submission.Score!.Value,
+            SubmittedAt = x.Submission.SubmittedAt
+        }).ToList();
+
+        // Logic RubricBreakdown: Gom nhóm theo tên tiêu chí Rubric (hoặc Code nếu không có tên).
+        // So sánh điểm của từng tiêu chí Rubric giữa lần chấm đầu tiên xuất hiện tiêu chí (initialScore)
+        // và lần chấm cuối cùng xuất hiện tiêu chí (finalScore); thang điểm tối đa chuẩn hóa là 100 (maxScore = 100).
+        // improvementDelta = finalScore - initialScore.
+        var criterionScoresMap = new Dictionary<string, List<double>>();
+        foreach (var item in gradedList)
+        {
+            foreach (var crit in item.CriterionScores)
+            {
+                var criterionName = !string.IsNullOrWhiteSpace(crit.Name) ? crit.Name.Trim() : crit.Code.Trim();
+                if (string.IsNullOrEmpty(criterionName)) continue;
+
+                if (!criterionScoresMap.TryGetValue(criterionName, out var scoreList))
+                {
+                    scoreList = new List<double>();
+                    criterionScoresMap[criterionName] = scoreList;
+                }
+                scoreList.Add((double)crit.Score);
+            }
+        }
+
+        var rubricBreakdown = criterionScoresMap.Select(kvp =>
+        {
+            var initialScore = Math.Round(kvp.Value.First(), 1);
+            var lastScore = Math.Round(kvp.Value.Last(), 1);
+            return new RubricBreakdownItemDto
+            {
+                CriterionName = kvp.Key,
+                InitialScore = initialScore,
+                FinalScore = lastScore,
+                MaxScore = 100.0,
+                ImprovementDelta = Math.Round(lastScore - initialScore, 1)
+            };
+        }).ToList();
+
+        var growthMetrics = new GrowthMetricsDto
+        {
+            ScoreTimeline = scoreTimeline,
+            RubricBreakdown = rubricBreakdown
+        };
+
+        // 4. FeedbackTimeline (danh sách toàn bộ nhận xét của giảng viên, sắp xếp từ đầu khóa đến cuối khóa)
+        var feedbackTimeline = parsedSubmissions
+            .Where(x => !string.IsNullOrWhiteSpace(x.CleanFeedback))
+            .OrderBy(x => x.Submission.GradedAt ?? x.Submission.SubmittedAt)
+            .Select(x => new FeedbackTimelineItemDto
+            {
+                SubmissionId = x.Submission.SubmissionId,
+                AssignmentTitle = x.Title,
+                IsRemedial = x.IsRemedial,
+                Score = x.Submission.Score.HasValue ? (double?)x.Submission.Score.Value : null,
+                InstructorFeedback = x.CleanFeedback!,
+                GradedAt = x.Submission.GradedAt ?? x.Submission.SubmittedAt
+            }).ToList();
+
+        return new CourseCompletionSummaryDto
+        {
+            IsUnlocked = true,
+            CurrentProgress = 100.00m,
+            Message = "Báo cáo tổng kết hành trình khóa học",
+            Overview = overview,
+            BeforeAfterComparison = beforeAfterComparison,
+            GrowthMetrics = growthMetrics,
+            FeedbackTimeline = feedbackTimeline
         };
     }
 }

@@ -32,6 +32,8 @@ import {
   Calculator,
   HelpCircle,
   CheckCircle,
+  FileText,
+  UploadCloud,
 } from 'lucide-react';
 import { speakingApi, SpeakingSubmissionDto } from '../../api/speakingApi';
 import {
@@ -46,7 +48,6 @@ import { moduleApi } from '../../api/moduleApi';
 import { lessonApi } from '../../api/lessonApi';
 import { Course } from '../../types/courseTypes';
 import { SpeakingScriptUploadModal } from './SpeakingScriptUploadModal';
-import { FileText, UploadCloud } from 'lucide-react';
 import { ToastType } from '../../../../components/common/Toast';
 import {
   aiPracticeApi,
@@ -1002,6 +1003,12 @@ const handleAppendRubricToFeedback = () => {
                               "{sub.note}"
                             </div>
                           )}
+                          {sub.studentNote && (
+                            <div className="text-[10px] font-medium text-indigo-600 mt-0.5 truncate max-w-[200px] flex items-center gap-1" title={sub.studentNote}>
+                              <FileText className="w-3 h-3 shrink-0" />
+                              <span className="truncate">Cue Card: {sub.studentNote}</span>
+                            </div>
+                          )}
                         </td>
 
                         {/* Status & Score */}
@@ -1155,6 +1162,18 @@ const handleAppendRubricToFeedback = () => {
                       <div className="mt-3 p-3 rounded-xl bg-blue-950/70 border border-blue-400/20 text-xs text-slate-200">
                         <span className="font-bold text-blue-300">Ghi chú của học viên: </span>
                         <span className="italic">"{activeSubmission.note}"</span>
+                      </div>
+                    )}
+
+                    {activeSubmission.studentNote && (
+                      <div className="mt-3 p-3.5 rounded-xl bg-indigo-950/80 border border-indigo-400/30 text-xs text-slate-100">
+                        <div className="font-bold text-indigo-300 flex items-center gap-1.5 mb-1.5">
+                          <FileText className="w-4 h-4 text-indigo-400" />
+                          <span>Dàn ý chuẩn bị (Cue Card) của học viên:</span>
+                        </div>
+                        <p className="font-mono text-xs whitespace-pre-line bg-slate-900/90 p-2.5 rounded-lg border border-slate-700/60 leading-relaxed text-indigo-100">
+                          {activeSubmission.studentNote}
+                        </p>
                       </div>
                     )}
                   </div>
