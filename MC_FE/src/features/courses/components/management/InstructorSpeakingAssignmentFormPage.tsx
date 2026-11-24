@@ -6,6 +6,8 @@ import {
   FileText,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
+  X,
   Download,
   Sparkles,
   Layers,
@@ -179,6 +181,7 @@ export const InstructorSpeakingAssignmentFormPage: React.FC<InstructorSpeakingAs
 
   // Khóa thêm tiêu chí khi tổng trọng số >= 100%
   const isMaxWeightReached = totalWeight >= 100;
+  const [showWeightWarningModal, setShowWeightWarningModal] = useState<boolean>(false);
 
   // Load danh sách khóa học của giảng viên
   const loadCourses = useCallback(async () => {
@@ -577,26 +580,23 @@ export const InstructorSpeakingAssignmentFormPage: React.FC<InstructorSpeakingAs
     setCriteria((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // Tự động cân bằng 100%
-  const handleAutoBalance = () => {
-    if (criteria.length === 0) return;
-    const currentSum = criteria.reduce((sum, c) => sum + (Number(c.weightPercentage) || 0), 0);
-    if (currentSum <= 0) {
-      const equalShare = Math.floor(100 / criteria.length);
-      const remainder = 100 - equalShare * criteria.length;
-      setCriteria((prev) =>
-        prev.map((c, idx) => ({
-          ...c,
-          weightPercentage: equalShare + (idx === 0 ? remainder : 0),
-        }))
-      );
-      onToast?.('Đã cân bằng', 'Đã phân bổ đều 100% cho các tiêu chí.', 'success');
-      return;
+  // Hàm tính toán cân bằng trọng số về đúng 100%
+  const calculateBalancedCriteria = (currentCriteria: SaveRubricCriterionDto[]): SaveRubricCriterionDto[] => {
+    if (currentCriteria.length === 0) return [];
+    const currentSum = currentCriteria.reduce((sum, c) => sum + (Number(c.weightPercentage) || 0), 0);
+
+    if (currentSum === 0) {
+      const equalShare = Math.floor(100 / currentCriteria.length);
+      const remainder = 100 % currentCriteria.length;
+      return currentCriteria.map((c, idx) => ({
+        ...c,
+        weightPercentage: equalShare + (idx === 0 ? remainder : 0),
+      }));
     }
 
     let allocated = 0;
-    const newCriteria = criteria.map((c, idx) => {
-      if (idx === criteria.length - 1) {
+    return currentCriteria.map((c, idx) => {
+      if (idx === currentCriteria.length - 1) {
         return {
           ...c,
           weightPercentage: Math.max(1, 100 - allocated),
@@ -609,68 +609,27 @@ export const InstructorSpeakingAssignmentFormPage: React.FC<InstructorSpeakingAs
         weightPercentage: Math.max(1, scaled),
       };
     });
+  };
 
+  // Cân bằng trọng số tự động về đúng 100%
+  const handleAutoBalanceCriteria = () => {
+    if (criteria.length === 0) return;
+    const newCriteria = calculateBalancedCriteria(criteria);
     setCriteria(newCriteria);
     onToast?.('Đã cân bằng 100%', 'Trọng số các tiêu chí đã được tự động chuẩn hóa về 100%.', 'success');
   };
 
-  // Submit Form: Save hoặc Publish
-  const handleSubmit = async () => {
-    if (!scriptTitle.trim()) {
-      setErrorMsg('Vui lòng nhập tiêu đề cho bài tập nói.');
+  const handleAutoBalance = handleAutoBalanceCriteria;
+
+  // Thực thi lưu bài tập (bắt buộc tổng trọng số phải đạt đúng 100%)
+  const executeSubmit = async (criteriaOverride?: SaveRubricCriterionDto[]) => {
+    const finalCriteria = criteriaOverride || criteria;
+    const currentTotalWeight = finalCriteria.reduce((sum, c) => sum + (Number(c.weightPercentage) || 0), 0);
+
+    // Chặn tuyệt đối nếu chưa đạt đủ 100%
+    if (Math.round(currentTotalWeight) !== 100) {
+      setShowWeightWarningModal(true);
       return;
-    }
-
-    if (!selectedCourseId) {
-      setErrorMsg('Vui lòng chọn khóa học cho bài tập nói.');
-      return;
-    }
-
-    if (scope === 'CHAPTER' && !selectedModuleId) {
-      setErrorMsg('Vui lòng chọn chương áp dụng cho bài tập nói.');
-      return;
-    }
-
-    if (scope === 'LESSON' && !selectedLessonId) {
-      setErrorMsg('Vui lòng chọn bài học áp dụng cho bài tập nói.');
-      return;
-    }
-
-    if (scriptType === 'OpenPrompt') {
-      if (!promptContent.trim()) {
-        setErrorMsg('Vui lòng nhập nội dung đề bài / tình huống mở cho bài tập nói.');
-        return;
-      }
-    } else {
-      const hasContent =
-        editableContents.BEGINNER.trim() ||
-        editableContents.INTERMEDIATE.trim() ||
-        editableContents.ADVANCED.trim();
-
-      if (!hasContent) {
-        setErrorMsg('Vui lòng cung cấp nội dung kịch bản cho ít nhất một cấp độ.');
-        return;
-      }
-    }
-
-    // CHẶN TUYỆT ĐỐI NẾU TỔNG TRỌNG SỐ VƯỢT QUÁ 100% (KHÔNG LƯU THAY ĐỔI, KHÔNG TẠO BÀI NÓI)
-    if (totalWeight > 100) {
-      const msg = `Tổng trọng số các tiêu chí chấm điểm hiện tại là ${totalWeight}%, vượt quá 100%! Hệ thống không lưu thay đổi và không cho phép tạo bài nói khi tổng trọng số vượt quá 100%. Vui lòng giảm % trọng số của các tiêu chí hoặc nhấn nút "Cân bằng 100%".`;
-      setErrorMsg(msg);
-      onToast?.(
-        'Không thể lưu bài tập!',
-        `Tổng trọng số tiêu chí (${totalWeight}%) đã vượt quá 100%. Không thể lưu thay đổi!`,
-        'error'
-      );
-      return;
-    }
-
-    // Cảnh báo nhắc nhở nếu chưa đủ 100%
-    if (Math.round(totalWeight) < 100) {
-      const confirmProceed = window.confirm(
-        `Tổng trọng số tiêu chí hiện tại là ${totalWeight}%, chưa đủ 100%. Bạn có chắc chắn muốn tiếp tục lưu không? (Khuyến nghị đủ 100% để đảm bảo tính chính xác khi chấm điểm)`
-      );
-      if (!confirmProceed) return;
     }
 
     // Tự động fallback nội dung cho cấp độ còn trống nếu là Scripted
@@ -737,7 +696,7 @@ export const InstructorSpeakingAssignmentFormPage: React.FC<InstructorSpeakingAs
           originalContent: scriptType === 'Scripted' ? originalContent : undefined,
           passingScore,
           levels: scriptType === 'Scripted' ? finalLevels : [],
-          rubricCriteria: criteria,
+          rubricCriteria: finalCriteria,
         });
 
         if (res.success) {
@@ -764,7 +723,7 @@ export const InstructorSpeakingAssignmentFormPage: React.FC<InstructorSpeakingAs
           originalContent: scriptType === 'Scripted' ? originalContent : undefined,
           passingScore,
           levels: scriptType === 'Scripted' ? finalLevels : [],
-          rubricCriteria: criteria,
+          rubricCriteria: finalCriteria,
         });
 
         if (res.success) {
@@ -779,6 +738,66 @@ export const InstructorSpeakingAssignmentFormPage: React.FC<InstructorSpeakingAs
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Submit Form: Save hoặc Publish
+  const handleSubmit = async () => {
+    if (!scriptTitle.trim()) {
+      setErrorMsg('Vui lòng nhập tiêu đề cho bài tập nói.');
+      return;
+    }
+
+    if (!selectedCourseId) {
+      setErrorMsg('Vui lòng chọn khóa học cho bài tập nói.');
+      return;
+    }
+
+    if (scope === 'CHAPTER' && !selectedModuleId) {
+      setErrorMsg('Vui lòng chọn chương áp dụng cho bài tập nói.');
+      return;
+    }
+
+    if (scope === 'LESSON' && !selectedLessonId) {
+      setErrorMsg('Vui lòng chọn bài học áp dụng cho bài tập nói.');
+      return;
+    }
+
+    if (scriptType === 'OpenPrompt') {
+      if (!promptContent.trim()) {
+        setErrorMsg('Vui lòng nhập nội dung đề bài / tình huống mở cho bài tập nói.');
+        return;
+      }
+    } else {
+      const hasContent =
+        editableContents.BEGINNER.trim() ||
+        editableContents.INTERMEDIATE.trim() ||
+        editableContents.ADVANCED.trim();
+
+      if (!hasContent) {
+        setErrorMsg('Vui lòng cung cấp nội dung kịch bản cho ít nhất một cấp độ.');
+        return;
+      }
+    }
+
+    // CHẶN TUYỆT ĐỐI NẾU TỔNG TRỌNG SỐ VƯỢT QUÁ 100% (KHÔNG LƯU THAY ĐỔI, KHÔNG TẠO BÀI NÓI)
+    if (totalWeight > 100) {
+      const msg = `Tổng trọng số các tiêu chí chấm điểm hiện tại là ${totalWeight}%, vượt quá 100%! Hệ thống không lưu thay đổi và không cho phép tạo bài nói khi tổng trọng số vượt quá 100%. Vui lòng giảm % trọng số của các tiêu chí hoặc nhấn nút "Cân bằng 100%".`;
+      setErrorMsg(msg);
+      onToast?.(
+        'Không thể lưu bài tập!',
+        `Tổng trọng số tiêu chí (${totalWeight}%) đã vượt quá 100%. Không thể lưu thay đổi!`,
+        'error'
+      );
+      return;
+    }
+
+    // Cảnh báo nhắc nhở nếu chưa đủ 100% bằng Popup Modal
+    if (Math.round(totalWeight) < 100) {
+      setShowWeightWarningModal(true);
+      return;
+    }
+
+    await executeSubmit();
   };
 
   const renderFormattedPreview = (text: string) => {
@@ -1187,6 +1206,31 @@ export const InstructorSpeakingAssignmentFormPage: React.FC<InstructorSpeakingAs
                       <p className="mt-0.5 text-rose-700 leading-relaxed font-normal">
                         Hệ thống chặn không cho phép lưu thay đổi và không tạo bài nói khi vượt quá 100%. Vui lòng giảm bớt % của các tiêu chí hoặc nhấn &ldquo;Cân bằng 100%&rdquo;.
                       </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Cảnh báo nhắc nhở khi chưa đủ 100% */}
+                {totalWeight < 100 && (
+                  <div className="mt-2.5 flex items-start gap-2.5 rounded-xl bg-amber-50/90 border border-amber-200 p-3 text-xs text-amber-900 shadow-xs animate-in fade-in duration-200">
+                    <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div className="flex-1 flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <p className="font-bold text-amber-950">
+                          Chưa đủ 100% (Hiện tại {totalWeight}%, còn thiếu {100 - totalWeight}%)
+                        </p>
+                        <p className="mt-0.5 text-amber-800 leading-relaxed font-normal text-[11px]">
+                          Bắt buộc đạt đủ 100% mới có thể tạo/xuất bản bài nói thành công. Bạn có thể nhấn nút cân bằng để tự động điều chỉnh.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleAutoBalanceCriteria}
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-2.5 py-1 rounded-lg transition-colors cursor-pointer shrink-0"
+                      >
+                        <Wand2 className="h-3 w-3 text-indigo-600" />
+                        Cân bằng ngay
+                      </button>
                     </div>
                   </div>
                 )}
@@ -1956,6 +2000,125 @@ export const InstructorSpeakingAssignmentFormPage: React.FC<InstructorSpeakingAs
           </div>
         </div>
       </div>
+
+      {/* Modal Popup Cảnh báo Bắt Buộc Đủ 100% Trọng Số Tiêu Chí */}
+      {showWeightWarningModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+          onClick={() => {
+            if (!isSubmitting) setShowWeightWarningModal(false);
+          }}
+        >
+          <div
+            className="w-full max-w-md rounded-3xl bg-white border border-slate-200 shadow-2xl p-6 relative animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+            role="alertdialog"
+            aria-modal="true"
+          >
+            {/* Close Button */}
+            <button
+              type="button"
+              onClick={() => setShowWeightWarningModal(false)}
+              disabled={isSubmitting}
+              className="absolute top-4 right-4 p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-50 cursor-pointer"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            {/* Header */}
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 border border-amber-200 shadow-sm">
+                <AlertTriangle className="h-6 w-6" />
+              </div>
+              <div className="pt-0.5 pr-6">
+                <h3 className="text-base font-bold text-slate-900 leading-snug">
+                  Chưa đủ 100% trọng số tiêu chí
+                </h3>
+                <p className="mt-1 text-xs text-rose-600 font-semibold flex items-center gap-1">
+                  <Lock className="h-3.5 w-3.5" /> Bắt buộc đủ 100% mới có thể tạo bài nói
+                </p>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="mt-4 space-y-3">
+              <div className="rounded-2xl bg-amber-50/70 border border-amber-200/80 p-3.5">
+                <div className="flex items-center justify-between text-xs font-semibold text-amber-900 mb-1.5">
+                  <span>Tổng trọng số hiện tại:</span>
+                  <span className="px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 font-bold text-xs border border-rose-200">
+                    {totalWeight}% / 100%
+                  </span>
+                </div>
+                <div className="w-full bg-amber-200/60 rounded-full h-2.5 overflow-hidden mb-2">
+                  <div
+                    className="bg-amber-500 h-2.5 rounded-full transition-all duration-300"
+                    style={{ width: `${Math.min(100, Math.max(0, totalWeight))}%` }}
+                  />
+                </div>
+                <p className="text-xs text-amber-950 leading-relaxed font-medium">
+                  Tổng trọng số các tiêu chí hiện tại là <span className="font-bold text-rose-700">{totalWeight}%</span> (còn thiếu <span className="font-bold text-rose-700">{100 - totalWeight}%</span>). Hệ thống <span className="font-bold text-rose-700 underline">không cho phép tạo bài nói</span> khi chưa đạt đủ 100%.
+                </p>
+              </div>
+
+              <div className="flex items-start gap-2.5 text-xs text-slate-600 bg-slate-50 border border-slate-200/70 rounded-xl p-3">
+                <Info className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
+                <span className="text-[11px] leading-relaxed text-slate-600">
+                  Bạn có thể nhấn <strong>&quot;Cân bằng 100% & Xuất bản&quot;</strong> để hệ thống tự động chuẩn hóa tỷ lệ về 100% và lưu ngay, hoặc <strong>&quot;Quay lại chỉnh sửa&quot;</strong> để tự điều chỉnh các tiêu chí theo ý muốn.
+                </span>
+              </div>
+            </div>
+
+            {/* Footer Actions */}
+            <div className="mt-6 flex flex-col-reverse sm:flex-row items-center justify-end gap-2.5 border-t border-slate-100 pt-4">
+              <button
+                type="button"
+                onClick={() => setShowWeightWarningModal(false)}
+                disabled={isSubmitting}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 active:scale-95 disabled:opacity-50 transition-all cursor-pointer"
+              >
+                Quay lại chỉnh sửa
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  handleAutoBalanceCriteria();
+                  setShowWeightWarningModal(false);
+                }}
+                disabled={isSubmitting}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-indigo-200 bg-indigo-50/70 text-xs font-bold text-indigo-700 hover:bg-indigo-100 transition-all cursor-pointer"
+              >
+                <Wand2 className="h-3.5 w-3.5" />
+                Cân bằng 100%
+              </button>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  const balanced = calculateBalancedCriteria(criteria);
+                  setCriteria(balanced);
+                  setShowWeightWarningModal(false);
+                  await executeSubmit(balanced);
+                }}
+                disabled={isSubmitting}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:brightness-110 text-white text-xs font-bold shadow-md shadow-blue-500/20 active:scale-95 disabled:opacity-50 transition-all cursor-pointer"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <span>Đang lưu...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    <span>Cân bằng 100% & Xuất bản</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

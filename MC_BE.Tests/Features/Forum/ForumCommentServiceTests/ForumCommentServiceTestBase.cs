@@ -104,7 +104,7 @@ public abstract class ForumCommentServiceTestBase : IDisposable
 
     protected ForumComment CreateComment(
         int commentId,
-        int postId,
+        int? postId,
         int authorId,
         string content = "Sample comment content",
         string status = "ACTIVE",
@@ -112,12 +112,14 @@ public abstract class ForumCommentServiceTestBase : IDisposable
         int? parentCommentId = null,
         bool isAnonymous = false,
         string? imageUrl = null,
-        DateTime? createdAt = null)
+        DateTime? createdAt = null,
+        int? lessonId = null)
     {
         var comment = new ForumComment
         {
             CommentId = commentId,
             PostId = postId,
+            LessonId = lessonId,
             AuthorId = authorId,
             Content = content,
             Status = status,
@@ -134,6 +136,40 @@ public abstract class ForumCommentServiceTestBase : IDisposable
         DbContext.ForumComments.Add(comment);
         DbContext.SaveChanges();
         return comment;
+    }
+
+    protected Course CreateCourse(int courseId, int instructorId, string title = "Sample Course")
+    {
+        var course = new Course
+        {
+            CourseId = courseId,
+            InstructorId = instructorId,
+            Title = title,
+            Slug = $"course-{courseId}",
+            Status = MC_BE.Core.Enums.CourseStatus.PUBLISHED,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        DbContext.Courses.Add(course);
+        DbContext.SaveChanges();
+        return course;
+    }
+
+    protected Lesson CreateLesson(int lessonId, int courseId, string title = "Sample Lesson")
+    {
+        var lesson = new Lesson
+        {
+            LessonId = lessonId,
+            CourseId = courseId,
+            Title = title,
+            Status = MC_BE.Core.Enums.LessonStatus.ACTIVE,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        DbContext.Lessons.Add(lesson);
+        DbContext.SaveChanges();
+        return lesson;
     }
 
     protected ForumReaction CreateReaction(

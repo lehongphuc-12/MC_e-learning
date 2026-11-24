@@ -25,13 +25,13 @@ public class ForumCommentsController : ControllerBase
 
     private int? GetCurrentUserId()
     {
-        var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var claim = User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         return int.TryParse(claim, out var id) ? id : null;
     }
 
     private bool IsAdmin()
     {
-        return User.IsInRole("Admin");
+        return User?.IsInRole("Admin") ?? false;
     }
 
     [HttpGet("posts/{postId:int}/comments")]
@@ -44,6 +44,28 @@ public class ForumCommentsController : ControllerBase
             var isAdmin = IsAdmin();
             var comments = await _commentService.GetCommentsByPostIdAsync(postId, userId, isAdmin);
             return Ok(ApiResponse<List<ForumCommentDto>>.SuccessResponse(comments, "Lấy danh sách bình luận thành công."));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ApiResponse<List<ForumCommentDto>>.FailureResponse(ex.Message));
+        }
+    }
+
+    [HttpGet("/api/lessons/{lessonId:int}/comments")]
+    [HttpGet("lessons/{lessonId:int}/comments")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<List<ForumCommentDto>>>> GetLessonComments(int lessonId)
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+            var isAdmin = IsAdmin();
+            var comments = await _commentService.GetCommentsByLessonIdAsync(lessonId, userId, isAdmin);
+            return Ok(ApiResponse<List<ForumCommentDto>>.SuccessResponse(comments, "Lấy danh sách thảo luận bài học thành công."));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(ApiResponse<List<ForumCommentDto>>.FailureResponse(ex.Message));
         }
         catch (Exception ex)
         {
@@ -74,7 +96,32 @@ public class ForumCommentsController : ControllerBase
         }
     }
 
+    [HttpPost("/api/lessons/{lessonId:int}/comments")]
+    [HttpPost("lessons/{lessonId:int}/comments")]
+    [Authorize]
+    public async Task<ActionResult<ApiResponse<ForumCommentDto>>> CreateLessonComment(int lessonId, [FromBody] CreateCommentDto request)
+    {
+        var userId = GetCurrentUserId();
+        if (userId is null)
+            return Unauthorized(ApiResponse<ForumCommentDto>.FailureResponse("Vui lòng đăng nhập để bình luận."));
+
+        try
+        {
+            var comment = await _commentService.CreateLessonCommentAsync(lessonId, userId.Value, request);
+            return Ok(ApiResponse<ForumCommentDto>.SuccessResponse(comment, "Gửi thảo luận bài học thành công."));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<ForumCommentDto>.FailureResponse(ex.Message));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ApiResponse<ForumCommentDto>.FailureResponse(ex.Message));
+        }
+    }
+
     [HttpPut("comments/{id:int}")]
+    [HttpPut("/api/lessons/comments/{id:int}")]
     [Authorize]
     public async Task<ActionResult<ApiResponse<ForumCommentDto>>> UpdateComment(int id, [FromBody] UpdateCommentRequest request)
     {
@@ -107,6 +154,7 @@ public class ForumCommentsController : ControllerBase
     }
 
     [HttpDelete("comments/{id:int}")]
+    [HttpDelete("/api/lessons/comments/{id:int}")]
     [Authorize]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteComment(int id)
     {
