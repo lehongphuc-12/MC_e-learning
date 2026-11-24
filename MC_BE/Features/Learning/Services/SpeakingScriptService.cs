@@ -781,6 +781,11 @@ public class SpeakingScriptService : ISpeakingScriptService
             throw new InvalidOperationException($"Tổng trọng số các tiêu chí chấm điểm ({totalWeight}%) vượt quá 100%. Hệ thống không cho phép lưu thay đổi hoặc tạo bài nói khi vượt quá 100%.");
         }
 
+        if (criteriaDtos != null && criteriaDtos.Count > 0 && Math.Round(totalWeight) < 100m)
+        {
+            throw new InvalidOperationException($"Tổng trọng số các tiêu chí chấm điểm hiện tại là {totalWeight}%, chưa đủ 100%. Bắt buộc tổng trọng số phải đạt đủ 100% mới có thể tạo bài nói.");
+        }
+
         script.RubricCriteria.Clear();
 
         int order = 1;

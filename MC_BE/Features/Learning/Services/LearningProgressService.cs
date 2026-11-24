@@ -550,10 +550,14 @@ public class LearningProgressService : ILearningProgressService
             activities.Add(new ActivityLogDto
             {
                 Emoji = "💬",
-                Text = $"Commented on discussion: {comment.Post?.Title}",
+                Text = comment.PostId.HasValue
+                    ? $"Commented on discussion: {comment.Post?.Title}"
+                    : "Commented on lesson discussion",
                 CreatedAt = comment.CreatedAt,
                 Accent = "text-cyan-600 bg-cyan-50",
-                Link = $"/forum/posts/{comment.PostId}"
+                Link = comment.PostId.HasValue
+                    ? $"/forum/posts/{comment.PostId.Value}"
+                    : (comment.LessonId.HasValue ? $"/lessons/{comment.LessonId.Value}" : "/forum")
             });
         }
 
@@ -566,7 +570,11 @@ public class LearningProgressService : ILearningProgressService
             var targetTitle = reaction.TargetType == "POST" ? reaction.Post?.Title : "a comment";
             var link = reaction.TargetType == "POST"
                 ? $"/forum/posts/{reaction.PostId}"
-                : $"/forum/posts/{reaction.Comment?.PostId}";
+                : (reaction.Comment?.PostId.HasValue == true
+                    ? $"/forum/posts/{reaction.Comment.PostId.Value}"
+                    : (reaction.Comment?.LessonId.HasValue == true
+                        ? $"/lessons/{reaction.Comment.LessonId.Value}"
+                        : "/forum"));
 
             activities.Add(new ActivityLogDto
             {

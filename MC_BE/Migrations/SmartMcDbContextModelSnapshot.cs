@@ -1691,11 +1691,15 @@ namespace MC_BE.Migrations
                         .HasDefaultValue(false)
                         .HasColumnName("IsAnonymous");
 
+                    b.Property<int?>("LessonId")
+                        .HasColumnType("integer")
+                        .HasColumnName("LessonID");
+
                     b.Property<int?>("ParentCommentId")
                         .HasColumnType("integer")
                         .HasColumnName("ParentCommentID");
 
-                    b.Property<int>("PostId")
+                    b.Property<int?>("PostId")
                         .HasColumnType("integer")
                         .HasColumnName("PostID");
 
@@ -1732,6 +1736,8 @@ namespace MC_BE.Migrations
                     b.HasKey("CommentId");
 
                     b.HasIndex("AuthorId");
+
+                    b.HasIndex("LessonId");
 
                     b.HasIndex("ParentCommentId");
 
@@ -5224,6 +5230,11 @@ namespace MC_BE.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("MC_BE.Core.Entities.Lesson", "Lesson")
+                        .WithMany("Comments")
+                        .HasForeignKey("LessonId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
                     b.HasOne("MC_BE.Core.Entities.ForumComment", "ParentComment")
                         .WithMany("Replies")
                         .HasForeignKey("ParentCommentId")
@@ -5232,10 +5243,11 @@ namespace MC_BE.Migrations
                     b.HasOne("MC_BE.Core.Entities.ForumPost", "Post")
                         .WithMany("Comments")
                         .HasForeignKey("PostId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Cascade);
 
                     b.Navigation("Author");
+
+                    b.Navigation("Lesson");
 
                     b.Navigation("ParentComment");
 
@@ -6054,6 +6066,8 @@ namespace MC_BE.Migrations
 
             modelBuilder.Entity("MC_BE.Core.Entities.Lesson", b =>
                 {
+                    b.Navigation("Comments");
+
                     b.Navigation("CourseMaterials");
 
                     b.Navigation("LessonProgresses");

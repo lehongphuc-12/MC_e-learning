@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Reply, EyeOff, Flag, Trash2, ShieldAlert, User as UserIcon } from 'lucide-react';
+import { Reply, EyeOff, Flag, Trash2, ShieldAlert, User as UserIcon, GraduationCap } from 'lucide-react';
 import { ForumComment } from '../types/forumTypes';
 import { ForumReactionButtons } from './ForumReactionButtons';
 import { ForumCommentForm } from './ForumCommentForm';
@@ -85,6 +85,13 @@ export const ForumCommentItem: React.FC<ForumCommentItemProps> = ({
                   <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-600 bg-blue-600/10 px-2 py-0.5 rounded-full border border-cyan-500/20">
                     <EyeOff className="h-3 w-3" />
                     Ẩn danh
+                  </span>
+                )}
+
+                {(comment.isInstructor || comment.authorRole?.toLowerCase() === 'instructor') && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                    <GraduationCap className="h-3 w-3 text-blue-600" />
+                    Giảng viên
                   </span>
                 )}
 
