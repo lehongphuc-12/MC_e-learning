@@ -102,8 +102,8 @@ export function mapBackendCourseToUI(
       verified: true,
     },
 
-    rating: 4.9,
-    reviewsCount: 128,
+    rating: b.rating ?? 0,
+    reviewsCount: b.reviewCount ?? 0,
     studentsCount: 1250,
 
     price: b.price,
@@ -336,7 +336,7 @@ export function mapRecommendedToUICourse(
       badge: 'Master Mentor',
       verified: true,
     },
-    rating: r.rating || 5.0,
+    rating: r.rating ?? 0,
     reviewsCount: r.reviewCount || 0,
     studentsCount: 1250,
     price: r.price,

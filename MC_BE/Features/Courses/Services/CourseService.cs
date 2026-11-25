@@ -35,6 +35,7 @@ public class CourseService : ICourseService
     private readonly IGenericRepository<VideoUploadSession> _videoUploadSessionRepository;
     private readonly IGenericRepository<CourseSyllabusVersion> _syllabusVersionRepository;
     private readonly IGenericRepository<CourseSyllabusUploadSession> _syllabusUploadSessionRepository;
+    private readonly IGenericRepository<CourseReview> _courseReviewRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IR2StorageService _r2;
     private readonly ICourseGiftAccessService _giftAccess;
@@ -59,6 +60,7 @@ public class CourseService : ICourseService
         IGenericRepository<VideoUploadSession> videoUploadSessionRepository,
         IGenericRepository<CourseSyllabusVersion> syllabusVersionRepository,
         IGenericRepository<CourseSyllabusUploadSession> syllabusUploadSessionRepository,
+        IGenericRepository<CourseReview> courseReviewRepository,
         IGenericRepository<R2ObjectDeletionJob> r2DeletionJobRepository,
         IGenericRepository<CourseDeletionRequest> courseDeletionRequestRepository,
         IUnitOfWork unitOfWork,
@@ -83,6 +85,7 @@ public class CourseService : ICourseService
         _videoUploadSessionRepository = videoUploadSessionRepository;
         _syllabusVersionRepository = syllabusVersionRepository;
         _syllabusUploadSessionRepository = syllabusUploadSessionRepository;
+        _courseReviewRepository = courseReviewRepository;
         _r2DeletionJobRepository = r2DeletionJobRepository;
         _courseDeletionRequestRepository = courseDeletionRequestRepository;
         _unitOfWork = unitOfWork;
@@ -141,6 +144,8 @@ public class CourseService : ICourseService
         SkillTags = course.SkillTags,
         PrerequisiteCourseId = course.PrerequisiteCourseId,
         PrerequisiteCourseTitle = course.PrerequisiteCourse?.Title,
+        Rating = 0,
+        ReviewCount = 0,
     };
 
     // -------------------------------------------------------------------------
@@ -185,7 +190,7 @@ public class CourseService : ICourseService
     // -------------------------------------------------------------------------
     // Execute pagination — shared between both list methods
     // -------------------------------------------------------------------------
-    private static async Task<CourseListResponse> ExecutePaginatedQueryAsync(
+    private async Task<CourseListResponse> ExecutePaginatedQueryAsync(
         IQueryable<Course> query, int page, int limit)
     {
         var total = await query.CountAsync();
@@ -194,7 +199,7 @@ public class CourseService : ICourseService
             .Take(limit)
             .ToListAsync();
 
-        return new CourseListResponse
+        var response = new CourseListResponse
         {
             Data = items.Select(MapToDto).ToList(),
             Pagination = new PaginationMeta
@@ -205,6 +210,33 @@ public class CourseService : ICourseService
                 TotalPages = (int)Math.Ceiling((double)total / limit),
             }
         };
+        await ApplyReviewSummariesAsync(response.Data);
+        return response;
+    }
+
+    private async Task ApplyReviewSummariesAsync(IReadOnlyCollection<CourseDto> courses)
+    {
+        var courseIds = courses.Select(course => course.CourseId).Distinct().ToList();
+        if (courseIds.Count == 0) return;
+
+        var summaries = await _courseReviewRepository.GetQueryable()
+            .AsNoTracking()
+            .Where(review => courseIds.Contains(review.CourseId) && review.Status == "PUBLISHED")
+            .GroupBy(review => review.CourseId)
+            .Select(group => new
+            {
+                CourseId = group.Key,
+                Rating = group.Average(review => (double)review.Rating),
+                ReviewCount = group.Count()
+            })
+            .ToDictionaryAsync(summary => summary.CourseId);
+
+        foreach (var course in courses)
+        {
+            if (!summaries.TryGetValue(course.CourseId, out var summary)) continue;
+            course.Rating = Math.Round(summary.Rating, 1);
+            course.ReviewCount = summary.ReviewCount;
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -258,7 +290,10 @@ public class CourseService : ICourseService
             .Include(c => c.ApprovedBy)
             .FirstOrDefaultAsync(c => c.CourseId == courseId);
 
-        return course is null ? null : MapToDto(course);
+        if (course is null) return null;
+        var dto = MapToDto(course);
+        await ApplyReviewSummariesAsync(new[] { dto });
+        return dto;
     }
 
     // -------------------------------------------------------------------------
@@ -1124,6 +1159,7 @@ public class CourseService : ICourseService
             });
         }
 
+        await ApplyReviewSummariesAsync(result.Select(item => item.Course).ToList());
         return result;
     }
 }

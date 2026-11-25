@@ -47,6 +47,7 @@ public class SmartMcDbContext : DbContext
     public DbSet<Enrollment> Enrollments { get; set; } = null!;
     public DbSet<LessonProgress> LessonProgresses { get; set; } = null!;
     public DbSet<Certificate> Certificates { get; set; } = null!;
+    public DbSet<CourseReview> CourseReviews { get; set; } = null!;
     public DbSet<SpeakingSubmission> SpeakingSubmissions { get; set; } = null!;
     public DbSet<SpeakingScript> SpeakingScripts { get; set; } = null!;
     public DbSet<SpeakingScriptLevel> SpeakingScriptLevels { get; set; } = null!;
@@ -827,6 +828,32 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
                 .WithMany()
                 .HasForeignKey(d => d.EnrollmentId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<CourseReview>(entity =>
+        {
+            entity.ToTable("course_reviews", table =>
+                table.HasCheckConstraint("CK_course_reviews_Rating", "\"Rating\" >= 1 AND \"Rating\" <= 5"));
+            entity.HasKey(review => review.ReviewId);
+            entity.HasIndex(review => new { review.CourseId, review.LearnerId }).IsUnique();
+            entity.HasIndex(review => new { review.CourseId, review.Status, review.CreatedAt });
+            entity.HasIndex(review => review.CertificateId).IsUnique();
+            entity.Property(review => review.Status).HasDefaultValue("PUBLISHED");
+            entity.Property(review => review.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(review => review.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasOne(review => review.Course)
+                .WithMany()
+                .HasForeignKey(review => review.CourseId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(review => review.Learner)
+                .WithMany()
+                .HasForeignKey(review => review.LearnerId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(review => review.Certificate)
+                .WithMany()
+                .HasForeignKey(review => review.CertificateId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<SpeakingScript>(entity =>

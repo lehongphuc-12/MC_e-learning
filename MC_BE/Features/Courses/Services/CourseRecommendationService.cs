@@ -111,6 +111,19 @@ public class CourseRecommendationService : ICourseRecommendationService
                 .ToListAsync();
         }
 
+        var candidateCourseIds = candidateCourses.Select(course => course.CourseId).ToList();
+        var reviewStats = await _context.CourseReviews
+            .AsNoTracking()
+            .Where(review => candidateCourseIds.Contains(review.CourseId) && review.Status == "PUBLISHED")
+            .GroupBy(review => review.CourseId)
+            .Select(group => new
+            {
+                CourseId = group.Key,
+                AverageRating = group.Average(review => (double)review.Rating),
+                ReviewCount = group.Count()
+            })
+            .ToDictionaryAsync(item => item.CourseId);
+
         int maxEnrollments = candidateCourses
             .Select(c => c.Enrollments?.Count ?? 0)
             .DefaultIfEmpty(1)
@@ -125,6 +138,7 @@ public class CourseRecommendationService : ICourseRecommendationService
 
         foreach (var course in candidateCourses)
         {
+            reviewStats.TryGetValue(course.CourseId, out var courseReviewStats);
             var scoredCourse = ScoreCourse(
                 course,
                 weakSkills,
@@ -132,7 +146,9 @@ public class CourseRecommendationService : ICourseRecommendationService
                 learnerLevel,
                 completedCourseIds,
                 maxEnrollments,
-                isColdStart);
+                isColdStart,
+                courseReviewStats?.AverageRating ?? 0,
+                courseReviewStats?.ReviewCount ?? 0);
 
             scoredList.Add(scoredCourse);
         }
@@ -160,7 +176,9 @@ public class CourseRecommendationService : ICourseRecommendationService
         CourseLevel targetLevel,
         HashSet<int> completedCourseIds,
         int maxEnrollments,
-        bool isColdStart)
+        bool isColdStart,
+        double rating,
+        int reviewCount)
     {
         // ---------------------------------------------------------------------
         // 1. SkillGapScore (trọng số 0.35, thang 0.0 -> 1.0)
@@ -271,9 +289,8 @@ public class CourseRecommendationService : ICourseRecommendationService
         int enrollmentsCount = course.Enrollments?.Count ?? 0;
         double normEnrollment = Math.Min(1.0, (double)enrollmentsCount / maxEnrollments);
 
-        // Rating: ước tính trung bình chất lượng khóa học
-        double rating = CalculateEstimatedRating(course, enrollmentsCount);
-        double normRating = Math.Min(1.0, rating / 5.0);
+        // Use actual learner ratings; keep unrated courses neutral in ranking.
+        double normRating = reviewCount > 0 ? Math.Min(1.0, rating / 5.0) : 0.6;
 
         double popularityScore = Math.Min(1.0, (0.7 * normEnrollment) + (0.3 * normRating));
 
@@ -313,9 +330,13 @@ public class CourseRecommendationService : ICourseRecommendationService
         {
             recommendationReason = $"Phù hợp với định hướng {course.Category.CategoryName} của bạn";
         }
-        else
+        else if (reviewCount > 0)
         {
             recommendationReason = "Khóa học nền tảng được đánh giá cao";
+        }
+        else
+        {
+            recommendationReason = "Khóa học phù hợp để khám phá kỹ năng MC tiếp theo";
         }
 
         // Tính thời lượng hiển thị từ các bài học
@@ -325,8 +346,6 @@ public class CourseRecommendationService : ICourseRecommendationService
         decimal price = course.Price;
         decimal originalPrice = price > 0 ? Math.Round(price * 1.25m, 0) : 0m;
         int discountPercent = price > 0 ? 20 : 0;
-        int reviewCount = Math.Max(enrollmentsCount, 1);
-
         return new CourseRecommendationDto
         {
             Id = course.CourseId,
@@ -375,15 +394,6 @@ public class CourseRecommendationService : ICourseRecommendationService
         if (hours > 0)
             return $"{hours} giờ";
         return $"{minutes} phút";
-    }
-
-    private static double CalculateEstimatedRating(Course course, int enrollmentsCount)
-    {
-        // Khóa học có đánh giá cao từ 4.7 đến 5.0
-        if (enrollmentsCount > 20) return 4.9;
-        if (enrollmentsCount > 5) return 4.8;
-        if (course.Level == CourseLevel.BEGINNER) return 4.9;
-        return 4.8;
     }
 
     private async Task<List<string>> GetUserForumTopicsAsync(int userId)

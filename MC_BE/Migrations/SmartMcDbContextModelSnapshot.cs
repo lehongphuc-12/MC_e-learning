@@ -1381,6 +1381,74 @@ namespace MC_BE.Migrations
                     b.ToTable("course_materials", (string)null);
                 });
 
+            modelBuilder.Entity("MC_BE.Core.Entities.CourseReview", b =>
+                {
+                    b.Property<int>("ReviewId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("ReviewID");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("ReviewId"));
+
+                    b.Property<int>("CertificateId")
+                        .HasColumnType("integer")
+                        .HasColumnName("CertificateID");
+
+                    b.Property<string>("Comment")
+                        .HasMaxLength(2000)
+                        .HasColumnType("text")
+                        .HasColumnName("Comment");
+
+                    b.Property<int>("CourseId")
+                        .HasColumnType("integer")
+                        .HasColumnName("CourseID");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("CreatedAt")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<int>("LearnerId")
+                        .HasColumnType("integer")
+                        .HasColumnName("LearnerID");
+
+                    b.Property<short>("Rating")
+                        .HasColumnType("smallint")
+                        .HasColumnName("Rating");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)")
+                        .HasDefaultValue("PUBLISHED")
+                        .HasColumnName("Status");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("UpdatedAt")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.HasKey("ReviewId");
+
+                    b.HasIndex("CertificateId")
+                        .IsUnique();
+
+                    b.HasIndex("LearnerId");
+
+                    b.HasIndex("CourseId", "LearnerId")
+                        .IsUnique();
+
+                    b.HasIndex("CourseId", "Status", "CreatedAt");
+
+                    b.ToTable("course_reviews", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_course_reviews_Rating", "\"Rating\" >= 1 AND \"Rating\" <= 5");
+                        });
+                });
+
             modelBuilder.Entity("MC_BE.Core.Entities.CourseSyllabusUploadSession", b =>
                 {
                     b.Property<Guid>("SessionId")
@@ -5128,6 +5196,33 @@ namespace MC_BE.Migrations
                     b.Navigation("Lesson");
 
                     b.Navigation("Uploader");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.CourseReview", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.Certificate", "Certificate")
+                        .WithMany()
+                        .HasForeignKey("CertificateId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MC_BE.Core.Entities.Course", "Course")
+                        .WithMany()
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MC_BE.Core.Entities.User", "Learner")
+                        .WithMany()
+                        .HasForeignKey("LearnerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Certificate");
+
+                    b.Navigation("Course");
+
+                    b.Navigation("Learner");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.CourseSyllabusUploadSession", b =>

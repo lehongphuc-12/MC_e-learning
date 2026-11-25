@@ -33,6 +33,8 @@ public class CourseDto
     public string? SkillTags { get; set; }
     public int? PrerequisiteCourseId { get; set; }
     public string? PrerequisiteCourseTitle { get; set; }
+    public double Rating { get; set; }
+    public int ReviewCount { get; set; }
 }
 
 // ---------------------------------------------------------------------------

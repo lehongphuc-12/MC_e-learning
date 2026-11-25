@@ -1,12 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, AlertCircle, BookOpen, CheckCircle2, Clock3, LoaderCircle, Search, Users } from 'lucide-react';
+import { ArrowLeft, AlertCircle, BookOpen, CheckCircle2, Clock3, LoaderCircle, Search, Star, Users } from 'lucide-react';
 import { useCourseDetail } from '../../hooks/useInstructorCourses';
 import { useCourseStudentInsights } from '../../../payment/hooks/useCourseStudents';
 import type { CourseStudentInsightDto, StudentAssessmentInsightDto } from '../../../payment/types/paymentTypes';
 import { UserPlus } from 'lucide-react';
 import { AssignRemedialContentModal } from './AssignRemedialContentModal';
 import { remedialAssignmentApi, type RemedialAssignmentDto } from '../../api/remedialAssignmentApi';
+import { useInstructorCourseReviews } from '../../hooks/useCourseReviews';
 
 const riskMeta = {
   SAFE: { label: 'Đúng tiến độ', classes: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
@@ -47,6 +48,7 @@ export const CourseStudentDashboardPage: React.FC = () => {
   const [remedialAssignments, setRemedialAssignments] = useState<RemedialAssignmentDto[]>([]);
   const { data: courseResponse, isLoading: courseLoading } = useCourseDetail(courseId);
   const { data: students = [], isLoading, isError, refetch } = useCourseStudentInsights(courseId);
+  const { data: courseReviews, isLoading: reviewsLoading, isError: reviewsError } = useInstructorCourseReviews(courseId);
 
   const filtered = useMemo(() => students.filter(student => {
     const matchesSearch = `${student.fullName} ${student.email}`.toLowerCase().includes(search.trim().toLowerCase());
@@ -125,6 +127,34 @@ export const CourseStudentDashboardPage: React.FC = () => {
                   </table>
                 </div>}
           <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/60 px-5 py-3 text-xs text-slate-500"><span>Đánh giá dựa trên hạn nộp và kết quả gần nhất của Quiz/Speaking; chi tiết lý do có trong hồ sơ từng học viên.</span><span>{filtered.length} học viên</span></div>
+        </section>
+
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+          <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-5">
+            <div>
+              <h2 className="font-bold text-slate-900">Phản hồi khóa học</h2>
+              <p className="mt-1 text-xs text-slate-500">Đánh giá ẩn danh từ học viên đã hoàn thành và được cấp chứng chỉ.</p>
+            </div>
+            <div className="flex items-center gap-1.5 rounded-xl bg-amber-50 px-3 py-2 text-sm font-bold text-amber-800">
+              <Star size={16} className="fill-amber-400 text-amber-400" />
+              {courseReviews?.reviewCount ? `${courseReviews.averageRating.toFixed(1)} · ${courseReviews.reviewCount}` : 'Chưa có đánh giá'}
+            </div>
+          </header>
+          <div className="divide-y divide-slate-100">
+            {reviewsLoading ? <p className="p-5 text-sm text-slate-500">Đang tải phản hồi…</p>
+              : reviewsError ? <p className="p-5 text-sm text-rose-700">Không tải được phản hồi khóa học.</p>
+                : (courseReviews?.reviews.length ?? 0) === 0 ? <p className="p-5 text-sm text-slate-500">Chưa có học viên gửi phản hồi.</p>
+                  : courseReviews?.reviews.map(review => <article key={review.reviewId} className="p-5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-semibold text-slate-800">{review.author}</p>
+                      <div className="flex items-center gap-1" aria-label={`${review.rating} trên 5 sao`}>
+                        {[1, 2, 3, 4, 5].map(star => <Star key={star} size={14} className={star <= review.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-200'} />)}
+                        <time className="ml-2 text-xs font-normal text-slate-400">{new Date(review.createdAt).toLocaleDateString('vi-VN')}</time>
+                      </div>
+                    </div>
+                    {review.comment && <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">{review.comment}</p>}
+                  </article>)}
+          </div>
         </section>
       </div>
 

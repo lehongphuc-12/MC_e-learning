@@ -250,15 +250,15 @@ export const CourseCard: React.FC<CourseCardProps> = ({
         {/* RATING + LEVEL */}
         <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-3">
           <div className="flex items-center gap-1">
-            <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
-
-            <span className="text-xs font-extrabold text-amber-500">
-              {course.rating}
-            </span>
-
-            <span className="text-[11px] text-slate-400">
-              ({course.reviewsCount})
-            </span>
+            {course.reviewsCount > 0 ? (
+              <>
+                <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                <span className="text-xs font-extrabold text-amber-500">{course.rating.toFixed(1)}</span>
+                <span className="text-[11px] text-slate-400">({course.reviewsCount})</span>
+              </>
+            ) : (
+              <span className="text-[11px] font-medium text-slate-400">Chưa có đánh giá</span>
+            )}
           </div>
 
           <span className="whitespace-nowrap text-[11px] font-semibold text-slate-400">

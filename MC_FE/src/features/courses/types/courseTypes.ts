@@ -74,6 +74,8 @@ export interface Course {
   instructorName?: string;    // Joined from USER.FullName
   studentCount?: number;
   studentsCount?: number;
+  rating?: number;
+  reviewCount?: number;
 }
 
 // ---------------------------------------------------------------------------
