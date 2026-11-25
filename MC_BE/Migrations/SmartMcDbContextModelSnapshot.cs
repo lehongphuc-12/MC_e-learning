@@ -2344,6 +2344,31 @@ namespace MC_BE.Migrations
                     b.ToTable("forum_topics", (string)null);
                 });
 
+            modelBuilder.Entity("MC_BE.Core.Entities.LearnerFavoriteCourse", b =>
+                {
+                    b.Property<int>("LearnerId")
+                        .HasColumnType("integer")
+                        .HasColumnName("LearnerID");
+
+                    b.Property<int>("CourseId")
+                        .HasColumnType("integer")
+                        .HasColumnName("CourseID");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("CreatedAt")
+                        .HasDefaultValueSql("now()");
+
+                    b.HasKey("LearnerId", "CourseId");
+
+                    b.HasIndex("CourseId");
+
+                    b.HasIndex("LearnerId", "CreatedAt");
+
+                    b.ToTable("learner_favorite_courses", (string)null);
+                });
+
             modelBuilder.Entity("MC_BE.Core.Entities.Lesson", b =>
                 {
                     b.Property<int>("LessonId")
@@ -5781,6 +5806,25 @@ namespace MC_BE.Migrations
                     b.Navigation("ResolvedBy");
                 });
 
+            modelBuilder.Entity("MC_BE.Core.Entities.LearnerFavoriteCourse", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.Course", "Course")
+                        .WithMany()
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MC_BE.Core.Entities.User", "Learner")
+                        .WithMany("FavoriteCourses")
+                        .HasForeignKey("LearnerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Course");
+
+                    b.Navigation("Learner");
+                });
+
             modelBuilder.Entity("MC_BE.Core.Entities.Lesson", b =>
                 {
                     b.HasOne("MC_BE.Core.Entities.Course", "Course")
@@ -6647,6 +6691,8 @@ namespace MC_BE.Migrations
                     b.Navigation("CreatedQuizzes");
 
                     b.Navigation("Enrollments");
+
+                    b.Navigation("FavoriteCourses");
 
                     b.Navigation("InstructedCourses");
 

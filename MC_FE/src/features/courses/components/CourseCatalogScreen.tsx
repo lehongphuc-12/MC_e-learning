@@ -81,12 +81,22 @@ export const CourseCatalogScreen: React.FC<CourseCatalogScreenProps> = ({
   const recommendedQuery = useRecommendedCoursesQuery(3);
   const { openSurvey } = useOnboardingSurveyStore();
 
-  const recommendedCourses = useMemo(() => {
-    return (recommendedQuery.data || []).map(mapRecommendedToUICourse);
-  }, [recommendedQuery.data]);
-
   const allCourses = coursesQuery.data || [];
   const rawCategories = categoriesQuery.data || [];
+  const recommendedCourses = useMemo(() => {
+    return (recommendedQuery.data || []).map((recommendation) => {
+      const mapped = mapRecommendedToUICourse(recommendation);
+      const catalogCourse = allCourses.find((course) => course.id === mapped.id);
+      return catalogCourse
+        ? { ...mapped, badge: mapped.badge === 'Free' ? 'Free' : catalogCourse.badge,
+            previewAvailable: catalogCourse.previewAvailable,
+            previewLessonId: catalogCourse.previewLessonId,
+            previewLessonTitle: catalogCourse.previewLessonTitle,
+            purchasedLearnerCount: catalogCourse.purchasedLearnerCount,
+            isBestSeller: catalogCourse.isBestSeller }
+        : mapped;
+    });
+  }, [recommendedQuery.data, allCourses]);
 
   const categoryOptions = useMemo(() => {
     const fromApi = rawCategories.map((c) => c.categoryName).filter(Boolean);

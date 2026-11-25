@@ -19,7 +19,7 @@ interface CourseCardProps {
   course: Course;
   isWishlisted: boolean;
   onSelect: (course: Course) => void;
-  onPreview: (course: Course) => void;
+  onPreview: (course: Course, lessonId?: number, lessonTitle?: string) => void;
   onToggleWishlist: (courseId: string) => void;
   onAddToCart?: (course: Course) => void;
   showCartButton?: boolean;
@@ -182,11 +182,11 @@ export const CourseCard: React.FC<CourseCardProps> = ({
         </motion.button>
 
         {/* PREVIEW */}
-        <motion.button
+        {course.previewAvailable !== false && <motion.button
           type="button"
           whileHover={{ scale: 1.03 }}
           whileTap={{ scale: 0.95 }}
-          onClick={() => onPreview(course)}
+          onClick={() => onPreview(course, course.previewLessonId, course.previewLessonTitle)}
           className="absolute bottom-3 left-3 z-20 flex h-9 items-center gap-1.5 rounded-full bg-[#0754ef] px-3 text-[11px] font-extrabold text-white transition-colors duration-200 hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
           title="Xem trước khóa học"
           aria-label="Xem trước khóa học"
@@ -195,7 +195,7 @@ export const CourseCard: React.FC<CourseCardProps> = ({
             <Play className="h-2 w-2 translate-x-[0.5px] fill-slate-950 text-slate-950" />
           </span>
           <span>Xem thử</span>
-        </motion.button>
+        </motion.button>}
       </div>
 
       {/* CONTENT */}

@@ -76,6 +76,11 @@ export interface Course {
   studentsCount?: number;
   rating?: number;
   reviewCount?: number;
+  purchasedLearnerCount?: number;
+  isBestSeller?: boolean;
+  previewAvailable?: boolean;
+  previewLessonId?: number | null;
+  previewLessonTitle?: string | null;
 }
 
 // ---------------------------------------------------------------------------

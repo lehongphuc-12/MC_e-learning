@@ -246,11 +246,77 @@ public class CourseService : ICourseService
         int page, int limit, string? status, int? categoryId, string? search)
     {
         var query = BuildCourseQuery(null, status, categoryId, search);
-        if (string.IsNullOrEmpty(status))
+        // This endpoint feeds the public learner catalog; never expose drafts,
+        // pending review, rejected, or archived courses through query parameters.
+        query = query.Where(c => c.Status == CourseStatus.PUBLISHED);
+        var response = await ExecutePaginatedQueryAsync(query, page, limit);
+        await ApplyPurchasePopularityAsync(response.Data);
+        await ApplyPreviewLessonsAsync(response.Data);
+        return response;
+    }
+
+    private async Task ApplyPreviewLessonsAsync(IReadOnlyCollection<CourseDto> courses)
+    {
+        var courseIds = courses.Where(course => course.Status == CourseStatus.PUBLISHED)
+            .Select(course => course.CourseId).ToList();
+        if (courseIds.Count == 0) return;
+
+        var previews = await _lessonRepository.GetQueryable().AsNoTracking()
+            .Where(lesson => courseIds.Contains(lesson.CourseId) && lesson.Status == LessonStatus.ACTIVE &&
+                lesson.IsPreview && lesson.LessonType == LessonType.VIDEO)
+            .Include(lesson => lesson.CourseMaterials)
+            .OrderBy(lesson => lesson.Module == null ? int.MaxValue : lesson.Module.OrderIndex)
+            .ThenBy(lesson => lesson.OrderIndex)
+            .ThenBy(lesson => lesson.LessonId)
+            .ToListAsync();
+        var firstByCourse = previews
+            .Where(lesson => HasR2Video(lesson.CourseMaterials))
+            .GroupBy(lesson => lesson.CourseId)
+            .ToDictionary(group => group.Key, group => group.First());
+
+        foreach (var course in courses)
         {
-            query = query.Where(c => c.Status != CourseStatus.DRAFT);
+            if (!firstByCourse.TryGetValue(course.CourseId, out var preview)) continue;
+            course.PreviewAvailable = true;
+            course.PreviewLessonId = preview.LessonId;
+            course.PreviewLessonTitle = preview.Title;
         }
-        return await ExecutePaginatedQueryAsync(query, page, limit);
+    }
+
+    private bool HasR2Video(IEnumerable<CourseMaterial> materials) => materials.Any(material =>
+        material.MaterialType == MaterialType.VIDEO &&
+        (!string.IsNullOrWhiteSpace(material.ObjectKey) ||
+         (!string.IsNullOrWhiteSpace(material.FileUrl) && _r2.ExtractKeyFromUrl(material.FileUrl) is not null)));
+
+    private async Task ApplyPurchasePopularityAsync(IReadOnlyCollection<CourseDto> courses)
+    {
+        if (courses.Count == 0) return;
+
+        var counts = await _paymentItemRepository.GetQueryable()
+            .AsNoTracking()
+            .Where(item => item.Amount > 0 && item.Payment.Status == "SUCCESS" &&
+                item.Course.Status == CourseStatus.PUBLISHED && !item.Course.IsFree)
+            .GroupBy(item => item.CourseId)
+            .Select(group => new
+            {
+                CourseId = group.Key,
+                LearnerCount = group.Select(item => item.Payment.LearnerId).Distinct().Count()
+            })
+            .ToListAsync();
+
+        var countByCourse = counts.ToDictionary(item => item.CourseId, item => item.LearnerCount);
+        var bestSellerIds = counts
+            .OrderByDescending(item => item.LearnerCount)
+            .ThenBy(item => item.CourseId)
+            .Take(5)
+            .Select(item => item.CourseId)
+            .ToHashSet();
+
+        foreach (var course in courses)
+        {
+            course.PurchasedLearnerCount = countByCourse.GetValueOrDefault(course.CourseId);
+            course.IsBestSeller = !course.IsFree && bestSellerIds.Contains(course.CourseId);
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -293,7 +359,27 @@ public class CourseService : ICourseService
         if (course is null) return null;
         var dto = MapToDto(course);
         await ApplyReviewSummariesAsync(new[] { dto });
+        await ApplyPreviewLessonsAsync(new[] { dto });
         return dto;
+    }
+
+    public async Task<CoursePreviewLessonDto?> GetFirstPreviewLessonAsync(int courseId)
+    {
+        var courseIsPublished = await _courseRepository.GetQueryable().AsNoTracking()
+            .AnyAsync(course => course.CourseId == courseId && course.Status == CourseStatus.PUBLISHED);
+        if (!courseIsPublished) return null;
+
+        var candidates = await _lessonRepository.GetQueryable().AsNoTracking()
+            .Where(lesson => lesson.CourseId == courseId &&
+                lesson.Status == LessonStatus.ACTIVE && lesson.IsPreview &&
+                lesson.LessonType == LessonType.VIDEO)
+            .Include(lesson => lesson.CourseMaterials)
+            .OrderBy(lesson => lesson.Module == null ? int.MaxValue : lesson.Module.OrderIndex)
+            .ThenBy(lesson => lesson.OrderIndex)
+            .ThenBy(lesson => lesson.LessonId)
+            .ToListAsync();
+        var lesson = candidates.FirstOrDefault(candidate => HasR2Video(candidate.CourseMaterials));
+        return lesson is null ? null : new CoursePreviewLessonDto { LessonId = lesson.LessonId, Title = lesson.Title };
     }
 
     // -------------------------------------------------------------------------

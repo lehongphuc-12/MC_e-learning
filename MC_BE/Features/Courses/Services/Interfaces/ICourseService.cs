@@ -37,6 +37,7 @@ public interface ICourseService
     /// Returns null if not found.
     /// </summary>
     Task<CourseDto?> GetCourseByIdAsync(int courseId);
+    Task<CoursePreviewLessonDto?> GetFirstPreviewLessonAsync(int courseId);
 
     /// <summary>
     /// Creates a new course. Slug is auto-generated from the title.

@@ -35,6 +35,17 @@ public class CourseDto
     public string? PrerequisiteCourseTitle { get; set; }
     public double Rating { get; set; }
     public int ReviewCount { get; set; }
+    public int PurchasedLearnerCount { get; set; }
+    public bool IsBestSeller { get; set; }
+    public bool PreviewAvailable { get; set; }
+    public int? PreviewLessonId { get; set; }
+    public string? PreviewLessonTitle { get; set; }
+}
+
+public sealed class CoursePreviewLessonDto
+{
+    public int LessonId { get; set; }
+    public string Title { get; set; } = string.Empty;
 }
 
 // ---------------------------------------------------------------------------

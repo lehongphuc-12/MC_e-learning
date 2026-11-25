@@ -75,6 +75,10 @@ function buildQuery(params?: Record<string, string | number | undefined>): strin
 }
 
 export const courseApi = {
+  async getPreviewLesson(courseId: number): Promise<{ lessonId: number; title: string }> {
+    const envelope = await request<ApiEnvelope<{ lessonId: number; title: string }>>(`/courses/${courseId}/preview-lesson`);
+    return envelope.data;
+  },
   async uploadCourseThumbnail(file: File): Promise<string> {
     const formData = new FormData();
     formData.append('file', file);

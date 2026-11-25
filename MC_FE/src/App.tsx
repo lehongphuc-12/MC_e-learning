@@ -20,6 +20,7 @@ import { OnboardingSurveyModal } from './features/preferences/components/Onboard
 import { useAppStore } from './hooks/useAppStore';
 import { useAuth } from './hooks/useAuth';
 import { useAuthStore } from './store/useAuthStore';
+import { courseApi } from './features/courses/api/courseApi';
 
 const getDefaultAvatar = (name: string) => {
   const parts = name.trim().split(/\s+/);
@@ -71,9 +72,25 @@ export default function App() {
   // - có cần sync Enrollment hay không
   const store = useAppStore(user);
   const [previewLesson, setPreviewLesson] = useState<{ lessonId: number; title: string } | null>(null);
-  const openVideoPreview = (course: Course, lessonId?: number, lessonTitle?: string) => {
-    setPreviewLesson(lessonId ? { lessonId, title: lessonTitle ?? 'Bài học xem trước' } : null);
-    store.setPreviewModalCourse(course);
+  const openVideoPreview = async (course: Course, lessonId?: number, lessonTitle?: string) => {
+    try {
+      let resolvedLessonId = lessonId ?? course.previewLessonId;
+      let resolvedTitle = lessonTitle ?? course.previewLessonTitle;
+      if (!resolvedLessonId) {
+        const preview = await courseApi.getPreviewLesson(Number(course.id));
+        resolvedLessonId = preview.lessonId;
+        resolvedTitle = preview.title;
+      }
+      if (!resolvedLessonId) throw new Error('Khóa học chưa có bài video được bật xem trước.');
+      setPreviewLesson({ lessonId: resolvedLessonId, title: resolvedTitle ?? 'Bài học xem trước' });
+      store.setPreviewModalCourse(course);
+    } catch (error) {
+      store.showToast(
+        'Khóa học chưa có video xem thử',
+        error instanceof Error ? error.message : 'Khóa học này chưa bật xem trước.',
+        'info'
+      );
+    }
   };
 
   const navigate = useNavigate();

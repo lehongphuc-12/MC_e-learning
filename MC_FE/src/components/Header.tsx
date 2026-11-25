@@ -374,7 +374,7 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 id="header-wishlist-btn"
                 type="button"
-                onClick={() => onNavigate('courses')}
+                onClick={() => navigate('/courses/favorites')}
                 title="Danh sách yêu thích"
                 className="header-action group relative hidden h-[40px] w-[40px] items-center justify-center rounded-[13px] border border-slate-100 bg-slate-50/80 text-slate-500 transition-all duration-300 hover:-translate-y-0.5 hover:border-rose-100 hover:bg-rose-50 hover:text-rose-500 hover:shadow-[0_8px_20px_rgba(244,63,94,0.10)] sm:flex"
               >

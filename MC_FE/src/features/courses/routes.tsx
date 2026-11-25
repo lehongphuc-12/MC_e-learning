@@ -20,6 +20,7 @@ import { InstructorSpeakingAssignmentsPage } from './components/management/Instr
 import { InstructorSpeakingAssignmentFormPage } from './components/management/InstructorSpeakingAssignmentFormPage';
 import { SpeakingResultPage } from './pages/SpeakingResultPage';
 import { CourseCompletionSummaryPage } from './pages/CourseCompletionSummaryPage';
+import { CourseFavoritesScreen } from './components/CourseFavoritesScreen';
 import { ProtectedRoute } from '../../components/common/ProtectedRoute';
 import { ToastType } from '../../components/common/Toast';
 
@@ -116,6 +117,28 @@ export const renderCourseRoutes = ({
             onContinuePayment={onEnrollDirectly}
           />
         )}
+      />
+
+      <Route
+        path="/courses/favorites"
+        element={
+          <ProtectedRoute user={user} allowedRoles={['student']}>
+            {withMainLayout(
+              <CourseFavoritesScreen
+                wishlistCourseIds={wishlistCourseIds}
+                onSelectCourse={onSelectCourse}
+                onPreviewVideo={onPreviewVideo}
+                onToggleWishlist={onToggleWishlist}
+                onAddToCart={onAddToCart}
+                isCourseInCart={isCourseInCart}
+                isCourseEnrolled={isCourseEnrolled}
+                isCoursePendingPayment={isCoursePendingPayment}
+                onOpenCart={onOpenCart}
+                onContinuePayment={onEnrollDirectly}
+              />
+            )}
+          </ProtectedRoute>
+        }
       />
 
       {/* Course Detail Routes - Support both /courses/:id and legacy /course-detail */}

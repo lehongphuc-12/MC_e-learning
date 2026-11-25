@@ -41,6 +41,7 @@ public class SmartMcDbContext : DbContext
 
     public DbSet<Category> Categories { get; set; } = null!;
     public DbSet<Course> Courses { get; set; } = null!;
+    public DbSet<LearnerFavoriteCourse> LearnerFavoriteCourses { get; set; } = null!;
     public DbSet<Module> Modules { get; set; } = null!;
     public DbSet<Lesson> Lessons { get; set; } = null!;
     public DbSet<CourseMaterial> CourseMaterials { get; set; } = null!;
@@ -542,6 +543,24 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
                 .WithMany()
                 .HasForeignKey(d => d.ApprovedSyllabusVersionId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<LearnerFavoriteCourse>(entity =>
+        {
+            entity.ToTable("learner_favorite_courses");
+            entity.HasKey(favorite => new { favorite.LearnerId, favorite.CourseId });
+            entity.Property(favorite => favorite.LearnerId).HasColumnName("LearnerID");
+            entity.Property(favorite => favorite.CourseId).HasColumnName("CourseID");
+            entity.Property(favorite => favorite.CreatedAt).HasColumnName("CreatedAt").HasDefaultValueSql("now()");
+            entity.HasIndex(favorite => new { favorite.LearnerId, favorite.CreatedAt });
+            entity.HasOne(favorite => favorite.Learner)
+                .WithMany(user => user.FavoriteCourses)
+                .HasForeignKey(favorite => favorite.LearnerId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(favorite => favorite.Course)
+                .WithMany()
+                .HasForeignKey(favorite => favorite.CourseId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<CourseSyllabusVersion>(entity =>
