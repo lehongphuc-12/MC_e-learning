@@ -71,6 +71,48 @@ public sealed class CourseReviewsController(ICourseReviewService reviewService) 
                 "Đánh giá vừa được cập nhật ở phiên khác. Hãy tải lại đánh giá của bạn rồi thử lại."));
         }
     }
+
+    [HttpDelete("me")]
+    [Authorize(Roles = "Learner")]
+    public async Task<ActionResult<ApiResponse<object>>> DeleteMyReview(int courseId)
+    {
+        var learnerId = CurrentUserId;
+        if (learnerId is null)
+            return Unauthorized(ApiResponse<object>.FailureResponse("Vui lòng đăng nhập lại."));
+
+        var deleted = await reviewService.DeleteLearnerReviewAsync(learnerId.Value, courseId);
+        if (!deleted)
+            return NotFound(ApiResponse<object>.FailureResponse("Bạn chưa có đánh giá để xóa."));
+        return Ok(ApiResponse<object>.SuccessResponse(new { }, "Đã xóa đánh giá của bạn."));
+    }
+
+    [HttpPost("{reviewId:int}/reports")]
+    [Authorize(Roles = "Learner")]
+    public async Task<ActionResult<ApiResponse<CourseReviewReportResultDto>>> ReportReview(
+        int courseId,
+        int reviewId,
+        [FromBody] CreateCourseReviewReportRequest request)
+    {
+        var learnerId = CurrentUserId;
+        if (learnerId is null)
+            return Unauthorized(ApiResponse<CourseReviewReportResultDto>.FailureResponse("Vui lòng đăng nhập lại."));
+
+        try
+        {
+            var result = await reviewService.CreateReportAsync(learnerId.Value, courseId, reviewId, request);
+            if (result is null)
+                return NotFound(ApiResponse<CourseReviewReportResultDto>.FailureResponse("Đánh giá không còn khả dụng để báo cáo."));
+            return Ok(ApiResponse<CourseReviewReportResultDto>.SuccessResponse(result, "Báo cáo đã được gửi cho Admin xem xét."));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(ApiResponse<CourseReviewReportResultDto>.FailureResponse(ex.Message));
+        }
+        catch (DbUpdateException)
+        {
+            return Conflict(ApiResponse<CourseReviewReportResultDto>.FailureResponse("Bạn đã gửi báo cáo cho đánh giá này rồi."));
+        }
+    }
 }
 
 [ApiController]

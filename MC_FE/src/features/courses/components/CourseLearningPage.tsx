@@ -64,7 +64,7 @@ import {
 } from '../hooks/useCertificateQueries';
 import { CertificateModal } from './CertificateModal';
 import { CourseReviewModal } from './CourseReviewModal';
-import { useMyCourseReview, useSubmitCourseReview } from '../hooks/useCourseReviews';
+import { useDeleteCourseReview, useMyCourseReview, useSubmitCourseReview } from '../hooks/useCourseReviews';
 import { CourseChatDrawer } from './CourseChatDrawer';
 import { Toast, ToastMessage } from '../../../components/common/Toast';
 import { useAuthStore } from '../../../store/useAuthStore';
@@ -2378,6 +2378,7 @@ export const CourseLearningPage: React.FC = () => {
     user?.role === 'student' && Boolean(certificate),
   );
   const submitCourseReviewMutation = useSubmitCourseReview(courseId);
+  const deleteCourseReviewMutation = useDeleteCourseReview(courseId);
 
   const issueCertMutation =
     useIssueCertificate(courseId);
@@ -5552,10 +5553,14 @@ export const CourseLearningPage: React.FC = () => {
         courseTitle={course?.title ?? 'Khóa học'}
         existing={myCourseReviewQuery.data}
         isSaving={submitCourseReviewMutation.isPending}
+        isDeleting={deleteCourseReviewMutation.isPending}
         error={submitCourseReviewMutation.error instanceof Error ? submitCourseReviewMutation.error.message : null}
         onClose={() => { setIsReviewModalOpen(false); submitCourseReviewMutation.reset(); }}
-        onSubmit={(rating, comment) => submitCourseReviewMutation.mutate({ rating, comment }, {
+        onSubmit={(rating, comment, isAnonymous) => submitCourseReviewMutation.mutate({ rating, comment, isAnonymous }, {
           onSuccess: () => { setIsReviewModalOpen(false); submitCourseReviewMutation.reset(); showPageToast('Cảm ơn bạn đã đánh giá khóa học!', undefined, 'success'); },
+        })}
+        onDelete={() => deleteCourseReviewMutation.mutate(undefined, {
+          onSuccess: () => { setIsReviewModalOpen(false); showPageToast('Đã xóa đánh giá của bạn.', undefined, 'success'); },
         })}
       />
 

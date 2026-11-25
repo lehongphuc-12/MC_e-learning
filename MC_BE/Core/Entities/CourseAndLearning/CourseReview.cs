@@ -23,6 +23,9 @@ public class CourseReview
     [Column("Rating", TypeName = "smallint")]
     public int Rating { get; set; }
 
+    [Column("IsAnonymous")]
+    public bool IsAnonymous { get; set; } = true;
+
     [MaxLength(2000)]
     [Column("Comment", TypeName = "text")]
     public string? Comment { get; set; }
@@ -37,7 +40,21 @@ public class CourseReview
     [Column("UpdatedAt")]
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
+    [Column("ModeratedAt")]
+    public DateTime? ModeratedAt { get; set; }
+
+    [Column("DeletedAt")]
+    public DateTime? DeletedAt { get; set; }
+
+    [Column("ModeratedByAdminID")]
+    public int? ModeratedByAdminId { get; set; }
+
+    [MaxLength(1000)]
+    [Column("ModerationReason", TypeName = "text")]
+    public string? ModerationReason { get; set; }
+
     public virtual Course Course { get; set; } = null!;
     public virtual User Learner { get; set; } = null!;
     public virtual Certificate Certificate { get; set; } = null!;
+    public virtual User? ModeratedByAdmin { get; set; }
 }

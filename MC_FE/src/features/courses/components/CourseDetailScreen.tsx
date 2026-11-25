@@ -31,7 +31,8 @@ import { useCourseDetailQuery, useLearnedCoursesQuery } from '../hooks/useCourse
 import { courseSyllabusApi } from '../api/courseSyllabusApi';
 import { CourseSyllabusDocumentViewer } from './CourseSyllabusDocumentViewer';
 import { CourseReviewModal } from './CourseReviewModal';
-import { useCourseReviews, useMyCourseReview, useSubmitCourseReview } from '../hooks/useCourseReviews';
+import { CourseReviewReportModal } from './CourseReviewReportModal';
+import { useCourseReviews, useDeleteCourseReview, useMyCourseReview, useReportCourseReview, useSubmitCourseReview } from '../hooks/useCourseReviews';
 import { useAuthStore } from '../../../store/useAuthStore';
 
 interface CourseDetailScreenProps {
@@ -302,6 +303,8 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
   const [searchParams] = useSearchParams();
   const [showVoiceJourneyGift, setShowVoiceJourneyGift] = useState(false);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [reviewToReportId, setReviewToReportId] = useState<number | null>(null);
+  const [reportFeedback, setReportFeedback] = useState<string | null>(null);
   const user = useAuthStore((state) => state.user);
 
   // ============================================================
@@ -343,6 +346,8 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
   const reviewListQuery = useCourseReviews(numericCourseId, Boolean(validCourseId));
   const myReviewQuery = useMyCourseReview(numericCourseId, user?.role === 'student' && Boolean(validCourseId));
   const submitReviewMutation = useSubmitCourseReview(numericCourseId);
+  const deleteReviewMutation = useDeleteCourseReview(numericCourseId);
+  const reportReviewMutation = useReportCourseReview(numericCourseId);
   const reviewSummary = reviewListQuery.data;
 
   // Ưu tiên:
@@ -795,12 +800,22 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
                 </div>
               </div>
 
+              {user?.role === 'student' && myReviewQuery.data?.hasReviewed && !myReviewQuery.data.canReview && (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                  <p className="text-sm text-amber-900">{myReviewQuery.data.restrictionMessage || 'Đánh giá của bạn hiện đang bị Admin hạn chế hiển thị.'}</p>
+                  <button type="button" onClick={() => { if (window.confirm('Xóa đánh giá của bạn? Đánh giá sẽ không còn hiển thị và không được tính vào điểm trung bình.')) deleteReviewMutation.mutate(undefined, { onSuccess: () => setReportFeedback('Đã xóa đánh giá của bạn.') }); }} disabled={deleteReviewMutation.isPending} className="rounded-xl border border-rose-200 bg-white px-4 py-2 text-sm font-bold text-rose-700 disabled:opacity-50">{deleteReviewMutation.isPending ? 'Đang xóa…' : 'Xóa đánh giá'}</button>
+                </div>
+              )}
+
               {user?.role === 'student' && myReviewQuery.data?.canReview && (
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-blue-100 bg-blue-50 p-4">
                   <p className="text-sm text-slate-700">{myReviewQuery.data.hasReviewed ? 'Bạn đã đánh giá khóa học này. Bạn có thể cập nhật đánh giá.' : 'Bạn đã hoàn thành khóa học và có thể chia sẻ trải nghiệm.'}</p>
                   <button type="button" onClick={() => setIsReviewModalOpen(true)} className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700">{myReviewQuery.data.hasReviewed ? 'Sửa đánh giá' : 'Đánh giá khóa học'}</button>
+                  {myReviewQuery.data.hasReviewed && <button type="button" onClick={() => { if (window.confirm('Xóa đánh giá của bạn? Đánh giá sẽ không còn hiển thị và không được tính vào điểm trung bình.')) deleteReviewMutation.mutate(undefined, { onSuccess: () => setReportFeedback('Đã xóa đánh giá của bạn.') }); }} disabled={deleteReviewMutation.isPending} className="rounded-xl border border-rose-200 bg-white px-4 py-2 text-sm font-semibold text-rose-700 disabled:opacity-50">{deleteReviewMutation.isPending ? 'Đang xóa…' : 'Xóa đánh giá'}</button>}
                 </div>
               )}
+
+              {reportFeedback && <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">{reportFeedback}</p>}
 
               <div className="space-y-4">
                 {(reviewSummary?.reviews ?? []).map((rev) => (
@@ -823,6 +838,9 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
                       </div>
                     </div>
                     {rev.comment && <p className="text-xs text-slate-600 leading-relaxed">{rev.comment}</p>}
+                    {user?.role === 'student' && rev.reviewId !== myReviewQuery.data?.reviewId && (
+                      <button type="button" onClick={() => { setReviewToReportId(rev.reviewId); reportReviewMutation.reset(); }} className="text-xs font-semibold text-slate-500 underline decoration-slate-300 underline-offset-2 hover:text-rose-700">Báo cáo đánh giá</button>
+                    )}
                   </div>
                 ))}
                 {reviewListQuery.isError && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-5 text-center text-sm text-rose-700">Không thể tải phản hồi lúc này. Hãy thử tải lại trang.</p>}
@@ -1011,11 +1029,26 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
         courseTitle={course.title}
         existing={myReviewQuery.data}
         isSaving={submitReviewMutation.isPending}
+        isDeleting={deleteReviewMutation.isPending}
         error={submitReviewMutation.error instanceof Error ? submitReviewMutation.error.message : null}
         onClose={() => { setIsReviewModalOpen(false); submitReviewMutation.reset(); }}
-        onSubmit={(rating, comment) => submitReviewMutation.mutate({ rating, comment }, {
+        onSubmit={(rating, comment, isAnonymous) => submitReviewMutation.mutate({ rating, comment, isAnonymous }, {
           onSuccess: () => { setIsReviewModalOpen(false); submitReviewMutation.reset(); },
         })}
+        onDelete={() => deleteReviewMutation.mutate(undefined, { onSuccess: () => { setIsReviewModalOpen(false); setReportFeedback('Đã xóa đánh giá của bạn.'); } })}
+      />
+
+      <CourseReviewReportModal
+        open={reviewToReportId !== null}
+        saving={reportReviewMutation.isPending}
+        error={reportReviewMutation.error instanceof Error ? reportReviewMutation.error.message : null}
+        onClose={() => { setReviewToReportId(null); reportReviewMutation.reset(); }}
+        onSubmit={(category, details) => {
+          if (reviewToReportId === null) return;
+          reportReviewMutation.mutate({ reviewId: reviewToReportId, category, details }, {
+            onSuccess: () => { setReviewToReportId(null); setReportFeedback('Đã gửi báo cáo cho Admin xem xét.'); reportReviewMutation.reset(); },
+          });
+        }}
       />
 
       {/* MOBILE STICKY BOTTOM ACTION BAR */}

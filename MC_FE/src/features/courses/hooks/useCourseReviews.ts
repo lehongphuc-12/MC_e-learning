@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { courseReviewApi } from '../api/courseReviewApi';
+import { courseReviewApi, type CourseReviewReportCategory } from '../api/courseReviewApi';
 import { COURSE_QUERY_KEYS } from './useCoursesQuery';
 
 export const courseReviewQueryKeys = {
@@ -38,7 +38,7 @@ export function useInstructorCourseReviews(courseId: number, enabled = true) {
 export function useSubmitCourseReview(courseId: number) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (payload: { rating: number; comment?: string }) => courseReviewApi.submit(courseId, payload),
+    mutationFn: (payload: { rating: number; comment?: string; isAnonymous: boolean }) => courseReviewApi.submit(courseId, payload),
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: courseReviewQueryKeys.list(courseId) }),
@@ -49,5 +49,29 @@ export function useSubmitCourseReview(courseId: number) {
         queryClient.invalidateQueries({ queryKey: ['courses', 'recommended'] }),
       ]);
     },
+  });
+}
+
+export function useDeleteCourseReview(courseId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => courseReviewApi.deleteMine(courseId),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: courseReviewQueryKeys.list(courseId) }),
+        queryClient.invalidateQueries({ queryKey: courseReviewQueryKeys.mine(courseId) }),
+        queryClient.invalidateQueries({ queryKey: courseReviewQueryKeys.instructor(courseId) }),
+        queryClient.invalidateQueries({ queryKey: COURSE_QUERY_KEYS.all }),
+        queryClient.invalidateQueries({ queryKey: COURSE_QUERY_KEYS.detail(String(courseId)) }),
+        queryClient.invalidateQueries({ queryKey: ['courses', 'recommended'] }),
+      ]);
+    },
+  });
+}
+
+export function useReportCourseReview(courseId: number) {
+  return useMutation({
+    mutationFn: ({ reviewId, category, details }: { reviewId: number; category: CourseReviewReportCategory; details?: string }) =>
+      courseReviewApi.report(courseId, reviewId, { category, details }),
   });
 }

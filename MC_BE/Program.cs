@@ -163,6 +163,7 @@ builder.Services.AddScoped<IAdminStatsService, AdminStatsService>();
 // ============================================================
 builder.Services.AddScoped<ICourseService, CourseService>();
 builder.Services.AddScoped<ICourseReviewService, CourseReviewService>();
+builder.Services.AddScoped<ICourseReviewAdminService, CourseReviewAdminService>();
 builder.Services.AddScoped<ICourseRecommendationService, CourseRecommendationService>();
 builder.Services.AddScoped<ICourseSyllabusService, CourseSyllabusService>();
 builder.Services.AddScoped<ICourseMaterialsReadRepository, CourseMaterialsReadRepository>();

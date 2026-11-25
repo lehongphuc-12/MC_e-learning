@@ -13,17 +13,23 @@ public sealed class CourseReviewService : ICourseReviewService
     private readonly IGenericRepository<CourseReview> _reviewRepository;
     private readonly IGenericRepository<Certificate> _certificateRepository;
     private readonly IGenericRepository<Course> _courseRepository;
+    private readonly IGenericRepository<CourseReviewReport> _reportRepository;
+    private readonly IGenericRepository<CourseReviewRestriction> _restrictionRepository;
     private readonly IUnitOfWork _unitOfWork;
 
     public CourseReviewService(
         IGenericRepository<CourseReview> reviewRepository,
         IGenericRepository<Certificate> certificateRepository,
         IGenericRepository<Course> courseRepository,
+        IGenericRepository<CourseReviewReport> reportRepository,
+        IGenericRepository<CourseReviewRestriction> restrictionRepository,
         IUnitOfWork unitOfWork)
     {
         _reviewRepository = reviewRepository;
         _certificateRepository = certificateRepository;
         _courseRepository = courseRepository;
+        _reportRepository = reportRepository;
+        _restrictionRepository = restrictionRepository;
         _unitOfWork = unitOfWork;
     }
 
@@ -45,8 +51,11 @@ public sealed class CourseReviewService : ICourseReviewService
             .AnyAsync(certificate => certificate.Status == "ACTIVE"
                 && certificate.Enrollment.LearnerId == learnerId
                 && certificate.Enrollment.CourseId == courseId);
+        var restriction = await _restrictionRepository.GetQueryable()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(item => item.CourseId == courseId && item.LearnerId == learnerId && item.IsActive);
 
-        return MapEligibility(review, certificateExists);
+        return MapEligibility(review, certificateExists && restriction == null, restriction?.Reason);
     }
 
     public async Task<CourseReviewEligibilityDto?> SubmitOrUpdateLearnerReviewAsync(
@@ -66,10 +75,19 @@ public sealed class CourseReviewService : ICourseReviewService
         if (certificate == null)
             throw new InvalidOperationException("Bạn chỉ có thể đánh giá sau khi hoàn thành khóa học và được cấp chứng chỉ.");
 
+        var restriction = await _restrictionRepository.GetQueryable()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(item => item.CourseId == courseId && item.LearnerId == learnerId && item.IsActive);
+        if (restriction != null)
+            throw new InvalidOperationException($"Bạn đang bị hạn chế đánh giá khóa học này. Lý do: {restriction.Reason}");
+
         var review = await _reviewRepository.GetQueryable()
             .FirstOrDefaultAsync(item => item.CourseId == courseId && item.LearnerId == learnerId);
         var now = DateTime.UtcNow;
         var comment = string.IsNullOrWhiteSpace(request.Comment) ? null : request.Comment.Trim();
+
+        if (review != null && review.Status is "HIDDEN_BY_ADMIN" or "REMOVED_BY_ADMIN")
+            throw new InvalidOperationException("Đánh giá này đang bị Admin ẩn hoặc gỡ. Vui lòng liên hệ hỗ trợ nếu bạn cho rằng có nhầm lẫn.");
 
         if (review == null)
         {
@@ -79,6 +97,7 @@ public sealed class CourseReviewService : ICourseReviewService
                 LearnerId = learnerId,
                 CertificateId = certificate.CertificateId,
                 Rating = request.Rating,
+                IsAnonymous = request.IsAnonymous,
                 Comment = comment,
                 Status = PublishedStatus,
                 CreatedAt = now,
@@ -90,14 +109,67 @@ public sealed class CourseReviewService : ICourseReviewService
         {
             review.CertificateId = certificate.CertificateId;
             review.Rating = request.Rating;
+            review.IsAnonymous = request.IsAnonymous;
             review.Comment = comment;
             review.Status = PublishedStatus;
+            review.ModerationReason = null;
+            review.ModeratedAt = null;
+            review.ModeratedByAdminId = null;
+            review.DeletedAt = null;
             review.UpdatedAt = now;
             _reviewRepository.Update(review);
         }
 
         await _unitOfWork.SaveChangesAsync();
         return MapEligibility(review, true);
+    }
+
+    public async Task<bool> DeleteLearnerReviewAsync(int learnerId, int courseId)
+    {
+        var review = await _reviewRepository.GetQueryable()
+            .FirstOrDefaultAsync(item => item.CourseId == courseId && item.LearnerId == learnerId);
+        if (review == null) return false;
+        if (review.Status == "DELETED_BY_AUTHOR") return true;
+
+        review.Status = "DELETED_BY_AUTHOR";
+        review.DeletedAt = DateTime.UtcNow;
+        review.UpdatedAt = DateTime.UtcNow;
+        _reviewRepository.Update(review);
+        await _unitOfWork.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<CourseReviewReportResultDto?> CreateReportAsync(
+        int reporterLearnerId,
+        int courseId,
+        int reviewId,
+        CreateCourseReviewReportRequest request)
+    {
+        var review = await _reviewRepository.GetQueryable()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(item => item.ReviewId == reviewId && item.CourseId == courseId && item.Status == PublishedStatus);
+        if (review == null) return null;
+        if (review.LearnerId == reporterLearnerId)
+            throw new InvalidOperationException("Bạn không thể báo cáo đánh giá của chính mình.");
+
+        var existingReport = await _reportRepository.GetQueryable()
+            .AsNoTracking()
+            .AnyAsync(item => item.ReviewId == reviewId && item.ReporterLearnerId == reporterLearnerId);
+        if (existingReport)
+            throw new InvalidOperationException("Bạn đã gửi báo cáo cho đánh giá này rồi.");
+
+        var report = new CourseReviewReport
+        {
+            ReviewId = reviewId,
+            ReporterLearnerId = reporterLearnerId,
+            Category = request.Category,
+            Details = string.IsNullOrWhiteSpace(request.Details) ? null : request.Details.Trim(),
+            Status = "PENDING",
+            CreatedAt = DateTime.UtcNow
+        };
+        await _reportRepository.AddAsync(report);
+        await _unitOfWork.SaveChangesAsync();
+        return new CourseReviewReportResultDto { ReportId = report.ReportId, Status = report.Status };
     }
 
     public async Task<CourseReviewListDto?> GetInstructorReviewsAsync(
@@ -130,7 +202,7 @@ public sealed class CourseReviewService : ICourseReviewService
             .Select(item => new CourseReviewItemDto
             {
                 ReviewId = item.ReviewId,
-                Author = "Học viên đã hoàn thành khóa học",
+                Author = item.IsAnonymous ? "Học viên ẩn danh" : item.Learner.FullName,
                 Rating = item.Rating,
                 Comment = item.Comment,
                 CreatedAt = item.CreatedAt,
@@ -149,12 +221,21 @@ public sealed class CourseReviewService : ICourseReviewService
         };
     }
 
-    private static CourseReviewEligibilityDto MapEligibility(CourseReview? review, bool canReview) => new()
+    private static CourseReviewEligibilityDto MapEligibility(CourseReview? review, bool canReview, string? restrictionMessage = null)
     {
-        CanReview = canReview,
-        HasReviewed = review != null,
-        Rating = review?.Rating,
-        Comment = review?.Comment,
-        UpdatedAt = review?.UpdatedAt
-    };
+        var authorDeleted = review?.Status == "DELETED_BY_AUTHOR";
+        var adminModerated = review?.Status is "HIDDEN_BY_ADMIN" or "REMOVED_BY_ADMIN";
+        return new CourseReviewEligibilityDto
+        {
+            CanReview = canReview && !adminModerated,
+            HasReviewed = review != null && !authorDeleted,
+            ReviewId = authorDeleted ? null : review?.ReviewId,
+            Rating = authorDeleted ? null : review?.Rating,
+            Comment = authorDeleted ? null : review?.Comment,
+            IsAnonymous = authorDeleted || review == null || review.IsAnonymous,
+            HasActiveRestriction = restrictionMessage != null,
+            RestrictionMessage = restrictionMessage ?? (adminModerated ? "Đánh giá của bạn đang được Admin hạn chế hiển thị." : null),
+            UpdatedAt = authorDeleted ? null : review?.UpdatedAt
+        };
+    }
 }

@@ -7,24 +7,28 @@ interface CourseReviewModalProps {
   courseTitle: string;
   existing?: CourseReviewEligibility;
   isSaving: boolean;
+  isDeleting?: boolean;
   error?: string | null;
   onClose: () => void;
-  onSubmit: (rating: number, comment: string) => void;
+  onSubmit: (rating: number, comment: string, isAnonymous: boolean) => void;
+  onDelete?: () => void;
 }
 
 export const CourseReviewModal: React.FC<CourseReviewModalProps> = ({
-  open, courseTitle, existing, isSaving, error, onClose, onSubmit,
+  open, courseTitle, existing, isSaving, isDeleting = false, error, onClose, onSubmit, onDelete,
 }) => {
   const [rating, setRating] = useState(existing?.rating ?? 0);
   const [hoverRating, setHoverRating] = useState(0);
   const [comment, setComment] = useState(existing?.comment ?? '');
+  const [isAnonymous, setIsAnonymous] = useState(existing?.isAnonymous ?? true);
 
   useEffect(() => {
     if (!open) return;
     setRating(existing?.rating ?? 0);
     setComment(existing?.comment ?? '');
+    setIsAnonymous(existing?.isAnonymous ?? true);
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !isSaving) onClose();
+      if (event.key === 'Escape' && !isSaving && !isDeleting) onClose();
     };
     document.addEventListener('keydown', onKeyDown);
     const previousOverflow = document.body.style.overflow;
@@ -33,7 +37,7 @@ export const CourseReviewModal: React.FC<CourseReviewModalProps> = ({
       document.removeEventListener('keydown', onKeyDown);
       document.body.style.overflow = previousOverflow;
     };
-  }, [open, existing?.rating, existing?.comment, isSaving, onClose]);
+  }, [open, existing?.rating, existing?.comment, existing?.isAnonymous, isSaving, isDeleting, onClose]);
 
   if (!open) return null;
   const selectedRating = hoverRating || rating;
@@ -65,10 +69,22 @@ export const CourseReviewModal: React.FC<CourseReviewModalProps> = ({
         <label htmlFor="course-review-comment" className="mt-6 block text-sm font-semibold text-slate-800">Nhận xét <span className="font-normal text-slate-400">(không bắt buộc)</span></label>
         <textarea id="course-review-comment" value={comment} onChange={(event) => setComment(event.target.value)} maxLength={2000} rows={5} placeholder="Điều gì hữu ích nhất với bạn?" className="mt-2 w-full resize-y rounded-2xl border border-slate-200 p-3 text-sm text-slate-800 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100" />
         <div className="mt-1 text-right text-xs text-slate-400">{comment.length}/2000</div>
+        <fieldset className="mt-5 rounded-xl border border-slate-200 p-4">
+          <legend className="px-1 text-sm font-semibold text-slate-800">Tên hiển thị</legend>
+          <label className="flex cursor-pointer items-start gap-3 text-sm text-slate-700">
+            <input type="radio" name="course-review-visibility" checked={isAnonymous} onChange={() => setIsAnonymous(true)} className="mt-0.5 accent-blue-600" />
+            <span><b>Ẩn danh</b><span className="mt-0.5 block text-xs text-slate-500">Mọi người chỉ thấy “Học viên ẩn danh”. Admin vẫn xem được danh tính để xử lý báo cáo.</span></span>
+          </label>
+          <label className="mt-3 flex cursor-pointer items-start gap-3 text-sm text-slate-700">
+            <input type="radio" name="course-review-visibility" checked={!isAnonymous} onChange={() => setIsAnonymous(false)} className="mt-0.5 accent-blue-600" />
+            <span><b>Hiện tên hồ sơ</b><span className="mt-0.5 block text-xs text-slate-500">Tên hồ sơ của bạn sẽ hiển thị công khai; email và thông tin liên hệ không hiển thị.</span></span>
+          </label>
+        </fieldset>
         {error && <p role="alert" className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
         <div className="mt-5 flex justify-end gap-3">
-          <button type="button" onClick={onClose} disabled={isSaving} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">Hủy</button>
-          <button type="button" onClick={() => onSubmit(rating, comment)} disabled={rating < 1 || isSaving} className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">{isSaving ? 'Đang gửi…' : existing?.hasReviewed ? 'Lưu đánh giá' : 'Gửi đánh giá'}</button>
+          {existing?.hasReviewed && onDelete && <button type="button" onClick={() => { if (window.confirm('Xóa đánh giá này? Đánh giá sẽ không còn hiển thị và không được tính vào điểm trung bình.')) onDelete(); }} disabled={isSaving || isDeleting} className="mr-auto rounded-xl border border-rose-200 px-4 py-2.5 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50">{isDeleting ? 'Đang xóa…' : 'Xóa đánh giá'}</button>}
+          <button type="button" onClick={onClose} disabled={isSaving || isDeleting} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">Hủy</button>
+          <button type="button" onClick={() => onSubmit(rating, comment, isAnonymous)} disabled={rating < 1 || isSaving || isDeleting} className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">{isSaving ? 'Đang gửi…' : existing?.hasReviewed ? 'Lưu đánh giá' : 'Gửi đánh giá'}</button>
         </div>
       </section>
     </div>

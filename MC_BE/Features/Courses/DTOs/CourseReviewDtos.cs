@@ -9,6 +9,17 @@ public sealed class SubmitCourseReviewRequest
 
     [MaxLength(2000)]
     public string? Comment { get; set; }
+
+    public bool IsAnonymous { get; set; } = true;
+}
+
+public sealed class CreateCourseReviewReportRequest
+{
+    [Required, RegularExpression("^(IRRELEVANT|ABUSIVE_LANGUAGE|SPAM_OR_FAKE|PERSONAL_INFO|OTHER)$")]
+    public string Category { get; set; } = string.Empty;
+
+    [MaxLength(1000)]
+    public string? Details { get; set; }
 }
 
 public sealed class CourseReviewItemDto
@@ -35,7 +46,17 @@ public sealed class CourseReviewEligibilityDto
 {
     public bool CanReview { get; set; }
     public bool HasReviewed { get; set; }
+    public int? ReviewId { get; set; }
     public int? Rating { get; set; }
     public string? Comment { get; set; }
+    public bool IsAnonymous { get; set; } = true;
+    public bool HasActiveRestriction { get; set; }
+    public string? RestrictionMessage { get; set; }
     public DateTime? UpdatedAt { get; set; }
+}
+
+public sealed class CourseReviewReportResultDto
+{
+    public int ReportId { get; set; }
+    public string Status { get; set; } = string.Empty;
 }

@@ -91,6 +91,12 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
       icon: MessageSquare,
       badge: null,
     },
+    {
+      id: 'reviews' as AdminTabType,
+      label: 'Đánh Giá Khóa Học',
+      icon: ShieldAlert,
+      badge: null,
+    },
   ];
 
   return (
