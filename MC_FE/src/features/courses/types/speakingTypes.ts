@@ -1,5 +1,7 @@
 export type SpeakingLevel = 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';
 
+export type SpeakingScriptType = 'Scripted' | 'OpenPrompt' | 1 | 2;
+
 export type SpeakingScriptStatus = 'DRAFT' | 'PUBLISHED';
 
 export type SpeakingScope = 'LESSON' | 'CHAPTER' | 'FINAL';
@@ -44,6 +46,10 @@ export interface SaveLevelDto {
 
 export interface SaveScriptRequest {
   title: string;
+  scriptType?: SpeakingScriptType;
+  promptContent?: string | null;
+  structureHints?: string | null;
+  targetDurationSeconds?: number | null;
   originalContent?: string;
   scope?: SpeakingScope;
   moduleId?: number;
@@ -55,12 +61,16 @@ export interface SaveScriptRequest {
   passingScore?: number;
   dueAt?: string | null;
   isRemedial?: boolean;
-  levels: SaveLevelDto[];
+  levels?: SaveLevelDto[];
   rubricCriteria?: SaveRubricCriterionDto[];
 }
 
 export interface CreateSpeakingScriptRequest {
   courseId: number;
+  scriptType?: SpeakingScriptType;
+  promptContent?: string | null;
+  structureHints?: string | null;
+  targetDurationSeconds?: number | null;
   scope: SpeakingScope;
   moduleId?: number | null;
   chapterId?: number | null;
@@ -73,12 +83,16 @@ export interface CreateSpeakingScriptRequest {
   passingScore?: number;
   dueAt?: string | null;
   isRemedial?: boolean;
-  levels: SaveLevelDto[];
+  levels?: SaveLevelDto[];
   rubricCriteria?: SaveRubricCriterionDto[];
 }
 
 export interface UpdateSpeakingScriptRequest {
   courseId?: number;
+  scriptType?: SpeakingScriptType;
+  promptContent?: string | null;
+  structureHints?: string | null;
+  targetDurationSeconds?: number | null;
   scope?: SpeakingScope;
   moduleId?: number | null;
   chapterId?: number | null;
@@ -115,6 +129,10 @@ export interface SpeakingScriptDto {
   courseId: number;
   courseTitle: string;
   scope: SpeakingScope;
+  scriptType?: SpeakingScriptType;
+  promptContent?: string | null;
+  structureHints?: string | null;
+  targetDurationSeconds?: number | null;
   moduleId?: number | null;
   chapterId?: number | null;
   moduleTitle?: string | null;
@@ -385,5 +403,6 @@ export interface SpeakingSubmissionHistoryDto {
   submittedAt: string;
   gradedAt?: string | null;
   audioUrl: string;
+  studentNote?: string | null;
   selectedLevel?: string | null;
 }

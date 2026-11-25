@@ -30,6 +30,9 @@ public class SpeakingSubmission
     [Column("Note")]
     public string? Note { get; set; }
 
+    [Column("StudentNote")]
+    public string? StudentNote { get; set; }
+
     [Column("Status")]
     public SpeakingSubmissionStatus Status { get; set; } = SpeakingSubmissionStatus.SUBMITTED;
 

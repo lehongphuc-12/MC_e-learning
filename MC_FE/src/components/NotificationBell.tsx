@@ -7,6 +7,7 @@ import { API_BASE_URL } from '../services/api';
 
 type Notice = {
   id: number;
+  type?: string;
   title: string;
   message: string;
   url?: string | null;
@@ -76,9 +77,17 @@ export function NotificationBell() {
 
     const timer = window.setInterval(() => {
       void refresh();
-    }, 30000);
+    }, 15000);
 
-    return () => window.clearInterval(timer);
+    const handleFocus = () => {
+      void refresh();
+    };
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, [token]);
 
   useEffect(() => {
@@ -195,7 +204,16 @@ export function NotificationBell() {
       n.url?.startsWith('/') &&
       !n.url.startsWith('//')
     ) {
-      navigate(n.url);
+      let targetUrl = n.url;
+      const isLessonDiscussion =
+        n.type === 'lesson_comment' ||
+        (targetUrl.includes('/learn') && targetUrl.includes('lessonId='));
+      if (isLessonDiscussion && !targetUrl.includes('tab=')) {
+        targetUrl += (targetUrl.includes('?') ? '&' : '?') + 'tab=discussion';
+      }
+      navigate(targetUrl, {
+        state: isLessonDiscussion ? { openTab: 'discussion' } : undefined,
+      });
     }
   };
 

@@ -229,9 +229,76 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
         }
         foreach (var c in addedComments)
         {
-            var post = await ForumPosts.AsNoTracking().Where(x => x.PostId == c.PostId).Select(x => new { x.AuthorId }).FirstOrDefaultAsync(cancellationToken);
-            var recipient = c.ParentCommentId.HasValue ? await ForumComments.AsNoTracking().Where(x => x.CommentId == c.ParentCommentId.Value).Select(x => (int?)x.AuthorId).FirstOrDefaultAsync(cancellationToken) : post?.AuthorId;
-            if (recipient.HasValue && recipient.Value != c.AuthorId) notices.Add(new Notification { UserId = recipient.Value, Type = "forum_comment", Title = "Bình luận mới", Message = "Có người bình luận hoặc trả lời bài viết của bạn.", Url = $"/forum/posts/{c.PostId}", DedupKey = $"forum-comment:{c.CommentId}" });
+            if (c.PostId.HasValue)
+            {
+                var post = await ForumPosts.AsNoTracking().Where(x => x.PostId == c.PostId.Value).Select(x => new { x.AuthorId }).FirstOrDefaultAsync(cancellationToken);
+                var recipient = c.ParentCommentId.HasValue ? await ForumComments.AsNoTracking().Where(x => x.CommentId == c.ParentCommentId.Value).Select(x => (int?)x.AuthorId).FirstOrDefaultAsync(cancellationToken) : post?.AuthorId;
+                if (recipient.HasValue && recipient.Value != c.AuthorId) notices.Add(new Notification { UserId = recipient.Value, Type = "forum_comment", Title = "Bình luận mới", Message = "Có người bình luận hoặc trả lời bài viết của bạn.", Url = $"/forum/posts/{c.PostId.Value}", DedupKey = $"forum-comment:{c.CommentId}" });
+            }
+            else if (c.LessonId.HasValue)
+            {
+                var lessonInfo = await Lessons.AsNoTracking()
+                    .Where(l => l.LessonId == c.LessonId.Value)
+                    .Select(l => new
+                    {
+                        LessonTitle = l.Title,
+                        CourseId = l.CourseId,
+                        CourseTitle = l.Course.Title,
+                        InstructorId = l.Course.InstructorId
+                    })
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                if (lessonInfo == null) continue;
+
+                var targetUrl = $"/courses/{lessonInfo.CourseId}/learn?lessonId={c.LessonId.Value}";
+                var authorFullName = c.IsAnonymous
+                    ? null
+                    : await Users.AsNoTracking()
+                        .Where(u => u.UserId == c.AuthorId)
+                        .Select(u => u.FullName)
+                        .FirstOrDefaultAsync(cancellationToken);
+                var actorLabel = c.IsAnonymous
+                    ? "Một học viên ẩn danh"
+                    : $"Học viên {(string.IsNullOrWhiteSpace(authorFullName) ? "mới" : authorFullName)}";
+                var actionText = c.ParentCommentId.HasValue ? "trả lời thảo luận" : "bình luận";
+
+                if (lessonInfo.InstructorId != c.AuthorId)
+                {
+                    notices.Add(new Notification
+                    {
+                        UserId = lessonInfo.InstructorId,
+                        Type = "lesson_comment",
+                        Title = c.ParentCommentId.HasValue ? "Phản hồi mới trong bài học" : "Thảo luận mới trong bài học",
+                        Message = $"{actorLabel} đã {actionText} trong bài '{lessonInfo.LessonTitle}' — Khóa học '{lessonInfo.CourseTitle}'.",
+                        Url = targetUrl,
+                        DedupKey = $"lesson-comment:{c.CommentId}:instructor:{lessonInfo.InstructorId}"
+                    });
+                }
+
+                if (c.ParentCommentId.HasValue)
+                {
+                    var parentAuthorId = await ForumComments.AsNoTracking()
+                        .Where(x => x.CommentId == c.ParentCommentId.Value)
+                        .Select(x => (int?)x.AuthorId)
+                        .FirstOrDefaultAsync(cancellationToken);
+
+                    if (parentAuthorId.HasValue && parentAuthorId.Value != c.AuthorId && parentAuthorId.Value != lessonInfo.InstructorId)
+                    {
+                        var replyActor = c.IsAnonymous
+                            ? "Một học viên ẩn danh"
+                            : (c.AuthorId == lessonInfo.InstructorId ? "Giảng viên" : actorLabel);
+                        notices.Add(new Notification
+                        {
+                            UserId = parentAuthorId.Value,
+                            Type = "lesson_comment",
+                            Title = "Phản hồi thảo luận bài học",
+                            Message = $"{replyActor} đã trả lời bình luận của bạn trong bài '{lessonInfo.LessonTitle}' — Khóa học '{lessonInfo.CourseTitle}'.",
+                            Url = targetUrl,
+                            DedupKey = $"lesson-comment:{c.CommentId}:reply:{parentAuthorId.Value}"
+                        });
+                    }
+                }
+            }
         }
         foreach (var r in addedReactions)
         {
@@ -939,6 +1006,8 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
             entity.Property(e => e.Status)
                 .HasConversion<string>()
                 .HasDefaultValue(SpeakingScriptStatus.DRAFT);
+            entity.Property(e => e.ScriptType)
+                .HasDefaultValue(SpeakingScriptType.Scripted);
             entity.Property(e => e.IsRemedial).HasDefaultValue(false);
 
             entity.Property(e => e.UpdatedAt)
@@ -1883,6 +1952,7 @@ modelBuilder.Entity<QuizAnswerScenarioPath>(entity =>
         {
             entity.ToTable("forum_comments");
             entity.HasIndex(e => e.PostId);
+            entity.HasIndex(e => e.LessonId);
             entity.HasIndex(e => e.AuthorId);
             entity.HasIndex(e => e.ParentCommentId);
             entity.HasIndex(e => e.Status);
@@ -1897,6 +1967,13 @@ modelBuilder.Entity<QuizAnswerScenarioPath>(entity =>
             entity.HasOne(d => d.Post)
                 .WithMany(p => p.Comments)
                 .HasForeignKey(d => d.PostId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(d => d.Lesson)
+                .WithMany(l => l.Comments)
+                .HasForeignKey(d => d.LessonId)
+                .IsRequired(false)
                 .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasOne(d => d.Author)

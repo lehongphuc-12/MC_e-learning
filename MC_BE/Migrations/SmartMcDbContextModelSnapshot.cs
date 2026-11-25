@@ -2001,11 +2001,15 @@ namespace MC_BE.Migrations
                         .HasDefaultValue(false)
                         .HasColumnName("IsAnonymous");
 
+                    b.Property<int?>("LessonId")
+                        .HasColumnType("integer")
+                        .HasColumnName("LessonID");
+
                     b.Property<int?>("ParentCommentId")
                         .HasColumnType("integer")
                         .HasColumnName("ParentCommentID");
 
-                    b.Property<int>("PostId")
+                    b.Property<int?>("PostId")
                         .HasColumnType("integer")
                         .HasColumnName("PostID");
 
@@ -2042,6 +2046,8 @@ namespace MC_BE.Migrations
                     b.HasKey("CommentId");
 
                     b.HasIndex("AuthorId");
+
+                    b.HasIndex("LessonId");
 
                     b.HasIndex("ParentCommentId");
 
@@ -4183,6 +4189,10 @@ namespace MC_BE.Migrations
                         .HasDefaultValue(80.00m)
                         .HasColumnName("PassingScore");
 
+                    b.Property<string>("PromptContent")
+                        .HasColumnType("text")
+                        .HasColumnName("PromptContent");
+
                     b.Property<string>("SampleAudioUrl")
                         .HasColumnType("text")
                         .HasColumnName("SampleAudioUrl");
@@ -4194,12 +4204,26 @@ namespace MC_BE.Migrations
                         .HasDefaultValue("FINAL")
                         .HasColumnName("Scope");
 
+                    b.Property<int>("ScriptType")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("ScriptType");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
                         .HasColumnType("text")
                         .HasDefaultValue("DRAFT")
                         .HasColumnName("Status");
+
+                    b.Property<string>("StructureHints")
+                        .HasColumnType("text")
+                        .HasColumnName("StructureHints");
+
+                    b.Property<int?>("TargetDurationSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("TargetDurationSeconds");
 
                     b.Property<string>("Title")
                         .IsRequired()
@@ -4324,6 +4348,10 @@ namespace MC_BE.Migrations
                         .HasColumnType("text")
                         .HasDefaultValue("SUBMITTED")
                         .HasColumnName("Status");
+
+                    b.Property<string>("StudentNote")
+                        .HasColumnType("text")
+                        .HasColumnName("StudentNote");
 
                     b.Property<DateTime>("SubmittedAt")
                         .ValueGeneratedOnAdd()
@@ -5653,6 +5681,11 @@ namespace MC_BE.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("MC_BE.Core.Entities.Lesson", "Lesson")
+                        .WithMany("Comments")
+                        .HasForeignKey("LessonId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
                     b.HasOne("MC_BE.Core.Entities.ForumComment", "ParentComment")
                         .WithMany("Replies")
                         .HasForeignKey("ParentCommentId")
@@ -5661,10 +5694,11 @@ namespace MC_BE.Migrations
                     b.HasOne("MC_BE.Core.Entities.ForumPost", "Post")
                         .WithMany("Comments")
                         .HasForeignKey("PostId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Cascade);
 
                     b.Navigation("Author");
+
+                    b.Navigation("Lesson");
 
                     b.Navigation("ParentComment");
 
@@ -6483,6 +6517,8 @@ namespace MC_BE.Migrations
 
             modelBuilder.Entity("MC_BE.Core.Entities.Lesson", b =>
                 {
+                    b.Navigation("Comments");
+
                     b.Navigation("CourseMaterials");
 
                     b.Navigation("LessonProgresses");

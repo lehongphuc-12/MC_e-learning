@@ -1,6 +1,7 @@
 import { request } from '../../../services/api';
 import {
   SpeakingLevel,
+  SpeakingScriptType,
   SpeakingScope,
   ParsePreviewDto,
   SaveScriptRequest,
@@ -35,6 +36,7 @@ export interface SpeakingSubmissionDto {
   instructorName: string;
   audioUrl: string;
   note?: string;
+  studentNote?: string;
   selectedLevel?: string;
   attemptNumber?: number;
   totalAttempts?: number;

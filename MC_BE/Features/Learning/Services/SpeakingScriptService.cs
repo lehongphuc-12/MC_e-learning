@@ -129,6 +129,21 @@ public class SpeakingScriptService : ISpeakingScriptService
     {
         var lesson = await VerifyLessonOwnershipAsync(lessonId, instructorId);
 
+        if (request.ScriptType == SpeakingScriptType.OpenPrompt)
+        {
+            if (string.IsNullOrWhiteSpace(request.PromptContent))
+            {
+                throw new ArgumentException("Nội dung tình huống / đề bài mở không được để trống khi chọn loại đề mở.");
+            }
+        }
+        else
+        {
+            if (request.Levels == null || request.Levels.Count < 3)
+            {
+                throw new ArgumentException("Phải cung cấp đủ 3 cấp độ (BEGINNER, INTERMEDIATE, ADVANCED) cho bài nói có kịch bản.");
+            }
+        }
+
         var existingScript = await _scriptRepository.GetByLessonIdAsync(lessonId);
         if (existingScript == null)
         {
@@ -139,7 +154,11 @@ public class SpeakingScriptService : ISpeakingScriptService
                 LessonId = lessonId,
                 Scope = request.Scope,
                 Title = request.Title.Trim(),
-                OriginalContent = request.OriginalContent,
+                ScriptType = request.ScriptType,
+                PromptContent = request.ScriptType == SpeakingScriptType.OpenPrompt ? request.PromptContent?.Trim() : null,
+                StructureHints = request.ScriptType == SpeakingScriptType.OpenPrompt && !string.IsNullOrWhiteSpace(request.StructureHints) ? request.StructureHints.Trim() : null,
+                TargetDurationSeconds = request.ScriptType == SpeakingScriptType.OpenPrompt && request.TargetDurationSeconds > 0 ? request.TargetDurationSeconds : null,
+                OriginalContent = request.ScriptType == SpeakingScriptType.Scripted ? request.OriginalContent : null,
                 PassingScore = request.PassingScore,
                 DueAt = request.DueAt,
                 IsRemedial = request.IsRemedial ?? false,
@@ -150,27 +169,30 @@ public class SpeakingScriptService : ISpeakingScriptService
                 UpdatedAt = DateTime.UtcNow
             };
 
-            var validFallback = request.Levels.FirstOrDefault(l => !string.IsNullOrWhiteSpace(l.Content))?.Content
-                ?? request.OriginalContent
-                ?? string.Empty;
-
-            foreach (var lvlDto in request.Levels)
+            if (request.ScriptType == SpeakingScriptType.Scripted)
             {
-                var contentToSave = !string.IsNullOrWhiteSpace(lvlDto.Content)
-                    ? lvlDto.Content.Trim()
-                    : validFallback.Trim();
+                var validFallback = request.Levels.FirstOrDefault(l => !string.IsNullOrWhiteSpace(l.Content))?.Content
+                    ?? request.OriginalContent
+                    ?? string.Empty;
 
-                var cleanScoring = !string.IsNullOrWhiteSpace(lvlDto.CleanScriptForScoring)
-                    ? lvlDto.CleanScriptForScoring
-                    : _parserService.ExtractCleanScript(contentToSave);
-
-                existingScript.Levels.Add(new SpeakingScriptLevel
+                foreach (var lvlDto in request.Levels)
                 {
-                    Level = lvlDto.Level,
-                    Content = contentToSave,
-                    CleanScriptForScoring = cleanScoring,
-                    UpdatedAt = DateTime.UtcNow
-                });
+                    var contentToSave = !string.IsNullOrWhiteSpace(lvlDto.Content)
+                        ? lvlDto.Content.Trim()
+                        : validFallback.Trim();
+
+                    var cleanScoring = !string.IsNullOrWhiteSpace(lvlDto.CleanScriptForScoring)
+                        ? lvlDto.CleanScriptForScoring
+                        : _parserService.ExtractCleanScript(contentToSave);
+
+                    existingScript.Levels.Add(new SpeakingScriptLevel
+                    {
+                        Level = lvlDto.Level,
+                        Content = contentToSave,
+                        CleanScriptForScoring = cleanScoring,
+                        UpdatedAt = DateTime.UtcNow
+                    });
+                }
             }
 
             SyncRubricCriteria(existingScript, request.RubricCriteria);
@@ -183,10 +205,8 @@ public class SpeakingScriptService : ISpeakingScriptService
             existingScript.ModuleId = lesson.ModuleId;
             existingScript.Scope = request.Scope;
             existingScript.Title = request.Title.Trim();
-            if (!string.IsNullOrWhiteSpace(request.OriginalContent))
-            {
-                existingScript.OriginalContent = request.OriginalContent;
-            }
+            existingScript.ScriptType = request.ScriptType;
+
             if (request.PassingScore > 0)
             {
                 existingScript.PassingScore = request.PassingScore;
@@ -204,38 +224,64 @@ public class SpeakingScriptService : ISpeakingScriptService
                 existingScript.InstructorNote = string.IsNullOrWhiteSpace(request.InstructorNote) ? null : request.InstructorNote.Trim();
             }
 
-            var validFallback = request.Levels.FirstOrDefault(l => !string.IsNullOrWhiteSpace(l.Content))?.Content
-                ?? existingScript.OriginalContent
-                ?? existingScript.Levels.FirstOrDefault(l => !string.IsNullOrWhiteSpace(l.Content))?.Content
-                ?? string.Empty;
-
-            foreach (var lvlDto in request.Levels)
+            if (request.ScriptType == SpeakingScriptType.OpenPrompt)
             {
-                var contentToSave = !string.IsNullOrWhiteSpace(lvlDto.Content)
-                    ? lvlDto.Content.Trim()
-                    : validFallback.Trim();
-
-                var cleanScoring = !string.IsNullOrWhiteSpace(lvlDto.CleanScriptForScoring)
-                    ? lvlDto.CleanScriptForScoring
-                    : _parserService.ExtractCleanScript(contentToSave);
-
-                var existingLevel = existingScript.Levels.FirstOrDefault(l => l.Level == lvlDto.Level);
-                if (existingLevel != null)
+                existingScript.PromptContent = request.PromptContent?.Trim();
+                existingScript.StructureHints = string.IsNullOrWhiteSpace(request.StructureHints) ? null : request.StructureHints.Trim();
+                existingScript.TargetDurationSeconds = request.TargetDurationSeconds > 0 ? request.TargetDurationSeconds : null;
+                // Clean state: remove existing levels and clear OriginalContent
+                if (existingScript.Levels.Count > 0)
                 {
-                    existingLevel.Content = contentToSave;
-                    existingLevel.CleanScriptForScoring = cleanScoring;
-                    existingLevel.UpdatedAt = DateTime.UtcNow;
+                    _context.SpeakingScriptLevels.RemoveRange(existingScript.Levels);
+                    existingScript.Levels.Clear();
                 }
-                else
+                existingScript.OriginalContent = null;
+            }
+            else
+            {
+                // Scripted: Clean state for open prompt fields
+                existingScript.PromptContent = null;
+                existingScript.StructureHints = null;
+                existingScript.TargetDurationSeconds = null;
+
+                if (!string.IsNullOrWhiteSpace(request.OriginalContent))
                 {
-                    existingScript.Levels.Add(new SpeakingScriptLevel
+                    existingScript.OriginalContent = request.OriginalContent;
+                }
+
+                var validFallback = request.Levels.FirstOrDefault(l => !string.IsNullOrWhiteSpace(l.Content))?.Content
+                    ?? existingScript.OriginalContent
+                    ?? existingScript.Levels.FirstOrDefault(l => !string.IsNullOrWhiteSpace(l.Content))?.Content
+                    ?? string.Empty;
+
+                foreach (var lvlDto in request.Levels)
+                {
+                    var contentToSave = !string.IsNullOrWhiteSpace(lvlDto.Content)
+                        ? lvlDto.Content.Trim()
+                        : validFallback.Trim();
+
+                    var cleanScoring = !string.IsNullOrWhiteSpace(lvlDto.CleanScriptForScoring)
+                        ? lvlDto.CleanScriptForScoring
+                        : _parserService.ExtractCleanScript(contentToSave);
+
+                    var existingLevel = existingScript.Levels.FirstOrDefault(l => l.Level == lvlDto.Level);
+                    if (existingLevel != null)
                     {
-                        ScriptId = existingScript.ScriptId,
-                        Level = lvlDto.Level,
-                        Content = contentToSave,
-                        CleanScriptForScoring = cleanScoring,
-                        UpdatedAt = DateTime.UtcNow
-                    });
+                        existingLevel.Content = contentToSave;
+                        existingLevel.CleanScriptForScoring = cleanScoring;
+                        existingLevel.UpdatedAt = DateTime.UtcNow;
+                    }
+                    else
+                    {
+                        existingScript.Levels.Add(new SpeakingScriptLevel
+                        {
+                            ScriptId = existingScript.ScriptId,
+                            Level = lvlDto.Level,
+                            Content = contentToSave,
+                            CleanScriptForScoring = cleanScoring,
+                            UpdatedAt = DateTime.UtcNow
+                        });
+                    }
                 }
             }
 
@@ -367,6 +413,21 @@ public class SpeakingScriptService : ISpeakingScriptService
             await _context.SpeakingScripts.AnyAsync(x => x.LessonId == request.LessonId && !x.IsRemedial))
             throw new ArgumentException("Bài học này đã có Speaking chính thức. Có thể tạo thêm Speaking bổ trợ riêng.");
 
+        if (request.ScriptType == SpeakingScriptType.OpenPrompt)
+        {
+            if (string.IsNullOrWhiteSpace(request.PromptContent))
+            {
+                throw new ArgumentException("Nội dung tình huống / đề bài mở không được để trống khi chọn loại đề mở.");
+            }
+        }
+        else
+        {
+            if (request.Levels == null || request.Levels.Count < 3)
+            {
+                throw new ArgumentException("Phải cung cấp đủ 3 cấp độ (BEGINNER, INTERMEDIATE, ADVANCED) cho bài nói có kịch bản.");
+            }
+        }
+
         var targetModuleId = request.Scope == SpeakingScope.CHAPTER
             ? (request.ModuleId ?? request.ChapterId)
             : (request.Scope == SpeakingScope.LESSON ? (request.ModuleId ?? request.ChapterId) : null);
@@ -379,7 +440,11 @@ public class SpeakingScriptService : ISpeakingScriptService
             LessonId = request.Scope == SpeakingScope.LESSON ? request.LessonId : null,
             BackgroundMusicId = request.BackgroundMusicId > 0 ? request.BackgroundMusicId : null,
             Title = request.Title.Trim(),
-            OriginalContent = request.OriginalContent,
+            ScriptType = request.ScriptType,
+            PromptContent = request.ScriptType == SpeakingScriptType.OpenPrompt ? request.PromptContent?.Trim() : null,
+            StructureHints = request.ScriptType == SpeakingScriptType.OpenPrompt && !string.IsNullOrWhiteSpace(request.StructureHints) ? request.StructureHints.Trim() : null,
+            TargetDurationSeconds = request.ScriptType == SpeakingScriptType.OpenPrompt && request.TargetDurationSeconds > 0 ? request.TargetDurationSeconds : null,
+            OriginalContent = request.ScriptType == SpeakingScriptType.Scripted ? request.OriginalContent : null,
             PassingScore = request.PassingScore > 0 ? request.PassingScore : 80.00m,
             DueAt = request.DueAt,
             IsRemedial = request.IsRemedial,
@@ -390,27 +455,30 @@ public class SpeakingScriptService : ISpeakingScriptService
             UpdatedAt = DateTime.UtcNow
         };
 
-        var validFallback = request.Levels.FirstOrDefault(l => !string.IsNullOrWhiteSpace(l.Content))?.Content
-            ?? request.OriginalContent
-            ?? string.Empty;
-
-        foreach (var lvlDto in request.Levels)
+        if (request.ScriptType == SpeakingScriptType.Scripted)
         {
-            var contentToSave = !string.IsNullOrWhiteSpace(lvlDto.Content)
-                ? lvlDto.Content.Trim()
-                : validFallback.Trim();
+            var validFallback = request.Levels.FirstOrDefault(l => !string.IsNullOrWhiteSpace(l.Content))?.Content
+                ?? request.OriginalContent
+                ?? string.Empty;
 
-            var cleanScoring = !string.IsNullOrWhiteSpace(lvlDto.CleanScriptForScoring)
-                ? lvlDto.CleanScriptForScoring
-                : _parserService.ExtractCleanScript(contentToSave);
-
-            script.Levels.Add(new SpeakingScriptLevel
+            foreach (var lvlDto in request.Levels)
             {
-                Level = lvlDto.Level,
-                Content = contentToSave,
-                CleanScriptForScoring = cleanScoring,
-                UpdatedAt = DateTime.UtcNow
-            });
+                var contentToSave = !string.IsNullOrWhiteSpace(lvlDto.Content)
+                    ? lvlDto.Content.Trim()
+                    : validFallback.Trim();
+
+                var cleanScoring = !string.IsNullOrWhiteSpace(lvlDto.CleanScriptForScoring)
+                    ? lvlDto.CleanScriptForScoring
+                    : _parserService.ExtractCleanScript(contentToSave);
+
+                script.Levels.Add(new SpeakingScriptLevel
+                {
+                    Level = lvlDto.Level,
+                    Content = contentToSave,
+                    CleanScriptForScoring = cleanScoring,
+                    UpdatedAt = DateTime.UtcNow
+                });
+            }
         }
 
         SyncRubricCriteria(script, request.RubricCriteria);
@@ -488,11 +556,6 @@ public class SpeakingScriptService : ISpeakingScriptService
             script.Title = request.Title.Trim();
         }
 
-        if (request.OriginalContent != null)
-        {
-            script.OriginalContent = request.OriginalContent;
-        }
-
         if (request.PassingScore.HasValue && request.PassingScore.Value > 0)
         {
             script.PassingScore = request.PassingScore.Value;
@@ -514,40 +577,87 @@ public class SpeakingScriptService : ISpeakingScriptService
             script.InstructorNote = string.IsNullOrWhiteSpace(request.InstructorNote) ? null : request.InstructorNote.Trim();
         }
 
-        if (request.Levels != null && request.Levels.Count > 0)
+        var targetScriptType = request.ScriptType ?? script.ScriptType;
+        script.ScriptType = targetScriptType;
+
+        if (targetScriptType == SpeakingScriptType.OpenPrompt)
         {
-            var validFallback = request.Levels.FirstOrDefault(l => !string.IsNullOrWhiteSpace(l.Content))?.Content
-                ?? script.OriginalContent
-                ?? string.Empty;
-
-            foreach (var lvlDto in request.Levels)
+            var effectivePrompt = request.PromptContent ?? script.PromptContent;
+            if (string.IsNullOrWhiteSpace(effectivePrompt))
             {
-                var contentToSave = !string.IsNullOrWhiteSpace(lvlDto.Content)
-                    ? lvlDto.Content.Trim()
-                    : validFallback.Trim();
+                throw new ArgumentException("Nội dung tình huống / đề bài mở không được để trống khi chọn loại đề mở.");
+            }
+            script.PromptContent = effectivePrompt.Trim();
 
-                var cleanScoring = !string.IsNullOrWhiteSpace(lvlDto.CleanScriptForScoring)
-                    ? lvlDto.CleanScriptForScoring
-                    : _parserService.ExtractCleanScript(contentToSave);
+            if (request.StructureHints != null)
+            {
+                script.StructureHints = string.IsNullOrWhiteSpace(request.StructureHints) ? null : request.StructureHints.Trim();
+            }
 
-                var existingLevel = script.Levels.FirstOrDefault(l => l.Level == lvlDto.Level);
-                if (existingLevel != null)
+            if (request.TargetDurationSeconds.HasValue)
+            {
+                script.TargetDurationSeconds = request.TargetDurationSeconds.Value <= 0 ? null : request.TargetDurationSeconds.Value;
+            }
+
+            // Clean state: remove levels and clear OriginalContent
+            if (script.Levels.Count > 0)
+            {
+                _context.SpeakingScriptLevels.RemoveRange(script.Levels);
+                script.Levels.Clear();
+            }
+            script.OriginalContent = null;
+        }
+        else
+        {
+            // Scripted: Clean state for open prompt fields
+            script.PromptContent = null;
+            script.StructureHints = null;
+            script.TargetDurationSeconds = null;
+
+            if (request.OriginalContent != null)
+            {
+                script.OriginalContent = request.OriginalContent;
+            }
+
+            if (request.Levels != null && request.Levels.Count > 0)
+            {
+                var validFallback = request.Levels.FirstOrDefault(l => !string.IsNullOrWhiteSpace(l.Content))?.Content
+                    ?? script.OriginalContent
+                    ?? string.Empty;
+
+                foreach (var lvlDto in request.Levels)
                 {
-                    existingLevel.Content = contentToSave;
-                    existingLevel.CleanScriptForScoring = cleanScoring;
-                    existingLevel.UpdatedAt = DateTime.UtcNow;
-                }
-                else
-                {
-                    script.Levels.Add(new SpeakingScriptLevel
+                    var contentToSave = !string.IsNullOrWhiteSpace(lvlDto.Content)
+                        ? lvlDto.Content.Trim()
+                        : validFallback.Trim();
+
+                    var cleanScoring = !string.IsNullOrWhiteSpace(lvlDto.CleanScriptForScoring)
+                        ? lvlDto.CleanScriptForScoring
+                        : _parserService.ExtractCleanScript(contentToSave);
+
+                    var existingLevel = script.Levels.FirstOrDefault(l => l.Level == lvlDto.Level);
+                    if (existingLevel != null)
                     {
-                        ScriptId = script.ScriptId,
-                        Level = lvlDto.Level,
-                        Content = contentToSave,
-                        CleanScriptForScoring = cleanScoring,
-                        UpdatedAt = DateTime.UtcNow
-                    });
+                        existingLevel.Content = contentToSave;
+                        existingLevel.CleanScriptForScoring = cleanScoring;
+                        existingLevel.UpdatedAt = DateTime.UtcNow;
+                    }
+                    else
+                    {
+                        script.Levels.Add(new SpeakingScriptLevel
+                        {
+                            ScriptId = script.ScriptId,
+                            Level = lvlDto.Level,
+                            Content = contentToSave,
+                            CleanScriptForScoring = cleanScoring,
+                            UpdatedAt = DateTime.UtcNow
+                        });
+                    }
                 }
+            }
+            else if (script.Levels.Count < 3)
+            {
+                throw new ArgumentException("Phải cung cấp đủ 3 cấp độ (BEGINNER, INTERMEDIATE, ADVANCED) khi chuyển sang bài nói có kịch bản.");
             }
         }
 
@@ -610,6 +720,10 @@ public class SpeakingScriptService : ISpeakingScriptService
             CreatedBy = script.CreatedBy,
             CreatedByName = script.CreatedByUser?.FullName,
             Status = script.Status.ToString(),
+            ScriptType = script.ScriptType,
+            PromptContent = script.PromptContent,
+            StructureHints = script.StructureHints,
+            TargetDurationSeconds = script.TargetDurationSeconds,
             SampleAudioUrl = script.SampleAudioUrl,
             InstructorNote = script.InstructorNote,
             UpdatedAt = script.UpdatedAt,
@@ -665,6 +779,11 @@ public class SpeakingScriptService : ISpeakingScriptService
         if (totalWeight > 100m)
         {
             throw new InvalidOperationException($"Tổng trọng số các tiêu chí chấm điểm ({totalWeight}%) vượt quá 100%. Hệ thống không cho phép lưu thay đổi hoặc tạo bài nói khi vượt quá 100%.");
+        }
+
+        if (criteriaDtos != null && criteriaDtos.Count > 0 && Math.Round(totalWeight) < 100m)
+        {
+            throw new InvalidOperationException($"Tổng trọng số các tiêu chí chấm điểm hiện tại là {totalWeight}%, chưa đủ 100%. Bắt buộc tổng trọng số phải đạt đủ 100% mới có thể tạo bài nói.");
         }
 
         script.RubricCriteria.Clear();

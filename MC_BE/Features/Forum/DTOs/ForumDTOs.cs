@@ -107,11 +107,13 @@ public class PostQueryParameters
 public class ForumCommentDto
 {
     public int CommentId { get; set; }
-    public int PostId { get; set; }
+    public int? PostId { get; set; }
+    public int? LessonId { get; set; }
     public int AuthorId { get; set; }
     public string AuthorName { get; set; } = string.Empty;
     public string? AuthorAvatar { get; set; }
     public string AuthorRole { get; set; } = string.Empty;
+    public bool IsInstructor { get; set; }
     public int? ParentCommentId { get; set; }
     public int DepthLevel { get; set; } = 1;
     public string Content { get; set; } = string.Empty;
@@ -128,11 +130,8 @@ public class ForumCommentDto
     public List<ForumCommentDto> Replies { get; set; } = new List<ForumCommentDto>();
 }
 
-public class CreateCommentRequest
+public class CreateCommentDto
 {
-    [Required]
-    public int PostId { get; set; }
-
     public int? ParentCommentId { get; set; }
 
     [Required]
@@ -141,6 +140,12 @@ public class CreateCommentRequest
     public string? ImageUrl { get; set; }
 
     public bool IsAnonymous { get; set; } = false;
+}
+
+public class CreateCommentRequest : CreateCommentDto
+{
+    [Required]
+    public int PostId { get; set; }
 }
 
 public class UpdateCommentRequest
