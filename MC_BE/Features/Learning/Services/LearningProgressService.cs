@@ -1,4 +1,4 @@
-﻿
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -13,12 +13,13 @@ using MC_BE.Features.Learning.Services.Interfaces;
 using MC_BE.Shared.Data;
 using MC_BE.Shared.Repositories.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using EnrollmentEntity = global::MC_BE.Core.Entities.Enrollment;
 
 namespace MC_BE.Features.Learning.Services;
 
 public class LearningProgressService : ILearningProgressService
 {
-    private readonly IGenericRepository<Enrollment> _enrollmentRepository;
+    private readonly IGenericRepository<EnrollmentEntity> _enrollmentRepository;
     private readonly IGenericRepository<Lesson> _lessonRepository;
     private readonly IGenericRepository<LessonProgress> _progressRepository;
     private readonly IGenericRepository<Certificate> _certificateRepository;
@@ -34,7 +35,7 @@ public class LearningProgressService : ILearningProgressService
     private readonly IRemedialAssignmentService _remedialAssignments;
 
     public LearningProgressService(
-        IGenericRepository<Enrollment> enrollmentRepository,
+        IGenericRepository<EnrollmentEntity> enrollmentRepository,
         IGenericRepository<Lesson> lessonRepository,
         IGenericRepository<LessonProgress> progressRepository,
         IGenericRepository<Certificate> certificateRepository,

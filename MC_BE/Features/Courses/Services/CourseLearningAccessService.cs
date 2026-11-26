@@ -2,18 +2,19 @@ using MC_BE.Core.Entities;
 using MC_BE.Features.Courses.Services.Interfaces;
 using MC_BE.Shared.Repositories.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using EnrollmentEntity = global::MC_BE.Core.Entities.Enrollment;
 
 namespace MC_BE.Features.Courses.Services;
 
 public sealed class CourseLearningAccessService : ICourseLearningAccessService
 {
     private readonly IGenericRepository<Course> _courseRepository;
-    private readonly IGenericRepository<Enrollment> _enrollmentRepository;
+    private readonly IGenericRepository<EnrollmentEntity> _enrollmentRepository;
     private readonly ICourseGiftAccessService _giftAccess;
 
     public CourseLearningAccessService(
         IGenericRepository<Course> courseRepository,
-        IGenericRepository<Enrollment> enrollmentRepository,
+        IGenericRepository<EnrollmentEntity> enrollmentRepository,
         ICourseGiftAccessService giftAccess)
     {
         _courseRepository = courseRepository;

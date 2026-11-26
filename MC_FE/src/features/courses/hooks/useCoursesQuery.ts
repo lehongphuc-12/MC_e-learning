@@ -102,9 +102,9 @@ export function mapBackendCourseToUI(
       verified: true,
     },
 
-    rating: 4.9,
-    reviewsCount: 128,
-    studentsCount: 1250,
+    rating: b.rating ?? 0,
+    reviewsCount: b.reviewCount ?? 0,
+    studentsCount: b.purchasedLearnerCount ?? 0,
 
     price: b.price,
 
@@ -113,10 +113,11 @@ export function mapBackendCourseToUI(
         ? Math.round(b.price * 1.3)
         : undefined,
 
-    badge:
-      b.price === 0
-        ? 'Free'
-        : 'Best Seller',
+    badge: b.isFree || b.price === 0
+      ? 'Free'
+      : b.isBestSeller
+        ? 'Best Seller'
+        : undefined,
 
     durationHours: 8.5,
     lecturesCount: 24,
@@ -153,6 +154,11 @@ export function mapBackendCourseToUI(
     reviews: [],
 
     featured: true,
+    purchasedLearnerCount: b.purchasedLearnerCount ?? 0,
+    isBestSeller: b.isBestSeller ?? false,
+    previewAvailable: b.previewAvailable ?? false,
+    previewLessonId: b.previewLessonId ?? undefined,
+    previewLessonTitle: b.previewLessonTitle ?? undefined,
   };
 }
 
@@ -167,7 +173,7 @@ export const useCoursesQuery = () => {
 
     queryFn: async () => {
       const result =
-        await courseApi.getCourses();
+        await courseApi.getCourses({ page: 1, limit: 100 });
 
       return result.data.map(
         mapBackendCourseToUI
@@ -238,6 +244,9 @@ export const useLearnedCoursesQuery = () => {
                 item.certificateId
               )
             : undefined,
+        expiresAt: item.expiresAt,
+        isExpired: item.isExpired,
+        isAccessGranted: item.isAccessGranted,
       }));
     },
 
@@ -336,7 +345,7 @@ export function mapRecommendedToUICourse(
       badge: 'Master Mentor',
       verified: true,
     },
-    rating: r.rating || 5.0,
+    rating: r.rating ?? 0,
     reviewsCount: r.reviewCount || 0,
     studentsCount: 1250,
     price: r.price,
@@ -346,12 +355,7 @@ export function mapRecommendedToUICourse(
         : r.price > 0
         ? Math.round(r.price * 1.3)
         : undefined,
-    badge:
-      r.isFree || r.price === 0
-        ? 'Free'
-        : r.discountPercent > 0
-        ? 'Hot Deal'
-        : 'Best Seller',
+    badge: r.isFree || r.price === 0 ? 'Free' : undefined,
     durationHours: 8.5,
     lecturesCount: 24,
     updatedDate: 'Gần đây',
@@ -363,6 +367,7 @@ export function mapRecommendedToUICourse(
     curriculum: [],
     reviews: [],
     featured: true,
+    previewAvailable: false,
     recommendationReason: r.recommendationReason || 'Gợi ý phù hợp mục tiêu của bạn',
   };
 }

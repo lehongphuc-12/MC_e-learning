@@ -350,8 +350,8 @@ export const VideoPreviewModal: React.FC<VideoPreviewModalProps> = ({
                   <Star key={i} className="w-4 h-4 fill-amber-400" />
                 ))}
               </div>
-              <span className="text-sm font-bold text-white">{course.rating}</span>
-              <span className="text-xs text-slate-400">({course.reviewsCount.toLocaleString()} đánh giá)</span>
+              <span className="text-sm font-bold text-white">{course.reviewsCount > 0 ? course.rating.toFixed(1) : '—'}</span>
+              <span className="text-xs text-slate-400">{course.reviewsCount > 0 ? `(${course.reviewsCount.toLocaleString()} đánh giá)` : 'Chưa có đánh giá'}</span>
             </div>
             <p className="text-xs text-slate-400 line-clamp-1">
               Giảng viên: <span className="text-slate-200 font-medium">{course.instructor?.name || 'MSEEK Mentor'}</span> • {course.durationHours} giờ học

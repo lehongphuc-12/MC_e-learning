@@ -33,6 +33,19 @@ public class CourseDto
     public string? SkillTags { get; set; }
     public int? PrerequisiteCourseId { get; set; }
     public string? PrerequisiteCourseTitle { get; set; }
+    public double Rating { get; set; }
+    public int ReviewCount { get; set; }
+    public int PurchasedLearnerCount { get; set; }
+    public bool IsBestSeller { get; set; }
+    public bool PreviewAvailable { get; set; }
+    public int? PreviewLessonId { get; set; }
+    public string? PreviewLessonTitle { get; set; }
+}
+
+public sealed class CoursePreviewLessonDto
+{
+    public int LessonId { get; set; }
+    public string Title { get; set; } = string.Empty;
 }
 
 // ---------------------------------------------------------------------------
@@ -249,5 +262,8 @@ public class LearnedCourseDto
     public string Status { get; set; } = "in-progress"; // "in-progress" or "completed"
     public DateTime? EnrolledDate { get; set; }
     public int? CertificateId { get; set; }
+    public DateTime? ExpiresAt { get; set; }
+    public bool IsExpired { get; set; }
+    public bool IsAccessGranted { get; set; }
 }
 

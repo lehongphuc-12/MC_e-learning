@@ -162,6 +162,9 @@ builder.Services.AddScoped<IAdminStatsService, AdminStatsService>();
 // COURSE MANAGEMENT
 // ============================================================
 builder.Services.AddScoped<ICourseService, CourseService>();
+builder.Services.AddScoped<ICourseFavoriteService, CourseFavoriteService>();
+builder.Services.AddScoped<ICourseReviewService, CourseReviewService>();
+builder.Services.AddScoped<ICourseReviewAdminService, CourseReviewAdminService>();
 builder.Services.AddScoped<ICourseRecommendationService, CourseRecommendationService>();
 builder.Services.AddScoped<ICourseSyllabusService, CourseSyllabusService>();
 builder.Services.AddScoped<ICourseMaterialsReadRepository, CourseMaterialsReadRepository>();
@@ -231,6 +234,7 @@ builder.Services.AddHostedService<R2ObjectDeletionWorker>();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<ICourseCatalogService, CourseCatalogService>();
 builder.Services.AddScoped<IEnrollmentService, EnrollmentService>();
+builder.Services.AddScoped<MC_BE.Features.Enrollment.Services.ICourseAccessExtensionService, MC_BE.Features.Enrollment.Services.CourseAccessExtensionService>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddScoped<IAdminPaymentService, AdminPaymentService>();
 builder.Services.AddScoped<IPayOsTransactionRecorder, PayOsTransactionRecorder>();

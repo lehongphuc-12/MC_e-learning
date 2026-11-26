@@ -16,7 +16,7 @@ public class CourseRecommendationDto
     public int InstructorId { get; set; }
     public string? Level { get; set; }
     public string Duration { get; set; } = "Chưa cập nhật";
-    public double Rating { get; set; } = 5.0;
+    public double Rating { get; set; }
     public int ReviewCount { get; set; }
     public decimal Price { get; set; }
     public decimal OriginalPrice { get; set; }

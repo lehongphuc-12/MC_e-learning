@@ -1,4 +1,10 @@
-export type AdminTabType = 'overview' | 'users' | 'courses' | 'categories' | 'financials' | 'settings' | 'forum';
+export type AdminTabType = 'overview' | 'users' | 'courses' | 'categories' | 'financials' | 'settings' | 'forum' | 'reviews' | 'access-extensions';
+
+export interface AccessExtensionRequest {
+  requestId: number; enrollmentId: number; courseId: number; courseTitle: string;
+  learnerId: number; learnerName: string; learnerEmail: string; expiresAt?: string | null;
+  reason: string; status: string; requestedAt: string; grantedDays?: number | null;
+}
 
 export type UserRole = 'student' | 'instructor' | 'admin';
 
