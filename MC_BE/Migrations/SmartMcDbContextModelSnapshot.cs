@@ -1961,6 +1961,75 @@ namespace MC_BE.Migrations
                     b.ToTable("enrollments", (string)null);
                 });
 
+            modelBuilder.Entity("MC_BE.Core.Entities.EnrollmentAccessExtensionRequest", b =>
+                {
+                    b.Property<long>("RequestId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("RequestId"));
+
+                    b.Property<long?>("CourseAccessGrantId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("CourseId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("DecisionNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("EnrollmentId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("GrantedDays")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("LearnerId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime>("RequestedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("ReviewedByAdminId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("PENDING");
+
+                    b.HasKey("RequestId");
+
+                    b.HasIndex("CourseAccessGrantId");
+
+                    b.HasIndex("CourseId");
+
+                    b.HasIndex("LearnerId");
+
+                    b.HasIndex("ReviewedByAdminId");
+
+                    b.HasIndex("EnrollmentId", "Status");
+
+                    b.HasIndex("EnrollmentId")
+                        .IsUnique()
+                        .HasFilter("\"Status\" = 'PENDING'");
+
+                    b.HasIndex("Status", "RequestedAt");
+
+                    b.ToTable("enrollment_access_extension_requests", (string)null);
+                });
+
             modelBuilder.Entity("MC_BE.Core.Entities.ForumComment", b =>
                 {
                     b.Property<int>("CommentId")
@@ -5696,6 +5765,47 @@ namespace MC_BE.Migrations
                     b.Navigation("Course");
 
                     b.Navigation("Learner");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.EnrollmentAccessExtensionRequest", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.CourseAccessGrant", "CourseAccessGrant")
+                        .WithMany()
+                        .HasForeignKey("CourseAccessGrantId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("MC_BE.Core.Entities.Course", "Course")
+                        .WithMany()
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MC_BE.Core.Entities.Enrollment", "Enrollment")
+                        .WithMany()
+                        .HasForeignKey("EnrollmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MC_BE.Core.Entities.User", "Learner")
+                        .WithMany()
+                        .HasForeignKey("LearnerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MC_BE.Core.Entities.User", "ReviewedByAdmin")
+                        .WithMany()
+                        .HasForeignKey("ReviewedByAdminId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Course");
+
+                    b.Navigation("CourseAccessGrant");
+
+                    b.Navigation("Enrollment");
+
+                    b.Navigation("Learner");
+
+                    b.Navigation("ReviewedByAdmin");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.ForumComment", b =>

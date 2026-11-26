@@ -26,6 +26,7 @@ import { Course, ScreenType } from '../../../types';
 import { useLearnedCoursesQuery, useRecommendedCoursesQuery, mapRecommendedToUICourse } from '../hooks/useCoursesQuery';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { useOnboardingSurveyStore } from '../../preferences/store/useOnboardingSurveyStore';
+import { courseApi } from '../api/courseApi';
 
 interface MyCoursesScreenProps {
   onNavigate: (screen: ScreenType) => void;
@@ -397,6 +398,39 @@ export const MyCoursesScreen: React.FC<MyCoursesScreenProps> = ({
 
   // Pure API data (100% real backend data)
   const enrolledCourses: EnrolledCourse[] = (apiEnrolledCourses as EnrolledCourse[]) || [];
+  const [extensionTarget, setExtensionTarget] = useState<EnrolledCourse | null>(null);
+  const [extensionReason, setExtensionReason] = useState('');
+  const [extensionBusy, setExtensionBusy] = useState(false);
+  const [extensionMessage, setExtensionMessage] = useState<string | null>(null);
+  const [pendingExtensionIds, setPendingExtensionIds] = useState<Set<number>>(new Set());
+  const [clockNow, setClockNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setClockNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    courseApi.getMyAccessExtensionRequests().then(result => {
+      if (mounted) setPendingExtensionIds(new Set((result.data || []).filter(x => x.status === 'PENDING').map(x => x.enrollmentId)));
+    }).catch(() => undefined);
+    return () => { mounted = false; };
+  }, []);
+
+  const submitExtensionRequest = async () => {
+    if (!extensionTarget || extensionReason.trim().length < 10) return;
+    setExtensionBusy(true);
+    setExtensionMessage(null);
+    try {
+      await courseApi.requestAccessExtension(Number(extensionTarget.id), extensionReason.trim());
+      setPendingExtensionIds(previous => new Set(previous).add(Number(extensionTarget.id)));
+      setExtensionMessage('Đã gửi yêu cầu. Admin sẽ phản hồi qua thông báo hệ thống.');
+      setExtensionReason('');
+    } catch (error) {
+      setExtensionMessage(error instanceof Error ? error.message : 'Không thể gửi yêu cầu lúc này.');
+    } finally { setExtensionBusy(false); }
+  };
 
   const [activeTab, setActiveTab] = useState<TabKey>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -803,11 +837,16 @@ export const MyCoursesScreen: React.FC<MyCoursesScreenProps> = ({
               const displayCompletedCount = item.completedLecturesCount || 0;
               const displayProgressPercent = Math.round(item.progressPercent ?? 0);
               const isItemCompleted = item.status === 'completed' && displayProgressPercent >= 100;
+              const expiresAt = item.expiresAt ? new Date(item.expiresAt) : null;
+              const daysUntilExpiry = expiresAt ? Math.ceil((expiresAt.getTime() - clockNow) / 86400000) : null;
+              const hasCourseAccess = item.isAccessGranted !== false && !item.isExpired;
+              const canRequestExtension = expiresAt !== null && ((item.isExpired === true && daysUntilExpiry! >= -30) ||
+                (item.isAccessGranted !== false && daysUntilExpiry! <= 14 && daysUntilExpiry! >= 0));
 
               return (
               <div
                 key={item.id}
-                className="bg-white rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col sm:flex-row sm:h-56 group hover:border-blue-200"
+                className="bg-white rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col sm:flex-row sm:min-h-56 group hover:border-blue-200"
               >
                 {/* ── Section 1: Thumbnail (Bên Trái - Cố định chiều cao theo card) ── */}
                 <div
@@ -824,7 +863,9 @@ export const MyCoursesScreen: React.FC<MyCoursesScreenProps> = ({
 
                   {/* Status Badge */}
                   <div className="absolute top-3 left-3">
-                    {isItemCompleted ? (
+                    {!hasCourseAccess ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-500 text-white shadow-md"><Lock className="w-3.5 h-3.5" />Hết hạn</span>
+                    ) : isItemCompleted ? (
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500 text-white shadow-md">
                         <CheckCircle className="w-3.5 h-3.5" />
                         Hoàn thành
@@ -899,20 +940,29 @@ export const MyCoursesScreen: React.FC<MyCoursesScreenProps> = ({
                         Bài tiếp theo: <span className="text-slate-700 font-medium">{item.lastLectureTitle}</span>
                       </p>
                     )}
+                    {expiresAt ? <p className={`text-[11px] font-semibold ${!hasCourseAccess ? 'text-rose-700' : daysUntilExpiry! <= 14 ? 'text-amber-700' : 'text-emerald-700'}`}>
+                      {!hasCourseAccess
+                        ? (item.isExpired ? `Quyền học đã hết hạn ${expiresAt.toLocaleDateString('vi-VN')}` : 'Quyền quà tặng không còn hiệu lực')
+                        : `${daysUntilExpiry! <= 0 ? 'Còn dưới 1 ngày' : `Còn ${daysUntilExpiry} ngày`} · hết hạn ${expiresAt.toLocaleDateString('vi-VN')}`}
+                    </p> : <p className="text-[11px] font-semibold text-slate-500">Quyền học không giới hạn thời gian</p>}
                   </div>
                 </div>
 
                 {/* ── Section 3: Action Buttons ── */}
                 <div className="p-4 sm:p-5 border-t sm:border-t-0 sm:border-l border-slate-100 flex sm:flex-col justify-center items-center gap-2.5 shrink-0 sm:w-52 bg-slate-50/50">
                   <button
-                    onClick={() => navigate(`/courses/${item.course.id}/learn`)}
-                    className={`w-full inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl text-xs font-bold text-white transition active:scale-[0.98] ${
+                    onClick={() => hasCourseAccess && navigate(`/courses/${item.course.id}/learn`)}
+                    disabled={!hasCourseAccess}
+                    className={`w-full inline-flex h-10 ${hasCourseAccess ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'} items-center justify-center gap-2 rounded-xl text-xs font-bold text-white transition active:scale-[0.98] ${
                       isItemCompleted ? 'bg-[#0B1437] hover:bg-[#16308f]' : 'bg-blue-600 hover:bg-blue-700'
                     }`}
                   >
                     {isItemCompleted ? <RotateCcw className="h-4 w-4" /> : <PlayCircle className="h-4 w-4" />}
-                    {isItemCompleted ? 'Học lại' : 'Tiếp tục học'}
+                    {!hasCourseAccess ? 'Đã khóa quyền học' : isItemCompleted ? 'Học lại' : 'Tiếp tục học'}
                   </button>
+                  {canRequestExtension && <button onClick={() => { setExtensionTarget(item); setExtensionMessage(null); setExtensionReason(''); }} disabled={pendingExtensionIds.has(Number(item.id))} className="w-full rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-800 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60">
+                    {pendingExtensionIds.has(Number(item.id)) ? 'Đang chờ gia hạn' : 'Yêu cầu gia hạn'}
+                  </button>}
 
                   {/* Nút Xem tổng kết hành trình */}
                   {isItemCompleted || displayProgressPercent >= 100 || item.certificateId ? (
@@ -1146,6 +1196,16 @@ export const MyCoursesScreen: React.FC<MyCoursesScreenProps> = ({
           )}
         </div>
       </div>
+      {extensionTarget && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/55 p-4" role="dialog" aria-modal="true" aria-labelledby="extension-title">
+        <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl">
+          <div className="flex items-start justify-between gap-3"><div><h2 id="extension-title" className="text-lg font-black text-slate-900">Yêu cầu gia hạn quyền học</h2><p className="mt-1 text-sm text-slate-600">{extensionTarget.course.title}</p></div><button aria-label="Đóng" onClick={() => setExtensionTarget(null)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><X className="h-5 w-5" /></button></div>
+          <p className="mt-4 rounded-xl bg-blue-50 p-3 text-xs leading-5 text-blue-800">Admin sẽ xem xét yêu cầu. Tiến độ, chứng chỉ và lịch sử học của bạn vẫn được lưu khi quyền truy cập hết hạn.</p>
+          <label className="mt-4 block text-sm font-semibold text-slate-800" htmlFor="extension-reason">Lý do xin gia hạn</label>
+          <textarea id="extension-reason" value={extensionReason} onChange={e => setExtensionReason(e.target.value)} maxLength={1000} rows={4} placeholder="Viết ít nhất 10 ký tự..." className="mt-2 w-full resize-y rounded-xl border border-slate-300 p-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+          {extensionMessage && <p className="mt-2 text-sm text-blue-700">{extensionMessage}</p>}
+          <div className="mt-4 flex justify-end gap-2"><button onClick={() => setExtensionTarget(null)} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700">Đóng</button><button onClick={submitExtensionRequest} disabled={extensionBusy || extensionReason.trim().length < 10} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{extensionBusy ? 'Đang gửi…' : 'Gửi yêu cầu'}</button></div>
+        </div>
+      </div>}
     </div>
   );
 };

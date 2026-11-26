@@ -15,9 +15,20 @@ import {
   RevenueDataPoint,
   defaultPlatformSettings,
   emptyAdminStats,
+  AccessExtensionRequest,
 } from '../types/adminTypes';
 
 export const adminApi = {
+  async getPendingAccessExtensions(): Promise<AccessExtensionRequest[]> {
+    const res = await request<{ success: boolean; data: AccessExtensionRequest[] }>('/enrollments/access-extensions/pending');
+    return res.data ?? [];
+  },
+
+  async decideAccessExtension(requestId: number, approve: boolean, grantedDays: number, decisionNote: string): Promise<void> {
+    await request(`/enrollments/access-extensions/${requestId}/${approve ? 'approve' : 'reject'}`, {
+      method: 'POST', body: JSON.stringify({ grantedDays, decisionNote }),
+    });
+  },
   async getCourseGiftPolicy(): Promise<CourseGiftPolicy> {
     const res = await request<{ success: boolean; data: CourseGiftPolicy }>('/admin/courses/gift-policy');
     return res.data ?? { giftCourseId: null, giftCourseTitle: null, isActive: false };

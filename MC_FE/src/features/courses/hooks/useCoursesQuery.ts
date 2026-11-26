@@ -244,6 +244,9 @@ export const useLearnedCoursesQuery = () => {
                 item.certificateId
               )
             : undefined,
+        expiresAt: item.expiresAt,
+        isExpired: item.isExpired,
+        isAccessGranted: item.isAccessGranted,
       }));
     },
 

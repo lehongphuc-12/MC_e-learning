@@ -7,13 +7,14 @@ using MC_BE.Features.Courses.Services.Interfaces;
 using MC_BE.Features.Learning.DTOs;
 using MC_BE.Features.Learning.Services.Interfaces;
 using MC_BE.Shared.Repositories.Interfaces;
+using EnrollmentEntity = global::MC_BE.Core.Entities.Enrollment;
 
 namespace MC_BE.Features.Learning.Services;
 
 public class CertificateService : ICertificateService
 {
     private readonly IGenericRepository<Certificate> _certificateRepository;
-    private readonly IGenericRepository<Enrollment> _enrollmentRepository;
+    private readonly IGenericRepository<EnrollmentEntity> _enrollmentRepository;
     private readonly IGenericRepository<Lesson> _lessonRepository;
     private readonly IGenericRepository<LessonProgress> _progressRepository;
     private readonly IGenericRepository<User> _userRepository;
@@ -24,7 +25,7 @@ public class CertificateService : ICertificateService
 
     public CertificateService(
         IGenericRepository<Certificate> certificateRepository,
-        IGenericRepository<Enrollment> enrollmentRepository,
+        IGenericRepository<EnrollmentEntity> enrollmentRepository,
         IGenericRepository<Lesson> lessonRepository,
         IGenericRepository<LessonProgress> progressRepository,
         IGenericRepository<User> userRepository,

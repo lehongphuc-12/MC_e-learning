@@ -5,6 +5,7 @@ using MC_BE.Features.Courses.Services.Interfaces;
 using MC_BE.Features.VoiceJourney.Entities;
 using MC_BE.Shared.Data;
 using Microsoft.EntityFrameworkCore;
+using EnrollmentEntity = MC_BE.Core.Entities.Enrollment;
 
 namespace MC_BE.Features.Courses.Services;
 
@@ -177,6 +178,23 @@ public sealed class CourseGiftAccessService : ICourseGiftAccessService
                 ExpiresAt = sourceEnrollment.ExpiresAt
             });
 
+            if (!isDirectGiftCoursePurchase)
+            {
+                var giftedCourseTitle = await _db.Courses.AsNoTracking()
+                    .Where(c => c.CourseId == targetCourseId)
+                    .Select(c => c.Title)
+                    .FirstOrDefaultAsync(cancellationToken) ?? "khóa học AI";
+                _db.Notifications.Add(new Notification
+                {
+                    UserId = sourceEnrollment.LearnerId,
+                    Type = "course_gift_received",
+                    Title = "Bạn vừa nhận được khóa học tặng kèm",
+                    Message = $"Khi mua khóa học, bạn được tặng '{giftedCourseTitle}'. Quyền truy cập quà tặng có cùng hạn với khóa học đã mua.",
+                    Url = "/my-learning",
+                    DedupKey = $"course-gift:payment-item:{item.PaymentItemId}"
+                });
+            }
+
             // A separate AI entitlement is issued for every paid item. It is independent
             // from the course Enrollment and expires with its own source Enrollment.
             var entitlementExists = await _db.VoiceAiEntitlements.AnyAsync(x =>
@@ -266,7 +284,7 @@ public sealed class CourseGiftAccessService : ICourseGiftAccessService
             .FirstOrDefaultAsync(cancellationToken);
         if (enrollment is null)
         {
-            _db.Enrollments.Add(new Enrollment
+            _db.Enrollments.Add(new EnrollmentEntity
             {
                 LearnerId = learnerId, CourseId = courseId, Status = Active,
                 EnrolledAt = now, ExpiresAt = expiresAt, CreatedAt = now, UpdatedAt = now

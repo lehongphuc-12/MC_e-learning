@@ -200,7 +200,7 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
         </div>
       )}
       <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm transition-all">
-        <div className="overflow-x-auto">
+        <div className="hidden overflow-x-auto xl:block">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50/80 text-left text-xs font-bold uppercase tracking-wider text-slate-500">
@@ -368,6 +368,50 @@ export const CourseListView: React.FC<CourseListViewProps> = ({
               ))}
             </tbody>
           </table>
+        </div>
+
+        {/* Compact cards keep the course list readable and operable on phones/tablets. */}
+        <div className="divide-y divide-slate-100 xl:hidden">
+          {courses.map((course) => (
+            <article key={course.courseId} className="space-y-3 p-4 sm:p-5">
+              <button
+                type="button"
+                onClick={() => navigate(`/instructor/courses/${course.courseId}/lessons`)}
+                className="flex min-w-0 w-full items-center gap-3 text-left"
+              >
+                <span className="h-16 w-24 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                  {course.thumbnailUrl ? <img src={course.thumbnailUrl} alt="" className="h-full w-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} /> : <span className="flex h-full items-center justify-center"><ImageOff className="h-5 w-5 text-slate-400" /></span>}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block break-words text-sm font-bold text-slate-900">{course.title}</span>
+                  <span className="mt-1 block text-xs text-slate-500">{course.categoryName ?? 'Chưa phân loại'}{course.level ? ` · ${LEVEL_LABELS[course.level] || course.level}` : ''}</span>
+                  <span className="mt-1 block text-sm font-extrabold text-slate-800">{formatPrice(course.price)}</span>
+                </span>
+              </button>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <CourseStatusBadge status={course.status} />
+                {course.status !== 'PUBLISHED' ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1 text-xs text-slate-500"><Users className="h-3.5 w-3.5" /> Chưa có học viên</span>
+                ) : (
+                  <button onClick={() => navigate(`/instructor/courses/${course.courseId}/students`)} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-xs font-semibold text-cyan-700"><Users className="h-3.5 w-3.5" /><CourseStudentCount courseId={course.courseId} /></button>
+                )}
+              </div>
+
+              {course.status === 'REJECTED' && course.rejectionReason && <p className="break-words rounded-lg border border-rose-200 bg-rose-50 p-2 text-xs text-rose-700">Lý do: {course.rejectionReason}</p>}
+
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+                <span className="text-[11px] leading-5 text-slate-500">Tạo: {formatDate(course.createdAt)} · Sửa: {formatDate(course.updatedAt)}{course.submittedAt ? ` · Gửi: ${formatDate(course.submittedAt)}` : ''}</span>
+                <div className="flex items-center gap-1">
+                  <button type="button" aria-label="Đổi trạng thái khóa học" title="Đổi trạng thái khóa học" onClick={() => handleToggleAction(course)} className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-500 hover:bg-amber-50 hover:text-amber-600">
+                    {course.status === 'PUBLISHED' ? <ToggleRight className="h-5 w-5 text-emerald-600" /> : course.status === 'PENDING_APPROVAL' ? <Clock className="h-5 w-5 text-amber-500" /> : <ToggleLeft className="h-5 w-5" />}
+                  </button>
+                  <button type="button" aria-label="Chỉnh sửa khóa học" title="Chỉnh sửa khóa học" onClick={() => navigate(`/instructor/courses/${course.courseId}/edit`)} className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-500 hover:bg-blue-50 hover:text-blue-600"><Edit2 className="h-4.5 w-4.5" /></button>
+                  <button type="button" aria-label="Xóa khóa học" title="Xóa khóa học" onClick={() => setCourseToDelete(course)} className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-500 hover:bg-red-50 hover:text-red-500"><Trash2 className="h-4.5 w-4.5" /></button>
+                </div>
+              </div>
+            </article>
+          ))}
         </div>
 
         {/* Pagination footer */}

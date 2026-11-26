@@ -164,9 +164,8 @@ public class EnrollmentService : IEnrollmentService
                 ? now
                 : null,
 
-            ExpiresAt = isFreeCourse
-                ? now.AddDays(90)
-                : null,
+            // Free enrollment has no purchase window. Paid access starts on confirmed payment.
+            ExpiresAt = null,
 
             CreatedAt = now,
             UpdatedAt = now

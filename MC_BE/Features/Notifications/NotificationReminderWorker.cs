@@ -73,7 +73,7 @@ public class NotificationReminderWorker(
                 Type = "practice_reminder",
                 Title = "Nhắc làm bài tập",
                 Message = $"Bạn chưa hoàn thành: {r.Title}",
-                Url = "/my-learning",
+                Url = "/my-courses",
                 DedupKey = $"reminder:practice:{r.RecipientId}:{today}"
             });
         }
@@ -168,6 +168,47 @@ public class NotificationReminderWorker(
                 Message = $"Học viên #{s.LearnerId} chưa nộp bài Speaking #{s.ScriptId} đúng hạn.",
                 Url = "/instructor/speaking-submissions",
                 DedupKey = $"overdue:speaking:{s.ScriptId}:{s.LearnerId}"
+            });
+        }
+
+        // 6. Access expiry reminders: 14, 7, and 1 day before expiry.
+        // Dedup keys are stable per enrollment/window so the hourly worker won't spam learners.
+        var expiring = await db.Enrollments.AsNoTracking()
+            .Where(e => (e.Status == "ACTIVE" || e.Status == "COMPLETED") && e.ExpiresAt.HasValue
+                && e.ExpiresAt.Value > now && e.ExpiresAt.Value <= now.AddDays(14))
+            .Select(e => new { e.EnrollmentId, e.LearnerId, e.CourseId, CourseTitle = e.Course.Title, e.ExpiresAt })
+            .ToListAsync(ct);
+        foreach (var enrollment in expiring)
+        {
+            var days = (enrollment.ExpiresAt!.Value.Date - now.Date).Days;
+            var milestone = days <= 1 ? 1 : days <= 7 ? 7 : 14;
+            if (days > milestone || days < 0) continue;
+            reminders.Add(new Notification
+            {
+                UserId = enrollment.LearnerId,
+                Type = "course_access_expiring",
+                Title = milestone == 1 ? "Quyền học sắp hết hạn" : $"Còn {milestone} ngày quyền học",
+                Message = $"Quyền truy cập '{enrollment.CourseTitle}' sẽ hết hạn ngày {enrollment.ExpiresAt:dd/MM/yyyy}. Bạn có thể gửi yêu cầu gia hạn trong mục Khóa học của tôi.",
+                Url = "/my-courses",
+                DedupKey = $"course-expiry:{enrollment.EnrollmentId}:{milestone}"
+            });
+        }
+
+        var expired = await db.Enrollments.AsNoTracking()
+            .Where(e => (e.Status == "ACTIVE" || e.Status == "COMPLETED" || e.Status == "EXPIRED")
+                && e.ExpiresAt.HasValue && e.ExpiresAt.Value <= now)
+            .Select(e => new { e.EnrollmentId, e.LearnerId, CourseTitle = e.Course.Title, e.ExpiresAt })
+            .ToListAsync(ct);
+        foreach (var enrollment in expired)
+        {
+            reminders.Add(new Notification
+            {
+                UserId = enrollment.LearnerId,
+                Type = "course_access_expired",
+                Title = "Quyền truy cập khóa học đã hết hạn",
+                Message = $"Quyền học '{enrollment.CourseTitle}' đã hết hạn ngày {enrollment.ExpiresAt:dd/MM/yyyy}. Tiến độ và lịch sử học vẫn được lưu; bạn có thể gửi yêu cầu gia hạn trong mục Khóa học của tôi.",
+                Url = "/my-courses",
+                DedupKey = $"course-expired:{enrollment.EnrollmentId}"
             });
         }
 

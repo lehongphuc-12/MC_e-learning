@@ -3,6 +3,32 @@
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
 
+@keyframes accessDurationAttention {
+  0%, 76%, 100% {
+    border-color: #fde68a;
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+  }
+  84% {
+    border-color: #f59e0b;
+    box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.12);
+  }
+  92% {
+    border-color: #fcd34d;
+    box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.08);
+  }
+}
+
+.access-duration-notice {
+  animation: accessDurationAttention 3.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .access-duration-notice {
+    animation: none;
+    border-color: #fcd34d;
+  }
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @layer base {

@@ -17,6 +17,7 @@ import {
   Home,
   Mic2,
   MessageSquare,
+  Clock3,
 } from 'lucide-react';
 
 import { AdminTabType } from '../types/adminTypes';
@@ -95,6 +96,12 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
       id: 'reviews' as AdminTabType,
       label: 'Đánh Giá Khóa Học',
       icon: ShieldAlert,
+      badge: null,
+    },
+    {
+      id: 'access-extensions' as AdminTabType,
+      label: 'Gia hạn quyền học',
+      icon: Clock3,
       badge: null,
     },
   ];

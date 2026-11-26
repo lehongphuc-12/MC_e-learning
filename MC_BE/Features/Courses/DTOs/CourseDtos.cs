@@ -262,5 +262,8 @@ public class LearnedCourseDto
     public string Status { get; set; } = "in-progress"; // "in-progress" or "completed"
     public DateTime? EnrolledDate { get; set; }
     public int? CertificateId { get; set; }
+    public DateTime? ExpiresAt { get; set; }
+    public bool IsExpired { get; set; }
+    public bool IsAccessGranted { get; set; }
 }
 

@@ -193,9 +193,12 @@ export interface LearnedCourse {
   totalLecturesCount: number;
   lastAccessedAt?: string;
   lastLectureTitle?: string;
-  status: 'in-progress' | 'completed';
+  status: 'in-progress' | 'completed' | 'expired';
   enrolledDate?: string;
   certificateId?: number;
+  expiresAt?: string | null;
+  isExpired?: boolean;
+  isAccessGranted?: boolean;
 }
 
 // ---------------------------------------------------------------------------

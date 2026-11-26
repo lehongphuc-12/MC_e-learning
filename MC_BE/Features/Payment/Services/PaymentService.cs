@@ -366,9 +366,7 @@ public class PaymentService : IPaymentService
 
                 item.Enrollment.Status = "ACTIVE";
                 item.Enrollment.EnrolledAt ??= now;
-                var paidAccessExpiry = now.AddDays(90);
-                if (!item.Enrollment.ExpiresAt.HasValue || item.Enrollment.ExpiresAt.Value < paidAccessExpiry)
-                    item.Enrollment.ExpiresAt = paidAccessExpiry;
+                item.Enrollment.ExpiresAt = now.AddDays(90);
                 item.Enrollment.UpdatedAt = now;
             }
 
@@ -651,7 +649,7 @@ public class PaymentService : IPaymentService
 
                         item.Enrollment.Status = "ACTIVE";
                         item.Enrollment.EnrolledAt ??= now;
-                        item.Enrollment.ExpiresAt ??= now.AddDays(90);
+                        item.Enrollment.ExpiresAt = now.AddDays(90);
                         item.Enrollment.UpdatedAt = now;
                     }
 

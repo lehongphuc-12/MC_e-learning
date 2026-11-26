@@ -1,4 +1,4 @@
-﻿
+
 using MC_BE.Core.Entities;
 using MC_BE.Core.Enums;
 using MC_BE.Features.Learning.DTOs;
@@ -9,6 +9,7 @@ using MC_BE.Shared.Repositories.Interfaces;
 using MC_BE.Shared.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using EnrollmentEntity = global::MC_BE.Core.Entities.Enrollment;
 
 namespace MC_BE.Features.Learning.Services;
 
@@ -17,7 +18,7 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
     private readonly ISpeakingSubmissionRepository _submissionRepository;
     private readonly ISpeakingScriptRepository _scriptRepository;
     private readonly IGenericRepository<Lesson> _lessonRepository;
-    private readonly IGenericRepository<Enrollment> _enrollmentRepository;
+    private readonly IGenericRepository<EnrollmentEntity> _enrollmentRepository;
     private readonly IGenericRepository<LessonProgress> _lessonProgressRepository;
     private readonly ICloudinaryService _cloudinaryService;
     private readonly IUnitOfWork _unitOfWork;
@@ -29,7 +30,7 @@ public class SpeakingSubmissionService : ISpeakingSubmissionService
         ISpeakingSubmissionRepository submissionRepository,
         ISpeakingScriptRepository scriptRepository,
         IGenericRepository<Lesson> lessonRepository,
-        IGenericRepository<Enrollment> enrollmentRepository,
+        IGenericRepository<EnrollmentEntity> enrollmentRepository,
         IGenericRepository<LessonProgress> lessonProgressRepository,
         ICloudinaryService cloudinaryService,
         IUnitOfWork unitOfWork,

@@ -7,6 +7,7 @@ using MC_BE.Shared.Repositories.Interfaces;
 using MC_BE.Shared.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using System.Text.RegularExpressions;
+using EnrollmentEntity = global::MC_BE.Core.Entities.Enrollment;
 
 namespace MC_BE.Features.Courses.Services;
 
@@ -18,7 +19,7 @@ public class CourseService : ICourseService
 {
     private readonly IGenericRepository<Course> _courseRepository;
     private readonly IGenericRepository<Category> _categoryRepository;
-    private readonly IGenericRepository<Enrollment> _enrollmentRepository;
+    private readonly IGenericRepository<EnrollmentEntity> _enrollmentRepository;
     private readonly IGenericRepository<PaymentItem> _paymentItemRepository;
     private readonly IGenericRepository<SpeakingSubmission> _speakingSubmissionRepository;
     private readonly IGenericRepository<Quiz> _quizRepository;
@@ -45,7 +46,7 @@ public class CourseService : ICourseService
     public CourseService(
         IGenericRepository<Course> courseRepository,
         IGenericRepository<Category> categoryRepository,
-        IGenericRepository<Enrollment> enrollmentRepository,
+        IGenericRepository<EnrollmentEntity> enrollmentRepository,
         IGenericRepository<PaymentItem> paymentItemRepository,
         IGenericRepository<SpeakingSubmission> speakingSubmissionRepository,
         IGenericRepository<Quiz> quizRepository,
@@ -1196,8 +1197,13 @@ public class CourseService : ICourseService
         foreach (var enrollment in enrollments.OrderByDescending(e => e.UpdatedAt))
         {
             if (enrollment.Course == null) continue;
-            if (giftManagedAccess.TryGetValue(enrollment.CourseId, out var hasGiftManagedAccess) && !hasGiftManagedAccess)
-                continue;
+            var isGrantManaged = giftManagedAccess.TryGetValue(enrollment.CourseId, out var hasGrantAccess);
+            var hasAccess = isGrantManaged
+                ? hasGrantAccess
+                : (enrollment.Status == "ACTIVE" || enrollment.Status == "COMPLETED") &&
+                    (!enrollment.ExpiresAt.HasValue || enrollment.ExpiresAt.Value > DateTime.UtcNow);
+            var isExpired = !hasAccess && (enrollment.Status == "EXPIRED" ||
+                (enrollment.ExpiresAt.HasValue && enrollment.ExpiresAt.Value <= DateTime.UtcNow));
 
             var courseDto = MapToDto(enrollment.Course);
 
@@ -1239,9 +1245,12 @@ public class CourseService : ICourseService
                 TotalLecturesCount = progress?.TotalLessonsCount ?? totalLessonsCount,
                 LastAccessedAt = lastProgress?.LastAccessedAt ?? enrollment.UpdatedAt,
                 LastLectureTitle = lastLectureTitle,
-                Status = isCompleted ? "completed" : "in-progress",
+                Status = isCompleted ? "completed" : isExpired ? "expired" : "in-progress",
                 EnrolledDate = enrollment.EnrolledAt ?? enrollment.CreatedAt,
-                CertificateId = cert?.CertificateId ?? progress?.CertificateId
+                CertificateId = cert?.CertificateId ?? progress?.CertificateId,
+                ExpiresAt = enrollment.ExpiresAt,
+                IsExpired = isExpired,
+                IsAccessGranted = hasAccess
             });
         }
 

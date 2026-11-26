@@ -234,6 +234,7 @@ builder.Services.AddHostedService<R2ObjectDeletionWorker>();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<ICourseCatalogService, CourseCatalogService>();
 builder.Services.AddScoped<IEnrollmentService, EnrollmentService>();
+builder.Services.AddScoped<MC_BE.Features.Enrollment.Services.ICourseAccessExtensionService, MC_BE.Features.Enrollment.Services.CourseAccessExtensionService>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddScoped<IAdminPaymentService, AdminPaymentService>();
 builder.Services.AddScoped<IPayOsTransactionRecorder, PayOsTransactionRecorder>();

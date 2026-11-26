@@ -62,6 +62,7 @@ public class SmartMcDbContext : DbContext
     public DbSet<CourseDeletionRequest> CourseDeletionRequests { get; set; } = null!;
     public DbSet<CourseGiftPolicy> CourseGiftPolicies { get; set; } = null!;
     public DbSet<CourseAccessGrant> CourseAccessGrants { get; set; } = null!;
+    public DbSet<EnrollmentAccessExtensionRequest> EnrollmentAccessExtensionRequests { get; set; } = null!;
     public DbSet<RemedialAssignment> RemedialAssignments { get; set; } = null!;
     public DbSet<RemedialAssignmentRecipient> RemedialAssignmentRecipients { get; set; } = null!;
     public DbSet<RemedialAssignmentEvent> RemedialAssignmentEvents { get; set; } = null!;
@@ -637,6 +638,23 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
             entity.HasOne(e => e.Course).WithMany().HasForeignKey(e => e.CourseId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne(e => e.SourcePaymentItem).WithMany().HasForeignKey(e => e.SourcePaymentItemId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(e => e.SourceEnrollment).WithMany().HasForeignKey(e => e.SourceEnrollmentId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<EnrollmentAccessExtensionRequest>(entity =>
+        {
+            entity.ToTable("enrollment_access_extension_requests");
+            entity.HasKey(x => x.RequestId);
+            entity.HasIndex(x => new { x.Status, x.RequestedAt });
+            entity.HasIndex(x => new { x.EnrollmentId, x.Status });
+            entity.HasIndex(x => x.EnrollmentId).IsUnique().HasFilter("\"Status\" = 'PENDING'");
+            entity.Property(x => x.Status).HasMaxLength(20).HasDefaultValue("PENDING").IsRequired();
+            entity.Property(x => x.Reason).HasMaxLength(1000).IsRequired();
+            entity.Property(x => x.DecisionNote).HasMaxLength(1000);
+            entity.HasOne(x => x.Enrollment).WithMany().HasForeignKey(x => x.EnrollmentId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Learner).WithMany().HasForeignKey(x => x.LearnerId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Course).WithMany().HasForeignKey(x => x.CourseId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.CourseAccessGrant).WithMany().HasForeignKey(x => x.CourseAccessGrantId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.ReviewedByAdmin).WithMany().HasForeignKey(x => x.ReviewedByAdminId).OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<RemedialAssignment>(entity =>

@@ -217,6 +217,16 @@ export const courseApi = {
     return envelope.data;
   },
 
+  async requestAccessExtension(enrollmentId: number, reason: string) {
+    return request<{ success: boolean; data: { requestId: number; status: string } }>(`/enrollments/access-extensions/${enrollmentId}`, {
+      method: 'POST', body: JSON.stringify({ reason }),
+    });
+  },
+
+  async getMyAccessExtensionRequests() {
+    return request<{ success: boolean; data: Array<{ requestId: number; enrollmentId: number; status: string }> }>('/enrollments/access-extensions/mine');
+  },
+
   // -------------------------------------------------------------------------
   // READ — Personalized Recommended Courses
   // GET /courses/recommendations?top=3

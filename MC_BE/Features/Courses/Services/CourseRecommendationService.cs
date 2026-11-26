@@ -10,6 +10,7 @@ using MC_BE.Core.Enums;
 using MC_BE.Features.Courses.DTOs;
 using MC_BE.Features.Courses.Services.Interfaces;
 using MC_BE.Shared.Data;
+using EnrollmentEntity = global::MC_BE.Core.Entities.Enrollment;
 
 namespace MC_BE.Features.Courses.Services;
 
@@ -531,7 +532,7 @@ public class CourseRecommendationService : ICourseRecommendationService
     }
 
     private static HashSet<string> ExtractTargetCategories(
-        List<Enrollment> enrollments,
+        List<EnrollmentEntity> enrollments,
         List<string> forumTopics,
         UserLearningPreferences? preferences)
     {
@@ -569,7 +570,7 @@ public class CourseRecommendationService : ICourseRecommendationService
     }
 
     private static CourseLevel DetermineLearnerLevel(
-        List<Enrollment> enrollments,
+        List<EnrollmentEntity> enrollments,
         UserLearningPreferences? preferences)
     {
         // Nếu user có khảo sát kinh nghiệm thì ưu tiên
