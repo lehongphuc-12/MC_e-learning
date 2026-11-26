@@ -15,9 +15,20 @@ import {
   RevenueDataPoint,
   defaultPlatformSettings,
   emptyAdminStats,
+  AccessExtensionRequest,
 } from '../types/adminTypes';
 
 export const adminApi = {
+  async getPendingAccessExtensions(): Promise<AccessExtensionRequest[]> {
+    const res = await request<{ success: boolean; data: AccessExtensionRequest[] }>('/enrollments/access-extensions/pending');
+    return res.data ?? [];
+  },
+
+  async decideAccessExtension(requestId: number, approve: boolean, grantedDays: number, decisionNote: string): Promise<void> {
+    await request(`/enrollments/access-extensions/${requestId}/${approve ? 'approve' : 'reject'}`, {
+      method: 'POST', body: JSON.stringify({ grantedDays, decisionNote }),
+    });
+  },
   async getCourseGiftPolicy(): Promise<CourseGiftPolicy> {
     const res = await request<{ success: boolean; data: CourseGiftPolicy }>('/admin/courses/gift-policy');
     return res.data ?? { giftCourseId: null, giftCourseTitle: null, isActive: false };
@@ -52,7 +63,6 @@ export const adminApi = {
     return response.data?.message ?? response.message ?? (approve ? 'Đã xử lý yêu cầu xóa.' : 'Đã từ chối yêu cầu.');
   },
 
-  // Stats
   async getDashboardStats(): Promise<AdminStats> {
     try {
       const res = await request<{ success: boolean; data: any }>('/admin/stats');
@@ -87,12 +97,13 @@ export const adminApi = {
     };
   },
 
-  async getRevenueChart(): Promise<RevenueDataPoint[]> {
-    try {
-      const res = await request<{ success: boolean; data: any }>('/admin/stats/revenue-chart');
-      if (res && res.success && Array.isArray(res.data)) return res.data;
-    } catch (_) {}
-    return [];
+  async getRevenueChart(year?: number): Promise<RevenueDataPoint[]> {
+    const url = `/admin/stats/revenue-chart${year !== undefined ? `?year=${year}` : ''}`;
+    const res = await request<{ success: boolean; data: RevenueDataPoint[] }>(url);
+    if (!res?.success || !Array.isArray(res.data)) {
+      throw new Error(`API doanh thu không trả dữ liệu hợp lệ: ${url}`);
+    }
+    return res.data;
   },
 
   // Users
@@ -404,7 +415,6 @@ export const adminApi = {
   },
 
 
-  // Payouts
   async getPayoutRequests(): Promise<PayoutRequest[]> {
     try {
       const res = await request<{ success: boolean; data: PayoutRequest[] }>('/admin/payouts');
@@ -413,7 +423,6 @@ export const adminApi = {
     return [];
   },
 
-  // System Logs & Settings
   async getSystemLogs(): Promise<SystemLog[]> {
     try {
       const res = await request<{ success: boolean; data: SystemLog[] }>('/admin/logs');

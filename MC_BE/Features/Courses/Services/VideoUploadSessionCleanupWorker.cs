@@ -27,7 +27,6 @@ public sealed class VideoUploadSessionCleanupWorker : BackgroundService
             try
             {
                 await CleanupExpiredSessionsAsync(stoppingToken);
-                await timer.WaitForNextTickAsync(stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -35,7 +34,23 @@ public sealed class VideoUploadSessionCleanupWorker : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to clean up expired video upload sessions.");
+                try
+                {
+                    _logger.LogError(ex, "Failed to clean up expired video upload sessions.");
+                }
+                catch
+                {
+                    Console.Error.WriteLine($"[VideoUploadSessionCleanupWorker] Error: {ex.Message}");
+                }
+            }
+
+            try
+            {
+                await timer.WaitForNextTickAsync(stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
             }
         }
     }
@@ -64,7 +79,25 @@ public sealed class VideoUploadSessionCleanupWorker : BackgroundService
             }
         }
 
-        if (expired.Any(session => session.Status == "EXPIRED"))
+        var expiredSyllabus = await db.CourseSyllabusUploadSessions
+            .Where(session => session.Status == "PENDING" && session.ExpiresAt <= DateTime.UtcNow)
+            .OrderBy(session => session.ExpiresAt)
+            .Take(100)
+            .ToListAsync(cancellationToken);
+        foreach (var session in expiredSyllabus)
+        {
+            try
+            {
+                await r2.DeleteAsync(session.ObjectKey);
+                session.Status = "EXPIRED";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Could not remove abandoned R2 syllabus object for upload session {SessionId}.", session.SessionId);
+            }
+        }
+
+        if (expired.Any(session => session.Status == "EXPIRED") || expiredSyllabus.Any(session => session.Status == "EXPIRED"))
             await db.SaveChangesAsync(cancellationToken);
     }
 }

@@ -48,13 +48,13 @@ public class ForumInteractionService : IForumInteractionService
             {
                 if (existingReaction.ReactionType.Equals(request.ReactionType, StringComparison.OrdinalIgnoreCase))
                 {
-                    // Toggle OFF (remove reaction)
+
                     _context.ForumReactions.Remove(existingReaction);
                     post.ReactionsCount = Math.Max(0, post.ReactionsCount - 1);
                 }
                 else
                 {
-                    // Switch reaction type
+
                     existingReaction.ReactionType = request.ReactionType.ToUpper();
                     _context.ForumReactions.Update(existingReaction);
                     isReacted = true;
@@ -63,7 +63,7 @@ public class ForumInteractionService : IForumInteractionService
             }
             else
             {
-                // Add new reaction
+
                 var newReaction = new ForumReaction
                 {
                     UserId = userId,
@@ -111,13 +111,13 @@ public class ForumInteractionService : IForumInteractionService
             {
                 if (existingReaction.ReactionType.Equals(request.ReactionType, StringComparison.OrdinalIgnoreCase))
                 {
-                    // Toggle OFF
+
                     _context.ForumReactions.Remove(existingReaction);
                     comment.ReactionsCount = Math.Max(0, comment.ReactionsCount - 1);
                 }
                 else
                 {
-                    // Switch reaction type
+
                     existingReaction.ReactionType = request.ReactionType.ToUpper();
                     _context.ForumReactions.Update(existingReaction);
                     isReacted = true;
@@ -126,7 +126,7 @@ public class ForumInteractionService : IForumInteractionService
             }
             else
             {
-                // Add new reaction
+
                 var newReaction = new ForumReaction
                 {
                     UserId = userId,
@@ -171,7 +171,6 @@ public class ForumInteractionService : IForumInteractionService
             if (post is null || post.Status == "DELETED")
                 throw new InvalidOperationException("Bài viết không tồn tại.");
 
-            // RULE: Author cannot self-report their own post!
             if (post.AuthorId == reporterId)
             {
                 throw new InvalidOperationException("Bạn không thể báo cáo bài viết của chính mình.");
@@ -182,7 +181,6 @@ public class ForumInteractionService : IForumInteractionService
                 throw new InvalidOperationException("Bài viết này đã ở trạng thái tạm ẩn hoặc chờ duyệt.");
             }
 
-            // RULE: Each user can only report once
             var hasReported = await _context.ForumReports
                 .AnyAsync(r => r.ReporterId == reporterId && r.TargetType == "POST" && r.PostId == request.PostId.Value);
 
@@ -204,14 +202,12 @@ public class ForumInteractionService : IForumInteractionService
 
             _context.ForumReports.Add(report);
 
-            // Count unique reports submitted after the last RestoredAt timestamp (or CreatedAt if never restored)
             var thresholdDate = post.RestoredAt ?? post.CreatedAt;
             var recentReportsCount = await _context.ForumReports
                 .CountAsync(r => r.TargetType == "POST" && r.PostId == request.PostId.Value && r.CreatedAt >= thresholdDate && r.Status == "PENDING") + 1;
 
             post.ReportsCount = recentReportsCount;
 
-            // AUTO-HIDE TRIGGER: If 5 unique reports reached -> Auto-hide post!
             if (recentReportsCount >= 5)
             {
                 post.Status = "HIDDEN_BY_REPORTS";
@@ -231,7 +227,6 @@ public class ForumInteractionService : IForumInteractionService
             if (comment is null || comment.Status == "DELETED")
                 throw new InvalidOperationException("Bình luận không tồn tại.");
 
-            // RULE: Author cannot self-report their own comment!
             if (comment.AuthorId == reporterId)
             {
                 throw new InvalidOperationException("Bạn không thể báo cáo bình luận của chính mình.");
@@ -242,7 +237,6 @@ public class ForumInteractionService : IForumInteractionService
                 throw new InvalidOperationException("Bình luận này đã ở trạng thái tạm ẩn hoặc chờ duyệt.");
             }
 
-            // RULE: Each user can only report once
             var hasReported = await _context.ForumReports
                 .AnyAsync(r => r.ReporterId == reporterId && r.TargetType == "COMMENT" && r.CommentId == request.CommentId.Value);
 
@@ -264,14 +258,12 @@ public class ForumInteractionService : IForumInteractionService
 
             _context.ForumReports.Add(report);
 
-            // Count unique reports submitted after the last RestoredAt timestamp
             var thresholdDate = comment.RestoredAt ?? comment.CreatedAt;
             var recentReportsCount = await _context.ForumReports
                 .CountAsync(r => r.TargetType == "COMMENT" && r.CommentId == request.CommentId.Value && r.CreatedAt >= thresholdDate && r.Status == "PENDING") + 1;
 
             comment.ReportsCount = recentReportsCount;
 
-            // AUTO-HIDE TRIGGER: If 5 unique reports reached -> Auto-hide comment!
             if (recentReportsCount >= 5)
             {
                 comment.Status = "HIDDEN_BY_REPORTS";

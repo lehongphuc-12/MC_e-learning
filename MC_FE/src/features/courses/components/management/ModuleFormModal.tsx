@@ -70,11 +70,11 @@ export const ModuleFormModal: React.FC<ModuleFormModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fadeIn"
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 backdrop-blur-sm p-2 sm:p-4 animate-fadeIn"
       onClick={isSubmitting ? undefined : onClose}
     >
       <div
-        className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl border border-slate-200/80"
+        className="my-auto w-full max-w-lg max-h-[calc(100dvh-1rem)] overflow-y-auto rounded-3xl bg-white p-4 shadow-2xl border border-slate-200/80 sm:max-h-[calc(100dvh-2rem)] sm:p-6"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -83,8 +83,8 @@ export const ModuleFormModal: React.FC<ModuleFormModalProps> = ({
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-600 shadow-inner">
               <Layers className="h-5 w-5" />
             </div>
-            <div>
-              <h2 className="text-xl font-bold text-slate-900">
+            <div className="min-w-0">
+              <h2 className="break-words text-base font-bold text-slate-900 sm:text-xl">
                 {isEditMode ? 'Chỉnh sửa chương học' : 'Thêm chương học mới'}
               </h2>
               <p className="text-xs text-slate-500">
@@ -95,7 +95,7 @@ export const ModuleFormModal: React.FC<ModuleFormModalProps> = ({
           <button
             onClick={onClose}
             disabled={isSubmitting}
-            className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all cursor-pointer"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all cursor-pointer"
           >
             <X className="h-5 w-5" />
           </button>
@@ -155,19 +155,19 @@ export const ModuleFormModal: React.FC<ModuleFormModalProps> = ({
           </div>
 
           {/* Footer Buttons */}
-          <div className="flex items-center justify-end gap-3 border-t border-slate-100 pt-4 mt-6">
+          <div className="mt-6 flex flex-col-reverse items-stretch justify-end gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:gap-3">
             <button
               type="button"
               onClick={onClose}
               disabled={isSubmitting}
-              className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 active:scale-95 transition-all cursor-pointer"
+              className="min-h-11 rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 active:scale-95 transition-all cursor-pointer sm:min-h-0"
             >
               Hủy bỏ
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2 text-xs font-semibold text-white shadow-md shadow-blue-600/25 hover:bg-blue-700 active:scale-95 disabled:opacity-50 transition-colors cursor-pointer"
+              className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2 text-xs font-semibold text-white shadow-md shadow-blue-600/25 hover:bg-blue-700 active:scale-95 disabled:opacity-50 transition-colors cursor-pointer sm:min-h-0"
             >
               {isSubmitting ? (
                 <>

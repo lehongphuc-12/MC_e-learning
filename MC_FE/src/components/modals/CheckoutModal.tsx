@@ -470,6 +470,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     Chứng chỉ xác thực
                   </span>
                 </div>
+                {!isFreeCourse && <p className="mt-2 rounded-lg border border-blue-500/20 bg-blue-500/10 px-3 py-2 text-[11px] leading-5 text-blue-200">Quyền truy cập khóa học có hiệu lực 3 tháng kể từ khi thanh toán thành công. Hệ thống sẽ nhắc bạn trước ngày hết hạn.</p>}
               </div>
 
               <div className="sm:text-right w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-800">

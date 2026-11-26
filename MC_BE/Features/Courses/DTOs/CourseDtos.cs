@@ -30,6 +30,22 @@ public class CourseDto
     public string? ApprovedByName { get; set; }
     public string? SubmissionNote { get; set; }
     public string? RejectionReason { get; set; }
+    public string? SkillTags { get; set; }
+    public int? PrerequisiteCourseId { get; set; }
+    public string? PrerequisiteCourseTitle { get; set; }
+    public double Rating { get; set; }
+    public int ReviewCount { get; set; }
+    public int PurchasedLearnerCount { get; set; }
+    public bool IsBestSeller { get; set; }
+    public bool PreviewAvailable { get; set; }
+    public int? PreviewLessonId { get; set; }
+    public string? PreviewLessonTitle { get; set; }
+}
+
+public sealed class CoursePreviewLessonDto
+{
+    public int LessonId { get; set; }
+    public string Title { get; set; } = string.Empty;
 }
 
 // ---------------------------------------------------------------------------
@@ -61,6 +77,11 @@ public class CreateCourseRequest
 
     public string? Description { get; set; }
 
+    [MaxLength(3000)] public string? PreviewTargetAudience { get; set; }
+    [MaxLength(3000)] public string? PreviewPrerequisites { get; set; }
+    [MaxLength(5000)] public string? PreviewLearningOutcomes { get; set; }
+    [MaxLength(3000)] public string? PreviewAssessmentOverview { get; set; }
+
     public int? CategoryId { get; set; }
 
     public string? ThumbnailUrl { get; set; }
@@ -73,6 +94,10 @@ public class CreateCourseRequest
     public bool? IsFree { get; set; }
 
     public CourseLevel? Level { get; set; }
+
+    public string? SkillTags { get; set; }
+
+    public int? PrerequisiteCourseId { get; set; }
 
     public CourseStatus Status { get; set; } = CourseStatus.DRAFT;
 
@@ -91,6 +116,11 @@ public class UpdateCourseRequest
 
     public string? Description { get; set; }
 
+    public string? PreviewTargetAudience { get; set; }
+    public string? PreviewPrerequisites { get; set; }
+    public string? PreviewLearningOutcomes { get; set; }
+    public string? PreviewAssessmentOverview { get; set; }
+
     public int? CategoryId { get; set; }
 
     public string? ThumbnailUrl { get; set; }
@@ -102,11 +132,16 @@ public class UpdateCourseRequest
 
     public CourseLevel? Level { get; set; }
 
+    public string? SkillTags { get; set; }
+
+    public int? PrerequisiteCourseId { get; set; }
+
     public CourseStatus? Status { get; set; }
 
     public string? SubmissionNote { get; set; }
 
     public bool SubmitForApproval { get; set; } = false;
+    public bool KeepApprovedSyllabus { get; set; } = false;
 }
 
 // ---------------------------------------------------------------------------
@@ -123,6 +158,7 @@ public class UpdateCourseStatusRequest
 public class SubmitApprovalRequest
 {
     public string? SubmissionNote { get; set; }
+    public bool KeepApprovedSyllabus { get; set; }
 }
 
 public class RejectCourseRequest
@@ -226,5 +262,8 @@ public class LearnedCourseDto
     public string Status { get; set; } = "in-progress"; // "in-progress" or "completed"
     public DateTime? EnrolledDate { get; set; }
     public int? CertificateId { get; set; }
+    public DateTime? ExpiresAt { get; set; }
+    public bool IsExpired { get; set; }
+    public bool IsAccessGranted { get; set; }
 }
 

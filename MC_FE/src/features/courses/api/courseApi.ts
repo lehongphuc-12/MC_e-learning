@@ -28,6 +28,7 @@ import type {
   UpdateCourseDto,
   CourseListParams,
   LearnedCourse,
+  RecommendedCourseDto,
 } from '../types/courseTypes';
 
 // ---------------------------------------------------------------------------
@@ -74,6 +75,10 @@ function buildQuery(params?: Record<string, string | number | undefined>): strin
 }
 
 export const courseApi = {
+  async getPreviewLesson(courseId: number): Promise<{ lessonId: number; title: string }> {
+    const envelope = await request<ApiEnvelope<{ lessonId: number; title: string }>>(`/courses/${courseId}/preview-lesson`);
+    return envelope.data;
+  },
   async uploadCourseThumbnail(file: File): Promise<string> {
     const formData = new FormData();
     formData.append('file', file);
@@ -196,10 +201,10 @@ export const courseApi = {
   // -------------------------------------------------------------------------
   // SUBMIT FOR APPROVAL — POST /courses/:id/submit-approval
   // -------------------------------------------------------------------------
-  async submitForApproval(courseId: number, submissionNote?: string): Promise<Course> {
+  async submitForApproval(courseId: number, submissionNote?: string, keepApprovedSyllabus = false): Promise<Course> {
     const envelope = await request<ApiEnvelope<Course>>(`/courses/${courseId}/submit-approval`, {
       method: 'POST',
-      body: JSON.stringify({ submissionNote }),
+      body: JSON.stringify({ submissionNote, keepApprovedSyllabus }),
     });
     return envelope.data;
   },
@@ -210,6 +215,27 @@ export const courseApi = {
   async getLearnedCourses(): Promise<LearnedCourse[]> {
     const envelope = await request<ApiEnvelope<LearnedCourse[]>>('/courses/learned-courses');
     return envelope.data;
+  },
+
+  async requestAccessExtension(enrollmentId: number, reason: string) {
+    return request<{ success: boolean; data: { requestId: number; status: string } }>(`/enrollments/access-extensions/${enrollmentId}`, {
+      method: 'POST', body: JSON.stringify({ reason }),
+    });
+  },
+
+  async getMyAccessExtensionRequests() {
+    return request<{ success: boolean; data: Array<{ requestId: number; enrollmentId: number; status: string }> }>('/enrollments/access-extensions/mine');
+  },
+
+  // -------------------------------------------------------------------------
+  // READ — Personalized Recommended Courses
+  // GET /courses/recommendations?top=3
+  // -------------------------------------------------------------------------
+  async getRecommendedCourses(top: number = 3): Promise<RecommendedCourseDto[]> {
+    const envelope = await request<ApiEnvelope<RecommendedCourseDto[]>>(
+      `/courses/recommendations?top=${top}`
+    );
+    return envelope.data || [];
   },
 };
 

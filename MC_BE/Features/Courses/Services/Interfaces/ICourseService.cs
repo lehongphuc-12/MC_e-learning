@@ -37,6 +37,7 @@ public interface ICourseService
     /// Returns null if not found.
     /// </summary>
     Task<CourseDto?> GetCourseByIdAsync(int courseId);
+    Task<CoursePreviewLessonDto?> GetFirstPreviewLessonAsync(int courseId);
 
     /// <summary>
     /// Creates a new course. Slug is auto-generated from the title.
@@ -70,7 +71,7 @@ public interface ICourseService
     /// <summary>
     /// Instructor submits course for admin approval with a note describing changes.
     /// </summary>
-    Task<CourseDto?> SubmitForApprovalAsync(int courseId, int instructorId, string? submissionNote);
+    Task<CourseDto?> SubmitForApprovalAsync(int courseId, int instructorId, string? submissionNote, bool keepApprovedSyllabus = false);
 
     /// <summary>
     /// Admin approves course for public publishing.

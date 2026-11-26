@@ -15,10 +15,12 @@ import { Toast } from './components/common/Toast';
 import { CartDrawer } from './components/modals/CartDrawer';
 import { CheckoutModal } from './components/modals/CheckoutModal';
 import { VideoPreviewModal } from './components/modals/VideoPreviewModal';
+import { OnboardingSurveyModal } from './features/preferences/components/OnboardingSurveyModal';
 
 import { useAppStore } from './hooks/useAppStore';
 import { useAuth } from './hooks/useAuth';
 import { useAuthStore } from './store/useAuthStore';
+import { courseApi } from './features/courses/api/courseApi';
 
 const getDefaultAvatar = (name: string) => {
   const parts = name.trim().split(/\s+/);
@@ -69,6 +71,27 @@ export default function App() {
   // - cart thuộc account nào
   // - có cần sync Enrollment hay không
   const store = useAppStore(user);
+  const [previewLesson, setPreviewLesson] = useState<{ lessonId: number; title: string } | null>(null);
+  const openVideoPreview = async (course: Course, lessonId?: number, lessonTitle?: string) => {
+    try {
+      let resolvedLessonId = lessonId ?? course.previewLessonId;
+      let resolvedTitle = lessonTitle ?? course.previewLessonTitle;
+      if (!resolvedLessonId) {
+        const preview = await courseApi.getPreviewLesson(Number(course.id));
+        resolvedLessonId = preview.lessonId;
+        resolvedTitle = preview.title;
+      }
+      if (!resolvedLessonId) throw new Error('Khóa học chưa có bài video được bật xem trước.');
+      setPreviewLesson({ lessonId: resolvedLessonId, title: resolvedTitle ?? 'Bài học xem trước' });
+      store.setPreviewModalCourse(course);
+    } catch (error) {
+      store.showToast(
+        'Khóa học chưa có video xem thử',
+        error instanceof Error ? error.message : 'Khóa học này chưa bật xem trước.',
+        'info'
+      );
+    }
+  };
 
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -223,7 +246,9 @@ export default function App() {
         }
 
         if (
-          enrollment.status !== 'PENDING_PAYMENT' && !enrollment.canPurchaseDirectly
+          enrollment.status !== 'PENDING_PAYMENT' &&
+          enrollment.status !== 'EXPIRED' &&
+          !enrollment.canPurchaseDirectly
         ) {
           throw new Error(
             `Course "${course.title}" cannot be checked out because enrollment status is ${enrollment.status}.`
@@ -496,9 +521,7 @@ export default function App() {
         searchQuery={searchQuery}
         user={user}
         onSearchChange={setSearchQuery}
-        onPreviewVideo={
-          store.setPreviewModalCourse
-        }
+        onPreviewVideo={openVideoPreview}
         onAddToCart={
           store.handleAddToCart
         }
@@ -578,10 +601,13 @@ export default function App() {
         isOpen={
           !!store.previewModalCourse
         }
+        lessonId={previewLesson?.lessonId ?? null}
+        lessonTitle={previewLesson?.title}
         onClose={() =>
-          store.setPreviewModalCourse(
-            null
-          )
+          {
+            store.setPreviewModalCourse(null);
+            setPreviewLesson(null);
+          }
         }
         onEnroll={
           store.setCheckoutModalCourse
@@ -608,6 +634,11 @@ export default function App() {
           handleCheckoutSuccess
         }
       />
+
+      {/* ======================================================
+          ONBOARDING SURVEY MODAL (Cá nhân hóa lộ trình MC)
+      ====================================================== */}
+      <OnboardingSurveyModal onToast={store.showToast} />
     </div>
   );
 }

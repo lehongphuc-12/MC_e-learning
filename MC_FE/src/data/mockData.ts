@@ -603,9 +603,12 @@ export interface EnrolledCourse {
   totalLecturesCount: number;
   lastAccessed: string;
   lastLectureTitle: string;
-  status: 'in-progress' | 'completed';
+  status: 'in-progress' | 'completed' | 'expired';
   enrolledDate: string;
   certificateId?: string;
+  expiresAt?: string | null;
+  isExpired?: boolean;
+  isAccessGranted?: boolean;
   rating?: number;
 }
 

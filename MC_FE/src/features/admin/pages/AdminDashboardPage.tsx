@@ -8,6 +8,8 @@ import { AdminCategoriesTab } from '../components/AdminCategoriesTab';
 import { AdminFinancialsTab } from '../components/AdminFinancialsTab';
 import { AdminSettingsTab } from '../components/AdminSettingsTab';
 import { AdminForumTab } from '../components/AdminForumTab';
+import { AdminCourseReviewsTab } from '../components/AdminCourseReviewsTab';
+import { AdminAccessExtensionsTab } from '../components/AdminAccessExtensionsTab';
 import { UserEditModal } from '../components/modals/UserEditModal';
 import { CourseReviewModal } from '../components/modals/CourseReviewModal';
 import { CategoryModal } from '../components/modals/CategoryModal';
@@ -43,7 +45,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const VALID_TABS: AdminTabType[] = ['overview', 'users', 'courses', 'categories', 'financials', 'settings', 'forum'];
+  const VALID_TABS: AdminTabType[] = ['overview', 'users', 'courses', 'categories', 'financials', 'settings', 'forum', 'reviews', 'access-extensions'];
   const tabFromUrl = searchParams.get('tab') as AdminTabType | null;
   const [activeTab, setActiveTab] = useState<AdminTabType>(
     tabFromUrl && VALID_TABS.includes(tabFromUrl) ? tabFromUrl : 'overview'
@@ -57,6 +59,33 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   // Data States
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [chartData, setChartData] = useState<RevenueDataPoint[]>([]);
+  const [revenueYear, setRevenueYear] = useState<number>(new Date().getFullYear());
+  const [revenueLoading, setRevenueLoading] = useState(false);
+  const [revenueError, setRevenueError] = useState<string | null>(null);
+  const [loadedRevenueYear, setLoadedRevenueYear] = useState<number | null>(null);
+
+  const changeRevenueYear = async (year: number) => {
+    if (year < 2000 || year > new Date().getFullYear() || year === revenueYear) return;
+    setRevenueYear(year);
+    setRevenueLoading(true);
+    setRevenueError(null);
+    setLoadedRevenueYear(null);
+    setChartData([]); // Không giữ dữ liệu năm cũ khi đổi năm.
+    try {
+      const data = await adminApi.getRevenueChart(year);
+      if (data.some(d => !String(d.month).endsWith(`/${year}`))) {
+        throw new Error(`API không trả đúng dữ liệu năm ${year}. Kiểm tra Backend đã chạy phiên bản mới chưa.`);
+      }
+      setChartData(data);
+      setLoadedRevenueYear(year);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setRevenueError(message);
+      console.error('Không tải được biểu đồ doanh thu:', err);
+    } finally {
+      setRevenueLoading(false);
+    }
+  };
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [courses, setCourses] = useState<AdminCourse[]>([]);
   const [courseDeletionRequests, setCourseDeletionRequests] = useState<CourseDeletionRequest[]>([]);
@@ -127,6 +156,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
           needsFetch = !settings;
           break;
         case 'forum':
+        case 'reviews':
           needsFetch = false;
           break;
       }
@@ -145,11 +175,19 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
           case 'overview':
             const [statsRes, chartRes, logsRes] = await Promise.all([
               adminApi.getDashboardStats(),
-              adminApi.getRevenueChart(),
+              adminApi.getRevenueChart(revenueYear),
               adminApi.getSystemLogs(),
             ]);
             setStats(statsRes);
-            setChartData(chartRes);
+            if (chartRes.some(d => !String(d.month).endsWith(`/${revenueYear}`))) {
+              setRevenueError(`API trả dữ liệu không đúng năm ${revenueYear}.`);
+              setChartData([]);
+              setLoadedRevenueYear(null);
+            } else {
+              setChartData(chartRes);
+              setLoadedRevenueYear(revenueYear);
+              setRevenueError(null);
+            }
             setLogs(logsRes);
             break;
 
@@ -456,7 +494,11 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
           {activeTab === 'overview' && stats && (
             <AdminOverviewTab
               stats={stats}
-              chartData={chartData}
+              chartData={loadedRevenueYear === revenueYear ? chartData : []}
+              revenueError={revenueError}
+              revenueYear={revenueYear}
+              revenueLoading={revenueLoading}
+              onRevenueYearChange={changeRevenueYear}
               recentLogs={logs}
               onNavigateTab={(tab) => handleTabChange(tab)}
             />
@@ -515,6 +557,12 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
           {activeTab === 'forum' && (
             <AdminForumTab onToast={onToast} />
           )}
+
+          {activeTab === 'reviews' && (
+            <AdminCourseReviewsTab onToast={onToast} />
+          )}
+
+          {activeTab === 'access-extensions' && <AdminAccessExtensionsTab onToast={onToast} />}
         </>
       )}
 

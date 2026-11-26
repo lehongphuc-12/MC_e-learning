@@ -43,12 +43,12 @@ import {
   ShieldCheck,
   Video, FileText, MoreVertical, LayoutGrid, List, CheckCircle2, Menu, BarChart3, Upload, SlidersHorizontal, CalendarDays, GraduationCap,
 } from 'lucide-react';
-import { CourseStudentsModal } from './CourseStudentsModal';
 import { IncompleteCourseModal } from './IncompleteCourseModal';
 
 import { useCourseDetail } from '../../hooks/useInstructorCourses';
 import { useSubmitForApproval } from '../../hooks/useCourseMutations';
 import { speakingApi } from '../../api/speakingApi';
+import { courseSyllabusApi, type SyllabusVersion } from '../../api/courseSyllabusApi';
 import { SpeakingScriptDto, getSpeakingScopeInfo } from '../../types/speakingTypes';
 
 import { useQuizzesByCourse } from '../../../quizzes/hooks/useQuiz';
@@ -78,6 +78,7 @@ import { ModuleFormModal } from './ModuleFormModal';
 import { ImportModuleModal } from './ImportModuleModal';
 import { CourseMaterialModal } from './CourseMaterialModal';
 import { CourseStatusBadge } from './CourseStatusBadge';
+import { InstructorSyllabusModal } from './InstructorSyllabusModal';
 import { mentorChatApi } from '../../api/mentorChatApi';
 
 import type { Lesson, CreateLessonDto } from '../../types/lessonTypes';
@@ -127,6 +128,35 @@ export const CourseLessonsPage: React.FC = () => {
       }).catch(console.error);
     }
   }, [courseId, reloadSpeaking]);
+
+  const [currentSyllabus, setCurrentSyllabus] = useState<SyllabusVersion | null>(null);
+  const [approvedSyllabus, setApprovedSyllabus] = useState<SyllabusVersion | null>(null);
+  const [isSyllabusLoading, setIsSyllabusLoading] = useState(false);
+  const [syllabusLoadError, setSyllabusLoadError] = useState<string | null>(null);
+  const [keepApprovedSyllabus, setKeepApprovedSyllabus] = useState(false);
+
+  useEffect(() => {
+    if (!courseId) return;
+    let active = true;
+    setIsSyllabusLoading(true);
+    setSyllabusLoadError(null);
+    Promise.all([courseSyllabusApi.getCurrent(courseId), courseSyllabusApi.getApproved(courseId)])
+      .then(([current, approved]) => {
+        if (!active) return;
+        setCurrentSyllabus(current);
+        setApprovedSyllabus(approved);
+        setKeepApprovedSyllabus(Boolean(approved && (
+          !current ||
+          current.syllabusVersionId === approved.syllabusVersionId ||
+          current.reviewStatus === 'PENDING_APPROVAL'
+        )));
+      })
+      .catch((error: unknown) => {
+        if (active) setSyllabusLoadError(error instanceof Error ? error.message : 'Không tải được trạng thái syllabus.');
+      })
+      .finally(() => { if (active) setIsSyllabusLoading(false); });
+    return () => { active = false; };
+  }, [courseId]);
 
   // ===========================================================================
   // ACCORDION STATE
@@ -206,7 +236,7 @@ export const CourseLessonsPage: React.FC = () => {
   // STUDENT MODAL
   // ===========================================================================
 
-  const [isStudentsModalOpen, setIsStudentsModalOpen] = useState(false);
+  const [isSyllabusModalOpen, setIsSyllabusModalOpen] = useState(false);
 
   // Status Notification Modal State
   const [statusModal, setStatusModal] = useState<{
@@ -460,7 +490,14 @@ export const CourseLessonsPage: React.FC = () => {
   // ===========================================================================
 
   const handleSendForApproval = () => {
+    if (isSyllabusLoading) return;
     const missing: string[] = [];
+
+    if (syllabusLoadError) {
+      setMissingRequirements([`Không tải được trạng thái syllabus: ${syllabusLoadError}. Hãy thử mở “Cập nhật syllabus” để kiểm tra lại.`]);
+      setIsIncompleteModalOpen(true);
+      return;
+    }
 
     if (!course?.title || !course.title.trim()) {
       missing.push('Tên khóa học chưa điền');
@@ -482,9 +519,16 @@ export const CourseLessonsPage: React.FC = () => {
       missing.push('Chưa tạo Bài học (Lesson) nào');
     }
 
-    const hasSpeakingAssignment = lessons.some((l) => l.lessonType === 'ASSIGNMENT') || courseSpeakingScripts.some((s) => s.scope === 'FINAL');
+    const hasSpeakingAssignment = lessons.some((l) => l.lessonType === 'ASSIGNMENT' && !l.isRemedial) ||
+      courseSpeakingScripts.some((s) => s.scope === 'FINAL' && !s.isRemedial && s.status === 'PUBLISHED');
     if (!hasSpeakingAssignment) {
       missing.push('Chưa tạo Bài tập nói (Speaking Assignment) cuối khóa nào');
+    }
+
+    if (keepApprovedSyllabus && !approvedSyllabus) {
+      missing.push('Không tìm thấy syllabus đã duyệt để giữ lại. Hãy tải lên một phiên bản mới.');
+    } else if (!keepApprovedSyllabus && !hasSubmittableCurrentSyllabus) {
+      missing.push('Chưa có phiên bản syllabus mới để gửi duyệt. Hãy chọn giữ bản đã duyệt hoặc cập nhật syllabus.');
     }
 
     if (missing.length > 0) {
@@ -494,9 +538,10 @@ export const CourseLessonsPage: React.FC = () => {
     }
 
     submitForApproval(
-      { courseId },
+      { courseId, keepApprovedSyllabus },
       {
         onSuccess: () => {
+          void courseSyllabusApi.getCurrent(courseId).then(setCurrentSyllabus).catch(() => {});
           setApprovalSuccessMessage(
             'Khóa học đã được gửi cho Admin phê duyệt thành công!'
           );
@@ -920,6 +965,17 @@ export const CourseLessonsPage: React.FC = () => {
     navigate(`/instructor/quizzes/new?courseId=${courseId}&purpose=${purpose}`);
   };
 
+  const hasSubmittableCurrentSyllabus = Boolean(currentSyllabus &&
+    currentSyllabus.syllabusVersionId !== approvedSyllabus?.syllabusVersionId &&
+    currentSyllabus.reviewStatus !== 'PENDING_APPROVAL');
+  const latestSyllabus = currentSyllabus ?? approvedSyllabus;
+  const syllabusStatusLabels: Record<SyllabusVersion['reviewStatus'], string> = {
+    DRAFT: 'Bản nháp',
+    PENDING_APPROVAL: 'Đang chờ Admin duyệt',
+    APPROVED: 'Đã được Admin duyệt',
+    REJECTED: 'Cần cập nhật theo góp ý',
+  };
+
   // ===========================================================================
   // RENDER
   // ===========================================================================
@@ -943,8 +999,45 @@ export const CourseLessonsPage: React.FC = () => {
         {/* NAVIGATION TABS */}
         <div className="mt-4 flex flex-wrap items-center gap-2 rounded-2xl border border-blue-100 bg-white p-3 shadow-sm">
           {([{key:'lessons',label:'Bài giảng',count:lessons.filter(l=>l.lessonType!=='ASSIGNMENT').length,icon:PlayCircle},{key:'quizzes',label:'Quiz',count:quizzes.length,icon:ClipboardList},{key:'materials',label:'Tài liệu',icon:FileText},{key:'assignments',label:'Bài tập nói',count:lessons.filter(l=>l.lessonType==='ASSIGNMENT').length,icon:Mic2}] as const).map(tab=><button key={tab.key} onClick={()=>{setContentTab(tab.key);if(tab.key==='quizzes')document.getElementById('quiz-management')?.scrollIntoView({behavior:'smooth',block:'start'});if(tab.key==='assignments')document.getElementById('speaking-assignment-management')?.scrollIntoView({behavior:'smooth',block:'start'});if(tab.key==='materials')setMaterialTarget({lessonId:null});}} className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition ${contentTab===tab.key?'bg-[#0754ef] text-white shadow-lg shadow-blue-600/20':'bg-[#f4f8ff] text-[#173c81] hover:bg-blue-100'}`}><tab.icon size={16}/>{tab.label}{'count' in tab && <span className="opacity-75">({tab.count})</span>}</button>)}
-          <button onClick={()=>navigate(`/courses/${courseId}/learn`)} className="ml-auto inline-flex items-center gap-2 rounded-xl border border-blue-100 bg-white px-4 py-2.5 text-xs font-bold text-blue-700 hover:bg-blue-50"><Eye size={16}/> Xem trước khóa học</button>
+          <button onClick={()=>setIsSyllabusModalOpen(true)} className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-2.5 text-xs font-bold text-blue-700 hover:bg-blue-50 sm:ml-auto"><FileText size={16}/> Syllabus</button>
+          <button onClick={()=>navigate(`/courses/${courseId}/learn`)} className="inline-flex items-center gap-2 rounded-xl border border-blue-100 bg-white px-4 py-2.5 text-xs font-bold text-blue-700 hover:bg-blue-50"><Eye size={16}/> Xem trước khóa học</button>
         </div>
+        <section className="mt-3 rounded-2xl border border-indigo-100 bg-white p-4 shadow-sm sm:p-5" aria-labelledby="syllabus-status-heading">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <FileText className="h-4 w-4 text-indigo-600" />
+                <h2 id="syllabus-status-heading" className="text-sm font-extrabold text-slate-900">Syllabus khóa học</h2>
+                {latestSyllabus && <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${latestSyllabus.reviewStatus === 'APPROVED' ? 'bg-emerald-50 text-emerald-700' : latestSyllabus.reviewStatus === 'REJECTED' ? 'bg-rose-50 text-rose-700' : latestSyllabus.reviewStatus === 'PENDING_APPROVAL' ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700'}`}>{syllabusStatusLabels[latestSyllabus.reviewStatus]}</span>}
+              </div>
+              {isSyllabusLoading ? <p className="mt-2 text-xs text-slate-500">Đang tải thông tin syllabus…</p> : latestSyllabus ? (
+                <div className="mt-2 space-y-1 text-xs text-slate-600">
+                  <p className="truncate font-semibold text-slate-800">v{latestSyllabus.versionNumber} · {latestSyllabus.originalFileName}</p>
+                  <p>Cập nhật lần cuối: {new Date(latestSyllabus.uploadedAt).toLocaleString('vi-VN')}</p>
+                  {approvedSyllabus && currentSyllabus && approvedSyllabus.syllabusVersionId !== currentSyllabus.syllabusVersionId && <p className="text-emerald-700">Bản đã được duyệt trước đó: v{approvedSyllabus.versionNumber} · {approvedSyllabus.originalFileName}</p>}
+                </div>
+              ) : <p className="mt-2 text-xs text-amber-700">Khóa học chưa có syllabus. Hãy tải file PDF/DOCX trước khi gửi duyệt.</p>}
+              {syllabusLoadError && <p role="alert" className="mt-2 text-xs font-semibold text-rose-600">Không tải được trạng thái syllabus: {syllabusLoadError}</p>}
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <button type="button" onClick={() => setIsSyllabusModalOpen(true)} className="rounded-xl border border-indigo-200 px-3 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-50">Xem syllabus</button>
+              <button type="button" onClick={() => navigate(`/instructor/courses/${courseId}/edit`)} className="rounded-xl bg-indigo-600 px-3 py-2 text-xs font-bold text-white hover:bg-indigo-700">Cập nhật syllabus</button>
+            </div>
+          </div>
+          {approvedSyllabus && (course?.status === 'DRAFT' || course?.status === 'REJECTED') && (
+            <fieldset className="mt-4 grid gap-2 border-t border-indigo-50 pt-4 sm:grid-cols-2">
+              <legend className="mb-2 text-xs font-bold text-slate-700">Chọn phiên bản gửi Admin duyệt</legend>
+              <label className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition ${keepApprovedSyllabus ? 'border-emerald-300 bg-emerald-50/70' : 'border-slate-200 hover:border-emerald-200'}`}>
+                <input type="radio" name="detail-syllabus-choice" checked={keepApprovedSyllabus} onChange={() => setKeepApprovedSyllabus(true)} className="mt-0.5 h-4 w-4 accent-emerald-600" />
+                <span><span className="block text-xs font-bold text-slate-800">Giữ syllabus đã duyệt</span><span className="mt-1 block text-[11px] text-slate-600">Dùng lại v{approvedSyllabus.versionNumber}: {approvedSyllabus.originalFileName}</span></span>
+              </label>
+              <label className={`flex items-start gap-3 rounded-xl border p-3 transition ${!hasSubmittableCurrentSyllabus ? 'cursor-not-allowed border-slate-100 bg-slate-50 opacity-70' : !keepApprovedSyllabus ? 'cursor-pointer border-indigo-300 bg-indigo-50/70' : 'cursor-pointer border-slate-200 hover:border-indigo-200'}`}>
+                <input type="radio" name="detail-syllabus-choice" checked={!keepApprovedSyllabus} disabled={!hasSubmittableCurrentSyllabus} onChange={() => setKeepApprovedSyllabus(false)} className="mt-0.5 h-4 w-4 accent-indigo-600" />
+                <span><span className="block text-xs font-bold text-slate-800">Gửi syllabus mới nhất</span><span className="mt-1 block text-[11px] text-slate-600">{hasSubmittableCurrentSyllabus ? `v${currentSyllabus!.versionNumber}: ${currentSyllabus!.originalFileName}` : 'Chưa có bản mới hợp lệ. Bấm “Cập nhật syllabus” để tải file mới.'}</span></span>
+              </label>
+            </fieldset>
+          )}
+        </section>
         <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_330px]">
           <main className="min-w-0 space-y-4">
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -952,15 +1045,15 @@ export const CourseLessonsPage: React.FC = () => {
             </div>
             <div className="rounded-2xl border border-[#e8effb] bg-white p-3 shadow-sm"><div className="flex flex-wrap items-center gap-2"><label className="relative min-w-[180px] flex-1"><Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-400"/><input value={lessonSearch} onChange={e=>setLessonSearch(e.target.value)} placeholder="Tìm kiếm bài học..." className="w-full rounded-xl border border-[#dbe6f8] bg-white py-2.5 pl-10 pr-3 text-sm outline-none focus:border-blue-500"/></label><button onClick={()=>setCollapsedModules({})} className="rounded-xl border border-blue-100 px-3 py-2.5 text-xs font-semibold text-blue-700 hover:bg-blue-50">Mở tất cả</button><button onClick={()=>setCollapsedModules(Object.fromEntries(modules.map(m=>[m.moduleId,true])))} className="rounded-xl border border-blue-100 px-3 py-2.5 text-xs font-semibold text-blue-700 hover:bg-blue-50">Thu gọn</button></div></div>
             {isModulesLoading||isLessonsLoading?<div className="space-y-3">{[1,2,3].map(i=><div key={i} className="h-24 animate-pulse rounded-2xl bg-blue-100/60"/>)}</div>:modules.length===0&&lessons.filter(l=>l.lessonType!=='ASSIGNMENT').length===0?<div className="rounded-2xl border border-dashed border-blue-200 bg-white p-12 text-center"><Layers className="mx-auto mb-3 text-blue-600" size={36}/><h3 className="font-bold text-[#0a245c]">Khóa học chưa có chương và bài học</h3><p className="mt-2 text-sm text-slate-500">Tạo chương đầu tiên hoặc nhập dữ liệu từ CSV.</p><button onClick={handleOpenCreateModule} className="mt-5 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white">+ Thêm chương</button></div>:<>
-              {[...modules].sort((a,b)=>a.orderIndex-b.orderIndex).map(mod=>{const moduleLessons=(lessonsByModule[mod.moduleId]||[]).sort((a,b)=>a.orderIndex-b.orderIndex);const visible=moduleLessons.filter(l=>`${l.title} ${l.description||''}`.toLowerCase().includes(lessonSearch.toLowerCase()));if(lessonSearch&&!visible.length&&!mod.title.toLowerCase().includes(lessonSearch.toLowerCase()))return null;const collapsed=collapsedModules[mod.moduleId]&&!lessonSearch;return <section key={mod.moduleId} className="overflow-hidden rounded-2xl border border-[#e5edfa] bg-white shadow-sm"><div className="flex items-center gap-3 bg-[#f0f6ff] px-4 py-3"><button onClick={()=>toggleModuleCollapse(mod.moduleId)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white"><Layers size={19}/></button><button onClick={()=>toggleModuleCollapse(mod.moduleId)} className="min-w-0 flex-1 text-left"><h3 className="truncate text-sm font-extrabold text-[#0a245c]">Chương {mod.orderIndex}: {mod.title}</h3><p className="mt-1 text-xs text-[#5071a7]">{moduleLessons.length} bài học · {moduleLessons.reduce((n,l)=>n+getLessonDurationMinutes(l),0)} phút</p></button><button title="Thêm bài học" onClick={()=>handleOpenCreateLesson(mod.moduleId)} className="rounded-lg p-2 text-blue-600 hover:bg-white"><Plus size={17}/></button><button title="Sửa chương" onClick={()=>handleOpenEditModule(mod)} className="rounded-lg p-2 text-blue-600 hover:bg-white"><Edit2 size={16}/></button><button title="Xóa chương" onClick={()=>setModuleToDelete(mod)} className="rounded-lg p-2 text-rose-500 hover:bg-white"><Trash2 size={16}/></button><button onClick={()=>toggleModuleCollapse(mod.moduleId)} className="rounded-lg p-2 text-blue-600 hover:bg-white">{collapsed?<ChevronDown size={18}/>:<ChevronDown size={18} className="rotate-180"/>}</button></div>
-                {!collapsed&&<div className="divide-y divide-[#eaf0fa] px-3">{visible.length?visible.map((lesson,i)=><div key={lesson.lessonId} draggable onDragStart={e=>handleLessonDragStart(e,lesson)} onDragOver={e=>handleLessonDragOver(e,lesson)} onDrop={e=>handleLessonDrop(e,lesson)} onDragEnd={handleLessonDragEnd} className={`group flex items-center gap-3 rounded-lg px-2 py-3 transition hover:bg-[#f6f9ff] ${dragOverLessonId===lesson.lessonId?'bg-blue-100':''}`}><GripVertical size={15} className="shrink-0 cursor-grab text-slate-300"/><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#edf3ff] text-xs font-bold text-blue-700">{lesson.orderIndex||i+1}</span><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#e8f1ff] text-blue-600">{lesson.lessonType==='DOCUMENT'?<FileText size={20}/>:lesson.lessonType==='QUIZ'?<ClipboardList size={20}/>:<PlayCircle size={20}/>}</div><button onClick={()=>navigate(`/courses/${courseId}/learn?lessonId=${lesson.lessonId}`)} className="min-w-0 flex-1 text-left"><p className="truncate text-sm font-bold text-[#0a245c] group-hover:text-blue-600">{lesson.title}</p><p className="mt-1 truncate text-xs text-[#6883ae]">{lesson.lessonType==='DOCUMENT'?'Tài liệu':lesson.lessonType==='QUIZ'?'Quiz':'Bài giảng'} · {getLessonDuration(lesson)} {lesson.isPreview?'· Cho phép xem thử':''}</p></button><span className="hidden rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700 sm:inline-flex">{lesson.isPreview?'Xem thử':'Đã tạo'}</span><button title="Xem bài học" onClick={()=>navigate(`/courses/${courseId}/learn?lessonId=${lesson.lessonId}`)} className="rounded-lg p-2 text-blue-600 hover:bg-blue-50"><Eye size={16}/></button><button title="Chỉnh sửa" onClick={()=>handleOpenEditLesson(lesson)} className="rounded-lg p-2 text-blue-600 hover:bg-blue-50"><Edit2 size={16}/></button><div className="group/menu relative"><button title="Thêm thao tác" className="rounded-lg p-2 text-blue-600 hover:bg-blue-50"><MoreVertical size={16}/></button><div className="invisible absolute right-0 top-8 z-20 w-48 rounded-xl border border-blue-100 bg-white p-1 opacity-0 shadow-xl transition group-hover/menu:visible group-hover/menu:opacity-100 group-focus-within/menu:visible group-focus-within/menu:opacity-100"><button onClick={()=>setMaterialTarget({lessonId:lesson.lessonId,lessonTitle:lesson.title})} className="block w-full rounded-lg px-3 py-2 text-left text-xs hover:bg-blue-50">Tài liệu bài học</button><button onClick={()=>navigate(`/instructor/quizzes/new?courseId=${courseId}&lessonId=${lesson.lessonId}`)} className="block w-full rounded-lg px-3 py-2 text-left text-xs hover:bg-blue-50">Tạo Quiz cho bài học</button>{lesson.videoUrl&&<a href={lesson.videoUrl} target="_blank" rel="noreferrer" className="block rounded-lg px-3 py-2 text-xs hover:bg-blue-50">Mở video gốc</a>}<button onClick={()=>setLessonToDelete(lesson)} className="block w-full rounded-lg px-3 py-2 text-left text-xs text-rose-600 hover:bg-rose-50">Xóa bài học</button></div></div></div>):<div className="py-8 text-center text-xs text-slate-400">{lessonSearch?'Không có bài học phù hợp':'Chưa có bài học trong chương này'}</div>}<button onClick={()=>handleOpenCreateLesson(mod.moduleId)} className="w-full py-3 text-left text-xs font-bold text-blue-600 hover:text-blue-800">+ Thêm bài học</button></div>}</section>})}
+              {[...modules].sort((a,b)=>a.orderIndex-b.orderIndex).map(mod=>{const moduleLessons=(lessonsByModule[mod.moduleId]||[]).sort((a,b)=>a.orderIndex-b.orderIndex);const visible=moduleLessons.filter(l=>`${l.title} ${l.description||''}`.toLowerCase().includes(lessonSearch.toLowerCase()));if(lessonSearch&&!visible.length&&!mod.title.toLowerCase().includes(lessonSearch.toLowerCase()))return null;const collapsed=collapsedModules[mod.moduleId]&&!lessonSearch;return <section key={mod.moduleId} className="relative overflow-visible rounded-2xl border border-[#e5edfa] bg-white shadow-sm"><div className={`flex flex-wrap items-center gap-2 rounded-t-2xl bg-[#f0f6ff] px-3 py-3 sm:flex-nowrap sm:gap-3 sm:px-4 ${collapsed?'rounded-b-2xl':''}`}><button onClick={()=>toggleModuleCollapse(mod.moduleId)} aria-label={`Thu gọn/mở Chương ${mod.orderIndex}`} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white"><Layers size={19}/></button><button onClick={()=>toggleModuleCollapse(mod.moduleId)} className="min-w-0 flex-1 basis-[calc(100%-3.5rem)] text-left sm:basis-auto"><h3 className="break-words text-sm font-extrabold text-[#0a245c] sm:truncate">Chương {mod.orderIndex}: {mod.title}</h3><p className="mt-1 text-xs text-[#5071a7]">{moduleLessons.length} bài học · {moduleLessons.reduce((n,l)=>n+getLessonDurationMinutes(l),0)} phút</p></button><div className="ml-auto flex shrink-0 items-center gap-1 sm:ml-0"><button title="Thêm bài học" aria-label="Thêm bài học" onClick={()=>handleOpenCreateLesson(mod.moduleId)} className="flex h-10 w-10 items-center justify-center rounded-lg text-blue-600 hover:bg-white"><Plus size={17}/></button><button title="Sửa chương" aria-label="Sửa chương" onClick={()=>handleOpenEditModule(mod)} className="flex h-10 w-10 items-center justify-center rounded-lg text-blue-600 hover:bg-white"><Edit2 size={16}/></button><button title="Xóa chương" aria-label="Xóa chương" onClick={()=>setModuleToDelete(mod)} className="flex h-10 w-10 items-center justify-center rounded-lg text-rose-500 hover:bg-white"><Trash2 size={16}/></button><button aria-label={collapsed?'Mở chương':'Thu gọn chương'} onClick={()=>toggleModuleCollapse(mod.moduleId)} className="flex h-10 w-10 items-center justify-center rounded-lg text-blue-600 hover:bg-white">{collapsed?<ChevronDown size={18}/>:<ChevronDown size={18} className="rotate-180"/>}</button></div></div>
+                {!collapsed&&<div className="divide-y divide-[#eaf0fa] px-3">{visible.length?visible.map((lesson,i)=><div key={lesson.lessonId} draggable onDragStart={e=>handleLessonDragStart(e,lesson)} onDragOver={e=>handleLessonDragOver(e,lesson)} onDrop={e=>handleLessonDrop(e,lesson)} onDragEnd={handleLessonDragEnd} className={`group flex flex-wrap items-center gap-2 rounded-lg px-2 py-3 transition hover:bg-[#f6f9ff] sm:flex-nowrap sm:gap-3 ${dragOverLessonId===lesson.lessonId?'bg-blue-100':''}`}><GripVertical size={15} className="shrink-0 cursor-grab text-slate-300"/><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#edf3ff] text-xs font-bold text-blue-700">{lesson.orderIndex||i+1}</span><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#e8f1ff] text-blue-600">{lesson.lessonType==='DOCUMENT'?<FileText size={20}/>:lesson.lessonType==='QUIZ'?<ClipboardList size={20}/>:<PlayCircle size={20}/>}</div><button onClick={()=>navigate(`/courses/${courseId}/learn?lessonId=${lesson.lessonId}`)} className="min-w-0 flex-1 basis-[calc(100%-7rem)] text-left sm:basis-auto"><p className="break-words text-sm font-bold text-[#0a245c] group-hover:text-blue-600 sm:truncate">{lesson.title}</p><p className="mt-1 truncate text-xs text-[#6883ae]">{lesson.lessonType==='DOCUMENT'?'Tài liệu':lesson.lessonType==='QUIZ'?'Quiz':'Bài giảng'} · {getLessonDuration(lesson)} {lesson.isPreview?'· Cho phép xem thử':''}</p></button><span className="hidden rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700 sm:inline-flex">{lesson.isPreview?'Xem thử':'Đã tạo'}</span><button title="Xem bài học" aria-label="Xem bài học" onClick={()=>navigate(`/courses/${courseId}/learn?lessonId=${lesson.lessonId}`)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-blue-600 hover:bg-blue-50"><Eye size={16}/></button><button title="Chỉnh sửa" aria-label="Chỉnh sửa bài học" onClick={()=>handleOpenEditLesson(lesson)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-blue-600 hover:bg-blue-50"><Edit2 size={16}/></button><div className="group/menu relative"><button title="Thêm thao tác" aria-label="Thêm thao tác" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-blue-600 hover:bg-blue-50"><MoreVertical size={16}/></button><div className="invisible absolute right-0 top-8 z-20 w-48 rounded-xl border border-blue-100 bg-white p-1 opacity-0 shadow-xl transition group-hover/menu:visible group-hover/menu:opacity-100 group-focus-within/menu:visible group-focus-within/menu:opacity-100"><button onClick={()=>setMaterialTarget({lessonId:lesson.lessonId,lessonTitle:lesson.title})} className="block w-full rounded-lg px-3 py-2 text-left text-xs hover:bg-blue-50">Tài liệu bài học</button><button onClick={()=>navigate(`/instructor/quizzes/new?courseId=${courseId}&lessonId=${lesson.lessonId}`)} className="block w-full rounded-lg px-3 py-2 text-left text-xs hover:bg-blue-50">Tạo Quiz cho bài học</button>{lesson.videoUrl&&<a href={lesson.videoUrl} target="_blank" rel="noreferrer" className="block rounded-lg px-3 py-2 text-xs hover:bg-blue-50">Mở video gốc</a>}<button onClick={()=>setLessonToDelete(lesson)} className="block w-full rounded-lg px-3 py-2 text-left text-xs text-rose-600 hover:bg-rose-50">Xóa bài học</button></div></div></div>):<div className="py-8 text-center text-xs text-slate-400">{lessonSearch?'Không có bài học phù hợp':'Chưa có bài học trong chương này'}</div>}<button onClick={()=>handleOpenCreateLesson(mod.moduleId)} className="w-full py-3 text-left text-xs font-bold text-blue-600 hover:text-blue-800">+ Thêm bài học</button></div>}</section>})}
               {unassignedLessons.filter(l=>`${l.title} ${l.description||''}`.toLowerCase().includes(lessonSearch.toLowerCase())).length>0&&<section className="rounded-2xl border border-amber-200 bg-white p-4"><h3 className="mb-3 font-bold text-amber-800">Bài học chưa phân chương</h3>{unassignedLessons.filter(l=>`${l.title} ${l.description||''}`.toLowerCase().includes(lessonSearch.toLowerCase())).map(lesson=><div key={lesson.lessonId} draggable onDragStart={e=>handleLessonDragStart(e,lesson)} onDragEnd={handleLessonDragEnd} className="flex items-center gap-3 border-t border-amber-100 py-3"><GripVertical size={15} className="text-amber-400"/><BookOpen size={18} className="text-blue-600"/><span className="min-w-0 flex-1 truncate text-sm font-semibold">{lesson.title}</span><button onClick={()=>setMaterialTarget({lessonId:lesson.lessonId,lessonTitle:lesson.title})} title="Tài liệu"><Paperclip size={16}/></button><button onClick={()=>navigate(`/instructor/quizzes/new?courseId=${courseId}&lessonId=${lesson.lessonId}`)} title="Tạo Quiz"><ClipboardList size={16}/></button><button onClick={()=>handleOpenEditLesson(lesson)} title="Sửa / Gán chương"><Edit2 size={16}/></button><button onClick={()=>setLessonToDelete(lesson)} title="Xóa"><Trash2 size={16} className="text-rose-500"/></button></div>)}</section>}
             </>}
           </main>
           <aside className="space-y-4">
-            <div className="rounded-2xl border border-[#e8effb] bg-white p-4 shadow-sm"><div className="relative"><button onClick={()=>setAddMenuOpen(!addMenuOpen)} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0754ef] px-4 py-3 text-sm font-bold text-white shadow-md shadow-blue-600/20 hover:bg-blue-700"><Plus size={18}/> Thêm nội dung <ChevronDown size={16}/></button>{addMenuOpen&&<div className="absolute left-0 right-0 top-[calc(100%+6px)] z-30 rounded-xl border border-blue-100 bg-white p-2 shadow-xl">{[{label:'Thêm chương',action:handleOpenCreateModule},{label:'Thêm bài giảng',action:()=>handleOpenCreateLesson(modules[0]?.moduleId)},{label:'Thêm Quiz',action:()=>navigate(`/instructor/quizzes/new?courseId=${courseId}`)},{label:'Thêm tài liệu',action:()=>setMaterialTarget({lessonId:null})},{label:'Thêm bài tập nói',action:()=>handleOpenCreateSpeakingAssignment(null)},{label:'Nhập từ CSV',action:()=>setIsModuleImportModalOpen(true)}].map(item=><button key={item.label} onClick={()=>{setAddMenuOpen(false);item.action()}} className="block w-full rounded-lg px-3 py-2.5 text-left text-xs font-semibold text-[#15376f] hover:bg-blue-50">{item.label}</button>)}</div>}</div><h3 className="mb-3 mt-5 text-sm font-extrabold text-[#0a245c]">Thao tác nhanh</h3><div className="grid grid-cols-2 gap-2">{[{label:'Thêm chương',icon:FolderPlus,action:handleOpenCreateModule},{label:'Thêm bài học',icon:PlusCircle,action:()=>handleOpenCreateLesson(modules[0]?.moduleId)},{label:'Tải video hàng loạt',icon:CloudUpload,action:()=>setIsBulkVideoUploadOpen(true)},{label:'Nhập CSV',icon:FileSpreadsheet,action:()=>setIsModuleImportModalOpen(true)},{label:'Đồng bộ Quiz',icon:GitCompareArrows,action:()=>document.getElementById('quiz-management')?.scrollIntoView({behavior:'smooth'})},{label:'Chấm bài nói',icon:Mic2,action:()=>navigate(`/instructor/courses/${courseId}/speaking`)},{label:'Học viên',icon:Users,action:()=>setIsStudentsModalOpen(true)}].map(item=><button key={item.label} onClick={item.action} className="flex items-center justify-center gap-2 rounded-xl border border-[#dce8fb] bg-[#f9fbff] px-2 py-3 text-[11px] font-semibold text-[#17448e] hover:bg-blue-50"><item.icon size={15}/>{item.label}</button>)}</div></div>
+            <div className="rounded-2xl border border-[#e8effb] bg-white p-4 shadow-sm"><div className="relative"><button onClick={()=>setAddMenuOpen(!addMenuOpen)} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0754ef] px-4 py-3 text-sm font-bold text-white shadow-md shadow-blue-600/20 hover:bg-blue-700"><Plus size={18}/> Thêm nội dung <ChevronDown size={16}/></button>{addMenuOpen&&<div className="absolute left-0 right-0 top-[calc(100%+6px)] z-30 rounded-xl border border-blue-100 bg-white p-2 shadow-xl">{[{label:'Thêm chương',action:handleOpenCreateModule},{label:'Thêm bài giảng',action:()=>handleOpenCreateLesson(modules[0]?.moduleId)},{label:'Thêm Quiz',action:()=>navigate(`/instructor/quizzes/new?courseId=${courseId}`)},{label:'Thêm tài liệu',action:()=>setMaterialTarget({lessonId:null})},{label:'Thêm bài tập nói',action:()=>handleOpenCreateSpeakingAssignment(null)},{label:'Nhập từ CSV',action:()=>setIsModuleImportModalOpen(true)}].map(item=><button key={item.label} onClick={()=>{setAddMenuOpen(false);item.action()}} className="block w-full rounded-lg px-3 py-2.5 text-left text-xs font-semibold text-[#15376f] hover:bg-blue-50">{item.label}</button>)}</div>}</div><h3 className="mb-3 mt-5 text-sm font-extrabold text-[#0a245c]">Thao tác nhanh</h3><div className="grid grid-cols-2 gap-2">{[{label:'Thêm chương',icon:FolderPlus,action:handleOpenCreateModule},{label:'Thêm bài học',icon:PlusCircle,action:()=>handleOpenCreateLesson(modules[0]?.moduleId)},{label:'Tải video hàng loạt',icon:CloudUpload,action:()=>setIsBulkVideoUploadOpen(true)},{label:'Nhập CSV',icon:FileSpreadsheet,action:()=>setIsModuleImportModalOpen(true)},{label:'Đồng bộ Quiz',icon:GitCompareArrows,action:()=>document.getElementById('quiz-management')?.scrollIntoView({behavior:'smooth'})},{label:'Chấm bài nói',icon:Mic2,action:()=>navigate(`/instructor/courses/${courseId}/speaking`)},{label:'Học viên',icon:Users,action:()=>navigate(`/instructor/courses/${courseId}/students`)}].map(item=><button key={item.label} onClick={item.action} className="flex items-center justify-center gap-2 rounded-xl border border-[#dce8fb] bg-[#f9fbff] px-2 py-3 text-[11px] font-semibold text-[#17448e] hover:bg-blue-50"><item.icon size={15}/>{item.label}</button>)}</div></div>
             <div className="rounded-2xl border border-[#e8effb] bg-white p-4 shadow-sm"><h3 className="mb-4 text-sm font-extrabold text-[#0a245c]">Thông tin khóa học</h3><div className="flex gap-3">{course?.thumbnailUrl?<img src={course.thumbnailUrl} alt={course.title} className="h-20 w-20 rounded-xl object-cover"/>:<div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl bg-blue-100"><Mic2 size={30} className="text-blue-600"/></div>}<div className="min-w-0"><p className="line-clamp-3 text-sm font-bold text-[#0a245c]">{course?.title}</p>{course?.status&&<div className="mt-2"><CourseStatusBadge status={course.status} size="sm"/></div>}</div></div><div className="mt-4 space-y-3 border-t border-blue-50 pt-4 text-xs text-[#52709f]"><p className="flex justify-between"><span>Chương học</span><strong className="text-[#0a245c]">{modules.length}</strong></p><p className="flex justify-between"><span>Bài học</span><strong className="text-[#0a245c]">{lessons.length}</strong></p><p className="flex justify-between"><span>Quiz</span><strong className="text-[#0a245c]">{quizzes.length}</strong></p><p className="flex justify-between"><span>Thời lượng dự kiến</span><strong className="text-[#0a245c]">{totalDuration} phút</strong></p></div><button onClick={()=>navigate('/instructor/courses')} className="mt-4 w-full rounded-xl border border-blue-200 py-2.5 text-xs font-bold text-blue-700 hover:bg-blue-50">Quản lý khóa học</button></div>
-            <div className="rounded-2xl border border-[#e8effb] bg-white p-4 shadow-sm"><h3 className="mb-3 text-sm font-extrabold text-[#0a245c]">Cập nhật & phê duyệt</h3><button onClick={handleSyncAllDurations} disabled={isSyncingDurations} className="mb-2 w-full rounded-xl border border-blue-200 bg-blue-50 py-2.5 text-xs font-bold text-blue-700 hover:bg-blue-100 disabled:opacity-50">{isSyncingDurations?'Đang đồng bộ...':'Đồng bộ thời lượng bài học'}</button><button onClick={handleSyncMentorChat} disabled={isSyncingMentorChat} className="mb-2 flex w-full items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 py-2.5 text-xs font-bold text-violet-700 hover:bg-violet-100 disabled:opacity-50 transition cursor-pointer"><Sparkles size={15}/>{isSyncingMentorChat?'Đang đồng bộ AI Mentor...':'Đồng bộ AI Mentor'}</button>{(course?.status==='DRAFT'||course?.status==='REJECTED')&&<button onClick={handleSendForApproval} disabled={isSubmittingForApproval} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0754ef] py-3 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-50"><Send size={15}/> Gửi duyệt khóa học</button>}<p className="mt-3 rounded-xl bg-[#edf5ff] p-3 text-xs leading-relaxed text-[#4167a1]">Sau khi hoàn thành nội dung, hãy kiểm tra bài học, Quiz và bài tập nói trước khi gửi duyệt.</p></div>
+            <div className="rounded-2xl border border-[#e8effb] bg-white p-4 shadow-sm"><h3 className="mb-3 text-sm font-extrabold text-[#0a245c]">Cập nhật & phê duyệt</h3><button onClick={handleSyncAllDurations} disabled={isSyncingDurations} className="mb-2 w-full rounded-xl border border-blue-200 bg-blue-50 py-2.5 text-xs font-bold text-blue-700 hover:bg-blue-100 disabled:opacity-50">{isSyncingDurations?'Đang đồng bộ...':'Đồng bộ thời lượng bài học'}</button><button onClick={handleSyncMentorChat} disabled={isSyncingMentorChat} className="mb-2 flex w-full items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 py-2.5 text-xs font-bold text-violet-700 hover:bg-violet-100 disabled:opacity-50 transition cursor-pointer"><Sparkles size={15}/>{isSyncingMentorChat?'Đang đồng bộ AI Mentor...':'Đồng bộ AI Mentor'}</button>{(course?.status==='DRAFT'||course?.status==='REJECTED')&&<button onClick={handleSendForApproval} disabled={isSubmittingForApproval || isSyllabusLoading} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0754ef] py-3 text-xs font-bold text-white hover:bg-blue-700 disabled:opacity-50"><Send size={15}/>{isSyllabusLoading ? 'Đang kiểm tra syllabus...' : isSubmittingForApproval ? 'Đang gửi duyệt...' : 'Gửi duyệt khóa học'}</button>}<p className="mt-3 rounded-xl bg-[#edf5ff] p-3 text-xs leading-relaxed text-[#4167a1]">Sau khi hoàn thành nội dung, hãy kiểm tra bài học, Quiz và bài tập nói trước khi gửi duyệt.</p></div>
           </aside>
         </div>
       </div>
@@ -1475,6 +1568,7 @@ export const CourseLessonsPage: React.FC = () => {
       <BulkLessonVideoUploadModal
         courseId={courseId}
         lessons={lessons}
+        modules={modules}
         isOpen={isBulkVideoUploadOpen}
         onClose={() => setIsBulkVideoUploadOpen(false)}
         onComplete={() => queryClient.invalidateQueries({ queryKey: lessonQueryKeys.courseLessons(courseId) })}
@@ -1496,8 +1590,8 @@ export const CourseLessonsPage: React.FC = () => {
       {/* DELETE LESSON */}
 
       {lessonToDelete && (
-        <div className="fixed inset-0 z-50 flex animate-fadeIn items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-2 backdrop-blur-sm sm:p-4">
+          <div className="my-auto max-h-[calc(100dvh-1rem)] w-full max-w-md overflow-y-auto rounded-3xl bg-white p-4 shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:p-6">
             <h3 className="text-lg font-bold text-slate-900">
               Xác nhận xóa bài học
             </h3>
@@ -1510,10 +1604,10 @@ export const CourseLessonsPage: React.FC = () => {
               không?
             </p>
 
-            <div className="mt-6 flex justify-end gap-3">
+            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
               <button
                 onClick={() => setLessonToDelete(null)}
-                className="cursor-pointer rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                className="min-h-11 cursor-pointer rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 sm:min-h-0"
               >
                 Hủy
               </button>
@@ -1521,7 +1615,7 @@ export const CourseLessonsPage: React.FC = () => {
               <button
                 onClick={handleDeleteLessonConfirm}
                 disabled={isDeletingLesson}
-                className="cursor-pointer rounded-xl bg-red-600 px-4 py-2 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+                className="min-h-11 cursor-pointer rounded-xl bg-red-600 px-4 py-2 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50 sm:min-h-0"
               >
                 {isDeletingLesson ? 'Đang xóa...' : 'Xóa bài học'}
               </button>
@@ -1533,8 +1627,8 @@ export const CourseLessonsPage: React.FC = () => {
       {/* DELETE MODULE */}
 
       {moduleToDelete && (
-        <div className="fixed inset-0 z-50 flex animate-fadeIn items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-3xl border border-red-100 bg-white p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-2 backdrop-blur-sm sm:p-4">
+          <div className="my-auto max-h-[calc(100dvh-1rem)] w-full max-w-md overflow-y-auto rounded-3xl border border-red-100 bg-white p-4 shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:p-6">
             <h3 className="flex items-center gap-2 text-lg font-bold text-red-600">
               Xác nhận xóa chương học
             </h3>
@@ -1564,10 +1658,10 @@ export const CourseLessonsPage: React.FC = () => {
               </p>
             </div>
 
-            <div className="mt-6 flex justify-end gap-3">
+            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
               <button
                 onClick={() => setModuleToDelete(null)}
-                className="cursor-pointer rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                className="min-h-11 cursor-pointer rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 sm:min-h-0"
               >
                 Hủy bỏ
               </button>
@@ -1575,7 +1669,7 @@ export const CourseLessonsPage: React.FC = () => {
               <button
                 onClick={handleDeleteModuleConfirm}
                 disabled={isDeletingModule}
-                className="cursor-pointer rounded-xl bg-red-600 px-5 py-2 text-xs font-semibold text-white shadow-md shadow-red-500/20 hover:bg-red-700 disabled:opacity-50"
+                className="min-h-11 cursor-pointer rounded-xl bg-red-600 px-5 py-2 text-xs font-semibold text-white shadow-md shadow-red-500/20 hover:bg-red-700 disabled:opacity-50 sm:min-h-0"
               >
                 {isDeletingModule ? 'Đang xóa...' : 'Đồng ý xóa toàn bộ'}
               </button>
@@ -1584,13 +1678,11 @@ export const CourseLessonsPage: React.FC = () => {
         </div>
       )}
 
-      {/* ENROLLED STUDENTS */}
-
-      <CourseStudentsModal
-        isOpen={isStudentsModalOpen}
-        onClose={() => setIsStudentsModalOpen(false)}
-        courseTitle={course?.title}
+      <InstructorSyllabusModal
+        isOpen={isSyllabusModalOpen}
         courseId={courseId}
+        courseTitle={course?.title || 'Khóa học'}
+        onClose={() => setIsSyllabusModalOpen(false)}
       />
 
       {/* INCOMPLETE COURSE */}

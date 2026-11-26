@@ -81,6 +81,7 @@ public class User
     public virtual Role Role { get; set; } = null!;
 
     public virtual UserProfile? UserProfile { get; set; }
+    public virtual UserLearningPreferences? LearningPreferences { get; set; }
 
     public virtual ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
 
@@ -89,6 +90,7 @@ public class User
     // ============================================================
 
     public virtual ICollection<Course> InstructedCourses { get; set; } = new List<Course>();
+    public virtual ICollection<LearnerFavoriteCourse> FavoriteCourses { get; set; } = new List<LearnerFavoriteCourse>();
     public virtual ICollection<CourseMaterial> UploadedMaterials { get; set; } = new List<CourseMaterial>();
 
     // ============================================================

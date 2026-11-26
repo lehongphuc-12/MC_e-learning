@@ -30,6 +30,7 @@ public class UpdateQuizRequest
     public DateTime? AvailableUntil { get; set; }
 
     public QuizStatus Status { get; set; }
+    public bool IsRemedial { get; set; }
 
     [Required]
     [MinLength(1)]

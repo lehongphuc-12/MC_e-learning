@@ -2,6 +2,7 @@ using MC_BE.Core.Entities;
 using MC_BE.Core.Enums;
 using MC_BE.Features.Courses.DTOs;
 using MC_BE.Features.Courses.Services.Interfaces;
+using MC_BE.Features.Learning.Services.Interfaces;
 using MC_BE.Shared.Repositories.Interfaces;
 using MC_BE.Shared.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -10,7 +11,7 @@ namespace MC_BE.Features.Courses.Services;
 
 public class LessonService : ILessonService
 {
-    private const long MaxVideoSizeBytes = 500L * 1024 * 1024;
+    private const long MaxVideoSizeBytes = 700L * 1024 * 1024;
     private static readonly HashSet<string> AllowedVideoTypes = new(StringComparer.OrdinalIgnoreCase)
     {
         "video/mp4", "video/webm", "video/ogg", "video/quicktime",
@@ -31,6 +32,7 @@ public class LessonService : ILessonService
     private readonly ICourseLearningAccessService _courseAccess;
     private readonly IMentorChatService _mentorChatService;
     private readonly ILogger<LessonService> _logger;
+    private readonly IRemedialAssignmentService _remedialAssignments;
 
     public LessonService(
         IGenericRepository<Lesson> lessonRepository,
@@ -42,7 +44,8 @@ public class LessonService : ILessonService
         ITranscriptionQueue transcriptionQueue,
         ICourseLearningAccessService courseAccess,
         IMentorChatService mentorChatService,
-        ILogger<LessonService> logger)
+        ILogger<LessonService> logger,
+        IRemedialAssignmentService remedialAssignments)
     {
         _lessonRepository = lessonRepository;
         _courseRepository = courseRepository;
@@ -54,6 +57,7 @@ public class LessonService : ILessonService
         _courseAccess = courseAccess;
         _mentorChatService = mentorChatService;
         _logger = logger;
+        _remedialAssignments = remedialAssignments;
     }
 
     private LessonDto MapToDto(Lesson lesson)
@@ -80,6 +84,7 @@ public class LessonService : ILessonService
             OrderIndex = lesson.OrderIndex,
             DurationMinutes = lesson.DurationMinutes,
             IsPreview = lesson.IsPreview,
+            IsRemedial = lesson.IsRemedial,
             Status = lesson.Status,
             VideoUrl = videoUrl,
             // For playback in the paid-course player, a legacy external URL is not a usable video.
@@ -103,6 +108,10 @@ public class LessonService : ILessonService
         if (lesson?.Course is null || lesson.Status != LessonStatus.ACTIVE)
             return null;
 
+        var isStaff = isAdmin || lesson.Course.InstructorId == userId;
+        if (lesson.IsRemedial && !isStaff && !await _remedialAssignments.CanAccessContentAsync(userId, "LESSON", lessonId))
+            return null;
+
         if (!lesson.IsPreview && !await _courseAccess.CanAccessCourseAsync(lesson.CourseId, userId, isAdmin))
             return null;
 
@@ -118,6 +127,47 @@ public class LessonService : ILessonService
             LessonId = lessonId,
             Url = _r2.GetPresignedUrl(objectKey, expiresHours),
             ExpiresAt = DateTime.UtcNow.AddHours(expiresHours)
+        };
+    }
+
+    public async Task<LessonPlaybackDto?> GetPreviewPlaybackAsync(int lessonId, int? userId, bool isAdmin)
+    {
+        var lesson = await _lessonRepository.GetQueryable()
+            .Include(item => item.Course)
+            .Include(item => item.CourseMaterials)
+            .FirstOrDefaultAsync(item => item.LessonId == lessonId);
+
+        if (lesson?.Course is null || lesson.Status != LessonStatus.ACTIVE ||
+            lesson.LessonType != LessonType.VIDEO)
+            return null;
+
+        var hasFullAccess = userId.HasValue && await _courseAccess
+            .CanAccessCourseAsync(lesson.CourseId, userId.Value, isAdmin);
+
+        var isStaff = isAdmin || (userId.HasValue && lesson.Course.InstructorId == userId.Value);
+        if (lesson.IsRemedial && !isStaff && (!userId.HasValue || !await _remedialAssignments.CanAccessContentAsync(userId.Value, "LESSON", lessonId)))
+            return null;
+
+        // Anonymous/non-enrolled learners may only preview explicitly approved lessons
+        // from a published course. Enrolled learners get the same full playback access
+        // as the authenticated learning player.
+        if (!hasFullAccess && (!lesson.IsPreview || lesson.Course.Status != CourseStatus.PUBLISHED))
+            return null;
+
+        var objectKey = FindR2VideoObjectKey(lesson.CourseMaterials);
+        if (string.IsNullOrWhiteSpace(objectKey))
+            return null;
+
+        // Shorten the lifetime of public preview URLs; entitled learners receive the
+        // same playback lifetime as the regular player.
+        var expiresHours = hasFullAccess ? 6d : 5d / 60d;
+        return new LessonPlaybackDto
+        {
+            LessonId = lessonId,
+            Url = _r2.GetPresignedUrl(objectKey, expiresHours),
+            ExpiresAt = DateTime.UtcNow.AddHours(expiresHours),
+            IsPreviewOnly = !hasFullAccess,
+            PreviewDurationSeconds = hasFullAccess ? null : 30,
         };
     }
 
@@ -177,6 +227,7 @@ public class LessonService : ILessonService
             OrderIndex = request.OrderIndex,
             DurationMinutes = request.DurationMinutes,
             IsPreview = request.IsPreview,
+            IsRemedial = request.IsRemedial,
             Status = request.Status,
             CreatedAt = DateTime.UtcNow,
         };
@@ -238,6 +289,7 @@ public class LessonService : ILessonService
         if (request.OrderIndex.HasValue) lesson.OrderIndex = request.OrderIndex.Value;
         if (request.DurationMinutes.HasValue) lesson.DurationMinutes = request.DurationMinutes.Value;
         if (request.IsPreview.HasValue) lesson.IsPreview = request.IsPreview.Value;
+        if (request.IsRemedial.HasValue) lesson.IsRemedial = request.IsRemedial.Value;
         if (request.Status.HasValue) lesson.Status = request.Status.Value;
 
         if (request.VideoUrl is not null)
@@ -352,7 +404,10 @@ public class LessonService : ILessonService
         if (lessons.Count != lessonIds.Count || lessons.Any(lesson => lesson.Course?.InstructorId != instructorId))
             throw new InvalidOperationException("Một hoặc nhiều bài học không tồn tại hoặc không thuộc khóa học của bạn.");
 
-        var expiresAt = DateTime.UtcNow.AddMinutes(15);
+        // Large lesson videos are uploaded directly to R2; allow slow connections
+        // enough time to finish both the signed PUT and the completion request.
+        const int uploadSessionLifetimeMinutes = 60;
+        var expiresAt = DateTime.UtcNow.AddMinutes(uploadSessionLifetimeMinutes);
         var sessions = new List<VideoUploadSession>();
         var response = new List<VideoUploadSessionDto>();
 
@@ -380,7 +435,7 @@ public class LessonService : ILessonService
                 SessionId = session.SessionId,
                 LessonId = session.LessonId,
                 ContentType = session.ContentType,
-                UploadUrl = _r2.GetPresignedPutUrl(objectKey, session.ContentType, 15),
+                UploadUrl = _r2.GetPresignedPutUrl(objectKey, session.ContentType, uploadSessionLifetimeMinutes),
                 ExpiresAt = expiresAt,
             });
         }
@@ -447,7 +502,7 @@ public class LessonService : ILessonService
         if (string.IsNullOrWhiteSpace(contentType) || !AllowedVideoTypes.Contains(contentType))
             throw new InvalidOperationException("Chỉ chấp nhận video MP4, WEBM, OGG, MOV, AVI, MKV hoặc MPEG.");
         if (size <= 0 || size > MaxVideoSizeBytes)
-            throw new InvalidOperationException("Video phải có dung lượng từ 1 byte đến 500 MB.");
+            throw new InvalidOperationException("Video phải có dung lượng từ 1 byte đến 700 MB.");
     }
 
     private async Task<string?> AttachVideoObjectAsync(Lesson lesson, int instructorId, string objectKey)

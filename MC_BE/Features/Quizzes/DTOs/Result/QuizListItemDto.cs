@@ -19,5 +19,6 @@ public class QuizListItemDto
     public DateTime CreatedAt { get; set; }
     public int QuestionCount { get; set; }
     public bool IsLocked { get; set; }
+    public bool IsRemedial { get; set; }
     public string? LockReason { get; set; }
 }

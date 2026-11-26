@@ -1,8 +1,7 @@
 import { useAuthStore } from "../store/useAuthStore";
 
 export const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ||
-  "https://localhost:7187/api";
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:5239/api";
 
 let isRefreshing = false;
 
@@ -25,10 +24,7 @@ const processQueue = (error: unknown = null) => {
 
 async function parseResponse(response: Response): Promise<any> {
   // 204 / 205 không có body
-  if (
-    response.status === 204 ||
-    response.status === 205
-  ) {
+  if (response.status === 204 || response.status === 205) {
     return undefined;
   }
 
@@ -39,8 +35,7 @@ async function parseResponse(response: Response): Promise<any> {
     return undefined;
   }
 
-  const contentType =
-    response.headers.get("content-type") || "";
+  const contentType = response.headers.get("content-type") || "";
 
   // JSON
   if (
@@ -51,7 +46,7 @@ async function parseResponse(response: Response): Promise<any> {
       return JSON.parse(text);
     } catch {
       throw new Error(
-        `Server trả về JSON không hợp lệ. HTTP ${response.status}`
+        `Server trả về JSON không hợp lệ. HTTP ${response.status}`,
       );
     }
   }
@@ -60,31 +55,21 @@ async function parseResponse(response: Response): Promise<any> {
   return text;
 }
 
-function createHeaders(
-  options: RequestInit,
-  token?: string | null
-) {
+function createHeaders(options: RequestInit, token?: string | null) {
   const headers = new Headers(options.headers);
 
-  if (
-    !headers.has("Content-Type") &&
-    !(options.body instanceof FormData)
-  ) {
-    headers.set(
-      "Content-Type",
-      "application/json"
-    );
+  if (!headers.has("Content-Type") && !(options.body instanceof FormData)) {
+    headers.set("Content-Type", "application/json");
   }
 
   const authHeader = headers.get("Authorization");
   if (
     token &&
-    (!authHeader || authHeader === "Bearer null" || authHeader === "Bearer undefined")
+    (!authHeader ||
+      authHeader === "Bearer null" ||
+      authHeader === "Bearer undefined")
   ) {
-    headers.set(
-      "Authorization",
-      `Bearer ${token}`
-    );
+    headers.set("Authorization", `Bearer ${token}`);
   }
 
   return headers;
@@ -101,115 +86,77 @@ function shouldRefresh(endpoint: string) {
 
 export async function request<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
 ): Promise<T> {
-  const token =
-    useAuthStore.getState().token;
+  const token = useAuthStore.getState().token;
 
-  let headers =
-    createHeaders(options, token);
+  let headers = createHeaders(options, token);
 
-  let response = await fetch(
-    `${API_BASE_URL}${endpoint}`,
-    {
-      ...options,
-      credentials: "include",
-      headers,
-    }
-  );
+  let response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    ...options,
+    credentials: "include",
+    headers,
+  });
 
   // ============================================================
   // ACCESS TOKEN EXPIRED
   // ============================================================
 
-  if (
-    response.status === 401 &&
-    shouldRefresh(endpoint)
-  ) {
+  if (response.status === 401 && shouldRefresh(endpoint)) {
     if (isRefreshing) {
-      await new Promise<void>(
-        (resolve, reject) => {
-          failedQueue.push({
-            resolve,
-            reject,
-          });
-        }
-      );
+      await new Promise<void>((resolve, reject) => {
+        failedQueue.push({
+          resolve,
+          reject,
+        });
+      });
 
-      const newToken =
-        useAuthStore.getState().token;
+      const newToken = useAuthStore.getState().token;
 
-      const retryHeaders =
-        createHeaders(
-          options,
-          newToken
-        );
+      const retryHeaders = createHeaders(options, newToken);
 
-      response = await fetch(
-        `${API_BASE_URL}${endpoint}`,
-        {
-          ...options,
-          credentials: "include",
-          headers: retryHeaders,
-        }
-      );
+      response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        ...options,
+        credentials: "include",
+        headers: retryHeaders,
+      });
     } else {
       isRefreshing = true;
 
       try {
-        const refreshResponse =
-          await fetch(
-            `${API_BASE_URL}/auth/refresh-token`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type":
-                  "application/json",
-              },
-              credentials: "include",
-            }
-          );
+        const refreshResponse = await fetch(
+          `${API_BASE_URL}/auth/refresh-token`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            credentials: "include",
+          },
+        );
 
-        const refreshData =
-          await parseResponse(
-            refreshResponse
-          );
+        const refreshData = await parseResponse(refreshResponse);
 
         if (
           refreshResponse.ok &&
           refreshData?.success &&
           refreshData?.data?.accessToken
         ) {
-          const newAccessToken =
-            refreshData.data.accessToken;
+          const newAccessToken = refreshData.data.accessToken;
 
-          useAuthStore
-            .getState()
-            .setAccessToken(
-              newAccessToken
-            );
+          useAuthStore.getState().setAccessToken(newAccessToken);
 
           processQueue();
 
-          headers =
-            createHeaders(
-              options,
-              newAccessToken
-            );
+          headers = createHeaders(options, newAccessToken);
 
-          response = await fetch(
-            `${API_BASE_URL}${endpoint}`,
-            {
-              ...options,
-              credentials: "include",
-              headers,
-            }
-          );
+          response = await fetch(`${API_BASE_URL}${endpoint}`, {
+            ...options,
+            credentials: "include",
+            headers,
+          });
         } else {
-          const error =
-            new Error(
-              "Session expired. Please log in again."
-            );
+          const error = new Error("Session expired. Please log in again.");
 
           Object.assign(error, {
             status: 401,
@@ -217,18 +164,14 @@ export async function request<T>(
 
           processQueue(error);
 
-          useAuthStore
-            .getState()
-            .logout();
+          useAuthStore.getState().logout();
 
           throw error;
         }
       } catch (error) {
         processQueue(error);
 
-        useAuthStore
-          .getState()
-          .logout();
+        useAuthStore.getState().logout();
 
         throw error;
       } finally {
@@ -241,8 +184,14 @@ export async function request<T>(
   // PARSE RESPONSE
   // ============================================================
 
-  const data =
-    await parseResponse(response);
+  if (
+    response.ok &&
+    new Headers(options.headers).get("Accept") === "application/octet-stream"
+  ) {
+    return (await response.blob()) as T;
+  }
+
+  const data = await parseResponse(response);
 
   // ============================================================
   // HTTP ERROR
@@ -251,63 +200,31 @@ export async function request<T>(
   if (!response.ok) {
     let normalizedErrors: string[] = [];
 
-    if (
-      typeof data === "object" &&
-      data !== null
-    ) {
+    if (typeof data === "object" && data !== null) {
       if (Array.isArray(data.errors)) {
-        normalizedErrors =
-          data.errors.map(String);
-      } else if (
-        data.errors &&
-        typeof data.errors === "object"
-      ) {
-        normalizedErrors =
-          Object.entries(
-            data.errors
-          ).flatMap(
-            ([field, messages]) => {
-              if (
-                Array.isArray(messages)
-              ) {
-                return messages.map(
-                  (message) =>
-                    `${field}: ${String(
-                      message
-                    )}`
-                );
-              }
-
-              return [
-                `${field}: ${String(
-                  messages
-                )}`,
-              ];
+        normalizedErrors = data.errors.map(String);
+      } else if (data.errors && typeof data.errors === "object") {
+        normalizedErrors = Object.entries(data.errors).flatMap(
+          ([field, messages]) => {
+            if (Array.isArray(messages)) {
+              return messages.map((message) => `${field}: ${String(message)}`);
             }
-          );
+
+            return [`${field}: ${String(messages)}`];
+          },
+        );
       }
     }
 
-    let message =
-      `Request failed (${response.status})`;
+    let message = `Request failed (${response.status})`;
 
-    if (
-      typeof data === "object" &&
-      data !== null
-    ) {
-      message =
-        data.message ||
-        data.title ||
-        message;
-    } else if (
-      typeof data === "string" &&
-      data.trim()
-    ) {
+    if (typeof data === "object" && data !== null) {
+      message = data.message || data.title || message;
+    } else if (typeof data === "string" && data.trim()) {
       message = data;
     }
 
-    const error =
-      new Error(message);
+    const error = new Error(message);
 
     Object.assign(error, {
       status: response.status,
@@ -318,4 +235,11 @@ export async function request<T>(
   }
 
   return data as T;
+}
+
+/** Uses the shared JWT refresh flow while retaining binary response bodies. */
+export function requestBlob(endpoint: string): Promise<Blob> {
+  return request<Blob>(endpoint, {
+    headers: { Accept: "application/octet-stream" },
+  });
 }

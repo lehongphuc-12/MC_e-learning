@@ -1,3 +1,4 @@
+using MC_BE.Features.VoiceJourney.Entities;
 using System;
 using MC_BE.Core.Entities;
 using MC_BE.Core.Enums;
@@ -26,9 +27,11 @@ public class SmartMcDbContext : DbContext
     // Section 1: Auth & User
     // ============================================================
 
+    public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<Role> Roles { get; set; } = null!;
     public DbSet<User> Users { get; set; } = null!;
     public DbSet<UserProfile> UserProfiles { get; set; } = null!;
+    public DbSet<UserLearningPreferences> UserLearningPreferences { get; set; } = null!;
     public DbSet<PasswordResetToken> PasswordResetTokens { get; set; } = null!;
     public DbSet<RefreshToken> RefreshTokens { get; set; } = null!;
 
@@ -38,21 +41,34 @@ public class SmartMcDbContext : DbContext
 
     public DbSet<Category> Categories { get; set; } = null!;
     public DbSet<Course> Courses { get; set; } = null!;
+    public DbSet<LearnerFavoriteCourse> LearnerFavoriteCourses { get; set; } = null!;
     public DbSet<Module> Modules { get; set; } = null!;
     public DbSet<Lesson> Lessons { get; set; } = null!;
     public DbSet<CourseMaterial> CourseMaterials { get; set; } = null!;
     public DbSet<Enrollment> Enrollments { get; set; } = null!;
     public DbSet<LessonProgress> LessonProgresses { get; set; } = null!;
     public DbSet<Certificate> Certificates { get; set; } = null!;
+    public DbSet<CourseReview> CourseReviews { get; set; } = null!;
+    public DbSet<CourseReviewReport> CourseReviewReports { get; set; } = null!;
+    public DbSet<CourseReviewRestriction> CourseReviewRestrictions { get; set; } = null!;
+    public DbSet<CourseReviewModerationAction> CourseReviewModerationActions { get; set; } = null!;
     public DbSet<SpeakingSubmission> SpeakingSubmissions { get; set; } = null!;
     public DbSet<SpeakingScript> SpeakingScripts { get; set; } = null!;
     public DbSet<SpeakingScriptLevel> SpeakingScriptLevels { get; set; } = null!;
+    public DbSet<SpeakingRubricCriterion> SpeakingRubricCriteria { get; set; } = null!;
     public DbSet<BackgroundMusic> BackgroundMusics { get; set; } = null!;
     public DbSet<VideoUploadSession> VideoUploadSessions { get; set; } = null!;
     public DbSet<R2ObjectDeletionJob> R2ObjectDeletionJobs { get; set; } = null!;
     public DbSet<CourseDeletionRequest> CourseDeletionRequests { get; set; } = null!;
     public DbSet<CourseGiftPolicy> CourseGiftPolicies { get; set; } = null!;
     public DbSet<CourseAccessGrant> CourseAccessGrants { get; set; } = null!;
+    public DbSet<EnrollmentAccessExtensionRequest> EnrollmentAccessExtensionRequests { get; set; } = null!;
+    public DbSet<RemedialAssignment> RemedialAssignments { get; set; } = null!;
+    public DbSet<RemedialAssignmentRecipient> RemedialAssignmentRecipients { get; set; } = null!;
+    public DbSet<RemedialAssignmentEvent> RemedialAssignmentEvents { get; set; } = null!;
+    public DbSet<RemedialRetakeGrant> RemedialRetakeGrants { get; set; } = null!;
+    public DbSet<CourseSyllabusVersion> CourseSyllabusVersions { get; set; } = null!;
+    public DbSet<CourseSyllabusUploadSession> CourseSyllabusUploadSessions { get; set; } = null!;
 
     // ============================================================
     // Section 3: Payment
@@ -118,9 +134,256 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
 
     public DbSet<AIPronunciationFeedback> AIPronunciationFeedbacks
     { get; set; } = null!;
+    public DbSet<MC_BE.Features.VoiceJourney.Entities.VoiceAiEntitlement> VoiceAiEntitlements { get; set; } = null!;
+    public DbSet<VoiceProfile> VoiceProfiles { get; set; } = null!;
+    public DbSet<VoiceRoadmap> VoiceRoadmaps { get; set; } = null!;
+    public DbSet<VoiceRoadmapItem> VoiceRoadmapItems { get; set; } = null!;
+    public DbSet<VoiceSkill> VoiceSkills { get; set; } = null!;
+    public DbSet<VoiceLesson> VoiceLessons { get; set; } = null!;
+    public DbSet<VoiceExercise> VoiceExercises { get; set; } = null!;
+    public DbSet<VoiceExerciseAttempt> VoiceExerciseAttempts { get; set; } = null!;
+    public DbSet<VoiceDiagnosticAttempt> VoiceDiagnosticAttempts { get; set; } = null!;
+    public DbSet<VoiceSkillModelMapping> VoiceSkillModelMappings { get; set; } = null!;
+    public DbSet<VoiceRecommendationSnapshot> VoiceRecommendationSnapshots { get; set; } = null!;
+
+    // Create website notifications from persisted domain events (not browser state).
+    public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        var addedComments = ChangeTracker.Entries<ForumComment>().Where(e => e.State == EntityState.Added).Select(e => e.Entity).ToList();
+        var addedReactions = ChangeTracker.Entries<ForumReaction>().Where(e => e.State == EntityState.Added).Select(e => e.Entity).ToList();
+        var addedCertificates = ChangeTracker.Entries<Certificate>().Where(e => e.State == EntityState.Added).Select(e => e.Entity).ToList();
+        var addedRecipients = ChangeTracker.Entries<RemedialAssignmentRecipient>().Where(e => e.State == EntityState.Added).Select(e => e.Entity).ToList();
+        var submittedQuizzes = ChangeTracker.Entries<QuizAttempt>()
+            .Where(e => e.State == EntityState.Modified && e.Entity.SubmittedAt.HasValue &&
+                e.Property(x => x.SubmittedAt).IsModified && e.Property(x => x.SubmittedAt).OriginalValue == null)
+            .Select(e => e.Entity).ToList();
+        var completedRemedialLessons = ChangeTracker.Entries<RemedialAssignmentRecipient>()
+            .Where(e => e.State == EntityState.Modified && e.Entity.CompletedAt.HasValue &&
+                e.Property(x => x.CompletedAt).IsModified && e.Property(x => x.CompletedAt).OriginalValue == null)
+            .Select(e => e.Entity).ToList();
+        var addedSubmissions = ChangeTracker.Entries<SpeakingSubmission>().Where(e => e.State == EntityState.Added).Select(e => e.Entity).ToList();
+        var addedMessages = ChangeTracker.Entries<ChatMessage>().Where(e => e.State == EntityState.Added).Select(e => e.Entity).ToList();
+        var paid = ChangeTracker.Entries<Payment>().Where(e => e.State == EntityState.Modified && e.Property(x => x.Status).IsModified && string.Equals(e.Entity.Status, "SUCCESS", StringComparison.OrdinalIgnoreCase)).Select(e => e.Entity).ToList();
+        var submittedCourses = ChangeTracker.Entries<Course>().Where(e => e.State == EntityState.Modified && e.Property(x => x.SubmittedAt).IsModified && e.Entity.SubmittedAt != null).Select(e => e.Entity).ToList();
+        // Capture review decisions before EF accepts tracked changes.
+        // A rejected revision of an already-published course can leave Course.Status=PUBLISHED.
+        var approvedCourses = ChangeTracker.Entries<Course>()
+            .Where(e => e.State == EntityState.Modified && e.Property(x => x.Status).IsModified
+                && e.Entity.Status == CourseStatus.PUBLISHED
+                && e.Property(x => x.Status).OriginalValue == CourseStatus.PENDING_APPROVAL)
+            .Select(e => e.Entity).ToList();
+        var rejectedVersions = ChangeTracker.Entries<CourseSyllabusVersion>()
+            .Where(e => e.State == EntityState.Modified && e.Property(x => x.ReviewStatus).IsModified
+                && e.Entity.ReviewStatus == "REJECTED"
+                && e.Property(x => x.ReviewStatus).OriginalValue == "PENDING_APPROVAL")
+            .Select(e => e.Entity).ToList();
+        var result = await base.SaveChangesAsync(cancellationToken);
+        var notices = new List<Notification>();
+        foreach (var attempt in submittedQuizzes)
+        {
+            var quiz = await Quizzes.AsNoTracking().Where(q => q.QuizId == attempt.QuizId)
+                .Select(q => new { q.Title, q.CreatedById, InstructorId = q.CourseId != null
+                    ? (int?)q.Course!.InstructorId
+                    : q.LessonId != null ? (int?)q.Lesson!.Module!.Course.InstructorId
+                    : null })
+                .FirstOrDefaultAsync(cancellationToken);
+            if (quiz == null) continue;
+            var instructorId = quiz.InstructorId ?? quiz.CreatedById;
+            if (instructorId == attempt.UserId) continue;
+            var needsGrading = attempt.ResultStatus == QuizAttemptStatus.PENDING_GRADING;
+            // Automatically graded quizzes do not require instructor action.
+            if (!needsGrading) continue;
+            notices.Add(new Notification
+            {
+                UserId = instructorId, Type = "submission",
+                Title = "Quiz mới cần chấm",
+                Message = $"Bài Quiz '{quiz.Title}' có phần cần chấm thủ công.",
+                Url = $"/instructor/quizzes/{attempt.QuizId}/grading?attemptId={attempt.AttemptId}",
+                DedupKey = $"submission:quiz:{attempt.AttemptId}"
+            });
+        }
+        foreach (var submission in addedSubmissions)
+        {
+            int? instructor = submission.LessonId.HasValue
+                ? await Lessons.AsNoTracking().Where(l => l.LessonId == submission.LessonId)
+                    .Select(l => (int?)l.Module!.Course.InstructorId).FirstOrDefaultAsync(cancellationToken)
+                : null;
+            if (!instructor.HasValue && submission.ScriptId.HasValue)
+                instructor = await SpeakingScripts.AsNoTracking().Where(s => s.ScriptId == submission.ScriptId)
+                    .Select(s => (int?)s.Course.InstructorId).FirstOrDefaultAsync(cancellationToken);
+            if (instructor.HasValue && instructor.Value != submission.LearnerId)
+                notices.Add(new Notification { UserId = instructor.Value, Type = "submission",
+                    Title = "Speaking mới cần chấm", Message = "Học sinh vừa nộp bài Speaking.",
+                    Url = $"/instructor/speaking-submissions?submissionId={submission.SubmissionId}", DedupKey = $"submission:{submission.SubmissionId}" });
+        }
+        // Practice More LESSON is completed without a Quiz/Speaking submission.
+        // Quiz and Speaking Practice More are already notified via their submission events.
+        foreach (var recipient in completedRemedialLessons)
+        {
+            var assignment = await RemedialAssignments.AsNoTracking()
+                .Where(a => a.RemedialAssignmentId == recipient.RemedialAssignmentId)
+                .Select(a => new { a.AssignedById, a.CourseId, a.LessonId, a.QuizId, a.SpeakingScriptId, a.Title })
+                .FirstOrDefaultAsync(cancellationToken);
+            if (assignment == null || !assignment.LessonId.HasValue || assignment.QuizId.HasValue || assignment.SpeakingScriptId.HasValue || assignment.AssignedById == recipient.StudentId) continue;
+            notices.Add(new Notification { UserId = assignment.AssignedById, Type = "submission",
+                Title = "Học sinh hoàn thành Practice More", Message = $"Học sinh đã hoàn thành bài bổ sung '{assignment.Title}'.",
+                Url = $"/instructor/courses/{assignment.CourseId}/students?studentId={recipient.StudentId}", DedupKey = $"practice-more:completed:{recipient.RecipientId}" });
+        }
+        foreach (var c in addedComments)
+        {
+            if (c.PostId.HasValue)
+            {
+                var post = await ForumPosts.AsNoTracking().Where(x => x.PostId == c.PostId.Value).Select(x => new { x.AuthorId }).FirstOrDefaultAsync(cancellationToken);
+                var recipient = c.ParentCommentId.HasValue ? await ForumComments.AsNoTracking().Where(x => x.CommentId == c.ParentCommentId.Value).Select(x => (int?)x.AuthorId).FirstOrDefaultAsync(cancellationToken) : post?.AuthorId;
+                if (recipient.HasValue && recipient.Value != c.AuthorId) notices.Add(new Notification { UserId = recipient.Value, Type = "forum_comment", Title = "Bình luận mới", Message = "Có người bình luận hoặc trả lời bài viết của bạn.", Url = $"/forum/posts/{c.PostId.Value}", DedupKey = $"forum-comment:{c.CommentId}" });
+            }
+            else if (c.LessonId.HasValue)
+            {
+                var lessonInfo = await Lessons.AsNoTracking()
+                    .Where(l => l.LessonId == c.LessonId.Value)
+                    .Select(l => new
+                    {
+                        LessonTitle = l.Title,
+                        CourseId = l.CourseId,
+                        CourseTitle = l.Course.Title,
+                        InstructorId = l.Course.InstructorId
+                    })
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                if (lessonInfo == null) continue;
+
+                var targetUrl = $"/courses/{lessonInfo.CourseId}/learn?lessonId={c.LessonId.Value}";
+                var authorFullName = c.IsAnonymous
+                    ? null
+                    : await Users.AsNoTracking()
+                        .Where(u => u.UserId == c.AuthorId)
+                        .Select(u => u.FullName)
+                        .FirstOrDefaultAsync(cancellationToken);
+                var actorLabel = c.IsAnonymous
+                    ? "Một học viên ẩn danh"
+                    : $"Học viên {(string.IsNullOrWhiteSpace(authorFullName) ? "mới" : authorFullName)}";
+                var actionText = c.ParentCommentId.HasValue ? "trả lời thảo luận" : "bình luận";
+
+                if (lessonInfo.InstructorId != c.AuthorId)
+                {
+                    notices.Add(new Notification
+                    {
+                        UserId = lessonInfo.InstructorId,
+                        Type = "lesson_comment",
+                        Title = c.ParentCommentId.HasValue ? "Phản hồi mới trong bài học" : "Thảo luận mới trong bài học",
+                        Message = $"{actorLabel} đã {actionText} trong bài '{lessonInfo.LessonTitle}' — Khóa học '{lessonInfo.CourseTitle}'.",
+                        Url = targetUrl,
+                        DedupKey = $"lesson-comment:{c.CommentId}:instructor:{lessonInfo.InstructorId}"
+                    });
+                }
+
+                if (c.ParentCommentId.HasValue)
+                {
+                    var parentAuthorId = await ForumComments.AsNoTracking()
+                        .Where(x => x.CommentId == c.ParentCommentId.Value)
+                        .Select(x => (int?)x.AuthorId)
+                        .FirstOrDefaultAsync(cancellationToken);
+
+                    if (parentAuthorId.HasValue && parentAuthorId.Value != c.AuthorId && parentAuthorId.Value != lessonInfo.InstructorId)
+                    {
+                        var replyActor = c.IsAnonymous
+                            ? "Một học viên ẩn danh"
+                            : (c.AuthorId == lessonInfo.InstructorId ? "Giảng viên" : actorLabel);
+                        notices.Add(new Notification
+                        {
+                            UserId = parentAuthorId.Value,
+                            Type = "lesson_comment",
+                            Title = "Phản hồi thảo luận bài học",
+                            Message = $"{replyActor} đã trả lời bình luận của bạn trong bài '{lessonInfo.LessonTitle}' — Khóa học '{lessonInfo.CourseTitle}'.",
+                            Url = targetUrl,
+                            DedupKey = $"lesson-comment:{c.CommentId}:reply:{parentAuthorId.Value}"
+                        });
+                    }
+                }
+            }
+        }
+        foreach (var r in addedReactions)
+        {
+            int? recipient = r.CommentId.HasValue ? await ForumComments.AsNoTracking().Where(x => x.CommentId == r.CommentId).Select(x => (int?)x.AuthorId).FirstOrDefaultAsync(cancellationToken) : await ForumPosts.AsNoTracking().Where(x => x.PostId == r.PostId).Select(x => (int?)x.AuthorId).FirstOrDefaultAsync(cancellationToken);
+            var reactionPostId = r.PostId;
+            if (!reactionPostId.HasValue && r.CommentId.HasValue)
+                reactionPostId = await ForumComments.AsNoTracking().Where(x => x.CommentId == r.CommentId.Value).Select(x => (int?)x.PostId).FirstOrDefaultAsync(cancellationToken);
+            if (recipient.HasValue && recipient.Value != r.UserId && reactionPostId.HasValue)
+                notices.Add(new Notification { UserId = recipient.Value, Type = "forum_reaction", Title = "Tương tác mới", Message = "Có người bày tỏ cảm xúc với bài viết hoặc bình luận của bạn.", Url = $"/forum/posts/{reactionPostId.Value}", DedupKey = $"forum-reaction:{r.ReactionId}" });
+        }
+        foreach (var c in addedCertificates)
+        {
+            var learner = await Enrollments.AsNoTracking().Where(e => e.EnrollmentId == c.EnrollmentId).Select(e => (int?)e.LearnerId).FirstOrDefaultAsync(cancellationToken);
+            if (learner.HasValue) notices.Add(new Notification { UserId = learner.Value, Type = "certificate", Title = "Bạn đã nhận chứng chỉ", Message = "Chúc mừng! Chứng chỉ của bạn đã được cấp.", Url = $"/certificates/{c.CertificateId}", DedupKey = $"certificate:{c.CertificateId}" });
+        }
+        foreach (var r in addedRecipients) notices.Add(new Notification { UserId = r.StudentId, Type = "practice_more", Title = "Bài tập Practice More mới", Message = "Giáo viên vừa giao thêm bài tập cho bạn.", Url = "/my-learning", DedupKey = $"practice-more:{r.RecipientId}" });
+        foreach (var pay in paid) notices.Add(new Notification { UserId = pay.LearnerId, Type = "payment", Title = "Thanh toán thành công", Message = "Khoản thanh toán của bạn đã được xác nhận.", Url = "/profile?tab=payment-history", DedupKey = $"payment:{pay.PaymentId}:paid" });
+        foreach (var course in submittedCourses)
+        {
+            var admins = await Users.AsNoTracking().Where(u => u.Role.RoleName.ToUpper() == "ADMIN").Select(u => u.UserId).ToListAsync(cancellationToken);
+            foreach (var admin in admins) notices.Add(new Notification { UserId = admin, Type = "course_review", Title = "Khóa học chờ duyệt", Message = $"Khóa học {course.Title} vừa được gửi duyệt.", Url = $"/admin?tab=courses&courseId={course.CourseId}", DedupKey = $"course-review:{course.CourseId}:{course.SubmittedAt?.Ticks}:{admin}" });
+        }
+        foreach (var course in approvedCourses)
+        {
+            notices.Add(new Notification { UserId = course.InstructorId, Type = "course_review_result",
+                Title = "Khóa học đã được duyệt", Message = $"Khóa học '{course.Title}' đã được duyệt và xuất bản.",
+                Url = $"/instructor/courses/{course.CourseId}/edit",
+                DedupKey = $"course-review:approved:{course.CourseId}:{course.ApprovedSyllabusVersionId}" });
+        }
+        foreach (var version in rejectedVersions)
+        {
+            var owner = await Courses.AsNoTracking().Where(c => c.CourseId == version.CourseId)
+                .Select(c => new { c.InstructorId, c.Title }).FirstOrDefaultAsync(cancellationToken);
+            if (owner != null)
+                notices.Add(new Notification { UserId = owner.InstructorId, Type = "course_review_result",
+                    Title = "Khóa học bị từ chối duyệt",
+                    Message = $"Phiên bản khóa học '{owner.Title}' đã bị từ chối. Vui lòng xem lý do và chỉnh sửa.",
+                    Url = $"/instructor/courses/{version.CourseId}/edit",
+                    DedupKey = $"course-review:rejected:{version.CourseId}:{version.SyllabusVersionId}" });
+        }
+        // Each conversation has its own participant list; never notify the sender.
+        foreach (var msg in addedMessages)
+        {
+            var conversation = await Conversations.AsNoTracking().Where(c => c.ConversationId == msg.ConversationId).Select(c => new { c.User1Id, c.User2Id }).FirstOrDefaultAsync(cancellationToken);
+            if (conversation != null)
+            {
+                var recipient = conversation.User1Id == msg.SenderId ? conversation.User2Id : conversation.User1Id;
+                if (recipient != msg.SenderId) notices.Add(new Notification { UserId = recipient, Type = "chat", Title = "Tin nhắn mới", Message = "Bạn có tin nhắn mới trong cuộc trò chuyện.", Url = "/chat", DedupKey = $"chat:{msg.MessageId}:{recipient}" });
+            }
+        }
+        if (notices.Count > 0)
+        {
+            var keys = notices.Select(n => n.DedupKey!).ToList();
+            var existing = await Notifications.AsNoTracking().Where(n => n.DedupKey != null && keys.Contains(n.DedupKey)).Select(n => n.DedupKey).ToListAsync(cancellationToken);
+            Notifications.AddRange(notices.Where(n => !existing.Contains(n.DedupKey)));
+            await base.SaveChangesAsync(cancellationToken);
+        }
+        return result;
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        modelBuilder.Entity<MC_BE.Features.VoiceJourney.Entities.VoiceAiEntitlement>(entity => {
+            entity.ToTable("voice_ai_entitlements");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.SourcePaymentItemId).IsUnique().HasFilter("\"SourcePaymentItemId\" IS NOT NULL");
+            entity.HasIndex(x => x.SourceGrantId).IsUnique().HasFilter("\"SourceGrantId\" IS NOT NULL");
+            entity.HasIndex(x => new { x.LearnerId, x.Status, x.ExpiresAt });
+            entity.Property(x => x.SourceType).HasMaxLength(30).IsRequired();
+            entity.Property(x => x.Status).HasMaxLength(20).HasDefaultValue("ACTIVE");
+            entity.Property(x => x.RevocationReason).HasMaxLength(200);
+        });
+        modelBuilder.Entity<VoiceProfile>().HasIndex(x => x.LearnerId).IsUnique();
+        modelBuilder.Entity<VoiceRoadmap>().HasIndex(x => new { x.LearnerId, x.Version }).IsUnique();
+        modelBuilder.Entity<VoiceRoadmapItem>().HasIndex(x => new { x.RoadmapId, x.DayNumber }).IsUnique();
+        modelBuilder.Entity<VoiceRoadmapItem>().HasIndex(x => x.LessonId);
+        modelBuilder.Entity<VoiceSkill>().HasIndex(x => x.SkillCode).IsUnique();
+        modelBuilder.Entity<VoiceSkillModelMapping>().HasIndex(x => new { x.SkillId, x.ModelLabel }).IsUnique();
+        modelBuilder.Entity<VoiceExerciseAttempt>().HasIndex(x => new { x.LearnerId, x.ExerciseId, x.CreatedAt });
+        modelBuilder.Entity<VoiceDiagnosticAttempt>().HasIndex(x => new { x.LearnerId, x.CreatedAt });
+        modelBuilder.Entity<VoiceRecommendationSnapshot>().HasIndex(x => new { x.LearnerId, x.CreatedAt });
+
 
         // ============================================================
         // Section 1: Auth & User
@@ -165,6 +428,27 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
             entity.HasOne(d => d.User)
                 .WithOne(p => p.UserProfile)
                 .HasForeignKey<UserProfile>(d => d.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<UserLearningPreferences>(entity =>
+        {
+            entity.ToTable("UserLearningPreferences");
+
+            entity.HasKey(e => e.Id);
+
+            entity.HasIndex(e => e.UserId)
+                .IsUnique();
+
+            entity.Property(e => e.IsCompleted)
+                .HasDefaultValue(false);
+
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasOne(d => d.User)
+                .WithOne(p => p.LearningPreferences)
+                .HasForeignKey<UserLearningPreferences>(d => d.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
@@ -250,6 +534,81 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
                 .WithMany(p => p.InstructedCourses)
                 .HasForeignKey(d => d.InstructorId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(d => d.SubmittedSyllabusVersion)
+                .WithMany()
+                .HasForeignKey(d => d.SubmittedSyllabusVersionId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(d => d.ApprovedSyllabusVersion)
+                .WithMany()
+                .HasForeignKey(d => d.ApprovedSyllabusVersionId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<LearnerFavoriteCourse>(entity =>
+        {
+            entity.ToTable("learner_favorite_courses");
+            entity.HasKey(favorite => new { favorite.LearnerId, favorite.CourseId });
+            entity.Property(favorite => favorite.LearnerId).HasColumnName("LearnerID");
+            entity.Property(favorite => favorite.CourseId).HasColumnName("CourseID");
+            entity.Property(favorite => favorite.CreatedAt).HasColumnName("CreatedAt").HasDefaultValueSql("now()");
+            entity.HasIndex(favorite => new { favorite.LearnerId, favorite.CreatedAt });
+            entity.HasOne(favorite => favorite.Learner)
+                .WithMany(user => user.FavoriteCourses)
+                .HasForeignKey(favorite => favorite.LearnerId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(favorite => favorite.Course)
+                .WithMany()
+                .HasForeignKey(favorite => favorite.CourseId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<CourseSyllabusVersion>(entity =>
+        {
+            entity.ToTable("course_syllabus_versions");
+            entity.HasKey(version => version.SyllabusVersionId);
+            entity.HasIndex(version => new { version.CourseId, version.VersionNumber }).IsUnique();
+            entity.HasIndex(version => new { version.CourseId, version.IsCurrent })
+                .IsUnique()
+                .HasFilter("\"IsCurrent\" = TRUE");
+            entity.HasIndex(version => new { version.CourseId, version.ReviewStatus });
+            // Multiple immutable revisions may deliberately reference the same uploaded file
+            // when an instructor keeps an already-approved syllabus without uploading again.
+            entity.HasIndex(version => version.ObjectKey);
+            entity.Property(version => version.ReviewStatus).HasDefaultValue("DRAFT");
+            entity.Property(version => version.IsCurrent).HasDefaultValue(true);
+            entity.Property(version => version.UploadedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasOne(version => version.Course)
+                .WithMany(course => course.SyllabusVersions)
+                .HasForeignKey(version => version.CourseId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(version => version.UploadedBy)
+                .WithMany()
+                .HasForeignKey(version => version.UploadedById)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(version => version.ReviewedBy)
+                .WithMany()
+                .HasForeignKey(version => version.ReviewedById)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<CourseSyllabusUploadSession>(entity =>
+        {
+            entity.ToTable("course_syllabus_upload_sessions");
+            entity.HasKey(session => session.SessionId);
+            entity.HasIndex(session => new { session.CourseId, session.Status, session.ExpiresAt });
+            entity.HasIndex(session => session.ObjectKey).IsUnique();
+            entity.Property(session => session.Status).HasDefaultValue("PENDING");
+            entity.Property(session => session.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasOne(session => session.Course)
+                .WithMany()
+                .HasForeignKey(session => session.CourseId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(session => session.Instructor)
+                .WithMany()
+                .HasForeignKey(session => session.InstructorId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<CourseGiftPolicy>(entity =>
@@ -279,6 +638,79 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
             entity.HasOne(e => e.Course).WithMany().HasForeignKey(e => e.CourseId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne(e => e.SourcePaymentItem).WithMany().HasForeignKey(e => e.SourcePaymentItemId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(e => e.SourceEnrollment).WithMany().HasForeignKey(e => e.SourceEnrollmentId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<EnrollmentAccessExtensionRequest>(entity =>
+        {
+            entity.ToTable("enrollment_access_extension_requests");
+            entity.HasKey(x => x.RequestId);
+            entity.HasIndex(x => new { x.Status, x.RequestedAt });
+            entity.HasIndex(x => new { x.EnrollmentId, x.Status });
+            entity.HasIndex(x => x.EnrollmentId).IsUnique().HasFilter("\"Status\" = 'PENDING'");
+            entity.Property(x => x.Status).HasMaxLength(20).HasDefaultValue("PENDING").IsRequired();
+            entity.Property(x => x.Reason).HasMaxLength(1000).IsRequired();
+            entity.Property(x => x.DecisionNote).HasMaxLength(1000);
+            entity.HasOne(x => x.Enrollment).WithMany().HasForeignKey(x => x.EnrollmentId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Learner).WithMany().HasForeignKey(x => x.LearnerId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Course).WithMany().HasForeignKey(x => x.CourseId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.CourseAccessGrant).WithMany().HasForeignKey(x => x.CourseAccessGrantId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.ReviewedByAdmin).WithMany().HasForeignKey(x => x.ReviewedByAdminId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<RemedialAssignment>(entity =>
+        {
+            entity.ToTable("remedial_assignments", table => table.HasCheckConstraint(
+                "CK_remedial_assignments_one_content",
+                "((\"LessonID\" IS NOT NULL)::int + (\"QuizID\" IS NOT NULL)::int + (\"SpeakingScriptID\" IS NOT NULL)::int) = 1"));
+            entity.HasIndex(x => new { x.CourseId, x.IsActive, x.CreatedAt });
+            entity.HasIndex(x => new { x.CourseId, x.LessonId }).HasFilter("\"LessonID\" IS NOT NULL AND \"IsActive\" = TRUE");
+            entity.HasIndex(x => new { x.CourseId, x.QuizId }).HasFilter("\"QuizID\" IS NOT NULL AND \"IsActive\" = TRUE");
+            entity.HasIndex(x => new { x.CourseId, x.SpeakingScriptId }).HasFilter("\"SpeakingScriptID\" IS NOT NULL AND \"IsActive\" = TRUE");
+            entity.Property(x => x.RetakeAttemptsGranted).HasDefaultValue(1);
+            entity.HasOne(x => x.Course).WithMany().HasForeignKey(x => x.CourseId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.AssignedBy).WithMany().HasForeignKey(x => x.AssignedById).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Lesson).WithMany().HasForeignKey(x => x.LessonId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.Quiz).WithMany().HasForeignKey(x => x.QuizId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.SpeakingScript).WithMany().HasForeignKey(x => x.SpeakingScriptId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.TargetQuiz).WithMany().HasForeignKey(x => x.TargetQuizId).OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.TargetSpeakingScript).WithMany().HasForeignKey(x => x.TargetSpeakingScriptId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<RemedialAssignmentRecipient>(entity =>
+        {
+            entity.ToTable("remedial_assignment_recipients");
+            entity.HasIndex(x => new { x.RemedialAssignmentId, x.StudentId }).IsUnique();
+            entity.HasIndex(x => new { x.StudentId, x.Status, x.DueAt });
+            entity.Property(x => x.Status).HasDefaultValue("ASSIGNED");
+            entity.Property(x => x.AssignedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(x => x.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasOne(x => x.Assignment).WithMany(x => x.Recipients).HasForeignKey(x => x.RemedialAssignmentId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.Student).WithMany().HasForeignKey(x => x.StudentId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<RemedialAssignmentEvent>(entity =>
+        {
+            entity.ToTable("remedial_assignment_events");
+            entity.HasIndex(x => new { x.RemedialAssignmentId, x.CreatedAt });
+            entity.Property(x => x.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasOne(x => x.Assignment).WithMany(x => x.Events).HasForeignKey(x => x.RemedialAssignmentId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<RemedialRetakeGrant>(entity =>
+        {
+            entity.ToTable("remedial_retake_grants", table => table.HasCheckConstraint(
+                "CK_remedial_retake_grants_one_target",
+                "((\"TargetQuizID\" IS NOT NULL)::int + (\"TargetSpeakingScriptID\" IS NOT NULL)::int) = 1"));
+            entity.HasIndex(x => new { x.LearnerId, x.TargetQuizId, x.UsedAt });
+            entity.HasIndex(x => new { x.LearnerId, x.TargetSpeakingScriptId, x.UsedAt });
+            entity.HasIndex(x => new { x.LearnerId, x.TargetQuizId, x.ExpiresAt, x.UsedAt });
+            entity.HasIndex(x => new { x.LearnerId, x.TargetSpeakingScriptId, x.ExpiresAt, x.UsedAt });
+            entity.Property(x => x.AttemptsGranted).HasDefaultValue(1);
+            entity.Property(x => x.AttemptsRemaining).HasDefaultValue(1).IsConcurrencyToken();
+            entity.HasOne(x => x.Recipient).WithMany().HasForeignKey(x => x.RecipientId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.Learner).WithMany().HasForeignKey(x => x.LearnerId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.TargetQuiz).WithMany().HasForeignKey(x => x.TargetQuizId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.TargetSpeakingScript).WithMany().HasForeignKey(x => x.TargetSpeakingScriptId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<Module>(entity =>
@@ -315,6 +747,7 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
 
             entity.Property(e => e.IsPreview)
                 .HasDefaultValue(false);
+            entity.Property(e => e.IsRemedial).HasDefaultValue(false);
 
             entity.Property(e => e.Status)
                 .HasConversion<string>()
@@ -504,6 +937,89 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
+        modelBuilder.Entity<CourseReview>(entity =>
+        {
+            entity.ToTable("course_reviews", table =>
+            {
+                table.HasCheckConstraint("CK_course_reviews_Rating", "\"Rating\" >= 1 AND \"Rating\" <= 5");
+                table.HasCheckConstraint("CK_course_reviews_Status", "\"Status\" IN ('PUBLISHED', 'HIDDEN_BY_ADMIN', 'REMOVED_BY_ADMIN', 'DELETED_BY_AUTHOR')");
+            });
+            entity.HasKey(review => review.ReviewId);
+            entity.HasIndex(review => new { review.CourseId, review.LearnerId }).IsUnique();
+            entity.HasIndex(review => new { review.CourseId, review.Status, review.CreatedAt });
+            entity.HasIndex(review => review.CertificateId).IsUnique();
+            entity.Property(review => review.Status).HasDefaultValue("PUBLISHED");
+            entity.Property(review => review.IsAnonymous).HasDefaultValue(true);
+            entity.Property(review => review.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(review => review.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasOne(review => review.Course)
+                .WithMany()
+                .HasForeignKey(review => review.CourseId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(review => review.Learner)
+                .WithMany()
+                .HasForeignKey(review => review.LearnerId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(review => review.Certificate)
+                .WithMany()
+                .HasForeignKey(review => review.CertificateId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(review => review.ModeratedByAdmin)
+                .WithMany()
+                .HasForeignKey(review => review.ModeratedByAdminId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<CourseReviewReport>(entity =>
+        {
+            entity.ToTable("course_review_reports", table =>
+            {
+                table.HasCheckConstraint("CK_course_review_reports_Category", "\"Category\" IN ('IRRELEVANT', 'ABUSIVE_LANGUAGE', 'SPAM_OR_FAKE', 'PERSONAL_INFO', 'OTHER')");
+                table.HasCheckConstraint("CK_course_review_reports_Status", "\"Status\" IN ('PENDING', 'UNDER_REVIEW', 'DISMISSED', 'ACTION_TAKEN')");
+            });
+            entity.HasKey(report => report.ReportId);
+            entity.HasIndex(report => new { report.ReviewId, report.ReporterLearnerId }).IsUnique();
+            entity.HasIndex(report => new { report.Status, report.CreatedAt });
+            entity.HasIndex(report => new { report.ReviewId, report.Status });
+            entity.Property(report => report.Status).HasDefaultValue("PENDING");
+            entity.Property(report => report.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasOne(report => report.Review).WithMany().HasForeignKey(report => report.ReviewId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(report => report.ReporterLearner).WithMany().HasForeignKey(report => report.ReporterLearnerId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(report => report.ReviewedByAdmin).WithMany().HasForeignKey(report => report.ReviewedByAdminId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<CourseReviewRestriction>(entity =>
+        {
+            entity.ToTable("course_review_restrictions");
+            entity.HasKey(restriction => restriction.RestrictionId);
+            entity.HasIndex(restriction => new { restriction.CourseId, restriction.LearnerId }).IsUnique();
+            entity.HasIndex(restriction => new { restriction.CourseId, restriction.IsActive });
+            entity.Property(restriction => restriction.IsActive).HasDefaultValue(true);
+            entity.Property(restriction => restriction.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasOne(restriction => restriction.Course).WithMany().HasForeignKey(restriction => restriction.CourseId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(restriction => restriction.Learner).WithMany().HasForeignKey(restriction => restriction.LearnerId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(restriction => restriction.CreatedByAdmin).WithMany().HasForeignKey(restriction => restriction.CreatedByAdminId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(restriction => restriction.LiftedByAdmin).WithMany().HasForeignKey(restriction => restriction.LiftedByAdminId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(restriction => restriction.TriggerReview).WithMany().HasForeignKey(restriction => restriction.TriggerReviewId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<CourseReviewModerationAction>(entity =>
+        {
+            entity.ToTable("course_review_moderation_actions", table =>
+                table.HasCheckConstraint("CK_course_review_moderation_actions_ActionType", "\"ActionType\" IN ('REPORT_DISMISSED', 'REPORT_REVIEWING', 'REVIEW_HIDDEN', 'REVIEW_RESTORED', 'REVIEW_REMOVED', 'LEARNER_BLOCKED', 'LEARNER_UNBLOCKED')"));
+            entity.HasKey(action => action.ActionId);
+            entity.HasIndex(action => new { action.CourseId, action.CreatedAt });
+            entity.HasIndex(action => action.ReportId);
+            entity.HasIndex(action => action.ReviewId);
+            entity.Property(action => action.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasOne(action => action.Course).WithMany().HasForeignKey(action => action.CourseId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(action => action.Review).WithMany().HasForeignKey(action => action.ReviewId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(action => action.Report).WithMany().HasForeignKey(action => action.ReportId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(action => action.Admin).WithMany().HasForeignKey(action => action.AdminId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(action => action.TargetLearner).WithMany().HasForeignKey(action => action.TargetLearnerId).OnDelete(DeleteBehavior.Restrict);
+        });
+
         modelBuilder.Entity<SpeakingScript>(entity =>
         {
             entity.ToTable("speaking_scripts");
@@ -511,7 +1027,10 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
 
             entity.HasIndex(e => e.CourseId);
             entity.HasIndex(e => e.ModuleId);
-            entity.HasIndex(e => e.LessonId).IsUnique().HasFilter("\"LessonID\" IS NOT NULL");
+            // Keep at most one official speaking assignment per lesson, but allow
+            // multiple remedial assignments for the same lesson.
+            entity.HasIndex(e => e.LessonId).IsUnique()
+                .HasFilter("\"LessonID\" IS NOT NULL AND \"IsRemedial\" = FALSE");
 
             entity.Property(e => e.Scope)
                 .HasConversion<string>()
@@ -524,6 +1043,9 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
             entity.Property(e => e.Status)
                 .HasConversion<string>()
                 .HasDefaultValue(SpeakingScriptStatus.DRAFT);
+            entity.Property(e => e.ScriptType)
+                .HasDefaultValue(SpeakingScriptType.Scripted);
+            entity.Property(e => e.IsRemedial).HasDefaultValue(false);
 
             entity.Property(e => e.UpdatedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP");
@@ -548,6 +1070,12 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
                 .WithMany()
                 .HasForeignKey(d => d.CreatedBy)
                 .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(d => d.BackgroundMusic)
+                .WithMany()
+                .HasForeignKey(d => d.BackgroundMusicId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<SpeakingScriptLevel>(entity =>
@@ -564,6 +1092,34 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
 
             entity.HasOne(d => d.Script)
                 .WithMany(s => s.Levels)
+                .HasForeignKey(d => d.ScriptId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<SpeakingRubricCriterion>(entity =>
+        {
+            entity.ToTable("speaking_rubric_criteria");
+            entity.HasKey(e => e.CriterionId);
+            entity.HasIndex(e => e.ScriptId);
+
+            entity.Property(e => e.WeightPercentage)
+                .HasPrecision(5, 2)
+                .HasDefaultValue(0.00m);
+
+            entity.Property(e => e.IsMandatory)
+                .HasDefaultValue(false);
+
+            entity.Property(e => e.OrderIndex)
+                .HasDefaultValue(0);
+
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.Property(e => e.UpdatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasOne(d => d.Script)
+                .WithMany(s => s.RubricCriteria)
                 .HasForeignKey(d => d.ScriptId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
@@ -1044,6 +1600,7 @@ modelBuilder.Entity<Quiz>(entity =>
 
     entity.Property(e => e.MaxAttempts)
         .HasDefaultValue(1);
+    entity.Property(e => e.IsRemedial).HasDefaultValue(false);
 
     entity.Property(e => e.Status)
         .HasConversion<string>()
@@ -1432,6 +1989,7 @@ modelBuilder.Entity<QuizAnswerScenarioPath>(entity =>
         {
             entity.ToTable("forum_comments");
             entity.HasIndex(e => e.PostId);
+            entity.HasIndex(e => e.LessonId);
             entity.HasIndex(e => e.AuthorId);
             entity.HasIndex(e => e.ParentCommentId);
             entity.HasIndex(e => e.Status);
@@ -1446,6 +2004,13 @@ modelBuilder.Entity<QuizAnswerScenarioPath>(entity =>
             entity.HasOne(d => d.Post)
                 .WithMany(p => p.Comments)
                 .HasForeignKey(d => d.PostId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(d => d.Lesson)
+                .WithMany(l => l.Comments)
+                .HasForeignKey(d => d.LessonId)
+                .IsRequired(false)
                 .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasOne(d => d.Author)

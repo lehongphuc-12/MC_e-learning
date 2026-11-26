@@ -2,8 +2,10 @@ using MC_BE.Core.Entities;
 using MC_BE.Core.Enums;
 using MC_BE.Features.Courses.DTOs;
 using MC_BE.Features.Courses.Services.Interfaces;
+using MC_BE.Features.VoiceJourney.Entities;
 using MC_BE.Shared.Data;
 using Microsoft.EntityFrameworkCore;
+using EnrollmentEntity = MC_BE.Core.Entities.Enrollment;
 
 namespace MC_BE.Features.Courses.Services;
 
@@ -111,6 +113,22 @@ public sealed class CourseGiftAccessService : ICourseGiftAccessService
                     GrantedAt = enrollment.EnrolledAt ?? enrollment.CreatedAt,
                     ExpiresAt = enrollment.ExpiresAt
                 });
+                var legacyEntitlementExists = await _db.VoiceAiEntitlements.AnyAsync(x =>
+                    x.SourceEnrollmentId == enrollment.EnrollmentId && x.SourceType == "MC_GIFT" &&
+                    x.SourcePaymentItemId == null, cancellationToken);
+                if (!legacyEntitlementExists)
+                {
+                    _db.VoiceAiEntitlements.Add(new VoiceAiEntitlement
+                    {
+                        LearnerId = enrollment.LearnerId,
+                        SourceType = "MC_GIFT",
+                        SourceCourseId = enrollment.CourseId,
+                        SourceEnrollmentId = enrollment.EnrollmentId,
+                        GrantedAt = enrollment.EnrolledAt ?? enrollment.CreatedAt,
+                        ExpiresAt = enrollment.ExpiresAt,
+                        Status = "ACTIVE"
+                    });
+                }
             }
         }
 
@@ -159,6 +177,42 @@ public sealed class CourseGiftAccessService : ICourseGiftAccessService
                 GrantedAt = grantedAt,
                 ExpiresAt = sourceEnrollment.ExpiresAt
             });
+
+            if (!isDirectGiftCoursePurchase)
+            {
+                var giftedCourseTitle = await _db.Courses.AsNoTracking()
+                    .Where(c => c.CourseId == targetCourseId)
+                    .Select(c => c.Title)
+                    .FirstOrDefaultAsync(cancellationToken) ?? "khóa học AI";
+                _db.Notifications.Add(new Notification
+                {
+                    UserId = sourceEnrollment.LearnerId,
+                    Type = "course_gift_received",
+                    Title = "Bạn vừa nhận được khóa học tặng kèm",
+                    Message = $"Khi mua khóa học, bạn được tặng '{giftedCourseTitle}'. Quyền truy cập quà tặng có cùng hạn với khóa học đã mua.",
+                    Url = "/my-learning",
+                    DedupKey = $"course-gift:payment-item:{item.PaymentItemId}"
+                });
+            }
+
+            // A separate AI entitlement is issued for every paid item. It is independent
+            // from the course Enrollment and expires with its own source Enrollment.
+            var entitlementExists = await _db.VoiceAiEntitlements.AnyAsync(x =>
+                x.SourcePaymentItemId == item.PaymentItemId, cancellationToken);
+            if (!entitlementExists)
+            {
+                _db.VoiceAiEntitlements.Add(new VoiceAiEntitlement
+                {
+                    LearnerId = sourceEnrollment.LearnerId,
+                    SourceType = isDirectGiftCoursePurchase ? "AI_PURCHASE" : "MC_GIFT",
+                    SourceCourseId = isDirectGiftCoursePurchase ? item.CourseId : sourceEnrollment.CourseId,
+                    SourceEnrollmentId = sourceEnrollment.EnrollmentId,
+                    SourcePaymentItemId = item.PaymentItemId,
+                    GrantedAt = grantedAt,
+                    ExpiresAt = sourceEnrollment.ExpiresAt,
+                    Status = "ACTIVE"
+                });
+            }
 
             if (!isDirectGiftCoursePurchase)
                 await EnsureLearningEnrollmentAsync(sourceEnrollment.LearnerId, targetCourseId, sourceEnrollment.ExpiresAt, grantedAt, cancellationToken);
@@ -230,7 +284,7 @@ public sealed class CourseGiftAccessService : ICourseGiftAccessService
             .FirstOrDefaultAsync(cancellationToken);
         if (enrollment is null)
         {
-            _db.Enrollments.Add(new Enrollment
+            _db.Enrollments.Add(new EnrollmentEntity
             {
                 LearnerId = learnerId, CourseId = courseId, Status = Active,
                 EnrolledAt = now, ExpiresAt = expiresAt, CreatedAt = now, UpdatedAt = now

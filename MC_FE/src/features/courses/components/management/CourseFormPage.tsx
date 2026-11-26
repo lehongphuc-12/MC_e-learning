@@ -7,11 +7,13 @@
 // =============================================================================
 
 import React, { useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { AlertCircle, ArrowLeft, BookPlus, Edit3, X, ClipboardCheck } from 'lucide-react';
 import { CourseForm, type CourseFormData } from './CourseForm';
 import { useCourseDetail, useCategoriesQuery } from '../../hooks/useInstructorCourses';
 import { useCreateCourse, useUpdateCourse } from '../../hooks/useCourseMutations';
+import { useSubmitForApproval } from '../../hooks/useCourseMutations';
+import { courseSyllabusApi } from '../../api/courseSyllabusApi';
 
 import type { CourseStatus } from '../../types/courseTypes';
 
@@ -24,6 +26,7 @@ interface ApiError {
 
 export const CourseFormPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const { id } = useParams<{ id?: string }>();
   const courseId = id ? Number(id) : 0;
@@ -44,8 +47,9 @@ export const CourseFormPage: React.FC = () => {
     useCategoriesQuery();
 
   // ── Mutations ──────────────────────────────────────────────────────────────
-  const { mutate: createCourse, isPending: isCreating } = useCreateCourse();
-  const { mutate: updateCourse, isPending: isUpdating } = useUpdateCourse();
+  const { mutateAsync: createCourse, isPending: isCreating } = useCreateCourse();
+  const { mutateAsync: updateCourse, isPending: isUpdating } = useUpdateCourse();
+  const { mutateAsync: submitForApproval } = useSubmitForApproval();
 
   // ── Error handler — extracts message from ApiError and sets state ──────────
   const handleApiError = (err: unknown) => {
@@ -65,8 +69,15 @@ export const CourseFormPage: React.FC = () => {
     setApprovalDialogMessage(apiErr?.message ?? 'Không thể gửi khóa học duyệt. Vui lòng kiểm tra lại thông tin và video của từng bài học.');
   };
 
+  React.useEffect(() => {
+    const state = location.state as { syllabusUploadError?: string } | null;
+    if (!state?.syllabusUploadError) return;
+    setSubmitError(`Khóa học nháp đã được tạo nhưng chưa tải được syllabus: ${state.syllabusUploadError}. Chọn lại file rồi bấm Lưu thay đổi.`);
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.pathname, location.state, navigate]);
+
   // ── Submit handler ─────────────────────────────────────────────────────────
-  const handleSubmit = async (formData: CourseFormData & { submitForApproval?: boolean; submissionNote?: string }) => {
+  const handleSubmit = async (formData: CourseFormData & { submitForApproval?: boolean; submissionNote?: string; syllabusFile?: File; keepApprovedSyllabus?: boolean }) => {
     if (submitLockRef.current || isCreating || isUpdating) return;
     // Clear previous error on each new attempt
     setSubmitError(null);
@@ -84,37 +95,74 @@ export const CourseFormPage: React.FC = () => {
     const dto = {
       title: formData.title,
       description: formData.description,
+      previewTargetAudience: formData.previewTargetAudience?.trim() || '',
+      previewPrerequisites: formData.previewPrerequisites?.trim() || '',
+      previewLearningOutcomes: formData.previewLearningOutcomes?.trim() || '',
+      previewAssessmentOverview: formData.previewAssessmentOverview?.trim() || '',
       categoryId: formData.categoryId,
       thumbnailUrl: formData.thumbnailUrl || undefined,
       price: formData.price,
       isFree: formData.isFree,
       level: formData.level || undefined,
-      status: (formData.submitForApproval ? 'PENDING_APPROVAL' : 'DRAFT') as CourseStatus,
+      status: 'DRAFT' as CourseStatus,
       submissionNote: formData.submissionNote,
       submitForApproval: formData.submitForApproval || false,
+      keepApprovedSyllabus: formData.keepApprovedSyllabus || false,
     };
 
-    if (isEditMode) {
-      updateCourse(
-        { courseId, dto },
-        {
-          onSuccess: () => {
-            submitLockRef.current = false;
-            setIsSubmittingCourse(false);
-            navigate('/instructor/courses');
-          },
-          onError: formData.submitForApproval ? handleApprovalError : handleApiError,
+    let createdDraftId: number | null = null;
+    try {
+      let savedCourseId = courseId;
+      let submittedPublishedCourse = false;
+      if (isEditMode) {
+        // Keep the metadata save and the syllabus submission separate so an upload
+        // must finish before the exact new revision can be submitted for review.
+        const { status: _ignoredStatus, submitForApproval: _ignoredSubmit, ...updateDto } = dto;
+        if (formData.submitForApproval && existingCourse?.status === 'PUBLISHED') {
+          if (formData.syllabusFile)
+            await courseSyllabusApi.upload(courseId, formData.syllabusFile);
+          const submitted = await updateCourse({ courseId, dto: {
+            ...updateDto,
+            status: 'PENDING_APPROVAL' as CourseStatus,
+            submitForApproval: true,
+          } });
+          savedCourseId = submitted.courseId;
+          submittedPublishedCourse = true;
+        } else {
+          const updated = await updateCourse({ courseId, dto: updateDto });
+          savedCourseId = updated.courseId;
         }
-      );
-    } else {
-      createCourse(dto, {
-        onSuccess: () => {
-          submitLockRef.current = false;
-          setIsSubmittingCourse(false);
-          navigate('/instructor/courses');
-        },
-        onError: handleApiError,
-      });
+      } else {
+        const created = await createCourse({ ...dto, submitForApproval: false });
+        savedCourseId = created.courseId;
+        createdDraftId = created.courseId;
+      }
+
+      if (formData.syllabusFile && !submittedPublishedCourse)
+        await courseSyllabusApi.upload(savedCourseId, formData.syllabusFile);
+
+      if (formData.submitForApproval && !submittedPublishedCourse) {
+        await submitForApproval({
+          courseId: savedCourseId,
+          note: formData.submissionNote,
+          keepApprovedSyllabus: formData.keepApprovedSyllabus,
+        });
+        submitLockRef.current = false;
+        setIsSubmittingCourse(false);
+        navigate('/instructor/courses');
+        return;
+      }
+
+      submitLockRef.current = false;
+      setIsSubmittingCourse(false);
+      navigate('/instructor/courses');
+    } catch (err) {
+      if (createdDraftId !== null) {
+        const message = err instanceof Error ? err.message : 'Không tải được syllabus.';
+        navigate(`/instructor/courses/${createdDraftId}/edit`, { state: { syllabusUploadError: message } });
+        return;
+      }
+      formData.submitForApproval ? handleApprovalError(err) : handleApiError(err);
     }
   };
 
@@ -131,7 +179,7 @@ export const CourseFormPage: React.FC = () => {
     <div className="min-h-screen bg-slate-50/60 pb-16 font-sans">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
         {/* ── Page header ── */}
-        <div className="mb-8 flex items-center gap-4">
+        <div className="mb-8 flex items-start gap-3 sm:items-center sm:gap-4">
           <button
             id="course-form-back-btn"
             onClick={() => navigate('/instructor/courses')}
@@ -141,7 +189,7 @@ export const CourseFormPage: React.FC = () => {
           >
             <ArrowLeft className="h-5 w-5" />
           </button>
-          <div className="flex items-center gap-3.5">
+          <div className="flex min-w-0 items-center gap-3 sm:gap-3.5">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/20">
               {isEditMode ? (
                 <Edit3 className="h-6 w-6" />
@@ -149,11 +197,11 @@ export const CourseFormPage: React.FC = () => {
                 <BookPlus className="h-6 w-6" />
               )}
             </div>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+            <div className="min-w-0">
+              <h1 className="break-words text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
                 {isEditMode ? 'Chỉnh sửa khóa học' : 'Tạo khóa học mới'}
               </h1>
-              <p className="text-sm text-slate-500 mt-0.5">
+              <p className="mt-0.5 break-words text-xs text-slate-500 sm:text-sm">
                 {isEditMode
                   ? `Đang chỉnh sửa: ${existingCourse?.title}`
                   : 'Điền đầy đủ thông tin để tạo khóa học chất lượng cho học viên'}

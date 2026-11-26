@@ -17,17 +17,20 @@ public class LessonsController : ControllerBase
     private readonly ILearningAccessService _access;
     private readonly ICourseLearningAccessService _courseAccess;
     private readonly MC_BE.Shared.Data.SmartMcDbContext _db;
+    private readonly IRemedialAssignmentService _remedialAssignments;
 
     public LessonsController(
         ILessonService lessonService,
         ILearningAccessService access,
         ICourseLearningAccessService courseAccess,
-        MC_BE.Shared.Data.SmartMcDbContext db)
+        MC_BE.Shared.Data.SmartMcDbContext db,
+        IRemedialAssignmentService remedialAssignments)
     {
         _lessonService = lessonService;
         _access = access;
         _courseAccess = courseAccess;
         _db = db;
+        _remedialAssignments = remedialAssignments;
     }
 
     private int? GetCurrentUserId()
@@ -70,12 +73,24 @@ public class LessonsController : ControllerBase
             return Forbid();
 
         var lessons = await _lessonService.GetLessonsByCourseIdAsync(courseId);
+        var assignedRemedialIds = new HashSet<int>();
+        foreach (var lesson in lessons.Where(x => x.IsRemedial))
+            if (await _remedialAssignments.CanAccessContentAsync(userId.Value, "LESSON", lesson.LessonId))
+                assignedRemedialIds.Add(lesson.LessonId);
+        lessons = lessons.Where(x => !x.IsRemedial || assignedRemedialIds.Contains(x.LessonId)).ToList();
 
         // Kiểm tra quyền truy cập từng bài học theo tiến độ học tập.
         var locks = await _access.GetLessonLocksAsync(userId.Value, courseId);
 
         foreach (var lesson in lessons)
         {
+            if (lesson.IsRemedial)
+            {
+                lesson.IsLocked = false;
+                lesson.LockReason = null;
+                continue;
+            }
+
             lesson.IsLocked =
                 !locks.TryGetValue(lesson.LessonId, out var reason) || reason != null;
 
@@ -237,8 +252,8 @@ public class LessonsController : ControllerBase
     // POST /api/lessons/{id}/upload-video  — legacy multipart/form-data upload
     [HttpPost("lessons/{id:int}/upload-video")]
     [Authorize(Roles = "Instructor")]
-    [RequestSizeLimit(500 * 1024 * 1024)] // 500 MB
-    [RequestFormLimits(MultipartBodyLengthLimit = 500 * 1024 * 1024)]
+    [RequestSizeLimit(720L * 1024 * 1024)] // Transport allowance includes multipart overhead; file limit is 700 MB.
+    [RequestFormLimits(MultipartBodyLengthLimit = 720L * 1024 * 1024)]
     public async Task<ActionResult<ApiResponse<LessonDto>>> UploadVideo(int id, IFormFile file)
     {
         if (file == null || file.Length == 0)
@@ -292,6 +307,20 @@ public class LessonsController : ControllerBase
             return NotFound(ApiResponse<LessonPlaybackDto>.FailureResponse("Lesson or playback access not found."));
 
         return Ok(ApiResponse<LessonPlaybackDto>.SuccessResponse(playback, "Playback URL issued."));
+    }
+
+    [HttpGet("lessons/{id:int}/preview-playback")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<LessonPlaybackDto>>> GetPreviewPlayback(int id)
+    {
+        var playback = await _lessonService.GetPreviewPlaybackAsync(
+            id,
+            GetCurrentUserId(),
+            User.IsInRole("Admin"));
+        if (playback is null)
+            return NotFound(ApiResponse<LessonPlaybackDto>.FailureResponse("Bài học không cho phép xem trước hoặc chưa có video xem trước."));
+
+        return Ok(ApiResponse<LessonPlaybackDto>.SuccessResponse(playback, "Preview playback URL issued."));
     }
 
     // DELETE /api/lessons/{id}/video — remove video from R2 + DB

@@ -15,6 +15,7 @@ public class LessonDto
     public int OrderIndex { get; set; } = 1;
     public int DurationMinutes { get; set; } = 0;
     public bool IsPreview { get; set; } = false;
+    public bool IsRemedial { get; set; }
     public LessonStatus Status { get; set; } = LessonStatus.ACTIVE;
     public string? VideoUrl { get; set; }
 
@@ -38,6 +39,8 @@ public class LessonPlaybackDto
     public int LessonId { get; set; }
     public string Url { get; set; } = string.Empty;
     public DateTime ExpiresAt { get; set; }
+    public bool IsPreviewOnly { get; set; }
+    public int? PreviewDurationSeconds { get; set; }
 }
 
 public class CreateLessonRequest
@@ -56,6 +59,7 @@ public class CreateLessonRequest
     public int DurationMinutes { get; set; } = 0;
 
     public bool IsPreview { get; set; } = false;
+    public bool IsRemedial { get; set; }
     public LessonStatus Status { get; set; } = LessonStatus.ACTIVE;
     public string? VideoUrl { get; set; }
 }
@@ -75,6 +79,7 @@ public class UpdateLessonRequest
     public int? DurationMinutes { get; set; }
 
     public bool? IsPreview { get; set; }
+    public bool? IsRemedial { get; set; }
     public LessonStatus? Status { get; set; }
     public string? VideoUrl { get; set; }
 }

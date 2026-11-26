@@ -26,11 +26,16 @@ public class CoursesController : ControllerBase
 {
     private readonly ICourseService _courseService;
     private readonly ICloudinaryService _cloudinaryService;
+    private readonly ICourseRecommendationService _recommendationService;
 
-    public CoursesController(ICourseService courseService, ICloudinaryService cloudinaryService)
+    public CoursesController(
+        ICourseService courseService,
+        ICloudinaryService cloudinaryService,
+        ICourseRecommendationService recommendationService)
     {
         _courseService = courseService;
         _cloudinaryService = cloudinaryService;
+        _recommendationService = recommendationService;
     }
 
     // ── Helper: extract InstructorID from JWT claims ──────────────────────────
@@ -38,6 +43,27 @@ public class CoursesController : ControllerBase
     {
         var claim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         return int.TryParse(claim, out var id) ? id : null;
+    }
+
+    /// <summary>
+    /// GET /api/courses/recommendations?top=3
+    /// Trả về danh sách top khóa học có TotalScore cao nhất cho học viên (loại bỏ các khóa đã sở hữu),
+    /// kèm đầy đủ thông tin thẻ khóa học và lý do đề xuất giải thích được (Explainable Reason).
+    /// </summary>
+    [HttpGet("recommendations")]
+    public async Task<ActionResult<ApiResponse<List<CourseRecommendationDto>>>> GetRecommendations(
+        [FromQuery] int? top,
+        [FromQuery] int? limit)
+    {
+        var userId = GetCurrentUserId();
+        if (userId is null)
+            return Unauthorized(ApiResponse<List<CourseRecommendationDto>>.FailureResponse("Vui lòng đăng nhập để nhận đề xuất khóa học."));
+
+        int count = top ?? limit ?? 3;
+        if (count <= 0) count = 3;
+
+        var result = await _recommendationService.GetTopRecommendationsAsync(userId.Value, count);
+        return Ok(ApiResponse<List<CourseRecommendationDto>>.SuccessResponse(result, "Lấy danh sách khóa học đề xuất thành công."));
     }
 
     // POST /api/courses/upload-thumbnail — upload a course cover image to Cloudinary.
@@ -90,6 +116,17 @@ public class CoursesController : ControllerBase
     {
         var result = await _courseService.GetAllCoursesAsync(page, limit, status, categoryId, search);
         return Ok(ApiResponse<CourseListResponse>.SuccessResponse(result));
+    }
+
+    [HttpGet("{id:int}/preview-lesson")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<CoursePreviewLessonDto>>> GetPreviewLesson(int id)
+    {
+        var lesson = await _courseService.GetFirstPreviewLessonAsync(id);
+        if (lesson is null)
+            return NotFound(ApiResponse<CoursePreviewLessonDto>.FailureResponse("Khóa học chưa có bài video được bật xem trước."));
+
+        return Ok(ApiResponse<CoursePreviewLessonDto>.SuccessResponse(lesson));
     }
 
     // -------------------------------------------------------------------------
@@ -324,7 +361,11 @@ public class CoursesController : ControllerBase
 
         try
         {
-            var updated = await _courseService.SubmitForApprovalAsync(id, instructorId.Value, request.SubmissionNote);
+            var updated = await _courseService.SubmitForApprovalAsync(
+                id,
+                instructorId.Value,
+                request.SubmissionNote,
+                request.KeepApprovedSyllabus);
             if (updated is null)
                 return NotFound(ApiResponse<CourseDto>.FailureResponse("Course not found or you are not the owner."));
 

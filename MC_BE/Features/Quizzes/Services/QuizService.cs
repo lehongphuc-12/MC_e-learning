@@ -20,6 +20,7 @@ public class QuizService : IQuizService
     private readonly IGenericRepository<ScenarioNode> _scenarioNodeRepository;
     private readonly IGenericRepository<ScenarioChoice> _scenarioChoiceRepository;
     private readonly IGenericRepository<QuizAttempt> _attemptRepository;
+    private readonly IGenericRepository<RemedialRetakeGrant> _retakeGrantRepository;
     private readonly IGenericRepository<QuizAnswer> _answerRepository;
     private readonly IGenericRepository<QuizAnswerSelectedChoice> _answerSelectedChoiceRepository;
     private readonly IGenericRepository<QuizAnswerErrorRegion> _answerErrorRegionRepository;
@@ -45,6 +46,7 @@ public class QuizService : IQuizService
         IGenericRepository<ScenarioNode> scenarioNodeRepository,
         IGenericRepository<ScenarioChoice> scenarioChoiceRepository,
         IGenericRepository<QuizAttempt> attemptRepository,
+        IGenericRepository<RemedialRetakeGrant> retakeGrantRepository,
         IGenericRepository<QuizAnswer> answerRepository,
         IGenericRepository<QuizAnswerSelectedChoice> answerSelectedChoiceRepository,
         IGenericRepository<QuizAnswerErrorRegion> answerErrorRegionRepository,
@@ -69,6 +71,7 @@ public class QuizService : IQuizService
         _scenarioNodeRepository = scenarioNodeRepository;
         _scenarioChoiceRepository = scenarioChoiceRepository;
         _attemptRepository = attemptRepository;
+        _retakeGrantRepository = retakeGrantRepository;
         _answerRepository = answerRepository;
         _answerSelectedChoiceRepository = answerSelectedChoiceRepository;
         _answerErrorRegionRepository = answerErrorRegionRepository;
@@ -106,6 +109,9 @@ public class QuizService : IQuizService
             if (module.CourseId != request.CourseId) throw new ArgumentException("Chương được chọn không thuộc khóa học này.");
         }
 
+        if (request.Purpose == QuizPurpose.DAILY_PRACTICE && !request.LessonId.HasValue)
+            throw new ArgumentException("Bài luyện tập hằng ngày bắt buộc phải gắn với bài học/video.");
+
         if (request.Purpose == QuizPurpose.PRACTICE && !request.LessonId.HasValue)
             throw new ArgumentException("Quiz luyện tập bắt buộc phải gắn với một bài học.");
 
@@ -122,22 +128,26 @@ public class QuizService : IQuizService
             request.AvailableUntil.Value <= request.AvailableFrom.Value)
             throw new ArgumentException("Thời gian kết thúc phải sau thời gian bắt đầu.");
 
-        if (request.Purpose == QuizPurpose.CHAPTER_ASSESSMENT)
+        // A chapter may have one official assessment, while remedial quizzes
+        // are additional learner-specific content and must not collide with it.
+        if (request.Purpose == QuizPurpose.CHAPTER_ASSESSMENT && !request.IsRemedial)
         {
             var existingChapterQuiz = (await _quizRepository.FindAsync(q =>
                 q.CourseId == request.CourseId &&
                 q.ModuleId == request.ModuleId &&
-                q.Purpose == QuizPurpose.CHAPTER_ASSESSMENT)).Any();
+                q.Purpose == QuizPurpose.CHAPTER_ASSESSMENT &&
+                !q.IsRemedial)).Any();
 
             if (existingChapterQuiz)
                 throw new ArgumentException("Chương này đã có Quiz đánh giá. Hãy chỉnh sửa Quiz hiện có thay vì tạo trùng.");
         }
 
-        if (request.Purpose == QuizPurpose.FINAL_ASSESSMENT)
+        if (request.Purpose == QuizPurpose.FINAL_ASSESSMENT && !request.IsRemedial)
         {
             var existingFinalQuiz = (await _quizRepository.FindAsync(q =>
                 q.CourseId == request.CourseId &&
-                q.Purpose == QuizPurpose.FINAL_ASSESSMENT)).Any();
+                q.Purpose == QuizPurpose.FINAL_ASSESSMENT &&
+                !q.IsRemedial)).Any();
 
             if (existingFinalQuiz)
                 throw new ArgumentException("Khóa học đã có Quiz tổng kết. Hãy chỉnh sửa Quiz hiện có thay vì tạo trùng.");
@@ -155,12 +165,13 @@ public class QuizService : IQuizService
             Description = request.Description?.Trim(),
             TimeLimitMinutes = request.TimeLimitMinutes,
             PassingScore = 80.00m,
-            MaxAttempts = request.MaxAttempts,
+            MaxAttempts = request.IsRemedial ? request.MaxAttempts : 0,
             Purpose = request.Purpose,
             ModuleId = request.ModuleId,
-            AvailableFrom = request.AvailableFrom,
-            AvailableUntil = request.AvailableUntil,
+            AvailableFrom = null,
+            AvailableUntil = null,
             Status = request.Status,
+            IsRemedial = request.IsRemedial,
             CreatedAt = DateTime.UtcNow
         };
         await _quizRepository.AddAsync(quiz);
@@ -264,6 +275,7 @@ public class QuizService : IQuizService
             PassingScore = 80.00m,
             MaxAttempts = quiz.MaxAttempts,
             Status = quiz.Status,
+            IsRemedial = quiz.IsRemedial,
             CreatedAt = quiz.CreatedAt,
             Questions = questions.Select(q => new QuestionDto
             {
@@ -311,6 +323,9 @@ public class QuizService : IQuizService
                     throw new ArgumentException("Chương được chọn không thuộc khóa học này.");
             }
 
+            if (request.Purpose == QuizPurpose.DAILY_PRACTICE && !quiz.LessonId.HasValue)
+                throw new ArgumentException("Bài luyện tập hằng ngày bắt buộc phải gắn với bài học/video.");
+
             if (request.Purpose == QuizPurpose.PRACTICE && !quiz.LessonId.HasValue)
                 throw new ArgumentException("Quiz luyện tập bắt buộc phải gắn với một bài học.");
 
@@ -322,33 +337,41 @@ public class QuizService : IQuizService
             if (request.Purpose == QuizPurpose.FINAL_ASSESSMENT && (request.ModuleId.HasValue || quiz.LessonId.HasValue))
                 throw new ArgumentException("Quiz tổng kết phải gắn với toàn khóa học, không gắn riêng chương hoặc bài học.");
 
-            if (request.Purpose == QuizPurpose.CHAPTER_ASSESSMENT)
-            {
-                var duplicate = (await _quizRepository.FindAsync(q =>
-                    q.QuizId != quizId && q.CourseId == quiz.CourseId &&
-                    q.ModuleId == request.ModuleId && q.Purpose == QuizPurpose.CHAPTER_ASSESSMENT)).Any();
-                if (duplicate) throw new ArgumentException("Chương này đã có Quiz đánh giá.");
-            }
-            if (request.Purpose == QuizPurpose.FINAL_ASSESSMENT)
-            {
-                var duplicate = (await _quizRepository.FindAsync(q =>
-                    q.QuizId != quizId && q.CourseId == quiz.CourseId &&
-                    q.Purpose == QuizPurpose.FINAL_ASSESSMENT)).Any();
-                if (duplicate) throw new ArgumentException("Khóa học đã có Quiz tổng kết.");
-            }
-
             quiz.Purpose = request.Purpose;
             quiz.ModuleId = request.ModuleId;
+        }
+
+        // IsRemedial can still be changed after attempts exist, even though the
+        // quiz scope itself becomes immutable. Check the effective scope outside
+        // the no-attempt block so converting a remedial quiz to official cannot
+        // create a second official assessment.
+        var effectivePurpose = quiz.Purpose;
+        var effectiveModuleId = quiz.ModuleId;
+        if (!request.IsRemedial && effectivePurpose == QuizPurpose.CHAPTER_ASSESSMENT)
+        {
+            var duplicate = (await _quizRepository.FindAsync(q =>
+                q.QuizId != quizId && q.CourseId == quiz.CourseId &&
+                q.ModuleId == effectiveModuleId && q.Purpose == QuizPurpose.CHAPTER_ASSESSMENT &&
+                !q.IsRemedial)).Any();
+            if (duplicate) throw new ArgumentException("Chương này đã có Quiz đánh giá.");
+        }
+        if (!request.IsRemedial && effectivePurpose == QuizPurpose.FINAL_ASSESSMENT)
+        {
+            var duplicate = (await _quizRepository.FindAsync(q =>
+                q.QuizId != quizId && q.CourseId == quiz.CourseId &&
+                q.Purpose == QuizPurpose.FINAL_ASSESSMENT && !q.IsRemedial)).Any();
+            if (duplicate) throw new ArgumentException("Khóa học đã có Quiz tổng kết.");
         }
 
         quiz.Title = request.Title.Trim();
         quiz.Description = request.Description?.Trim();
         quiz.TimeLimitMinutes = request.TimeLimitMinutes;
         quiz.PassingScore = 80.00m;
-        quiz.MaxAttempts = request.MaxAttempts;
-        quiz.AvailableFrom = request.AvailableFrom;
-        quiz.AvailableUntil = request.AvailableUntil;
+        quiz.MaxAttempts = request.IsRemedial ? request.MaxAttempts : 0;
+        quiz.AvailableFrom = null;
+        quiz.AvailableUntil = null;
         quiz.Status = request.Status;
+        quiz.IsRemedial = request.IsRemedial;
         _quizRepository.Update(quiz);
 
         var existingQuestions = (quiz.Questions ?? new List<Question>()).ToList();
@@ -622,34 +645,19 @@ public class QuizService : IQuizService
         if (quiz is null) throw new ArgumentException($"Quiz with ID {quizId} not found.");
 
         var now = DateTime.UtcNow;
+        var retakeGrants = (await _retakeGrantRepository.FindAsync(g =>
+            g.LearnerId == learnerId && g.TargetQuizId == quizId &&
+            !g.UsedAt.HasValue && g.AttemptsRemaining > 0 && g.ExpiresAt > now &&
+            g.Recipient.Status != "REVOKED" && g.Recipient.Assignment.IsActive))
+            .OrderBy(g => g.GrantedAt)
+            .ToList();
+        var retakeGrant = retakeGrants.FirstOrDefault();
+        var hasRetakeGrant = retakeGrant != null;
 
-        // Apply scheduled transitions on demand as well, so an exact-time request
-        // does not have to wait for the background worker's next 30-second cycle.
-        if (quiz.Status == QuizStatus.ARCHIVED &&
-            quiz.AvailableFrom.HasValue &&
-            quiz.AvailableFrom.Value <= now)
-        {
-            quiz.Status = quiz.AvailableUntil.HasValue && quiz.AvailableUntil.Value <= now
-                ? QuizStatus.INACTIVE
-                : QuizStatus.ACTIVE;
-            _quizRepository.Update(quiz);
-            await _unitOfWork.SaveChangesAsync();
-        }
-
-        if (quiz.Status == QuizStatus.ACTIVE &&
-            quiz.AvailableUntil.HasValue &&
-            quiz.AvailableUntil.Value <= now)
-        {
-            quiz.Status = QuizStatus.INACTIVE;
-            _quizRepository.Update(quiz);
-            await _unitOfWork.SaveChangesAsync();
-        }
-
-        if (quiz.Status != QuizStatus.ACTIVE) throw new ArgumentException("This quiz is not available.");
-        if (quiz.AvailableFrom.HasValue && now < quiz.AvailableFrom.Value)
-            throw new ArgumentException($"Bài tập chưa mở. Thời gian mở: {quiz.AvailableFrom.Value:O}.");
-        if (quiz.AvailableUntil.HasValue && now >= quiz.AvailableUntil.Value)
-            throw new ArgumentException("Bài tập đã hết thời gian thực hiện.");
+        // Learner quizzes are published manually; per-learner deadlines are
+        // enforced by LearningAccessService, not by global AvailableUntil.
+        if (quiz.Status != QuizStatus.ACTIVE)
+            throw new ArgumentException("This quiz is not available.");
 
         var decision = await _access.CheckQuizAsync(learnerId, quizId);
         if (!decision.Allowed) throw new InvalidOperationException(decision.Reason ?? "Quiz locked.");
@@ -673,44 +681,38 @@ public class QuizService : IQuizService
             await _unitOfWork.SaveChangesAsync();
 
         var attempt = attempts.FirstOrDefault(a => !a.SubmittedAt.HasValue);
-        if (attempts.Any(a => a.ResultStatus == QuizAttemptStatus.PASSED)) throw new ArgumentException("You have already passed this quiz.");
+        if (!quiz.IsRemedial && attempts.Any(a => a.ResultStatus == QuizAttemptStatus.PASSED)) throw new ArgumentException("Bạn đã đạt bài Quiz này; không cần làm bài bổ trợ hoặc làm lại.");
         if (attempts.Any(a => a.ResultStatus == QuizAttemptStatus.PENDING_GRADING)) throw new ArgumentException("Your previous attempt is awaiting instructor grading.");
         // MaxAttempts = 0 means unlimited. Only enforce a cap when the instructor explicitly sets one.
         var submittedAttemptCount = attempts.Count(a => a.SubmittedAt.HasValue);
-        if (attempt is null && quiz.MaxAttempts > 0 && submittedAttemptCount >= quiz.MaxAttempts)
+        if (attempt is null && quiz.IsRemedial && quiz.MaxAttempts > 0 && submittedAttemptCount >= quiz.MaxAttempts && !hasRetakeGrant)
             throw new InvalidOperationException($"Bạn đã sử dụng hết {quiz.MaxAttempts} lượt làm bài.");
         if (attempt is null)
         {
-            // PRACTICE: không áp dụng cooldown.
-            // Assessment: 3 lần FAIL đầu tiên không phải chờ.
-            // Sau lần FAIL thứ 4 trở đi, mỗi lần FAIL đều tạo cooldown mới.
-            // Cooldown được tính từ lần FAIL gần nhất; Chapter = 1 giờ, Final = 6 giờ.
-            if (quiz.Purpose == QuizPurpose.CHAPTER_ASSESSMENT ||
-                quiz.Purpose == QuizPurpose.FINAL_ASSESSMENT)
+            // FINAL_ASSESSMENT: after 3 failed submissions, wait 6 hours
+            // from the most recent failure before starting another attempt.
+            // MaxAttempts = 0 means unlimited total attempts until enrollment expiry.
+            if (!hasRetakeGrant && quiz.Purpose == QuizPurpose.FINAL_ASSESSMENT)
             {
-                var cooldown = quiz.Purpose == QuizPurpose.CHAPTER_ASSESSMENT
-                    ? TimeSpan.FromHours(1)
-                    : TimeSpan.FromHours(6);
-
-                var failures = attempts
+                var failedAttempts = attempts
                     .Where(a => a.ResultStatus == QuizAttemptStatus.FAILED && a.SubmittedAt.HasValue)
                     .OrderBy(a => a.SubmittedAt!.Value)
                     .ToList();
-
-                if (failures.Count >= 4)
+                if (failedAttempts.Count >= 3)
                 {
-                    var lastFailure = failures[^1];
-                    var unlockAt = lastFailure.SubmittedAt!.Value.Add(cooldown);
-
-                    if (DateTime.UtcNow < unlockAt)
-                    {
-                        throw new InvalidOperationException(
-                            $"Bạn cần chờ đến {unlockAt:O} mới được làm bài tiếp theo.");
-                    }
+                    var retryAt = failedAttempts[^1].SubmittedAt!.Value.AddHours(6);
+                    if (now < retryAt)
+                        throw new InvalidOperationException($"Bạn cần chờ đến {retryAt:O} mới được làm bài tiếp theo.");
                 }
             }
             attempt = new QuizAttempt { QuizId = quizId, UserId = learnerId, AttemptNumber = attempts.Count == 0 ? 1 : attempts.Max(a => a.AttemptNumber) + 1, StartedAt = DateTime.UtcNow };
             await _attemptRepository.AddAsync(attempt);
+            if (retakeGrant != null)
+            {
+                retakeGrant.AttemptsRemaining--;
+                if (retakeGrant.AttemptsRemaining == 0) retakeGrant.UsedAt = DateTime.UtcNow;
+                _retakeGrantRepository.Update(retakeGrant);
+            }
             await _unitOfWork.SaveChangesAsync();
         }
 
@@ -752,6 +754,11 @@ public class QuizService : IQuizService
         var attempt = (await _attemptRepository.FindAsync(a => a.AttemptId == request.AttemptId && a.QuizId == quizId && a.UserId == learnerId, a => a.Quiz)).FirstOrDefault();
         if (attempt is null) throw new ArgumentException("Quiz attempt not found.");
         if (attempt.SubmittedAt.HasValue) throw new ArgumentException("This quiz attempt has already been submitted.");
+        // Recheck the access deadline at submission, not only at quiz start.
+        // This prevents submitting after the individual seven-day window closes.
+        var submitAccess = await _access.CheckQuizAsync(learnerId, quizId);
+        if (!submitAccess.Allowed)
+            throw new InvalidOperationException(submitAccess.Reason ?? "Quiz không còn khả dụng.");
         if (attempt.Quiz.TimeLimitMinutes > 0 && DateTime.UtcNow > attempt.StartedAt.AddMinutes(attempt.Quiz.TimeLimitMinutes)) throw new ArgumentException("The quiz time limit has expired.");
         if (request.Answers.GroupBy(x => x.QuestionId).Any(g => g.Count() > 1)) throw new ArgumentException("Each question can only have one answer payload.");
 
@@ -841,6 +848,8 @@ public class QuizService : IQuizService
             attempt.Score = totalMax <= 0 ? 0 : Math.Round(totalScore / totalMax * 100, 2);
             attempt.ResultStatus = attempt.Score >= 80.00m ? QuizAttemptStatus.PASSED : QuizAttemptStatus.FAILED;
         }
+        if (attempt.ResultStatus == QuizAttemptStatus.PASSED && !attempt.Quiz.IsRemedial)
+            await RevokeRemainingQuizRetakeGrantsAsync(learnerId, quizId);
         _attemptRepository.Update(attempt);
         await _unitOfWork.SaveChangesAsync();
         return await GetQuizResultAsync(learnerId, quizId, attempt.AttemptId);
@@ -1022,9 +1031,24 @@ public class QuizService : IQuizService
             attempt.ResultStatus = attempt.Score >= 80.00m ? QuizAttemptStatus.PASSED : QuizAttemptStatus.FAILED;
         }
 
+        if (attempt.ResultStatus == QuizAttemptStatus.PASSED && !attempt.Quiz.IsRemedial)
+            await RevokeRemainingQuizRetakeGrantsAsync(attempt.UserId, attempt.QuizId);
         _attemptRepository.Update(attempt);
         await _unitOfWork.SaveChangesAsync();
         return await GetQuizResultAsync(attempt.UserId, attempt.QuizId, attempt.AttemptId);
+    }
+
+    private async Task RevokeRemainingQuizRetakeGrantsAsync(int learnerId, int quizId)
+    {
+        var grants = await _retakeGrantRepository.FindAsync(x => x.LearnerId == learnerId &&
+            x.TargetQuizId == quizId && !x.UsedAt.HasValue && x.AttemptsRemaining > 0);
+        var now = DateTime.UtcNow;
+        foreach (var grant in grants)
+        {
+            grant.AttemptsRemaining = 0;
+            grant.UsedAt = now;
+            _retakeGrantRepository.Update(grant);
+        }
     }
 
     public async Task<QuizResultDto?> GetQuizResultAsync(int learnerId, int quizId, int attemptId)
@@ -1103,18 +1127,15 @@ public class QuizService : IQuizService
         }
 
         DateTime? retryAvailableAt = null;
-        if (attempt.ResultStatus == QuizAttemptStatus.FAILED &&
-            (quiz.Purpose == QuizPurpose.CHAPTER_ASSESSMENT || quiz.Purpose == QuizPurpose.FINAL_ASSESSMENT))
+        if (quiz.Purpose == QuizPurpose.FINAL_ASSESSMENT &&
+            attempt.ResultStatus == QuizAttemptStatus.FAILED)
         {
-            var cooldown = quiz.Purpose == QuizPurpose.CHAPTER_ASSESSMENT
-                ? TimeSpan.FromHours(1)
-                : TimeSpan.FromHours(6);
             var failedAttempts = (await _attemptRepository.FindAsync(x =>
                 x.QuizId == quizId && x.UserId == learnerId &&
                 x.ResultStatus == QuizAttemptStatus.FAILED && x.SubmittedAt.HasValue))
                 .OrderBy(x => x.SubmittedAt).ToList();
-            if (failedAttempts.Count >= 4)
-                retryAvailableAt = failedAttempts[^1].SubmittedAt!.Value.Add(cooldown);
+            if (failedAttempts.Count >= 3)
+                retryAvailableAt = failedAttempts[^1].SubmittedAt!.Value.AddHours(6);
         }
 
         return new QuizResultDto
@@ -1181,6 +1202,7 @@ public async Task<List<QuizListItemDto>> GetQuizzesByCourseAsync(
             PassingScore =80.00m,
             MaxAttempts =q.MaxAttempts,
             Status =q.Status,
+            IsRemedial = q.IsRemedial,
             CreatedAt =q.CreatedAt,
             QuestionCount =q.Questions?.Count ?? 0
         })

@@ -1,3 +1,4 @@
+import { QuizNotice } from '../components/QuizNotice';
 import { useQueryClient } from '@tanstack/react-query';
 import React, { useState } from 'react';
 import { ArrowLeft, ArrowRight, BookOpen, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronUp, Clock3, ClipboardList, Eye, FileText, ListChecks, MessageSquareText, RotateCcw, Sparkles, Trophy, XCircle } from 'lucide-react';
@@ -53,7 +54,7 @@ export const QuizResultPage: React.FC = () => {
   const toggle = (index: number) => setExpanded(previous => previous.includes(index) ? previous.filter(x => x !== index) : [...previous, index]);
 
   if (isLoading) return <div className="flex min-h-[70vh] items-center justify-center bg-[#f4f8ff]"><div className="h-11 w-11 animate-spin rounded-full border-4 border-blue-100 border-t-blue-600" /></div>;
-  if (isError || !result) return <div className="mx-auto max-w-xl p-10 text-center text-rose-600">{error instanceof Error ? error.message : 'Không thể tải kết quả Quiz.'}</div>;
+  if (isError || !result) return <QuizNotice error={error} onRetry={() => window.location.reload()} />;
 
   const answers = result.answers ?? [];
   const graded = answers.filter(a => a.score !== null && a.score !== undefined);
@@ -168,9 +169,8 @@ export const QuizResultPage: React.FC = () => {
       </div>
       <div className="mt-5 flex flex-wrap justify-center gap-3">
         <button type="button" onClick={scrollToDetails} className="inline-flex items-center gap-2 rounded-xl border border-[#d7e4f6] bg-white px-5 py-3 text-xs font-bold text-blue-700 transition hover:bg-blue-50"><Eye size={17} /> Xem lại bài làm</button>
-        {failed && !hasPassed && !hasPending && !retryBlocked && <button type="button" onClick={() => qid && navigate(`/quizzes/${qid}/take`, { state: { returnTo } })} className="inline-flex items-center gap-2 rounded-xl border border-[#d7e4f6] bg-white px-5 py-3 text-xs font-bold text-blue-700 transition hover:bg-blue-50"><RotateCcw size={17} /> Làm lại bài này</button>}
+        {failed && !hasPassed && !hasPending && !retryBlocked && <button type="button" onClick={() => { if (!qid) return; void learningQueryClient.removeQueries({ queryKey: ['take-quiz', qid] }); navigate(`/quizzes/${qid}/take`, { state: { returnTo } }); }} className="inline-flex items-center gap-2 rounded-xl border border-[#d7e4f6] bg-white px-5 py-3 text-xs font-bold text-blue-700 transition hover:bg-blue-50"><RotateCcw size={17} /> Làm lại bài này</button>}
         <button type="button" onClick={back} className="inline-flex items-center gap-2 rounded-xl border border-[#d7e4f6] bg-white px-5 py-3 text-xs font-bold text-blue-700 transition hover:bg-blue-50"><BookOpen size={17} /> Quay về khóa học</button>
-        <button type="button" onClick={scrollToDetails} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-xs font-bold text-white shadow-lg shadow-blue-100 transition hover:bg-blue-700">Xem chi tiết đầy đủ <ArrowRight size={17} /></button>
       </div>
     </div>
   </div>;

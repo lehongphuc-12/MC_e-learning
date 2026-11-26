@@ -6,6 +6,7 @@ import {
   Mic2,
   Play,
   ShoppingCart,
+  Sparkles,
   Star,
   Tag,
   UserRound,
@@ -18,7 +19,7 @@ interface CourseCardProps {
   course: Course;
   isWishlisted: boolean;
   onSelect: (course: Course) => void;
-  onPreview: (course: Course) => void;
+  onPreview: (course: Course, lessonId?: number, lessonTitle?: string) => void;
   onToggleWishlist: (courseId: string) => void;
   onAddToCart?: (course: Course) => void;
   showCartButton?: boolean;
@@ -29,6 +30,7 @@ interface CourseCardProps {
   onOpenCart?: () => void;
   onContinuePayment?: (course: Course) => void;
   onGoToCourse?: (course: Course) => void;
+  recommendationReason?: string;
 }
 
 export const CourseCard: React.FC<CourseCardProps> = ({
@@ -46,6 +48,7 @@ export const CourseCard: React.FC<CourseCardProps> = ({
   onOpenCart,
   onContinuePayment,
   onGoToCourse,
+  recommendationReason,
 }) => {
   const hasDiscount =
     !!course.originalPrice &&
@@ -122,7 +125,7 @@ export const CourseCard: React.FC<CourseCardProps> = ({
   return (
     <article
       id={`${idPrefix}-${course.id}`}
-      className="group flex h-full w-full min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-[transform,border-color,box-shadow] duration-300 hover:-translate-y-1 hover:border-blue-200 hover:shadow-xl"
+      className="group flex h-full w-full min-w-0 flex-col overflow-hidden rounded-[22px] border border-blue-100 bg-white transition-[transform,border-color,box-shadow] duration-300 hover:-translate-y-1 hover:border-blue-300 hover:shadow-lg"
     >
       {/* IMAGE */}
       <div className="relative aspect-video overflow-hidden bg-slate-900">
@@ -179,20 +182,20 @@ export const CourseCard: React.FC<CourseCardProps> = ({
         </motion.button>
 
         {/* PREVIEW */}
-        <motion.button
+        {course.previewAvailable !== false && <motion.button
           type="button"
           whileHover={{ scale: 1.03 }}
           whileTap={{ scale: 0.95 }}
-          onClick={() => onPreview(course)}
-          className="absolute bottom-3 right-3 z-20 flex h-8 items-center gap-1.5 rounded-lg bg-slate-950/75 px-2.5 text-[11px] font-bold text-white opacity-0 shadow-md backdrop-blur-md transition-[opacity,background-color] duration-200 group-hover:opacity-100 hover:bg-slate-950/90"
+          onClick={() => onPreview(course, course.previewLessonId, course.previewLessonTitle)}
+          className="absolute bottom-3 left-3 z-20 flex h-9 items-center gap-1.5 rounded-full bg-[#0754ef] px-3 text-[11px] font-extrabold text-white transition-colors duration-200 hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
           title="Xem trước khóa học"
           aria-label="Xem trước khóa học"
         >
           <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white">
             <Play className="h-2 w-2 translate-x-[0.5px] fill-slate-950 text-slate-950" />
           </span>
-          <span>Xem trước</span>
-        </motion.button>
+          <span>Xem thử</span>
+        </motion.button>}
       </div>
 
       {/* CONTENT */}
@@ -217,12 +220,19 @@ export const CourseCard: React.FC<CourseCardProps> = ({
           </div>
         </div>
 
+        {/* RECOMMENDATION REASON BADGE */}
+        {recommendationReason && (
+          <div className="mb-2 inline-flex items-center gap-1.5 self-start rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700 shadow-2xs">
+            <Sparkles className="h-3 w-3 shrink-0 text-blue-600" />
+            <span className="truncate">{recommendationReason}</span>
+          </div>
+        )}
+
         {/* TITLE */}
-        <h3
-          onClick={() => onSelect(course)}
-          className="line-clamp-2 min-h-[44px] cursor-pointer text-sm font-extrabold leading-[22px] text-slate-950 transition-colors group-hover:text-blue-600"
-        >
-          {course.title}
+        <h3 className="line-clamp-2 min-h-[44px] text-sm font-extrabold leading-[22px] text-slate-950">
+          <button type="button" onClick={() => onSelect(course)} className="text-left transition-colors group-hover:text-blue-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600">
+            {course.title}
+          </button>
         </h3>
 
         {/* INSTRUCTOR */}
@@ -240,15 +250,15 @@ export const CourseCard: React.FC<CourseCardProps> = ({
         {/* RATING + LEVEL */}
         <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-3">
           <div className="flex items-center gap-1">
-            <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
-
-            <span className="text-xs font-extrabold text-amber-500">
-              {course.rating}
-            </span>
-
-            <span className="text-[11px] text-slate-400">
-              ({course.reviewsCount})
-            </span>
+            {course.reviewsCount > 0 ? (
+              <>
+                <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                <span className="text-xs font-extrabold text-amber-500">{course.rating.toFixed(1)}</span>
+                <span className="text-[11px] text-slate-400">({course.reviewsCount})</span>
+              </>
+            ) : (
+              <span className="text-[11px] font-medium text-slate-400">Chưa có đánh giá</span>
+            )}
           </div>
 
           <span className="whitespace-nowrap text-[11px] font-semibold text-slate-400">

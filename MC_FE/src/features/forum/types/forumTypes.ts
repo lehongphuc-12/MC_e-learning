@@ -46,11 +46,13 @@ export interface CreatePostPayload {
 
 export interface ForumComment {
   commentId: number;
-  postId: number;
+  postId?: number;
+  lessonId?: number;
   authorId: number;
   authorName: string;
   authorAvatar?: string;
   authorRole: string;
+  isInstructor?: boolean;
   parentCommentId?: number;
   depthLevel: number;
   content: string;
@@ -73,6 +75,13 @@ export interface CreateCommentPayload {
   content: string;
   imageUrl?: string;
   isAnonymous: boolean;
+}
+
+export interface CreateLessonCommentPayload {
+  parentCommentId?: number;
+  content: string;
+  imageUrl?: string;
+  isAnonymous?: boolean;
 }
 
 export interface ForumReactionSummary {

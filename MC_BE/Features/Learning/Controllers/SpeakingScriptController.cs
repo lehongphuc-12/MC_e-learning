@@ -1,8 +1,11 @@
+﻿
 using System.Security.Claims;
 using MC_BE.Core.DTOs;
 using MC_BE.Core.Enums;
 using MC_BE.Features.Learning.DTOs;
 using MC_BE.Features.Learning.Services.Interfaces;
+using MC_BE.Features.Courses.Services.Interfaces;
+using MC_BE.Shared.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -17,13 +20,22 @@ public class SpeakingScriptController : ControllerBase
 {
     private readonly ISpeakingScriptService _scriptService;
     private readonly ILogger<SpeakingScriptController> _logger;
+    private readonly IRemedialAssignmentService _remedialAssignments;
+    private readonly ICourseLearningAccessService _courseAccess;
+    private readonly ICloudinaryService _cloudinaryService;
 
     public SpeakingScriptController(
         ISpeakingScriptService scriptService,
-        ILogger<SpeakingScriptController> logger)
+        ILogger<SpeakingScriptController> logger,
+        IRemedialAssignmentService remedialAssignments,
+        ICourseLearningAccessService courseAccess,
+        ICloudinaryService cloudinaryService)
     {
         _scriptService = scriptService;
         _logger = logger;
+        _remedialAssignments = remedialAssignments;
+        _courseAccess = courseAccess;
+        _cloudinaryService = cloudinaryService;
     }
 
     private int? GetCurrentUserId()
@@ -33,11 +45,14 @@ public class SpeakingScriptController : ControllerBase
         return int.TryParse(claim, out var id) ? id : null;
     }
 
-    /// <summary>
-    /// GET /api/speaking-scripts
-    /// Filter speaking scripts by course, scope, module, lesson, and search keyword
-    /// </summary>
+    private bool IsLearner => User.IsInRole("Learner");
+
+    private async Task<bool> CanReadForLearnerAsync(SpeakingScriptDto script, int learnerId) =>
+        await _courseAccess.CanAccessCourseAsync(script.CourseId, learnerId, isAdmin: false) &&
+        (!script.IsRemedial || await _remedialAssignments.CanAccessContentAsync(learnerId, "SPEAKING", script.ScriptId));
+
     [HttpGet]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public async Task<ActionResult<ApiResponse<IEnumerable<SpeakingScriptDto>>>> GetScripts(
         [FromQuery] int? courseId,
         [FromQuery] SpeakingScope? scope,
@@ -45,9 +60,19 @@ public class SpeakingScriptController : ControllerBase
         [FromQuery] int? lessonId,
         [FromQuery] string? search)
     {
+        Response.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
         try
         {
             var scripts = await _scriptService.GetAllScriptsAsync(courseId, scope, moduleId, lessonId, search);
+            if (IsLearner)
+            {
+                var learnerId = GetCurrentUserId();
+                if (learnerId == null) return Unauthorized();
+                var allowed = new List<SpeakingScriptDto>();
+                foreach (var item in scripts)
+                    if (await CanReadForLearnerAsync(item, learnerId.Value)) allowed.Add(item);
+                scripts = allowed;
+            }
             return Ok(ApiResponse<IEnumerable<SpeakingScriptDto>>.SuccessResponse(scripts));
         }
         catch (Exception ex)
@@ -58,13 +83,11 @@ public class SpeakingScriptController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// GET /api/speaking-scripts/{id:int}
-    /// Get script details by ID
-    /// </summary>
     [HttpGet("{id:int}")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public async Task<ActionResult<ApiResponse<SpeakingScriptDto>>> GetScriptById(int id)
     {
+        Response.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
         try
         {
             var script = await _scriptService.GetScriptByIdAsync(id);
@@ -72,6 +95,7 @@ public class SpeakingScriptController : ControllerBase
             {
                 return NotFound(ApiResponse<SpeakingScriptDto>.FailureResponse("Không tìm thấy kịch bản nói."));
             }
+            if (IsLearner && (GetCurrentUserId() is not int learnerId || !await CanReadForLearnerAsync(script, learnerId))) return Forbid();
 
             return Ok(ApiResponse<SpeakingScriptDto>.SuccessResponse(script));
         }
@@ -83,16 +107,23 @@ public class SpeakingScriptController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// GET /api/speaking-scripts/course/{courseId:int}
-    /// Get all speaking scripts of a course
-    /// </summary>
     [HttpGet("course/{courseId:int}")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public async Task<ActionResult<ApiResponse<IEnumerable<SpeakingScriptDto>>>> GetScriptsByCourse(int courseId)
     {
+        Response.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
         try
         {
             var scripts = await _scriptService.GetScriptsByCourseAsync(courseId);
+            if (IsLearner)
+            {
+                var learnerId = GetCurrentUserId();
+                if (learnerId == null) return Unauthorized();
+                var allowed = new List<SpeakingScriptDto>();
+                foreach (var item in scripts)
+                    if (await CanReadForLearnerAsync(item, learnerId.Value)) allowed.Add(item);
+                scripts = allowed;
+            }
             return Ok(ApiResponse<IEnumerable<SpeakingScriptDto>>.SuccessResponse(scripts));
         }
         catch (Exception ex)
@@ -103,10 +134,6 @@ public class SpeakingScriptController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// POST /api/speaking-scripts
-    /// Create new speaking script with 3 levels and scope (Lesson / Chapter / Final)
-    /// </summary>
     [HttpPost]
     [Authorize(Roles = "Instructor,Admin")]
     public async Task<ActionResult<ApiResponse<SpeakingScriptDto>>> CreateScript([FromBody] CreateSpeakingScriptRequest request)
@@ -134,6 +161,14 @@ public class SpeakingScriptController : ControllerBase
         {
             return NotFound(ApiResponse<SpeakingScriptDto>.FailureResponse(ex.Message));
         }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<SpeakingScriptDto>.FailureResponse(ex.Message));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ApiResponse<SpeakingScriptDto>.FailureResponse(ex.Message));
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error creating speaking script");
@@ -142,10 +177,6 @@ public class SpeakingScriptController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// PUT /api/speaking-scripts/{id:int}
-    /// Update speaking script
-    /// </summary>
     [HttpPut("{id:int}")]
     [Authorize(Roles = "Instructor,Admin")]
     public async Task<ActionResult<ApiResponse<SpeakingScriptDto>>> UpdateScript(int id, [FromBody] UpdateSpeakingScriptRequest request)
@@ -167,6 +198,14 @@ public class SpeakingScriptController : ControllerBase
         {
             return NotFound(ApiResponse<SpeakingScriptDto>.FailureResponse(ex.Message));
         }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<SpeakingScriptDto>.FailureResponse(ex.Message));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ApiResponse<SpeakingScriptDto>.FailureResponse(ex.Message));
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error updating speaking script {Id}", id);
@@ -175,10 +214,6 @@ public class SpeakingScriptController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// DELETE /api/speaking-scripts/{id:int}
-    /// Delete speaking script by ID
-    /// </summary>
     [HttpDelete("{id:int}")]
     [Authorize(Roles = "Instructor,Admin")]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteScriptById(int id)
@@ -207,10 +242,51 @@ public class SpeakingScriptController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// POST /api/speaking-scripts/parse-file
-    /// Parse script document (.docx, .txt, .md) in-memory before lesson is created
-    /// </summary>
+    [HttpPost("upload-sample-audio")]
+    [Authorize(Roles = "Instructor,Admin")]
+    [Consumes("multipart/form-data")]
+    public async Task<ActionResult<ApiResponse<string>>> UploadSampleAudio([FromForm] UploadSampleAudioRequest request)
+    {
+        var instructorId = GetCurrentUserId();
+        if (instructorId == null)
+            return Unauthorized(ApiResponse<string>.FailureResponse("Unauthorized"));
+
+        try
+        {
+            var file = request?.File;
+            if (file == null || file.Length == 0)
+            {
+                return BadRequest(ApiResponse<string>.FailureResponse("Vui lòng chọn tập tin âm thanh đọc mẫu."));
+            }
+
+            var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+            var allowedExtensions = new[] { ".mp3", ".wav", ".m4a", ".ogg", ".webm", ".aac" };
+            if (!allowedExtensions.Contains(extension))
+            {
+                return BadRequest(ApiResponse<string>.FailureResponse("Định dạng âm thanh không hợp lệ. Chỉ chấp nhận các file .mp3, .wav, .m4a, .ogg, .webm, .aac."));
+            }
+
+            if (file.Length > 25 * 1024 * 1024)
+            {
+                return BadRequest(ApiResponse<string>.FailureResponse("Dung lượng tập tin âm thanh mẫu không được vượt quá 25MB."));
+            }
+
+            var uploadResult = await _cloudinaryService.UploadVideoAsync(file, "speaking-scripts/sample-audios");
+            if (uploadResult == null || uploadResult.Error != null || string.IsNullOrEmpty(uploadResult.SecureUrl?.ToString()))
+            {
+                _logger.LogError("Cloudinary sample audio upload failed: {Error}", uploadResult?.Error?.Message);
+                return StatusCode(500, ApiResponse<string>.FailureResponse("Không thể tải tập tin âm thanh lên máy chủ lưu trữ."));
+            }
+
+            return Ok(ApiResponse<string>.SuccessResponse(uploadResult.SecureUrl.ToString(), "Tải lên audio mẫu thành công."));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Lỗi khi upload audio mẫu bài tập nói");
+            return StatusCode(500, ApiResponse<string>.FailureResponse($"Lỗi khi tải file: {ex.Message}"));
+        }
+    }
+
     [HttpPost("parse-file")]
     [Authorize(Roles = "Instructor,Admin")]
     [Consumes("multipart/form-data")]
@@ -246,10 +322,6 @@ public class SpeakingScriptController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// POST /api/speaking-scripts/lessons/{lessonId}/parse
-    /// Instructor uploads document (.docx, .txt, .md) to be parsed in-memory into 3 levels
-    /// </summary>
     [HttpPost("lessons/{lessonId:int}/parse")]
     [Authorize(Roles = "Instructor,Admin")]
     [Consumes("multipart/form-data")]
@@ -293,10 +365,6 @@ public class SpeakingScriptController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// POST /api/speaking-scripts/lessons/{lessonId}/publish
-    /// Instructor saves and publishes the 3-level script
-    /// </summary>
     [HttpPost("lessons/{lessonId:int}/publish")]
     [Authorize(Roles = "Instructor,Admin")]
     public async Task<ActionResult<ApiResponse<SpeakingScriptDto>>> SaveAndPublishScript(
@@ -325,6 +393,14 @@ public class SpeakingScriptController : ControllerBase
         {
             return NotFound(ApiResponse<SpeakingScriptDto>.FailureResponse(ex.Message));
         }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<SpeakingScriptDto>.FailureResponse(ex.Message));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ApiResponse<SpeakingScriptDto>.FailureResponse(ex.Message));
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error saving script for Lesson {LessonId}", lessonId);
@@ -333,13 +409,11 @@ public class SpeakingScriptController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// GET /api/speaking-scripts/lessons/{lessonId}
-    /// Get speaking script with all 3 levels for a lesson (Students & Instructors)
-    /// </summary>
     [HttpGet("lessons/{lessonId:int}")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public async Task<ActionResult<ApiResponse<SpeakingScriptDto>>> GetScriptByLesson(int lessonId)
     {
+        Response.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
         try
         {
             var script = await _scriptService.GetScriptByLessonAsync(lessonId);
@@ -347,6 +421,7 @@ public class SpeakingScriptController : ControllerBase
             {
                 return NotFound(ApiResponse<SpeakingScriptDto>.FailureResponse("Chưa có kịch bản cho bài tập nói này."));
             }
+            if (IsLearner && (GetCurrentUserId() is not int learnerId || !await CanReadForLearnerAsync(script, learnerId))) return Forbid();
 
             return Ok(ApiResponse<SpeakingScriptDto>.SuccessResponse(script));
         }
@@ -358,15 +433,16 @@ public class SpeakingScriptController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// GET /api/speaking-scripts/lessons/{lessonId}/level/{level}
-    /// Get specific level script content for student practice
-    /// </summary>
     [HttpGet("lessons/{lessonId:int}/level/{level}")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public async Task<ActionResult<ApiResponse<SpeakingScriptLevelDto>>> GetLevelContent(int lessonId, SpeakingLevel level)
     {
+        Response.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
         try
         {
+            var script = await _scriptService.GetScriptByLessonAsync(lessonId);
+            if (script == null) return NotFound(ApiResponse<SpeakingScriptLevelDto>.FailureResponse("Chưa có kịch bản cho bài tập nói này."));
+            if (IsLearner && (GetCurrentUserId() is not int learnerId || !await CanReadForLearnerAsync(script, learnerId))) return Forbid();
             var levelContent = await _scriptService.GetLevelContentAsync(lessonId, level);
             if (levelContent == null)
             {
@@ -383,10 +459,6 @@ public class SpeakingScriptController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// PUT /api/speaking-scripts/{scriptId}/levels/{level}
-    /// Update content of a single level
-    /// </summary>
     [HttpPut("{scriptId:int}/levels/{level}")]
     [Authorize(Roles = "Instructor,Admin")]
     public async Task<ActionResult<ApiResponse<SpeakingScriptDto>>> UpdateLevelContent(
@@ -416,10 +488,6 @@ public class SpeakingScriptController : ControllerBase
         }
     }
 
-    /// <summary>
-    /// DELETE /api/speaking-scripts/lessons/{lessonId}
-    /// Instructor deletes a speaking script
-    /// </summary>
     [HttpDelete("lessons/{lessonId:int}")]
     [Authorize(Roles = "Instructor,Admin")]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteScript(int lessonId)

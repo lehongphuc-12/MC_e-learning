@@ -1,3 +1,4 @@
+﻿
 using MC_BE.Core.Entities;
 using MC_BE.Core.Enums;
 using MC_BE.Features.Learning.Repositories.Interfaces;
@@ -9,6 +10,7 @@ namespace MC_BE.Features.Learning.Repositories;
 
 public class SpeakingScriptRepository : GenericRepository<SpeakingScript>, ISpeakingScriptRepository
 {
+
     private readonly SmartMcDbContext _context;
 
     public SpeakingScriptRepository(SmartMcDbContext context) : base(context)
@@ -24,7 +26,9 @@ public class SpeakingScriptRepository : GenericRepository<SpeakingScript>, ISpea
             .Include(s => s.Lesson)
             .Include(s => s.CreatedByUser)
             .Include(s => s.Levels)
-            .FirstOrDefaultAsync(s => s.LessonId == lessonId);
+            .Include(s => s.RubricCriteria)
+            .Include(s => s.BackgroundMusic)
+            .FirstOrDefaultAsync(s => s.LessonId == lessonId && !s.IsRemedial);
     }
 
     public async Task<SpeakingScript?> GetByIdWithDetailsAsync(int scriptId)
@@ -35,6 +39,8 @@ public class SpeakingScriptRepository : GenericRepository<SpeakingScript>, ISpea
             .Include(s => s.Lesson)
             .Include(s => s.CreatedByUser)
             .Include(s => s.Levels)
+            .Include(s => s.RubricCriteria)
+            .Include(s => s.BackgroundMusic)
             .FirstOrDefaultAsync(s => s.ScriptId == scriptId);
     }
 
@@ -46,6 +52,8 @@ public class SpeakingScriptRepository : GenericRepository<SpeakingScript>, ISpea
             .Include(s => s.Lesson)
             .Include(s => s.CreatedByUser)
             .Include(s => s.Levels)
+            .Include(s => s.RubricCriteria)
+            .Include(s => s.BackgroundMusic)
             .Where(s => s.CourseId == courseId || (s.Lesson != null && s.Lesson.CourseId == courseId))
             .OrderBy(s => s.Scope)
             .ThenBy(s => s.ScriptId)
@@ -59,12 +67,15 @@ public class SpeakingScriptRepository : GenericRepository<SpeakingScript>, ISpea
         int? lessonId,
         string? search)
     {
+
         var query = _context.SpeakingScripts
             .Include(s => s.Course)
             .Include(s => s.Module)
             .Include(s => s.Lesson)
             .Include(s => s.CreatedByUser)
             .Include(s => s.Levels)
+            .Include(s => s.RubricCriteria)
+            .Include(s => s.BackgroundMusic)
             .AsQueryable();
 
         if (courseId.HasValue)
@@ -112,6 +123,6 @@ public class SpeakingScriptRepository : GenericRepository<SpeakingScript>, ISpea
     {
         return await _context.SpeakingScriptLevels
             .Include(l => l.Script)
-            .FirstOrDefaultAsync(l => l.Script.LessonId == lessonId && l.Level == level);
+            .FirstOrDefaultAsync(l => l.Script.LessonId == lessonId && !l.Script.IsRemedial && l.Level == level);
     }
 }

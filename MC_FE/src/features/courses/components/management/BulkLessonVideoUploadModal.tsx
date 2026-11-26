@@ -2,18 +2,20 @@ import React, { useMemo, useState } from 'react';
 import { CheckCircle2, CloudUpload, Film, Loader2, X } from 'lucide-react';
 import { lessonApi } from '../../api/lessonApi';
 import type { Lesson } from '../../types/lessonTypes';
+import type { CourseModule } from '../../types/moduleTypes';
 
 type UploadState = { progress: number; status: 'ready' | 'uploading' | 'done' | 'error'; error?: string };
 
 interface Props {
   courseId: number;
   lessons: Lesson[];
+  modules: CourseModule[];
   isOpen: boolean;
   onClose: () => void;
   onComplete: () => Promise<unknown> | void;
 }
 
-const MAX_FILE_SIZE = 500 * 1024 * 1024;
+const MAX_FILE_SIZE = 700 * 1024 * 1024;
 
 const getVideoContentType = (file: File) => {
   if (file.type && file.type !== 'application/octet-stream') return file.type;
@@ -25,22 +27,36 @@ const getVideoContentType = (file: File) => {
   return byExtension[extension ?? ''] ?? file.type;
 };
 
-export const BulkLessonVideoUploadModal: React.FC<Props> = ({ courseId, lessons, isOpen, onClose, onComplete }) => {
+export const BulkLessonVideoUploadModal: React.FC<Props> = ({ courseId, lessons, modules, isOpen, onClose, onComplete }) => {
   const [filesByLesson, setFilesByLesson] = useState<Record<number, File>>({});
   const [availableFiles, setAvailableFiles] = useState<File[]>([]);
   const [states, setStates] = useState<Record<number, UploadState>>({});
   const [isUploading, setIsUploading] = useState(false);
   const [notice, setNotice] = useState('');
 
+  const orderedModules = useMemo(() => [...modules].sort((a, b) => a.orderIndex - b.orderIndex), [modules]);
+  const moduleOrder = useMemo(() => new Map<number, number>(orderedModules.map((module, index): [number, number] => [module.moduleId, index])), [orderedModules]);
   const videoLessons = useMemo(() => lessons
     .filter((lesson) => lesson.lessonType !== 'ASSIGNMENT' && lesson.lessonType !== 'QUIZ')
-    .sort((a, b) => a.orderIndex - b.orderIndex), [lessons]);
+    .sort((a, b) => {
+      const aModuleOrder = a.moduleId == null ? Number.MAX_SAFE_INTEGER : (moduleOrder.get(a.moduleId) ?? Number.MAX_SAFE_INTEGER);
+      const bModuleOrder = b.moduleId == null ? Number.MAX_SAFE_INTEGER : (moduleOrder.get(b.moduleId) ?? Number.MAX_SAFE_INTEGER);
+      return aModuleOrder - bModuleOrder || a.orderIndex - b.orderIndex || a.lessonId - b.lessonId;
+    }), [lessons, moduleOrder]);
+  const lessonGroups = useMemo(() => {
+    const groups: { moduleId: number | null; title: string; lessons: Lesson[] }[] = orderedModules
+      .map((module) => ({ moduleId: module.moduleId, title: `Chương ${module.orderIndex}: ${module.title}`, lessons: videoLessons.filter((lesson) => lesson.moduleId === module.moduleId) }))
+      .filter((group) => group.lessons.length > 0);
+    const unassigned = videoLessons.filter((lesson) => lesson.moduleId == null || !moduleOrder.has(lesson.moduleId));
+    if (unassigned.length) groups.push({ moduleId: null, title: 'Bài học chưa phân chương', lessons: unassigned });
+    return groups;
+  }, [orderedModules, videoLessons, moduleOrder]);
 
   if (!isOpen) return null;
 
   const setFile = (lessonId: number, file?: File) => {
     if (file && file.size > MAX_FILE_SIZE) {
-      setNotice(`“${file.name}” vượt quá giới hạn 500 MB.`);
+      setNotice(`“${file.name}” vượt quá giới hạn 700 MB.`);
       return;
     }
     setNotice('');
@@ -146,7 +162,7 @@ export const BulkLessonVideoUploadModal: React.FC<Props> = ({ courseId, lessons,
         </div>
         <div className="grid grid-cols-[1fr_1.1fr] gap-5 overflow-y-auto p-6">
           <label className="flex min-h-48 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-blue-200 bg-blue-50/50 p-6 text-center hover:bg-blue-50">
-            <Film className="mb-3 text-blue-600" size={28}/><span className="font-semibold text-slate-800">Chọn nhiều video từ thiết bị</span><span className="mt-1 text-xs text-slate-500">MP4/WebM/MOV · tối đa 500 MB mỗi tệp</span>
+            <Film className="mb-3 text-blue-600" size={28}/><span className="font-semibold text-slate-800">Chọn nhiều video từ thiết bị</span><span className="mt-1 text-xs text-slate-500">MP4/WebM/MOV · tối đa 700 MB mỗi tệp</span>
             <input type="file" accept="video/*" multiple disabled={isUploading} className="sr-only" onChange={(event) => {
               const available = videoLessons.filter((lesson) => !filesByLesson[lesson.lessonId]);
               const chosen = Array.from(event.target.files ?? []);
@@ -160,17 +176,25 @@ export const BulkLessonVideoUploadModal: React.FC<Props> = ({ courseId, lessons,
           <div className="col-span-2 overflow-hidden rounded-2xl border border-slate-200">
             <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_120px] gap-3 bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500"><span>Bài học</span><span>Video được ghép</span><span>Tiến độ</span></div>
             <div className="max-h-64 divide-y divide-slate-100 overflow-y-auto">
-              {videoLessons.map((lesson) => {
+              {lessonGroups.map((group) => (
+                <React.Fragment key={group.moduleId ?? 'unassigned'}>
+                  <div className="sticky top-0 z-10 border-y border-blue-100 bg-blue-50/95 px-4 py-2 text-xs font-bold text-blue-900 backdrop-blur-sm">
+                    <span>{group.title}</span>
+                    <span className="ml-2 font-medium text-blue-600">({group.lessons.length} bài)</span>
+                  </div>
+                  {group.lessons.map((lesson) => {
                 const state = states[lesson.lessonId]; const file = filesByLesson[lesson.lessonId];
                 return <div key={lesson.lessonId} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_120px] items-center gap-3 px-4 py-3">
-                  <div className="min-w-0"><p className="truncate text-sm font-semibold text-slate-800">{lesson.orderIndex}. {lesson.title}</p><p className="text-xs text-slate-400">{lesson.hasVideo ? 'Đã có video · tải lên sẽ thay video hiện tại' : 'Chưa có video'}</p></div>
+                  <div className="min-w-0"><p className="truncate text-sm font-semibold text-slate-800">Bài {lesson.orderIndex}: {lesson.title}</p><p className="text-xs text-slate-400">{lesson.hasVideo ? 'Đã có video · tải lên sẽ thay video hiện tại' : 'Chưa có video'}</p></div>
                   <select disabled={isUploading} value={file ? `${file.name}:${file.size}:${file.lastModified}` : ''} onChange={(event) => {
                     const selected = availableFiles.find((candidate) => `${candidate.name}:${candidate.size}:${candidate.lastModified}` === event.target.value);
                     setFile(lesson.lessonId, selected);
                   }} className="w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs text-slate-700"><option value="">Chọn tệp…</option>{availableFiles.map((candidate) => <option key={`${candidate.name}:${candidate.size}:${candidate.lastModified}`} value={`${candidate.name}:${candidate.size}:${candidate.lastModified}`}>{candidate.name}</option>)}</select>
                   <div className="min-w-0 text-xs">{state?.status === 'done' ? <span className="flex items-center gap-1 text-emerald-600"><CheckCircle2 size={14}/> Xong</span> : state?.status === 'uploading' ? <span className="flex items-center gap-1 text-blue-600"><Loader2 className="animate-spin" size={14}/>{state.progress}%</span> : state?.status === 'error' ? <div><span className="text-red-600">Lỗi · {state.progress}% đã gửi</span><p title={state.error} className="mt-1 break-words text-[10px] leading-4 text-red-500">{state.error}</p></div> : <span className="text-slate-400">—</span>}</div>
                 </div>;
-              })}
+                  })}
+                </React.Fragment>
+              ))}
               {videoLessons.length === 0 && <p className="p-6 text-center text-sm text-slate-500">Khóa học chưa có bài học phù hợp để gắn video.</p>}
             </div>
           </div>

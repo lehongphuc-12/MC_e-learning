@@ -5,6 +5,7 @@ import {
   ForumComment,
   CreatePostPayload,
   CreateCommentPayload,
+  CreateLessonCommentPayload,
   ForumReactionSummary,
   CreateReportPayload,
   ForumReport,
@@ -133,9 +134,29 @@ export const forumApi = {
     return [];
   },
 
+  async getLessonComments(lessonId: number | string): Promise<ForumComment[]> {
+    try {
+      const res = await request<{ success: boolean; data: ForumComment[] }>(`/lessons/${lessonId}/comments`);
+      if (res.success && res.data) return res.data;
+    } catch (_) {}
+    return [];
+  },
+
   async addComment(payload: CreateCommentPayload): Promise<{ success: boolean; data?: ForumComment; message?: string }> {
     try {
       const res = await request<{ success: boolean; data: ForumComment; message?: string }>('/forum/comments', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      return { success: res.success, data: res.data, message: res.message };
+    } catch (err: any) {
+      return { success: false, message: err?.message || 'Không thể gửi bình luận.' };
+    }
+  },
+
+  async addLessonComment(lessonId: number | string, payload: CreateLessonCommentPayload): Promise<{ success: boolean; data?: ForumComment; message?: string }> {
+    try {
+      const res = await request<{ success: boolean; data: ForumComment; message?: string }>(`/lessons/${lessonId}/comments`, {
         method: 'POST',
         body: JSON.stringify(payload),
       });

@@ -101,17 +101,19 @@ public class PostQueryParameters
     public int Limit { get; set; } = 10;
     public int? TopicId { get; set; }
     public string? Search { get; set; }
-    public string SortBy { get; set; } = "latest"; // latest, hot, most_commented
+    public string SortBy { get; set; } = "latest";
 }
 
 public class ForumCommentDto
 {
     public int CommentId { get; set; }
-    public int PostId { get; set; }
+    public int? PostId { get; set; }
+    public int? LessonId { get; set; }
     public int AuthorId { get; set; }
     public string AuthorName { get; set; } = string.Empty;
     public string? AuthorAvatar { get; set; }
     public string AuthorRole { get; set; } = string.Empty;
+    public bool IsInstructor { get; set; }
     public int? ParentCommentId { get; set; }
     public int DepthLevel { get; set; } = 1;
     public string Content { get; set; } = string.Empty;
@@ -128,11 +130,8 @@ public class ForumCommentDto
     public List<ForumCommentDto> Replies { get; set; } = new List<ForumCommentDto>();
 }
 
-public class CreateCommentRequest
+public class CreateCommentDto
 {
-    [Required]
-    public int PostId { get; set; }
-
     public int? ParentCommentId { get; set; }
 
     [Required]
@@ -141,6 +140,12 @@ public class CreateCommentRequest
     public string? ImageUrl { get; set; }
 
     public bool IsAnonymous { get; set; } = false;
+}
+
+public class CreateCommentRequest : CreateCommentDto
+{
+    [Required]
+    public int PostId { get; set; }
 }
 
 public class UpdateCommentRequest
@@ -156,13 +161,13 @@ public class UpdateCommentRequest
 public class ToggleReactionRequest
 {
     [Required]
-    public string TargetType { get; set; } = "POST"; // POST or COMMENT
+    public string TargetType { get; set; } = "POST";
 
     public int? PostId { get; set; }
     public int? CommentId { get; set; }
 
     [Required]
-    public string ReactionType { get; set; } = "LIKE"; // LIKE, LOVE, HELPFUL
+    public string ReactionType { get; set; } = "LIKE";
 }
 
 public class ForumReactionSummaryDto
@@ -175,13 +180,13 @@ public class ForumReactionSummaryDto
 public class CreateReportRequest
 {
     [Required]
-    public string TargetType { get; set; } = "POST"; // POST or COMMENT
+    public string TargetType { get; set; } = "POST";
 
     public int? PostId { get; set; }
     public int? CommentId { get; set; }
 
     [Required]
-    public string Reason { get; set; } = "OTHER"; // SPAM, HARASSMENT, INAPPROPRIATE, MISINFORMATION, OTHER
+    public string Reason { get; set; } = "OTHER";
 
     public string? Details { get; set; }
 }
@@ -216,7 +221,7 @@ public class ForumReportDto
 public class UpdateItemStatusRequest
 {
     [Required]
-    public string Status { get; set; } = "PUBLISHED"; // PUBLISHED/ACTIVE, HIDDEN_BY_ADMIN, DELETED
+    public string Status { get; set; } = "PUBLISHED";
 }
 
 public class ForumUserProfileDto

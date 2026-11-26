@@ -1,5 +1,7 @@
 export type SpeakingLevel = 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';
 
+export type SpeakingScriptType = 'Scripted' | 'OpenPrompt' | 1 | 2;
+
 export type SpeakingScriptStatus = 'DRAFT' | 'PUBLISHED';
 
 export type SpeakingScope = 'LESSON' | 'CHAPTER' | 'FINAL';
@@ -17,6 +19,25 @@ export interface ParsePreviewDto {
   levels: LevelPreviewDto[];
 }
 
+export interface SaveRubricCriterionDto {
+  code: string;
+  name: string;
+  weightPercentage: number;
+  isMandatory?: boolean;
+  orderIndex?: number;
+}
+
+export interface SpeakingRubricCriterionDto {
+  criterionId: number;
+  scriptId: number;
+  code: string;
+  name: string;
+  weightPercentage: number;
+  isMandatory: boolean;
+  orderIndex: number;
+  updatedAt: string;
+}
+
 export interface SaveLevelDto {
   level: SpeakingLevel;
   content: string;
@@ -25,34 +46,68 @@ export interface SaveLevelDto {
 
 export interface SaveScriptRequest {
   title: string;
+  scriptType?: SpeakingScriptType;
+  promptContent?: string | null;
+  structureHints?: string | null;
+  targetDurationSeconds?: number | null;
   originalContent?: string;
   scope?: SpeakingScope;
   moduleId?: number;
+  chapterId?: number;
   courseId?: number;
+  backgroundMusicId?: number | null;
+  sampleAudioUrl?: string | null;
+  instructorNote?: string | null;
   passingScore?: number;
-  levels: SaveLevelDto[];
+  dueAt?: string | null;
+  isRemedial?: boolean;
+  levels?: SaveLevelDto[];
+  rubricCriteria?: SaveRubricCriterionDto[];
 }
 
 export interface CreateSpeakingScriptRequest {
   courseId: number;
+  scriptType?: SpeakingScriptType;
+  promptContent?: string | null;
+  structureHints?: string | null;
+  targetDurationSeconds?: number | null;
   scope: SpeakingScope;
   moduleId?: number | null;
+  chapterId?: number | null;
   lessonId?: number | null;
+  backgroundMusicId?: number | null;
+  sampleAudioUrl?: string | null;
+  instructorNote?: string | null;
   title: string;
   originalContent?: string;
   passingScore?: number;
-  levels: SaveLevelDto[];
+  dueAt?: string | null;
+  isRemedial?: boolean;
+  levels?: SaveLevelDto[];
+  rubricCriteria?: SaveRubricCriterionDto[];
 }
 
 export interface UpdateSpeakingScriptRequest {
   courseId?: number;
+  scriptType?: SpeakingScriptType;
+  promptContent?: string | null;
+  structureHints?: string | null;
+  targetDurationSeconds?: number | null;
   scope?: SpeakingScope;
   moduleId?: number | null;
+  chapterId?: number | null;
   lessonId?: number | null;
+  backgroundMusicId?: number | null;
+  sampleAudioUrl?: string | null;
+  instructorNote?: string | null;
+  clearSampleAudio?: boolean;
   title?: string;
   originalContent?: string;
   passingScore?: number;
+  dueAt?: string | null;
+  isRemedial?: boolean;
   levels?: SaveLevelDto[];
+  rubricCriteria?: SaveRubricCriterionDto[];
 }
 
 export interface UpdateLevelContentRequest {
@@ -74,19 +129,33 @@ export interface SpeakingScriptDto {
   courseId: number;
   courseTitle: string;
   scope: SpeakingScope;
+  scriptType?: SpeakingScriptType;
+  promptContent?: string | null;
+  structureHints?: string | null;
+  targetDurationSeconds?: number | null;
   moduleId?: number | null;
+  chapterId?: number | null;
   moduleTitle?: string | null;
   lessonId?: number | null;
   lessonTitle?: string | null;
+  backgroundMusicId?: number | null;
+  backgroundMusicTitle?: string | null;
+  backgroundMusicUrl?: string | null;
   title: string;
   originalContent?: string;
+  sampleAudioUrl?: string | null;
+  instructorNote?: string | null;
   passingScore?: number;
+  dueAt?: string | null;
+  isRemedial?: boolean;
+  /** Optional UI estimate; current API may omit it for course-level scripts. */
+  durationMinutes?: number;
   createdBy?: number;
   createdByName?: string;
   status: SpeakingScriptStatus;
   updatedAt: string;
-  durationMinutes?: number;
   levels: SpeakingScriptLevelDto[];
+  rubricCriteria?: SpeakingRubricCriterionDto[];
 }
 
 export interface BackgroundMusicDto {
@@ -103,7 +172,13 @@ export interface PreUploadMusicResultDto {
   cloudinaryPublicId: string;
 }
 
-export type SpeakingGradeTier = 'Xuất sắc' | 'Giỏi' | 'Cần cải thiện' | 'Trung bình' | 'Yếu';
+export type SpeakingGradeTier =
+  | 'Xuất sắc'
+  | 'Giỏi'
+  | 'Cần cải thiện'
+  | 'Trung bình'
+  | 'Yếu'
+  | 'Chưa đạt (Điểm liệt tiêu chí)';
 
 export interface SpeakingGradeInfo {
   score: number;
@@ -121,8 +196,32 @@ export interface SpeakingGradeInfo {
   defaultFeedback: string;
 }
 
-export function getSpeakingGradeInfo(score: number | null | undefined): SpeakingGradeInfo {
+export function getSpeakingGradeInfo(
+  score: number | null | undefined,
+  isPassedOverride?: boolean | null,
+  hasZeroCriterion?: boolean
+): SpeakingGradeInfo {
   const s = Math.round(Number(score ?? 0));
+
+  // Nếu bài chưa đạt (isPassed = false hoặc bị điểm liệt): TUYỆT ĐỐI KHÔNG xếp loại "Giỏi" hay "Xuất sắc"
+  if (hasZeroCriterion || isPassedOverride === false) {
+    return {
+      score: s,
+      tier: 'Chưa đạt (Điểm liệt tiêu chí)',
+      isPassed: false,
+      statusLabel: 'Chưa đạt (Có tiêu chí 0 điểm)',
+      badgeLabel: 'CHƯA ĐẠT • ĐIỂM LIỆT TIÊU CHÍ',
+      badgeBg: 'bg-rose-50',
+      badgeText: 'text-rose-700',
+      badgeBorder: 'border-rose-300',
+      dotColor: 'bg-rose-500',
+      bannerBg: 'bg-rose-50/70',
+      bannerBorder: 'border-rose-200',
+      scoreText: 'text-rose-700',
+      defaultFeedback: 'Bài làm có tiêu chí bị 0 điểm (Điểm liệt). Quy chế MSEEK yêu cầu tất cả tiêu chí Rubric phải > 0 điểm để Đạt. Cần luyện tập và thu âm lại.',
+    };
+  }
+
   if (s >= 95) {
     return {
       score: s,
@@ -213,11 +312,22 @@ export type SpeakingSubmissionCategory = 'SUBMITTED' | 'PASSED' | 'FAILED';
 export function getSpeakingSubmissionCategory(submission: {
   status?: string;
   score?: number | null;
+  isPassed?: boolean;
+  criterionScores?: Array<{ score: number }>;
 }): SpeakingSubmissionCategory {
   if (submission.score === null || submission.score === undefined || submission.status === 'SUBMITTED') {
     return 'SUBMITTED';
   }
-  return Number(submission.score) >= 80 ? 'PASSED' : 'FAILED';
+  if (submission.isPassed !== undefined && submission.isPassed !== null) {
+    return submission.isPassed ? 'PASSED' : 'FAILED';
+  }
+  if (submission.status === 'NEEDS_RESUBMISSION') {
+    return 'FAILED';
+  }
+  const hasZeroCriterion = submission.criterionScores && submission.criterionScores.length > 0
+    ? submission.criterionScores.some((c) => Number(c.score) <= 0)
+    : false;
+  return Number(submission.score) >= 80 && !hasZeroCriterion ? 'PASSED' : 'FAILED';
 }
 
 export interface SpeakingScopeInfo {
@@ -228,6 +338,8 @@ export interface SpeakingScopeInfo {
   text: string;
   border: string;
   badgeClass: string;
+  color: string;
+  badge: string;
 }
 
 export function getSpeakingScopeInfo(scope?: string | null): SpeakingScopeInfo {
@@ -241,6 +353,8 @@ export function getSpeakingScopeInfo(scope?: string | null): SpeakingScopeInfo {
       text: 'text-sky-700',
       border: 'border-sky-200',
       badgeClass: 'bg-sky-50 text-sky-700 border-sky-200',
+      color: '#0284c7',
+      badge: 'Bài học',
     };
   }
   if (s === 'CHAPTER') {
@@ -252,6 +366,8 @@ export function getSpeakingScopeInfo(scope?: string | null): SpeakingScopeInfo {
       text: 'text-amber-800',
       border: 'border-amber-200',
       badgeClass: 'bg-amber-50 text-amber-800 border-amber-200',
+      color: '#d97706',
+      badge: 'Theo chương',
     };
   }
   return {
@@ -262,5 +378,31 @@ export function getSpeakingScopeInfo(scope?: string | null): SpeakingScopeInfo {
     text: 'text-purple-700',
     border: 'border-purple-200',
     badgeClass: 'bg-purple-50 text-purple-700 border-purple-200',
+    color: '#7c3aed',
+    badge: 'Cuối khóa',
   };
+}
+
+export interface SubmissionCriterionScoreDto {
+  code: string;
+  name: string;
+  weightPercentage: number;
+  score: number;
+  feedback?: string;
+}
+
+export interface SpeakingSubmissionHistoryDto {
+  submissionId: number;
+  scriptId?: number | null;
+  lessonId?: number | null;
+  attemptNumber: number;
+  score?: number | null;
+  status: string;
+  isPassed?: boolean | null;
+  gradeTier?: string | null;
+  submittedAt: string;
+  gradedAt?: string | null;
+  audioUrl: string;
+  studentNote?: string | null;
+  selectedLevel?: string | null;
 }

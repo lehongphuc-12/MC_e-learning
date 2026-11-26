@@ -20,6 +20,7 @@ using MC_BE.Features.Learning.Repositories;
 using MC_BE.Features.Learning.Repositories.Interfaces;
 using MC_BE.Features.Learning.Services;
 using MC_BE.Features.Learning.Services.Interfaces;
+using MC_BE.Features.Learning.Hubs;
 using MC_BE.Features.Chat.Hubs;
 using MC_BE.Features.Chat.Services;
 using MC_BE.Features.Chat.Services.Interfaces;
@@ -43,20 +44,35 @@ using MC_BE.Features.VoiceAssessment.Services.Interfaces;
 using MC_BE.Features.VoiceAssessment.Providers;
 using MC_BE.Features.VoiceAssessment.Providers.Interfaces;
 using Microsoft.Extensions.Options;
+using MC_BE.Features.VoiceJourney.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 // ============================================================
-// KESTREL — allow large file uploads (max 500 MB for video)
+// KESTREL — leave room for multipart overhead; lesson files are capped at 700 MB in LessonService.
+// LOGGING & HOST OPTIONS (Safe on Windows, prevent EventLog crash from stopping host)
+// ============================================================
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole();
+builder.Logging.AddDebug();
+
+builder.Services.Configure<HostOptions>(options =>
+{
+    // Prevent unhandled exception in background workers from crashing the entire web API server
+    options.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.Ignore;
+});
+
+// ============================================================
+// KESTREL — allow large file uploads (max 700 MB for video)
 // ============================================================
 builder.WebHost.ConfigureKestrel(options =>
 {
     // Per-request limit; individual endpoints can be lower via [RequestSizeLimit]
-    options.Limits.MaxRequestBodySize = 500L * 1024L * 1024L; // 500 MB
+    options.Limits.MaxRequestBodySize = 720L * 1024L * 1024L;
 });
 builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
 {
     options.ValueLengthLimit = int.MaxValue;
-    options.MultipartBodyLengthLimit = 500L * 1024L * 1024L; // 500 MB
+    options.MultipartBodyLengthLimit = 720L * 1024L * 1024L;
     options.MultipartHeadersLengthLimit = int.MaxValue;
 });
 
@@ -138,6 +154,7 @@ builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IUserProfileService, UserProfileService>();
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IUserPreferenceService, UserPreferenceService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<IAdminStatsService, AdminStatsService>();
 
@@ -145,6 +162,11 @@ builder.Services.AddScoped<IAdminStatsService, AdminStatsService>();
 // COURSE MANAGEMENT
 // ============================================================
 builder.Services.AddScoped<ICourseService, CourseService>();
+builder.Services.AddScoped<ICourseFavoriteService, CourseFavoriteService>();
+builder.Services.AddScoped<ICourseReviewService, CourseReviewService>();
+builder.Services.AddScoped<ICourseReviewAdminService, CourseReviewAdminService>();
+builder.Services.AddScoped<ICourseRecommendationService, CourseRecommendationService>();
+builder.Services.AddScoped<ICourseSyllabusService, CourseSyllabusService>();
 builder.Services.AddScoped<ICourseMaterialsReadRepository, CourseMaterialsReadRepository>();
 builder.Services.AddScoped<ICourseMaterialsReadService, CourseMaterialsReadService>();
 builder.Services.AddScoped<ICourseLearningAccessService, CourseLearningAccessService>();
@@ -164,6 +186,7 @@ builder.Services.AddScoped<QuizSyncReviewService>();
 builder.Services.AddScoped<QuizSyncSafetyService>();
 builder.Services.AddScoped<QuizFullSyncService>();
 builder.Services.AddHostedService<QuizAutoSyncWorker>();
+builder.Services.AddHostedService<MC_BE.Features.Notifications.NotificationReminderWorker>();
 
 // ============================================================
 // FORUM
@@ -181,6 +204,7 @@ builder.Services.AddScoped<ILearningProgressService, LearningProgressService>();
 builder.Services.AddScoped<ILearningAccessService, LearningAccessService>();
 builder.Services.AddScoped<ISpeakingSubmissionRepository, SpeakingSubmissionRepository>();
 builder.Services.AddScoped<ISpeakingSubmissionService, SpeakingSubmissionService>();
+builder.Services.AddScoped<IRemedialAssignmentService, RemedialAssignmentService>();
 builder.Services.AddScoped<ISpeakingScriptRepository, SpeakingScriptRepository>();
 builder.Services.AddScoped<ISpeakingScriptService, SpeakingScriptService>();
 builder.Services.AddScoped<SpeakingScriptParserService>();
@@ -210,6 +234,7 @@ builder.Services.AddHostedService<R2ObjectDeletionWorker>();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 builder.Services.AddScoped<ICourseCatalogService, CourseCatalogService>();
 builder.Services.AddScoped<IEnrollmentService, EnrollmentService>();
+builder.Services.AddScoped<MC_BE.Features.Enrollment.Services.ICourseAccessExtensionService, MC_BE.Features.Enrollment.Services.CourseAccessExtensionService>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
 builder.Services.AddScoped<IAdminPaymentService, AdminPaymentService>();
 builder.Services.AddScoped<IPayOsTransactionRecorder, PayOsTransactionRecorder>();
@@ -224,6 +249,10 @@ builder.Services.AddScoped<ICallService, CallService>();
 // ============================================================
 // Model AI
 // ============================================================
+// C03: Vietnamese ASR trên MSEEK Space. C02 gọi từ AIPracticeService.
+// Không đăng ký MaiTranscribeService lần nữa cho IAsrService.
+builder.Services.AddTransient<IAsrService, HuggingFaceAsrService>();
+
 builder.Services.Configure<OpenAISettings>(
     builder.Configuration.GetSection("OpenAI"));
 
@@ -267,7 +296,7 @@ builder.Services.AddAuthentication(options =>
             var accessToken = context.Request.Query["access_token"];
             var path = context.HttpContext.Request.Path;
             if (!string.IsNullOrEmpty(accessToken) &&
-                (path.StartsWithSegments("/hubs/chat") || path.StartsWithSegments("/hubs/call")))
+                (path.StartsWithSegments("/hubs/chat") || path.StartsWithSegments("/hubs/call") || path.StartsWithSegments("/hubs/learning")))
             {
                 context.Token = accessToken;
             }
@@ -293,7 +322,17 @@ builder.Services.AddScoped<
     AIResponseService>();
 
 // AI PRACTICE (bổ sung độc lập, giữ nguyên AIResponseService)
+// ============================================================
+// AI PRACTICE + VOICE AI ENTITLEMENT
+// ============================================================
+
+// Service tạo và truy xuất kết quả luyện tập AI
 builder.Services.AddScoped<IAIPracticeService, AIPracticeService>();
+
+// Service kiểm tra quyền sử dụng tính năng Voice AI
+builder.Services.AddScoped<
+    IVoiceAiEntitlementService,
+    VoiceAiEntitlementService>();
 
 builder.Services.AddHttpClient<
     ILLMProvider,
@@ -391,7 +430,12 @@ app.UseMiddleware<GlobalExceptionMiddleware>();
 // ============================================================
 // HTTPS REDIRECT — ensure HTTP requests are upgraded to HTTPS
 // ============================================================
-app.UseHttpsRedirection();
+// Local development uses HTTP (e.g. http://localhost:5239).
+// Redirecting an OPTIONS preflight to HTTPS causes the browser to block CORS.
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 
 // ============================================================
 // DATABASE MIGRATION + PATCH
@@ -442,6 +486,17 @@ using (var scope = app.Services.CreateScope())
                 CONSTRAINT fk_speaking_script_levels_script FOREIGN KEY (""ScriptID"") REFERENCES speaking_scripts(""ScriptID"") ON DELETE CASCADE,
                 CONSTRAINT uq_script_level UNIQUE (""ScriptID"", ""Level"")
             );
+            ALTER TABLE IF EXISTS speaking_scripts ADD COLUMN IF NOT EXISTS ""BackgroundMusicId"" integer;
+            CREATE TABLE IF NOT EXISTS speaking_rubric_criteria (
+                ""CriterionId"" SERIAL PRIMARY KEY,
+                ""ScriptId"" integer NOT NULL,
+                ""Code"" character varying(50) NOT NULL,
+                ""Name"" character varying(255) NOT NULL,
+                ""Description"" character varying(1000),
+                ""Weight"" numeric(5,2) NOT NULL DEFAULT 0.00,
+                ""OrderIndex"" integer NOT NULL DEFAULT 0,
+                CONSTRAINT fk_rubric_criteria_script FOREIGN KEY (""ScriptId"") REFERENCES speaking_scripts(""ScriptID"") ON DELETE CASCADE
+            );
         ");
     }
     catch (Exception ex)
@@ -465,6 +520,7 @@ app.UseAuthorization();
 // ============================================================
 app.MapHub<ChatHub>("/hubs/chat");
 app.MapHub<CallHub>("/hubs/call");
+app.MapHub<LearningHub>("/hubs/learning");
 
 // ============================================================
 // SWAGGER — only expose UI in Development environment

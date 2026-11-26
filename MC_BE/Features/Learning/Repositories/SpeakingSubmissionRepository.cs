@@ -1,3 +1,4 @@
+﻿
 using MC_BE.Core.Entities;
 using MC_BE.Features.Learning.Repositories.Interfaces;
 using MC_BE.Shared.Data;
@@ -8,6 +9,7 @@ namespace MC_BE.Features.Learning.Repositories;
 
 public class SpeakingSubmissionRepository : GenericRepository<SpeakingSubmission>, ISpeakingSubmissionRepository
 {
+
     private readonly SmartMcDbContext _context;
 
     public SpeakingSubmissionRepository(SmartMcDbContext context) : base(context)
@@ -19,10 +21,15 @@ public class SpeakingSubmissionRepository : GenericRepository<SpeakingSubmission
     {
         return _context.SpeakingSubmissions
             .Include(s => s.SpeakingScript)
+                .ThenInclude(sc => sc!.RubricCriteria)
+            .Include(s => s.SpeakingScript)
                 .ThenInclude(sc => sc!.Course)
                     .ThenInclude(c => c.Instructor)
             .Include(s => s.SpeakingScript)
                 .ThenInclude(sc => sc!.Module)
+            .Include(s => s.Lesson)
+                .ThenInclude(l => l!.SpeakingScript)
+                    .ThenInclude(sc => sc!.RubricCriteria)
             .Include(s => s.Lesson)
                 .ThenInclude(l => l!.Course)
                     .ThenInclude(c => c.Instructor)
@@ -80,5 +87,21 @@ public class SpeakingSubmissionRepository : GenericRepository<SpeakingSubmission
             .Where(s => s.LearnerId == learnerId && (s.ScriptId == scriptId || (s.Lesson != null && s.Lesson.SpeakingScript != null && s.Lesson.SpeakingScript.ScriptId == scriptId)))
             .OrderByDescending(s => s.SubmittedAt)
             .FirstOrDefaultAsync();
+    }
+
+    public async Task<IEnumerable<SpeakingSubmission>> GetSubmissionsByLearnerAndScriptAsync(int learnerId, int scriptId)
+    {
+        return await IncludeSubmissionDetails()
+            .Where(s => s.LearnerId == learnerId && (s.ScriptId == scriptId || (s.Lesson != null && s.Lesson.SpeakingScript != null && s.Lesson.SpeakingScript.ScriptId == scriptId)))
+            .OrderBy(s => s.SubmittedAt)
+            .ToListAsync();
+    }
+
+    public async Task<IEnumerable<SpeakingSubmission>> GetSubmissionsByLearnerAndLessonAsync(int learnerId, int lessonId)
+    {
+        return await IncludeSubmissionDetails()
+            .Where(s => s.LearnerId == learnerId && s.LessonId == lessonId)
+            .OrderBy(s => s.SubmittedAt)
+            .ToListAsync();
     }
 }

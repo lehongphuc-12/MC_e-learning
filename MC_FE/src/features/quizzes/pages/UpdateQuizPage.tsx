@@ -1177,8 +1177,8 @@ export const UpdateQuizPage: React.FC<
         {
           purpose: quiz?.purpose ?? 'PRACTICE',
           moduleId: quiz?.moduleId ?? null,
-          availableFrom: quiz?.availableFrom ?? null,
-          availableUntil: quiz?.availableUntil ?? null,
+          availableFrom: null,
+          availableUntil: null,
           title:
             title.trim(),
 
@@ -1190,7 +1190,7 @@ export const UpdateQuizPage: React.FC<
 
           passingScore,
 
-          maxAttempts,
+          maxAttempts: 0,
 
           status,
 
@@ -1284,7 +1284,7 @@ export const UpdateQuizPage: React.FC<
                 <div><label className={fieldLabel}>Trạng thái</label><select className={inputClass} value={status} onChange={e => setStatus(e.target.value as QuizStatus)}>{QUIZ_STATUS_OPTIONS.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select><span className="mt-1 block text-[11px] text-slate-500">Chọn Lưu trữ và đặt ngày mở để hệ thống tự xuất bản đúng lịch.</span></div>
                 <div className="md:row-span-2"><label className={fieldLabel}>Mô tả</label><textarea className={`${inputClass} min-h-[143px] resize-y`} rows={5} value={description} onChange={e => setDescription(e.target.value)} placeholder="Mô tả nội dung và mục tiêu của bài kiểm tra..."/></div>
                 <div className="grid grid-cols-2 gap-3"><div><label className={fieldLabel}>Thời gian (phút)</label><input className={inputClass} type="number" min={0} value={timeLimitMinutes} onChange={e => setTimeLimitMinutes(Math.max(0, Number(e.target.value)))}/></div><div><label className={fieldLabel}>Điểm đạt (%)</label><input className={inputClass} type="number" min={0} max={100} step={0.01} value={80} disabled title="Điểm đạt cố định là 80% theo quy định MSEEK"/></div></div>
-                <div><label className={fieldLabel}>Số lần làm tối đa (0 = không giới hạn)</label><input className={inputClass} type="number" min={0} value={maxAttempts} onChange={e => setMaxAttempts(Math.max(0, Number(e.target.value)))}/></div>
+                
               </div>
             </section>
             <section className={`${panelClass} p-4 sm:p-5`}>

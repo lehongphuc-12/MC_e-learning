@@ -35,6 +35,12 @@ public class SpeakingScript
     [Column("PassingScore", TypeName = "decimal(5,2)")]
     public decimal PassingScore { get; set; } = 80.00m;
 
+    [Column("DueAt")]
+    public DateTime? DueAt { get; set; }
+
+    [Column("IsRemedial")]
+    public bool IsRemedial { get; set; }
+
     [Column("CreatedBy")]
     public int? CreatedBy { get; set; }
 
@@ -44,7 +50,31 @@ public class SpeakingScript
     [Column("Status")]
     public SpeakingScriptStatus Status { get; set; } = SpeakingScriptStatus.DRAFT;
 
+    [Column("ScriptType")]
+    public SpeakingScriptType ScriptType { get; set; } = SpeakingScriptType.Scripted;
+
+    [Column("PromptContent")]
+    public string? PromptContent { get; set; }
+
+    [Column("StructureHints")]
+    public string? StructureHints { get; set; }
+
+    [Column("TargetDurationSeconds")]
+    public int? TargetDurationSeconds { get; set; }
+
+    [Column("BackgroundMusicId")]
+    public int? BackgroundMusicId { get; set; }
+
+    [Column("SampleAudioUrl")]
+    public string? SampleAudioUrl { get; set; }
+
+    [Column("InstructorNote")]
+    public string? InstructorNote { get; set; }
+
     // Navigation properties
+    [ForeignKey("BackgroundMusicId")]
+    public virtual BackgroundMusic? BackgroundMusic { get; set; }
+
     [ForeignKey("CourseId")]
     public virtual Course Course { get; set; } = null!;
 
@@ -58,4 +88,5 @@ public class SpeakingScript
     public virtual User? CreatedByUser { get; set; }
 
     public virtual ICollection<SpeakingScriptLevel> Levels { get; set; } = new List<SpeakingScriptLevel>();
+    public virtual ICollection<SpeakingRubricCriterion> RubricCriteria { get; set; } = new List<SpeakingRubricCriterion>();
 }

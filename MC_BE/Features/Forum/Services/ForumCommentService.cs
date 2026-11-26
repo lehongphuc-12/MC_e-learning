@@ -43,16 +43,15 @@ public class ForumCommentService : IForumCommentService
                 .ToListAsync()).ToHashSet();
         }
 
-        // Map comment to DTO with API Anonymity Masking & Hidden Status check
         ForumCommentDto MapToDto(ForumComment c)
         {
             bool isAuthor = currentUserId.HasValue && c.AuthorId == currentUserId.Value;
 
-            // API Anonymity Masking: If anonymous and viewer is not admin, mask author details completely
             int authorId = c.AuthorId;
             string authorName = c.Author?.FullName ?? "Học viên";
             string? authorAvatar = c.Author?.AvatarUrl;
             string authorRole = c.Author?.Role?.RoleName ?? "Learner";
+            bool isInstructor = c.Author?.Role?.RoleName != null && c.Author.Role.RoleName.Equals("Instructor", StringComparison.OrdinalIgnoreCase);
 
             if (c.IsAnonymous && !isAdmin)
             {
@@ -60,9 +59,9 @@ public class ForumCommentService : IForumCommentService
                 authorName = "Học viên ẩn danh";
                 authorAvatar = null;
                 authorRole = "Learner";
+                isInstructor = false;
             }
 
-            // Hidden comment content masking for non-author & non-admin
             string displayContent = c.Content;
             if (c.Status != "ACTIVE" && !isAdmin && !isAuthor)
             {
@@ -73,10 +72,12 @@ public class ForumCommentService : IForumCommentService
             {
                 CommentId = c.CommentId,
                 PostId = c.PostId,
+                LessonId = c.LessonId,
                 AuthorId = authorId,
                 AuthorName = authorName,
                 AuthorAvatar = authorAvatar,
                 AuthorRole = authorRole,
+                IsInstructor = isInstructor,
                 ParentCommentId = c.ParentCommentId,
                 DepthLevel = c.DepthLevel,
                 Content = displayContent,
@@ -95,7 +96,6 @@ public class ForumCommentService : IForumCommentService
 
         var allDtos = comments.Select(MapToDto).ToList();
 
-        // Organize into 2-level hierarchy: Level 1 comments with Replies list
         var topLevelComments = allDtos
             .Where(c => c.ParentCommentId == null || c.DepthLevel == 1)
             .OrderBy(c => c.CreatedAt)
@@ -148,7 +148,6 @@ public class ForumCommentService : IForumCommentService
                 throw new InvalidOperationException("Bình luận cha không tồn tại.");
             }
 
-            // If replying to a Level 2 comment, link to top-level parent comment so depth remains 2 (same indent level)
             parentCommentId = parent.ParentCommentId ?? parent.CommentId;
             depthLevel = 2;
         }
@@ -169,7 +168,6 @@ public class ForumCommentService : IForumCommentService
 
         _context.ForumComments.Add(comment);
 
-        // Increment post comments count
         post.CommentsCount += 1;
         _context.ForumPosts.Update(post);
 
@@ -183,6 +181,7 @@ public class ForumCommentService : IForumCommentService
         string returnAuthorName = author?.FullName ?? "Học viên";
         string? returnAuthorAvatar = author?.AvatarUrl;
         string returnAuthorRole = author?.Role?.RoleName ?? "Learner";
+        bool isInstructor = author?.Role?.RoleName != null && author.Role.RoleName.Equals("Instructor", StringComparison.OrdinalIgnoreCase);
 
         if (comment.IsAnonymous)
         {
@@ -190,16 +189,19 @@ public class ForumCommentService : IForumCommentService
             returnAuthorName = "Học viên ẩn danh";
             returnAuthorAvatar = null;
             returnAuthorRole = "Learner";
+            isInstructor = false;
         }
 
         return new ForumCommentDto
         {
             CommentId = comment.CommentId,
             PostId = comment.PostId,
+            LessonId = comment.LessonId,
             AuthorId = returnAuthorId,
             AuthorName = returnAuthorName,
             AuthorAvatar = returnAuthorAvatar,
             AuthorRole = returnAuthorRole,
+            IsInstructor = isInstructor,
             ParentCommentId = comment.ParentCommentId,
             DepthLevel = comment.DepthLevel,
             Content = comment.Content,
@@ -247,6 +249,7 @@ public class ForumCommentService : IForumCommentService
         string returnAuthorName = comment.Author?.FullName ?? "Học viên";
         string? returnAuthorAvatar = comment.Author?.AvatarUrl;
         string returnAuthorRole = comment.Author?.Role?.RoleName ?? "Learner";
+        bool isUpdatedInstructor = comment.Author?.Role?.RoleName != null && comment.Author.Role.RoleName.Equals("Instructor", StringComparison.OrdinalIgnoreCase);
 
         if (comment.IsAnonymous)
         {
@@ -254,16 +257,19 @@ public class ForumCommentService : IForumCommentService
             returnAuthorName = "Học viên ẩn danh";
             returnAuthorAvatar = null;
             returnAuthorRole = "Learner";
+            isUpdatedInstructor = false;
         }
 
         return new ForumCommentDto
         {
             CommentId = comment.CommentId,
             PostId = comment.PostId,
+            LessonId = comment.LessonId,
             AuthorId = returnAuthorId,
             AuthorName = returnAuthorName,
             AuthorAvatar = returnAuthorAvatar,
             AuthorRole = returnAuthorRole,
+            IsInstructor = isUpdatedInstructor,
             ParentCommentId = comment.ParentCommentId,
             DepthLevel = comment.DepthLevel,
             Content = comment.Content,
@@ -294,15 +300,220 @@ public class ForumCommentService : IForumCommentService
 
         _context.ForumComments.Update(comment);
 
-        // Decrement post comments count
-        var post = await _context.ForumPosts.FirstOrDefaultAsync(p => p.PostId == comment.PostId);
-        if (post != null && post.CommentsCount > 0)
+        if (comment.PostId.HasValue)
         {
-            post.CommentsCount -= 1;
-            _context.ForumPosts.Update(post);
+            var post = await _context.ForumPosts.FirstOrDefaultAsync(p => p.PostId == comment.PostId.Value);
+            if (post != null && post.CommentsCount > 0)
+            {
+                post.CommentsCount -= 1;
+                _context.ForumPosts.Update(post);
+            }
         }
 
         await _context.SaveChangesAsync();
         return true;
+    }
+
+    public async Task<List<ForumCommentDto>> GetCommentsByLessonIdAsync(int lessonId, int? currentUserId = null, bool isAdmin = false)
+    {
+        var lesson = await _context.Lessons
+            .Include(l => l.Course)
+            .FirstOrDefaultAsync(l => l.LessonId == lessonId);
+
+        if (lesson is null)
+        {
+            throw new InvalidOperationException("Bài học không tồn tại.");
+        }
+
+        var comments = await _context.ForumComments
+            .Include(c => c.Author).ThenInclude(a => a.Role)
+            .Where(c => c.LessonId == lessonId && c.Status != "DELETED")
+            .AsNoTracking()
+            .ToListAsync();
+
+        var commentIds = comments.Select(c => c.CommentId).ToList();
+        var userReactions = new Dictionary<int, string>();
+        var userReports = new HashSet<int>();
+
+        if (currentUserId.HasValue && commentIds.Any())
+        {
+            userReactions = await _context.ForumReactions
+                .Where(r => r.UserId == currentUserId.Value && r.TargetType == "COMMENT" && r.CommentId.HasValue && commentIds.Contains(r.CommentId.Value))
+                .ToDictionaryAsync(r => r.CommentId!.Value, r => r.ReactionType);
+
+            userReports = (await _context.ForumReports
+                .Where(r => r.ReporterId == currentUserId.Value && r.TargetType == "COMMENT" && r.CommentId.HasValue && commentIds.Contains(r.CommentId.Value))
+                .Select(r => r.CommentId!.Value)
+                .ToListAsync()).ToHashSet();
+        }
+
+        int? courseInstructorId = lesson.Course?.InstructorId;
+
+        ForumCommentDto MapToDto(ForumComment c)
+        {
+            bool isAuthor = currentUserId.HasValue && c.AuthorId == currentUserId.Value;
+
+            int authorId = c.AuthorId;
+            string authorName = c.Author?.FullName ?? "Học viên";
+            string? authorAvatar = c.Author?.AvatarUrl;
+            string authorRole = c.Author?.Role?.RoleName ?? "Learner";
+            bool isInstructor = (c.Author?.Role?.RoleName != null && c.Author.Role.RoleName.Equals("Instructor", StringComparison.OrdinalIgnoreCase))
+                || (courseInstructorId.HasValue && c.AuthorId == courseInstructorId.Value);
+
+            if (c.IsAnonymous && !isAdmin)
+            {
+                authorId = 0;
+                authorName = "Học viên ẩn danh";
+                authorAvatar = null;
+                authorRole = "Learner";
+                isInstructor = false;
+            }
+
+            string displayContent = c.Content;
+            if (c.Status != "ACTIVE" && !isAdmin && !isAuthor)
+            {
+                displayContent = "[Bình luận này đang bị ẩn do vi phạm quy chuẩn]";
+            }
+
+            return new ForumCommentDto
+            {
+                CommentId = c.CommentId,
+                PostId = c.PostId,
+                LessonId = c.LessonId,
+                AuthorId = authorId,
+                AuthorName = authorName,
+                AuthorAvatar = authorAvatar,
+                AuthorRole = authorRole,
+                IsInstructor = isInstructor,
+                ParentCommentId = c.ParentCommentId,
+                DepthLevel = c.DepthLevel,
+                Content = displayContent,
+                ImageUrl = c.ImageUrl,
+                IsAnonymous = c.IsAnonymous,
+                ReactionsCount = c.ReactionsCount,
+                ReportsCount = c.ReportsCount,
+                Status = c.Status,
+                CreatedAt = c.CreatedAt,
+                UpdatedAt = c.UpdatedAt,
+                UserReaction = userReactions.GetValueOrDefault(c.CommentId),
+                UserHasReported = userReports.Contains(c.CommentId),
+                IsAuthor = isAuthor
+            };
+        }
+
+        var allDtos = comments.Select(MapToDto).ToList();
+
+        var topLevelComments = allDtos
+            .Where(c => c.ParentCommentId == null || c.DepthLevel == 1)
+            .OrderBy(c => c.CreatedAt)
+            .ToList();
+
+        var repliesMap = allDtos
+            .Where(c => c.ParentCommentId.HasValue && c.DepthLevel == 2)
+            .GroupBy(c => c.ParentCommentId!.Value)
+            .ToDictionary(g => g.Key, g => g.OrderBy(r => r.CreatedAt).ToList());
+
+        foreach (var parent in topLevelComments)
+        {
+            if (repliesMap.TryGetValue(parent.CommentId, out var replies))
+            {
+                parent.Replies = replies;
+            }
+        }
+
+        return topLevelComments;
+    }
+
+    public async Task<ForumCommentDto> CreateLessonCommentAsync(int lessonId, int userId, CreateCommentDto dto)
+    {
+        var lesson = await _context.Lessons
+            .Include(l => l.Course)
+            .FirstOrDefaultAsync(l => l.LessonId == lessonId);
+        if (lesson is null)
+        {
+            throw new InvalidOperationException("Bài học không tồn tại.");
+        }
+
+        int depthLevel = 1;
+        int? parentCommentId = null;
+
+        if (dto.ParentCommentId.HasValue && dto.ParentCommentId.Value > 0)
+        {
+            var parent = await _context.ForumComments
+                .FirstOrDefaultAsync(c => c.CommentId == dto.ParentCommentId.Value && c.LessonId == lessonId);
+
+            if (parent is null || parent.Status == "DELETED")
+            {
+                throw new InvalidOperationException("Bình luận cha không tồn tại.");
+            }
+
+            parentCommentId = parent.ParentCommentId ?? parent.CommentId;
+            depthLevel = 2;
+        }
+
+        var comment = new ForumComment
+        {
+            LessonId = lessonId,
+            PostId = null,
+            AuthorId = userId,
+            ParentCommentId = parentCommentId,
+            DepthLevel = depthLevel,
+            Content = dto.Content.Trim(),
+            ImageUrl = dto.ImageUrl?.Trim(),
+            IsAnonymous = dto.IsAnonymous,
+            Status = "ACTIVE",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        _context.ForumComments.Add(comment);
+        await _context.SaveChangesAsync();
+
+        var author = await _context.Users
+            .Include(u => u.Role)
+            .FirstOrDefaultAsync(u => u.UserId == userId);
+
+        int? courseInstructorId = lesson.Course?.InstructorId;
+        bool isInstructor = (author?.Role?.RoleName != null && author.Role.RoleName.Equals("Instructor", StringComparison.OrdinalIgnoreCase))
+            || (courseInstructorId.HasValue && userId == courseInstructorId.Value);
+
+        int returnAuthorId = userId;
+        string returnAuthorName = author?.FullName ?? "Học viên";
+        string? returnAuthorAvatar = author?.AvatarUrl;
+        string returnAuthorRole = author?.Role?.RoleName ?? "Learner";
+
+        if (comment.IsAnonymous)
+        {
+            returnAuthorId = 0;
+            returnAuthorName = "Học viên ẩn danh";
+            returnAuthorAvatar = null;
+            returnAuthorRole = "Learner";
+            isInstructor = false;
+        }
+
+        return new ForumCommentDto
+        {
+            CommentId = comment.CommentId,
+            PostId = null,
+            LessonId = comment.LessonId,
+            AuthorId = returnAuthorId,
+            AuthorName = returnAuthorName,
+            AuthorAvatar = returnAuthorAvatar,
+            AuthorRole = returnAuthorRole,
+            IsInstructor = isInstructor,
+            ParentCommentId = comment.ParentCommentId,
+            DepthLevel = comment.DepthLevel,
+            Content = comment.Content,
+            ImageUrl = comment.ImageUrl,
+            IsAnonymous = comment.IsAnonymous,
+            ReactionsCount = 0,
+            ReportsCount = 0,
+            Status = comment.Status,
+            CreatedAt = comment.CreatedAt,
+            UpdatedAt = comment.UpdatedAt,
+            UserReaction = null,
+            UserHasReported = false,
+            IsAuthor = true
+        };
     }
 }

@@ -25,16 +25,15 @@ public class ForumCommentsController : ControllerBase
 
     private int? GetCurrentUserId()
     {
-        var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var claim = User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         return int.TryParse(claim, out var id) ? id : null;
     }
 
     private bool IsAdmin()
     {
-        return User.IsInRole("Admin");
+        return User?.IsInRole("Admin") ?? false;
     }
 
-    // GET /api/forum/posts/{postId}/comments
     [HttpGet("posts/{postId:int}/comments")]
     [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<List<ForumCommentDto>>>> GetComments(int postId)
@@ -52,7 +51,28 @@ public class ForumCommentsController : ControllerBase
         }
     }
 
-    // POST /api/forum/comments
+    [HttpGet("/api/lessons/{lessonId:int}/comments")]
+    [HttpGet("lessons/{lessonId:int}/comments")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<List<ForumCommentDto>>>> GetLessonComments(int lessonId)
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+            var isAdmin = IsAdmin();
+            var comments = await _commentService.GetCommentsByLessonIdAsync(lessonId, userId, isAdmin);
+            return Ok(ApiResponse<List<ForumCommentDto>>.SuccessResponse(comments, "Lấy danh sách thảo luận bài học thành công."));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(ApiResponse<List<ForumCommentDto>>.FailureResponse(ex.Message));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ApiResponse<List<ForumCommentDto>>.FailureResponse(ex.Message));
+        }
+    }
+
     [HttpPost("comments")]
     [Authorize]
     public async Task<ActionResult<ApiResponse<ForumCommentDto>>> AddComment([FromBody] CreateCommentRequest request)
@@ -76,8 +96,32 @@ public class ForumCommentsController : ControllerBase
         }
     }
 
-    // PUT /api/forum/comments/{id}
+    [HttpPost("/api/lessons/{lessonId:int}/comments")]
+    [HttpPost("lessons/{lessonId:int}/comments")]
+    [Authorize]
+    public async Task<ActionResult<ApiResponse<ForumCommentDto>>> CreateLessonComment(int lessonId, [FromBody] CreateCommentDto request)
+    {
+        var userId = GetCurrentUserId();
+        if (userId is null)
+            return Unauthorized(ApiResponse<ForumCommentDto>.FailureResponse("Vui lòng đăng nhập để bình luận."));
+
+        try
+        {
+            var comment = await _commentService.CreateLessonCommentAsync(lessonId, userId.Value, request);
+            return Ok(ApiResponse<ForumCommentDto>.SuccessResponse(comment, "Gửi thảo luận bài học thành công."));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<ForumCommentDto>.FailureResponse(ex.Message));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, ApiResponse<ForumCommentDto>.FailureResponse(ex.Message));
+        }
+    }
+
     [HttpPut("comments/{id:int}")]
+    [HttpPut("/api/lessons/comments/{id:int}")]
     [Authorize]
     public async Task<ActionResult<ApiResponse<ForumCommentDto>>> UpdateComment(int id, [FromBody] UpdateCommentRequest request)
     {
@@ -109,8 +153,8 @@ public class ForumCommentsController : ControllerBase
         }
     }
 
-    // DELETE /api/forum/comments/{id}
     [HttpDelete("comments/{id:int}")]
+    [HttpDelete("/api/lessons/comments/{id:int}")]
     [Authorize]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteComment(int id)
     {
@@ -139,7 +183,6 @@ public class ForumCommentsController : ControllerBase
         }
     }
 
-    // POST /api/forum/comments/{id}/react
     [HttpPost("comments/{id:int}/react")]
     [Authorize]
     public async Task<ActionResult<ApiResponse<ForumReactionSummaryDto>>> ToggleCommentReaction(int id, [FromBody] ToggleReactionRequest request)
@@ -166,7 +209,6 @@ public class ForumCommentsController : ControllerBase
         }
     }
 
-    // POST /api/forum/comments/{id}/report
     [HttpPost("comments/{id:int}/report")]
     [Authorize]
     public async Task<ActionResult<ApiResponse<bool>>> ReportComment(int id, [FromBody] CreateReportRequest request)

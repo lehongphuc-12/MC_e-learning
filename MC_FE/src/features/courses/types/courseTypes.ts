@@ -74,6 +74,13 @@ export interface Course {
   instructorName?: string;    // Joined from USER.FullName
   studentCount?: number;
   studentsCount?: number;
+  rating?: number;
+  reviewCount?: number;
+  purchasedLearnerCount?: number;
+  isBestSeller?: boolean;
+  previewAvailable?: boolean;
+  previewLessonId?: number | null;
+  previewLessonTitle?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -88,6 +95,10 @@ export interface Course {
 export interface CreateCourseDto {
   title: string;              // Required: min 3 chars
   description?: string;       // Optional
+  previewTargetAudience?: string;
+  previewPrerequisites?: string;
+  previewLearningOutcomes?: string;
+  previewAssessmentOverview?: string;
   categoryId?: number | null; // Optional FK
   thumbnailUrl?: string;      // Optional URL
   price: number;              // Required: >= 0
@@ -182,8 +193,45 @@ export interface LearnedCourse {
   totalLecturesCount: number;
   lastAccessedAt?: string;
   lastLectureTitle?: string;
-  status: 'in-progress' | 'completed';
+  status: 'in-progress' | 'completed' | 'expired';
   enrolledDate?: string;
   certificateId?: number;
+  expiresAt?: string | null;
+  isExpired?: boolean;
+  isAccessGranted?: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// 8. RECOMMENDED COURSE TYPE — returned from GET /courses/recommendations
+// ---------------------------------------------------------------------------
+export interface RecommendedCourseDto {
+  id: number;
+  courseId: number;
+  title: string;
+  slug: string;
+  description?: string | null;
+  thumbnailUrl?: string | null;
+  categoryName?: string | null;
+  categoryId?: number | null;
+  instructorName?: string | null;
+  instructorId: number;
+  level?: string | null;
+  duration: string;
+  rating: number;
+  reviewCount: number;
+  price: number;
+  originalPrice: number;
+  discountPercent: number;
+  isFree: boolean;
+  skillTags?: string | null;
+  prerequisiteCourseId?: number | null;
+  prerequisiteCourseTitle?: string | null;
+  totalScore: number;
+  skillGapScore: number;
+  categoryAndLevelScore: number;
+  nextStepScore: number;
+  popularityScore: number;
+  recommendationReason: string;
+  isColdStartRecommendation: boolean;
 }
 

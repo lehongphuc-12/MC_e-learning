@@ -1,16 +1,12 @@
-import React, { useState, useRef, useEffect } from 'react';
 import {
-  X,
-  Send,
   BookOpen,
-  Video,
-  FileText,
-  RotateCcw,
   MessageSquare,
-  ChevronDown,
-  Sparkles,
+  RotateCcw,
+  Send,
+  X
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
+import React, { useEffect, useRef, useState } from 'react';
 import { mentorChatApi, MentorSourceCitation } from '../api/mentorChatApi';
 
 export interface CourseChatDrawerProps {
@@ -48,9 +44,9 @@ function deduplicateSources(sources: MentorSourceCitation[]): MentorSourceCitati
 }
 
 const SUGGESTIONS = [
-  'Tóm tắt các ý chính của bài này',
-  'Kỹ thuật lấy hơi và kiểm soát cột hơi',
-  'Cách xử lý khi quên kịch bản dẫn'
+  // 'Tóm tắt các ý chính của bài này',
+  // 'Kỹ thuật lấy hơi và kiểm soát cột hơi',
+  // 'Cách xử lý khi quên kịch bản dẫn'
 ];
 
 /**
@@ -423,78 +419,7 @@ export const CourseChatDrawer: React.FC<CourseChatDrawerProps> = ({
                       <CleanMessageBody text={msg.content} />
                     )}
 
-                    {/* Sources (Footnotes) & Deep Citations */}
-                    {msg.sources && msg.sources.length > 0 && (
-                      <div className="mt-2.5 pt-2 border-t border-slate-100 text-[11px]">
-                        <div className="flex items-center justify-between mb-1.5">
-                          <span className="font-semibold text-violet-900 flex items-center gap-1">
-                            <Sparkles className="h-3 w-3 text-violet-600" /> Dẫn chứng trích xuất ({msg.sources.length}):
-                          </span>
-                        </div>
-                        <div className="space-y-1.5">
-                          {msg.sources.map((src, i) => {
-                            const sourceKey = `${msg.id}-${i}`;
-                            const isExpanded = !!expandedSources[sourceKey];
-                            const isVideo = src.source_type === 'video_transcript';
-
-                            return (
-                              <div
-                                key={i}
-                                className="rounded-xl border border-violet-100/90 bg-violet-50/40 p-2 text-slate-700 transition-all hover:bg-violet-50/70"
-                              >
-                                <div className="flex items-center justify-between gap-1.5">
-                                  <span className="flex items-center gap-1.5 min-w-0 flex-1 font-medium">
-                                    {isVideo ? (
-                                      <Video className="h-3.5 w-3.5 text-rose-500 shrink-0" />
-                                    ) : (
-                                      <FileText className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-                                    )}
-                                    <span className="truncate text-slate-800" title={src.title}>
-                                      {src.title}
-                                    </span>
-                                    {src.page_number ? (
-                                      <span className="shrink-0 rounded bg-blue-100/90 px-1.5 py-0.2 text-[10px] font-bold text-blue-700">
-                                        Trang {src.page_number}
-                                      </span>
-                                    ) : null}
-                                  </span>
-
-                                  <div className="flex items-center gap-1 shrink-0">
-                                    {isVideo && src.lesson_id && onSelectLesson && (
-                                      <button
-                                        type="button"
-                                        onClick={() => onSelectLesson(src.lesson_id!)}
-                                        className="text-violet-700 hover:text-violet-900 font-bold text-[11px] px-2 py-0.5 rounded-lg bg-white border border-violet-200 hover:bg-violet-100 transition shadow-2xs cursor-pointer"
-                                      >
-                                        Mở bài
-                                      </button>
-                                    )}
-                                    {src.snippet && (
-                                      <button
-                                        type="button"
-                                        onClick={() => toggleExpandSource(sourceKey)}
-                                        className="text-slate-500 hover:text-violet-700 font-semibold text-[10px] px-1.5 py-0.5 rounded-md hover:bg-violet-100/60 transition cursor-pointer flex items-center gap-0.5"
-                                      >
-                                        <span>{isExpanded ? 'Thu gọn' : 'Xem trích dẫn'}</span>
-                                        <ChevronDown className={`h-3 w-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
-                                      </button>
-                                    )}
-                                  </div>
-                                </div>
-
-                                {/* Expandable snippet accordion */}
-                                {isExpanded && src.snippet && (
-                                  <div className="mt-2 pt-1.5 border-t border-violet-100 text-[10.5px] text-slate-600 bg-white/80 p-2 rounded-lg leading-relaxed border border-violet-50 select-text">
-                                    <p className="font-semibold text-[10px] text-violet-800 mb-0.5">Đoạn trích dẫn:</p>
-                                    <p className="italic">"{src.snippet}"</p>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
+                    
                   </div>
 
                   {/* Timestamp & Copy action */}

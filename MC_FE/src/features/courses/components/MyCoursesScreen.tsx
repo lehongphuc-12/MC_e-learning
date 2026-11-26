@@ -17,14 +17,22 @@ import {
   ChevronRight,
   AlertCircle,
   X,
+  ShoppingCart,
+  CheckCircle2,
+  Lock,
 } from 'lucide-react';
 import { EnrolledCourse } from '../../../data/mockData';
-import { ScreenType } from '../../../types';
-import { useLearnedCoursesQuery } from '../hooks/useCoursesQuery';
+import { Course, ScreenType } from '../../../types';
+import { useLearnedCoursesQuery, useRecommendedCoursesQuery, mapRecommendedToUICourse } from '../hooks/useCoursesQuery';
 import { useAuthStore } from '../../../store/useAuthStore';
+import { useOnboardingSurveyStore } from '../../preferences/store/useOnboardingSurveyStore';
+import { courseApi } from '../api/courseApi';
 
 interface MyCoursesScreenProps {
   onNavigate: (screen: ScreenType) => void;
+  onAddToCart?: (course: Course) => void;
+  onOpenCart?: () => void;
+  isCourseInCart?: (courseId: string | number) => boolean;
 }
 
 type TabKey = 'all' | 'in-progress' | 'completed';
@@ -338,13 +346,91 @@ const CourseCardSkeleton: React.FC = () => (
 /*  Main screen                                                        */
 /* ------------------------------------------------------------------ */
 
-export const MyCoursesScreen: React.FC<MyCoursesScreenProps> = ({ onNavigate }) => {
+export const MyCoursesScreen: React.FC<MyCoursesScreenProps> = ({
+  onNavigate,
+  onAddToCart,
+  onOpenCart,
+  isCourseInCart,
+}) => {
   const navigate = useNavigate();
   const user = useAuthStore(state => state.user);
   const { data: apiEnrolledCourses, isLoading, isError } = useLearnedCoursesQuery();
+  const recommendedQuery = useRecommendedCoursesQuery(3);
+  const { openSurvey } = useOnboardingSurveyStore();
+
+  const recommendedCourses = React.useMemo(() => {
+    return (recommendedQuery.data || []).map(mapRecommendedToUICourse);
+  }, [recommendedQuery.data]);
+
+  const isRecInCart = (courseId: string | number) => {
+    if (isCourseInCart) return isCourseInCart(courseId);
+    try {
+      const u = useAuthStore.getState().user;
+      const key = u ? `mseek_cart_user_${u.id}` : 'mseek_cart_guest';
+      const raw = localStorage.getItem(key);
+      const cart: Course[] = raw ? JSON.parse(raw) : [];
+      return cart.some((c) => String(c.id) === String(courseId));
+    } catch {
+      return false;
+    }
+  };
+
+  const handleAddRecToCart = (course: Course) => {
+    if (onAddToCart) {
+      onAddToCart(course);
+      return;
+    }
+    try {
+      const u = useAuthStore.getState().user;
+      const key = u ? `mseek_cart_user_${u.id}` : 'mseek_cart_guest';
+      const raw = localStorage.getItem(key);
+      const cart: Course[] = raw ? JSON.parse(raw) : [];
+      if (!cart.some((c) => String(c.id) === String(course.id))) {
+        cart.push(course);
+        localStorage.setItem(key, JSON.stringify(cart));
+        window.dispatchEvent(new CustomEvent('mseek:cart-updated', { detail: { courseId: course.id } }));
+      }
+      onOpenCart?.();
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   // Pure API data (100% real backend data)
   const enrolledCourses: EnrolledCourse[] = (apiEnrolledCourses as EnrolledCourse[]) || [];
+  const [extensionTarget, setExtensionTarget] = useState<EnrolledCourse | null>(null);
+  const [extensionReason, setExtensionReason] = useState('');
+  const [extensionBusy, setExtensionBusy] = useState(false);
+  const [extensionMessage, setExtensionMessage] = useState<string | null>(null);
+  const [pendingExtensionIds, setPendingExtensionIds] = useState<Set<number>>(new Set());
+  const [clockNow, setClockNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setClockNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    courseApi.getMyAccessExtensionRequests().then(result => {
+      if (mounted) setPendingExtensionIds(new Set((result.data || []).filter(x => x.status === 'PENDING').map(x => x.enrollmentId)));
+    }).catch(() => undefined);
+    return () => { mounted = false; };
+  }, []);
+
+  const submitExtensionRequest = async () => {
+    if (!extensionTarget || extensionReason.trim().length < 10) return;
+    setExtensionBusy(true);
+    setExtensionMessage(null);
+    try {
+      await courseApi.requestAccessExtension(Number(extensionTarget.id), extensionReason.trim());
+      setPendingExtensionIds(previous => new Set(previous).add(Number(extensionTarget.id)));
+      setExtensionMessage('Đã gửi yêu cầu. Admin sẽ phản hồi qua thông báo hệ thống.');
+      setExtensionReason('');
+    } catch (error) {
+      setExtensionMessage(error instanceof Error ? error.message : 'Không thể gửi yêu cầu lúc này.');
+    } finally { setExtensionBusy(false); }
+  };
 
   const [activeTab, setActiveTab] = useState<TabKey>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -450,7 +536,8 @@ export const MyCoursesScreen: React.FC<MyCoursesScreenProps> = ({ onNavigate }) 
 
   useEffect(() => {
     window.addEventListener('resize', measureTabs);
-    return () => window.removeEventListener('resize', measureTabs);
+    // Link is rendered outside the course cards so expired enrollments remain accessible.
+  return () => window.removeEventListener('resize', measureTabs);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
@@ -466,6 +553,7 @@ export const MyCoursesScreen: React.FC<MyCoursesScreenProps> = ({ onNavigate }) 
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
       <style>{MOTION_CSS}</style>
+      <div className="mx-auto mb-4 max-w-7xl text-right"><button type="button" onClick={() => navigate("/learning-history")} className="rounded-lg bg-blue-700 px-4 py-2 font-semibold text-white hover:bg-blue-800">Xem lịch sử học tập</button></div>
 
       <div className="mx-auto max-w-7xl space-y-5">
         {/* ---------------- Banner: 2 nửa bằng nhau, dải số liệu 4 ô đều ---------------- */}
@@ -600,9 +688,13 @@ export const MyCoursesScreen: React.FC<MyCoursesScreenProps> = ({ onNavigate }) 
           </div>
         </section>
 
-        {/* ---------------- Bộ lọc: mọi ô cùng cao 40px ---------------- */}
-        <div
-          ref={toolbarRef}
+        {/* ---------------- Bố cục 2 cột trên Desktop (lg:grid-cols-12) ---------------- */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Cột trái: Tab, tìm kiếm, sắp xếp, danh sách khóa học và phân trang */}
+          <div className={recommendedCourses.length > 0 ? "lg:col-span-8 xl:col-span-8 space-y-6" : "lg:col-span-12 space-y-6"}>
+            {/* ---------------- Bộ lọc: mọi ô cùng cao 40px ---------------- */}
+            <div
+              ref={toolbarRef}
           className="mc-rise flex scroll-mt-24 flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200/80 bg-white p-2.5"
           style={delay(120)}
         >
@@ -745,14 +837,23 @@ export const MyCoursesScreen: React.FC<MyCoursesScreenProps> = ({ onNavigate }) 
               const displayCompletedCount = item.completedLecturesCount || 0;
               const displayProgressPercent = Math.round(item.progressPercent ?? 0);
               const isItemCompleted = item.status === 'completed' && displayProgressPercent >= 100;
+              const expiresAt = item.expiresAt ? new Date(item.expiresAt) : null;
+              const daysUntilExpiry = expiresAt ? Math.ceil((expiresAt.getTime() - clockNow) / 86400000) : null;
+              const hasCourseAccess = item.isAccessGranted !== false && !item.isExpired;
+              const canRequestExtension = expiresAt !== null && ((item.isExpired === true && daysUntilExpiry! >= -30) ||
+                (item.isAccessGranted !== false && daysUntilExpiry! <= 14 && daysUntilExpiry! >= 0));
 
               return (
               <div
                 key={item.id}
-                className="bg-white rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col sm:flex-row sm:h-56 group hover:border-blue-200"
+                className="bg-white rounded-2xl border border-slate-200/80 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden flex flex-col sm:flex-row sm:min-h-56 group hover:border-blue-200"
               >
                 {/* ── Section 1: Thumbnail (Bên Trái - Cố định chiều cao theo card) ── */}
-                <div className="relative sm:w-64 md:w-72 h-44 sm:h-full shrink-0 bg-slate-900 overflow-hidden">
+                <div
+                  onClick={() => navigate(`/courses/${item.course.id}`)}
+                  className="relative sm:w-64 md:w-72 h-44 sm:h-full shrink-0 bg-slate-900 overflow-hidden cursor-pointer"
+                  title="Xem chi tiết khóa học"
+                >
                   <img
                     src={item.course.thumbnail}
                     alt={item.course.title}
@@ -762,7 +863,9 @@ export const MyCoursesScreen: React.FC<MyCoursesScreenProps> = ({ onNavigate }) 
 
                   {/* Status Badge */}
                   <div className="absolute top-3 left-3">
-                    {isItemCompleted ? (
+                    {!hasCourseAccess ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-500 text-white shadow-md"><Lock className="w-3.5 h-3.5" />Hết hạn</span>
+                    ) : isItemCompleted ? (
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500 text-white shadow-md">
                         <CheckCircle className="w-3.5 h-3.5" />
                         Hoàn thành
@@ -789,7 +892,11 @@ export const MyCoursesScreen: React.FC<MyCoursesScreenProps> = ({ onNavigate }) 
                       </span>
                     </div>
 
-                    <h3 className="font-bold text-slate-900 text-base sm:text-lg leading-snug line-clamp-2 group-hover:text-blue-600 transition-colors">
+                    <h3
+                      onClick={() => navigate(`/courses/${item.course.id}`)}
+                      className="font-bold text-slate-900 text-base sm:text-lg leading-snug line-clamp-2 group-hover:text-blue-600 transition-colors cursor-pointer"
+                      title="Xem chi tiết khóa học"
+                    >
                       {item.course.title}
                     </h3>
 
@@ -833,20 +940,62 @@ export const MyCoursesScreen: React.FC<MyCoursesScreenProps> = ({ onNavigate }) 
                         Bài tiếp theo: <span className="text-slate-700 font-medium">{item.lastLectureTitle}</span>
                       </p>
                     )}
+                    {expiresAt ? <p className={`text-[11px] font-semibold ${!hasCourseAccess ? 'text-rose-700' : daysUntilExpiry! <= 14 ? 'text-amber-700' : 'text-emerald-700'}`}>
+                      {!hasCourseAccess
+                        ? (item.isExpired ? `Quyền học đã hết hạn ${expiresAt.toLocaleDateString('vi-VN')}` : 'Quyền quà tặng không còn hiệu lực')
+                        : `${daysUntilExpiry! <= 0 ? 'Còn dưới 1 ngày' : `Còn ${daysUntilExpiry} ngày`} · hết hạn ${expiresAt.toLocaleDateString('vi-VN')}`}
+                    </p> : <p className="text-[11px] font-semibold text-slate-500">Quyền học không giới hạn thời gian</p>}
                   </div>
                 </div>
 
                 {/* ── Section 3: Action Buttons ── */}
-                <div className="p-4 sm:p-5 border-t sm:border-t-0 sm:border-l border-slate-100 flex sm:flex-col justify-center items-center gap-2.5 shrink-0 sm:w-48 bg-slate-50/50">
+                <div className="p-4 sm:p-5 border-t sm:border-t-0 sm:border-l border-slate-100 flex sm:flex-col justify-center items-center gap-2.5 shrink-0 sm:w-52 bg-slate-50/50">
                   <button
-                    onClick={() => navigate(`/courses/${item.course.id}/learn`)}
-                    className={`w-full inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl text-xs font-bold text-white transition active:scale-[0.98] ${
+                    onClick={() => hasCourseAccess && navigate(`/courses/${item.course.id}/learn`)}
+                    disabled={!hasCourseAccess}
+                    className={`w-full inline-flex h-10 ${hasCourseAccess ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'} items-center justify-center gap-2 rounded-xl text-xs font-bold text-white transition active:scale-[0.98] ${
                       isItemCompleted ? 'bg-[#0B1437] hover:bg-[#16308f]' : 'bg-blue-600 hover:bg-blue-700'
                     }`}
                   >
                     {isItemCompleted ? <RotateCcw className="h-4 w-4" /> : <PlayCircle className="h-4 w-4" />}
-                    {isItemCompleted ? 'Học lại' : 'Tiếp tục học'}
+                    {!hasCourseAccess ? 'Đã khóa quyền học' : isItemCompleted ? 'Học lại' : 'Tiếp tục học'}
                   </button>
+                  {item.isExpired === true && <button
+                    onClick={() => navigate(`/courses/${item.course.id}`)}
+                    className="w-full rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-[11px] font-bold text-blue-700 transition hover:border-blue-300 hover:bg-blue-100"
+                  >
+                    Mua lại để gia hạn 3 tháng
+                  </button>}
+                  {canRequestExtension && <button onClick={() => { setExtensionTarget(item); setExtensionMessage(null); setExtensionReason(''); }} disabled={pendingExtensionIds.has(Number(item.id))} className="w-full rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-800 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60">
+                    {pendingExtensionIds.has(Number(item.id)) ? 'Đang chờ gia hạn' : 'Yêu cầu gia hạn'}
+                  </button>}
+
+                  {/* Nút Xem tổng kết hành trình */}
+                  {isItemCompleted || displayProgressPercent >= 100 || item.certificateId ? (
+                    <button
+                      onClick={() => navigate(`/courses/${item.course.id}/summary`)}
+                      className="w-full inline-flex h-10 cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-xs font-bold text-white shadow-md shadow-blue-500/20 transition hover:from-blue-500 hover:to-indigo-500 active:scale-[0.98]"
+                    >
+                      <Sparkles className="h-4 w-4 text-amber-300" />
+                      <span>Xem tổng kết hành trình</span>
+                    </button>
+                  ) : (
+                    <div className="w-full group/summary relative">
+                      <button
+                        disabled
+                        className="w-full inline-flex h-10 cursor-not-allowed items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-100/90 text-xs font-semibold text-slate-400 opacity-75"
+                      >
+                        <Lock className="h-3.5 w-3.5 text-slate-400" />
+                        <span>Xem tổng kết hành trình</span>
+                      </button>
+                      <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/summary:flex w-44 flex-col items-center z-20">
+                        <div className="rounded-lg bg-slate-900 px-2.5 py-1.5 text-center text-[10px] font-medium text-white shadow-lg leading-tight">
+                          Hoàn thành 100% khóa học để mở khóa Báo cáo tổng kết
+                        </div>
+                        <div className="h-1.5 w-1.5 -mt-0.5 rotate-45 bg-slate-900" />
+                      </div>
+                    </div>
+                  )}
 
                   {item.certificateId ? (
                     <button
@@ -933,7 +1082,136 @@ export const MyCoursesScreen: React.FC<MyCoursesScreenProps> = ({ onNavigate }) 
             </p>
           </div>
         )}
+          </div>
+
+          {/* Cột phải: Card container Gợi ý tiếp theo cho bạn */}
+          {recommendedCourses.length > 0 && (
+            <aside className="lg:col-span-4 space-y-4">
+              <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm sticky top-24 pb-20">
+                <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                      <Sparkles className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900">Gợi ý tiếp theo cho bạn</h3>
+                      <p className="text-[11px] text-slate-500">Dựa trên tiến độ và định hướng học tập</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={openSurvey}
+                    className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded-lg transition-colors cursor-pointer"
+                    title="Cập nhật mục tiêu học tập"
+                  >
+                    <span>Mục tiêu</span>
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  {recommendedCourses.slice(0, 3).map((recCourse) => (
+                    <div
+                      key={`sidebar-rec-${recCourse.id}`}
+                      className="group rounded-xl border border-slate-200 bg-white p-3 hover:border-blue-300 hover:shadow-md transition-all duration-200 flex flex-col gap-2.5"
+                    >
+                      {/* Ảnh thumbnail 16:9 */}
+                      <div
+                        className="relative aspect-video w-full overflow-hidden rounded-lg bg-slate-900 cursor-pointer"
+                        onClick={() => navigate(`/courses/${recCourse.id}`)}
+                      >
+                        <img
+                          src={recCourse.thumbnail}
+                          alt={recCourse.title}
+                          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        />
+                        {recCourse.badge && (
+                          <span className="absolute top-2 left-2 rounded-md bg-amber-500 px-2 py-0.5 text-[9px] font-extrabold text-white uppercase shadow-xs">
+                            {recCourse.badge}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Badge lý do đề xuất */}
+                      <div className="inline-flex items-center gap-1.5 self-start rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">
+                        <Sparkles className="h-3 w-3 shrink-0 text-blue-600" />
+                        <span className="line-clamp-1">{recCourse.recommendationReason}</span>
+                      </div>
+
+                      {/* Tên khóa học (giới hạn 2 dòng line-clamp-2) */}
+                      <h4
+                        onClick={() => navigate(`/courses/${recCourse.id}`)}
+                        className="line-clamp-2 text-xs font-bold text-slate-900 hover:text-blue-600 cursor-pointer transition-colors leading-snug"
+                        title={recCourse.title}
+                      >
+                        {recCourse.title}
+                      </h4>
+
+                      {/* Giảng viên & Giá */}
+                      <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-100">
+                        <span className="truncate text-slate-500 max-w-[55%]">
+                          GV: <strong className="text-slate-700 font-semibold">{recCourse.instructor.name}</strong>
+                        </span>
+                        <span className="font-extrabold text-slate-900 shrink-0">
+                          {recCourse.price === 0 ? (
+                            <span className="text-emerald-600 font-extrabold">Miễn phí</span>
+                          ) : (
+                            `${recCourse.price.toLocaleString('vi-VN')} đ`
+                          )}
+                        </span>
+                      </div>
+
+                      {/* 2 nút hành động nhỏ gọn */}
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        {isRecInCart(recCourse.id) ? (
+                          <button
+                            type="button"
+                            onClick={() => onOpenCart?.()}
+                            className="flex h-8 items-center justify-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-2 text-[11px] font-bold text-blue-700 hover:bg-blue-100 transition-colors"
+                            title="Đã có trong giỏ hàng"
+                          >
+                            <CheckCircle2 className="h-3 w-3 shrink-0" />
+                            <span>Trong giỏ</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleAddRecToCart(recCourse)}
+                            className="flex h-8 items-center justify-center gap-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white px-2 text-[11px] font-bold shadow-xs hover:shadow-md transition-all active:scale-95"
+                            title="Thêm vào giỏ hàng"
+                          >
+                            <ShoppingCart className="h-3 w-3 shrink-0" />
+                            <span>Thêm giỏ</span>
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/courses/${recCourse.id}`)}
+                          className="flex h-8 items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-2 text-[11px] font-bold shadow-2xs transition-colors active:scale-95"
+                          title="Xem chi tiết khóa học"
+                        >
+                          <span>Chi tiết</span>
+                          <ArrowUpRight className="h-3 w-3 shrink-0" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </aside>
+          )}
+        </div>
       </div>
+      {extensionTarget && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/55 p-4" role="dialog" aria-modal="true" aria-labelledby="extension-title">
+        <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl">
+          <div className="flex items-start justify-between gap-3"><div><h2 id="extension-title" className="text-lg font-black text-slate-900">Yêu cầu gia hạn quyền học</h2><p className="mt-1 text-sm text-slate-600">{extensionTarget.course.title}</p></div><button aria-label="Đóng" onClick={() => setExtensionTarget(null)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><X className="h-5 w-5" /></button></div>
+          <p className="mt-4 rounded-xl bg-blue-50 p-3 text-xs leading-5 text-blue-800">Admin sẽ xem xét yêu cầu. Tiến độ, chứng chỉ và lịch sử học của bạn vẫn được lưu khi quyền truy cập hết hạn.</p>
+          <label className="mt-4 block text-sm font-semibold text-slate-800" htmlFor="extension-reason">Lý do xin gia hạn</label>
+          <textarea id="extension-reason" value={extensionReason} onChange={e => setExtensionReason(e.target.value)} maxLength={1000} rows={4} placeholder="Viết ít nhất 10 ký tự..." className="mt-2 w-full resize-y rounded-xl border border-slate-300 p-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+          {extensionMessage && <p className="mt-2 text-sm text-blue-700">{extensionMessage}</p>}
+          <div className="mt-4 flex justify-end gap-2"><button onClick={() => setExtensionTarget(null)} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700">Đóng</button><button onClick={submitExtensionRequest} disabled={extensionBusy || extensionReason.trim().length < 10} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{extensionBusy ? 'Đang gửi…' : 'Gửi yêu cầu'}</button></div>
+        </div>
+      </div>}
     </div>
   );
 };

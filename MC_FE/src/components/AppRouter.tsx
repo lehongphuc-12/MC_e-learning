@@ -14,6 +14,7 @@ import { CourseManagementPage } from '../features/courses/components/management/
 import { CourseFormPage } from '../features/courses/components/management/CourseFormPage';
 import { CourseLessonsPage } from '../features/courses/components/management/CourseLessonsPage';
 import { CourseLearningPage } from '../features/courses/components/CourseLearningPage';
+import { LearningHistoryPage } from '../features/courses/components/LearningHistoryPage';
 import { CourseLearningAccessGate } from '../features/courses/components/CourseLearningAccessGate';
 import { InstructorDashboard } from '../features/courses/components/InstructorDashboard';
 import { CertificateScreen } from '../features/courses/components/CertificateScreen';
@@ -28,7 +29,9 @@ import { mockCourses } from '../data/mockData';
 import { HomeScreen } from '../features/courses/components/HomeScreen';
 import { AiVoiceCoachPage } from '../features/courses/components/AiVoiceCoachPage';
 import { AIPracticePage } from '../features/voiceAI/pages/AIPracticePage';
+import { AIPracticeHistoryPage } from '../features/voiceAI/pages/AIPracticeHistoryPage';
 
+import { InstructorAIPracticePage } from '../features/courses/components/management/InstructorAIPracticePage';
 // Feature route modules
 import { renderAuthRoutes } from '../features/auth/routes';
 import { renderCourseRoutes } from '../features/courses/routes';
@@ -45,7 +48,7 @@ interface AppRouterProps {
   searchQuery: string;
   user: User | null;
   onSearchChange: (query: string) => void;
-  onPreviewVideo: (course: Course) => void;
+  onPreviewVideo: (course: Course, lessonId?: number, lessonTitle?: string) => void;
   onAddToCart: (course: Course) => void;
   onToggleWishlist: (courseId: string) => void;
   onEnrollDirectly: (course: Course) => void;
@@ -141,8 +144,13 @@ export const AppRouter: React.FC<AppRouterProps> = ({
     const path = location.pathname;
     if (path.startsWith('/admin')) return 'admin';
     if (path === '/my-courses') return 'my-courses';
-    if (path.startsWith('/courses')) return 'courses';
-    if (path.startsWith('/course-detail')) return 'course-detail';
+    if (path === '/courses/favorites') return 'wishlist';
+    if (path === '/courses') return 'courses';
+    if (path.startsWith('/courses/') || path.startsWith('/course-detail')) {
+      if (path.includes('/summary')) return 'my-courses';
+      if (path.includes('/learn') || path.includes('/lessons')) return 'courses';
+      return 'course-detail';
+    }
     if (path.startsWith('/forum')) return 'forum';
     if (path === '/profile') return 'profile';
     if (path === '/login') return 'login';
@@ -166,7 +174,7 @@ export const AppRouter: React.FC<AppRouterProps> = ({
     document.documentElement.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     document.body.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     setSelectedCourse(course);
-    navigate(`/course-detail?id=${course.id}`);
+    navigate(`/courses/${course.id}`);
   };
 
   // Helper to wrap screens in MainLayout
@@ -200,10 +208,12 @@ export const AppRouter: React.FC<AppRouterProps> = ({
     </InstructorLayout>
   );
 
-  // Sync selectedCourse from URL params on /course-detail
-  const courseIdParam = searchParams.get('id');
-  const activeCourse = (location.pathname === '/course-detail' && courseIdParam)
-    ? (mockCourses.find((c) => c.id === courseIdParam) || selectedCourse)
+  // Sync selectedCourse from URL params (/courses/:id or /course-detail?id=...)
+  const coursePathMatch = location.pathname.match(/^\/courses\/(\d+)(?:\/|$)/);
+  const matchedCourseId = coursePathMatch ? coursePathMatch[1] : searchParams.get('id');
+  const activeCourse = matchedCourseId
+    ? (mockCourses.find((c) => c.id === matchedCourseId) ||
+      (selectedCourse?.id === matchedCourseId ? selectedCourse : null))
     : selectedCourse;
 
   return (
@@ -227,6 +237,7 @@ export const AppRouter: React.FC<AppRouterProps> = ({
   searchQuery,
   onSearchChange,
   activeCourse,
+  courseIdParam: matchedCourseId,
   withMainLayout,
   withInstructorLayout,
   user,
@@ -278,6 +289,8 @@ export const AppRouter: React.FC<AppRouterProps> = ({
         onToast,
       })}
 
+      <Route path="/learning-history" element={<ProtectedRoute user={user}>{withMainLayout(<LearningHistoryPage />)}</ProtectedRoute>} />
+
       {/* ── FE:03 Instructor Course Management Routes ────────────────────── */}
       <Route
         path="/instructor"
@@ -293,6 +306,14 @@ export const AppRouter: React.FC<AppRouterProps> = ({
           </ProtectedRoute>
         }
       />
+      <Route
+  path="/ai-practice/history"
+  element={withMainLayout(<AIPracticeHistoryPage />)}
+/>
+<Route
+  path="/instructor/ai-practice"
+  element={<InstructorAIPracticePage />}
+/>
       <Route
         path="/instructor/dashboard"
         element={

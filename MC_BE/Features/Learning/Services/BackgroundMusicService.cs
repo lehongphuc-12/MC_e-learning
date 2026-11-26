@@ -17,7 +17,7 @@ public class BackgroundMusicService : IBackgroundMusicService
     private readonly ILogger<BackgroundMusicService> _logger;
 
     private static readonly string[] AllowedExtensions = { ".mp3", ".wav", ".ogg", ".m4a" };
-    private const long MaxFileSizeBytes = 5 * 1024 * 1024; // 5 MB
+    private const long MaxFileSizeBytes = 5 * 1024 * 1024;
 
     public BackgroundMusicService(
         SmartMcDbContext db,

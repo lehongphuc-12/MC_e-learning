@@ -1,3 +1,5 @@
+
+import { VoiceJourneyPage } from '../voiceJourney/VoiceJourneyPage';
 import React from 'react';
 import { Route } from 'react-router-dom';
 import { Course, ScreenType, User } from '../../types';
@@ -12,15 +14,20 @@ import { MyCoursesScreen } from './components/MyCoursesScreen';
 import { CourseManagementPage } from './components/management/CourseManagementPage';
 import { CourseFormPage } from './components/management/CourseFormPage';
 import { CourseLessonsPage } from './components/management/CourseLessonsPage';
+import { CourseStudentDashboardPage } from './components/management/CourseStudentDashboardPage';
 import { InstructorSpeakingPage } from './components/management/InstructorSpeakingPage';
 import { InstructorSpeakingAssignmentsPage } from './components/management/InstructorSpeakingAssignmentsPage';
+import { InstructorSpeakingAssignmentFormPage } from './components/management/InstructorSpeakingAssignmentFormPage';
+import { SpeakingResultPage } from './pages/SpeakingResultPage';
+import { CourseCompletionSummaryPage } from './pages/CourseCompletionSummaryPage';
+import { CourseFavoritesScreen } from './components/CourseFavoritesScreen';
 import { ProtectedRoute } from '../../components/common/ProtectedRoute';
 import { ToastType } from '../../components/common/Toast';
 
 interface CourseRoutesProps {
   onNavigate: (screen: ScreenType) => void;
   onSelectCourse: (course: Course) => void;
-  onPreviewVideo: (course: Course) => void;
+  onPreviewVideo: (course: Course, lessonId?: number, lessonTitle?: string) => void;
   onAddToCart: (course: Course) => void;
   onToggleWishlist: (courseId: string) => void;
   onEnrollDirectly: (course: Course) => void;
@@ -28,6 +35,7 @@ interface CourseRoutesProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
   activeCourse: Course | null;
+  courseIdParam?: string | null;
   withMainLayout: (component: React.ReactNode, showFooter?: boolean) => React.ReactNode;
   withInstructorLayout?: (component: React.ReactNode, showFooter?: boolean) => React.ReactNode;
   user: User | null;
@@ -50,6 +58,7 @@ export const renderCourseRoutes = ({
   searchQuery,
   onSearchChange,
   activeCourse,
+  courseIdParam,
   withMainLayout,
   withInstructorLayout = withMainLayout,
   user,
@@ -60,8 +69,20 @@ export const renderCourseRoutes = ({
   isCourseEnrolled,
   isCoursePendingPayment,
 }: CourseRoutesProps) => {
+  const routeCourseId = activeCourse?.id ?? courseIdParam;
+
   return (
     <>
+      {/* AI Voice Journey - Learner Route */}
+      <Route
+        path="/voice-journey"
+        element={
+          <ProtectedRoute user={user} allowedRoles={['student']}>
+            {withMainLayout(<VoiceJourneyPage />)}
+          </ProtectedRoute>
+        }
+      />
+
       {/* Public Course & Learning Routes */}
       <Route
         path="/"
@@ -76,60 +97,129 @@ export const renderCourseRoutes = ({
           />
         )}
       />
+
       <Route
-  path="/courses"
-  element={withMainLayout(
-    <CourseCatalogScreen
-      onNavigate={onNavigate}
-      onSelectCourse={onSelectCourse}
-      onPreviewVideo={onPreviewVideo}
-      onAddToCart={onAddToCart}
-      onToggleWishlist={onToggleWishlist}
-      wishlistCourseIds={wishlistCourseIds}
-      searchQuery={searchQuery}
-      onSearchChange={onSearchChange}
-      onOpenCart={onOpenCart}
-      isCourseInCart={isCourseInCart}
-      isCourseEnrolled={isCourseEnrolled}
-      isCoursePendingPayment={isCoursePendingPayment}
-      onContinuePayment={onEnrollDirectly}
-    />
-  )}
-/>
+        path="/courses"
+        element={withMainLayout(
+          <CourseCatalogScreen
+            onNavigate={onNavigate}
+            onSelectCourse={onSelectCourse}
+            onPreviewVideo={onPreviewVideo}
+            onAddToCart={onAddToCart}
+            onToggleWishlist={onToggleWishlist}
+            wishlistCourseIds={wishlistCourseIds}
+            searchQuery={searchQuery}
+            onSearchChange={onSearchChange}
+            onOpenCart={onOpenCart}
+            isCourseInCart={isCourseInCart}
+            isCourseEnrolled={isCourseEnrolled}
+            isCoursePendingPayment={isCoursePendingPayment}
+            onContinuePayment={onEnrollDirectly}
+          />
+        )}
+      />
+
       <Route
-  path="/course-detail"
-  element={withMainLayout(
-    <CourseDetailScreen
-      course={activeCourse}
-      onNavigate={onNavigate}
-      onEnroll={onEnrollDirectly}
-      onAddToCart={onAddToCart}
-      onToggleWishlist={onToggleWishlist}
-      isWishlisted={
-        activeCourse
-          ? wishlistCourseIds.includes(activeCourse.id)
-          : false
-      }
-      onPreviewVideo={onPreviewVideo}
-      isEnrolled={
-        activeCourse
-          ? isCourseEnrolled(activeCourse.id)
-          : false
-      }
-      isInCart={
-        activeCourse
-          ? isCourseInCart(activeCourse.id)
-          : false
-      }
-      isPendingPayment={
-        activeCourse
-          ? isCoursePendingPayment(activeCourse.id)
-          : false
-      }
-      onOpenCart={onOpenCart}
-    />
-  )}
-/>
+        path="/courses/favorites"
+        element={
+          <ProtectedRoute user={user} allowedRoles={['student']}>
+            {withMainLayout(
+              <CourseFavoritesScreen
+                wishlistCourseIds={wishlistCourseIds}
+                onSelectCourse={onSelectCourse}
+                onPreviewVideo={onPreviewVideo}
+                onToggleWishlist={onToggleWishlist}
+                onAddToCart={onAddToCart}
+                isCourseInCart={isCourseInCart}
+                isCourseEnrolled={isCourseEnrolled}
+                isCoursePendingPayment={isCoursePendingPayment}
+                onOpenCart={onOpenCart}
+                onContinuePayment={onEnrollDirectly}
+              />
+            )}
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Course Detail Routes - Support both /courses/:id and legacy /course-detail */}
+      <Route
+        path="/courses/:id"
+        element={withMainLayout(
+          <CourseDetailScreen
+            course={activeCourse}
+            onNavigate={onNavigate}
+            onEnroll={onEnrollDirectly}
+            onAddToCart={onAddToCart}
+            onToggleWishlist={onToggleWishlist}
+            isWishlisted={
+              activeCourse
+                ? wishlistCourseIds.includes(activeCourse.id)
+                : false
+            }
+            wishlistCourseIds={wishlistCourseIds}
+            onPreviewVideo={onPreviewVideo}
+            isEnrolled={
+              activeCourse
+                ? isCourseEnrolled(activeCourse.id)
+                : false
+            }
+            isCourseEnrolled={isCourseEnrolled}
+            isInCart={
+              activeCourse
+                ? isCourseInCart(activeCourse.id)
+                : false
+            }
+            isCourseInCart={isCourseInCart}
+            isPendingPayment={
+              activeCourse
+                ? isCoursePendingPayment(activeCourse.id)
+                : false
+            }
+            isCoursePendingPayment={isCoursePendingPayment}
+            onOpenCart={onOpenCart}
+          />
+        )}
+      />
+
+      <Route
+        path="/course-detail"
+        element={withMainLayout(
+          <CourseDetailScreen
+            course={activeCourse}
+            onNavigate={onNavigate}
+            onEnroll={onEnrollDirectly}
+            onAddToCart={onAddToCart}
+            onToggleWishlist={onToggleWishlist}
+            isWishlisted={
+              activeCourse
+                ? wishlistCourseIds.includes(activeCourse.id)
+                : false
+            }
+            wishlistCourseIds={wishlistCourseIds}
+            onPreviewVideo={onPreviewVideo}
+            isEnrolled={
+              activeCourse
+                ? isCourseEnrolled(activeCourse.id)
+                : false
+            }
+            isCourseEnrolled={isCourseEnrolled}
+            isInCart={
+              activeCourse
+                ? isCourseInCart(activeCourse.id)
+                : false
+            }
+            isCourseInCart={isCourseInCart}
+            isPendingPayment={
+              activeCourse
+                ? isCoursePendingPayment(activeCourse.id)
+                : false
+            }
+            isCoursePendingPayment={isCoursePendingPayment}
+            onOpenCart={onOpenCart}
+          />
+        )}
+      />
+
       <Route
         path="/courses/:id/learn"
         element={
@@ -140,11 +230,48 @@ export const renderCourseRoutes = ({
           </ProtectedRoute>
         }
       />
-      <Route path="/my-courses" element={withMainLayout(<MyCoursesScreen onNavigate={onNavigate} />)} />
-      <Route path="/certificates/:certificateId" element={<CertificateScreen />} />
-      <Route path="/verify-certificate" element={<CertificateVerifyScreen />} />
 
-      {/* Instructor Course Routes (Wrapped in dedicated InstructorLayout) */}
+      <Route
+        path="/courses/:id/summary"
+        element={
+          <ProtectedRoute user={user}>
+            {withMainLayout(<CourseCompletionSummaryPage />)}
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/courses/:id/completion-summary"
+        element={
+          <ProtectedRoute user={user}>
+            {withMainLayout(<CourseCompletionSummaryPage />)}
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/my-courses"
+        element={withMainLayout(
+          <MyCoursesScreen
+            onNavigate={onNavigate}
+            onAddToCart={onAddToCart}
+            onOpenCart={onOpenCart}
+            isCourseInCart={isCourseInCart}
+          />
+        )}
+      />
+
+      <Route
+        path="/certificates/:certificateId"
+        element={<CertificateScreen />}
+      />
+
+      <Route
+        path="/verify-certificate"
+        element={<CertificateVerifyScreen />}
+      />
+
+      {/* Instructor Course Routes */}
       <Route
         path="/instructor/courses"
         element={
@@ -159,6 +286,7 @@ export const renderCourseRoutes = ({
           </ProtectedRoute>
         }
       />
+
       <Route
         path="/instructor/courses/new"
         element={
@@ -173,6 +301,7 @@ export const renderCourseRoutes = ({
           </ProtectedRoute>
         }
       />
+
       <Route
         path="/instructor/courses/:id/edit"
         element={
@@ -187,6 +316,7 @@ export const renderCourseRoutes = ({
           </ProtectedRoute>
         }
       />
+
       <Route
         path="/instructor/courses/:id/lessons"
         element={
@@ -201,16 +331,29 @@ export const renderCourseRoutes = ({
           </ProtectedRoute>
         }
       />
+
+      <Route
+        path="/instructor/courses/:id/students"
+        element={
+          <ProtectedRoute user={user} allowedRoles={['instructor', 'admin']} currentScreen={currentScreen} onNavigate={onNavigate} onToast={onToast}>
+            {withInstructorLayout(<CourseStudentDashboardPage />)}
+          </ProtectedRoute>
+        }
+      />
       <Route
         path="/instructor/courses/:id/learn"
         element={
-          <ProtectedRoute user={user} allowedRoles={['instructor', 'admin']}>
+          <ProtectedRoute
+            user={user}
+            allowedRoles={['instructor', 'admin']}
+          >
             <CourseLearningAccessGate user={user}>
               <CourseLearningPage />
             </CourseLearningAccessGate>
           </ProtectedRoute>
         }
       />
+
       <Route
         path="/instructor/speaking-submissions"
         element={
@@ -221,10 +364,13 @@ export const renderCourseRoutes = ({
             onNavigate={onNavigate}
             onToast={onToast}
           >
-            {withInstructorLayout(<InstructorSpeakingPage onToast={onToast} />)}
+            {withInstructorLayout(
+              <InstructorSpeakingPage onToast={onToast} />
+            )}
           </ProtectedRoute>
         }
       />
+
       <Route
         path="/instructor/speaking-assignments"
         element={
@@ -235,10 +381,47 @@ export const renderCourseRoutes = ({
             onNavigate={onNavigate}
             onToast={onToast}
           >
-            {withInstructorLayout(<InstructorSpeakingAssignmentsPage onToast={onToast} />)}
+            {withInstructorLayout(
+              <InstructorSpeakingAssignmentsPage onToast={onToast} />
+            )}
           </ProtectedRoute>
         }
       />
+
+      <Route
+        path="/instructor/speaking-assignments/create"
+        element={
+          <ProtectedRoute
+            user={user}
+            allowedRoles={['instructor', 'admin']}
+            currentScreen={currentScreen}
+            onNavigate={onNavigate}
+            onToast={onToast}
+          >
+            {withInstructorLayout(
+              <InstructorSpeakingAssignmentFormPage onToast={onToast} />
+            )}
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/instructor/speaking-assignments/edit/:id"
+        element={
+          <ProtectedRoute
+            user={user}
+            allowedRoles={['instructor', 'admin']}
+            currentScreen={currentScreen}
+            onNavigate={onNavigate}
+            onToast={onToast}
+          >
+            {withInstructorLayout(
+              <InstructorSpeakingAssignmentFormPage onToast={onToast} />
+            )}
+          </ProtectedRoute>
+        }
+      />
+
       <Route
         path="/instructor/courses/:courseId/speaking-assignments"
         element={
@@ -249,10 +432,13 @@ export const renderCourseRoutes = ({
             onNavigate={onNavigate}
             onToast={onToast}
           >
-            {withInstructorLayout(<InstructorSpeakingAssignmentsPage onToast={onToast} />)}
+            {withInstructorLayout(
+              <InstructorSpeakingAssignmentsPage onToast={onToast} />
+            )}
           </ProtectedRoute>
         }
       />
+
       <Route
         path="/instructor/courses/:courseId/speaking"
         element={
@@ -263,7 +449,40 @@ export const renderCourseRoutes = ({
             onNavigate={onNavigate}
             onToast={onToast}
           >
-            {withInstructorLayout(<InstructorSpeakingPage onToast={onToast} />)}
+            {withInstructorLayout(
+              <InstructorSpeakingPage onToast={onToast} />
+            )}
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Student Speaking Result Routes */}
+      <Route
+        path="/speaking/result/:submissionId"
+        element={
+          <ProtectedRoute
+            user={user}
+            allowedRoles={['student', 'instructor', 'admin']}
+            currentScreen={currentScreen}
+            onNavigate={onNavigate}
+            onToast={onToast}
+          >
+            {withMainLayout(<SpeakingResultPage />)}
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/courses/:courseId/speaking/result/:submissionId"
+        element={
+          <ProtectedRoute
+            user={user}
+            allowedRoles={['student', 'instructor', 'admin']}
+            currentScreen={currentScreen}
+            onNavigate={onNavigate}
+            onToast={onToast}
+          >
+            {withMainLayout(<SpeakingResultPage />)}
           </ProtectedRoute>
         }
       />

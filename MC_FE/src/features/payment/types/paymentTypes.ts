@@ -37,6 +37,32 @@ export interface CourseEnrolledStudentDto {
   completionPercentage: number;
 }
 
+export interface StudentAssessmentInsightDto {
+  assessmentType: 'QUIZ' | 'SPEAKING';
+  assessmentId: number;
+  title: string;
+  bestScore?: number | null;
+  latestScore?: number | null;
+  maxAttempts?: number | null;
+  attemptLimitReached?: boolean;
+  status: 'PASSED' | 'PENDING_GRADE' | 'OVERDUE' | 'NEEDS_REMEDIATION' | 'IN_PROGRESS' | 'NOT_STARTED';
+  dueAt?: string | null;
+  lastSubmittedAt?: string | null;
+  attemptCount: number;
+}
+
+export interface CourseStudentInsightDto extends CourseEnrolledStudentDto {
+  passedAssessmentCount: number;
+  assessmentCount: number;
+  failedAssessmentCount: number;
+  overdueAssessmentCount: number;
+  pendingGradeCount: number;
+  riskStatus: 'SAFE' | 'WARNING' | 'DANGER' | 'INSUFFICIENT_DATA';
+  riskReasons: string[];
+  lastActivityAt?: string | null;
+  assessments: StudentAssessmentInsightDto[];
+}
+
 export interface CreatePaymentResponseDto {
   paymentId: number;
   enrollmentId: number;

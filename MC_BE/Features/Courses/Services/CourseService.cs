@@ -7,6 +7,7 @@ using MC_BE.Shared.Repositories.Interfaces;
 using MC_BE.Shared.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using System.Text.RegularExpressions;
+using EnrollmentEntity = global::MC_BE.Core.Entities.Enrollment;
 
 namespace MC_BE.Features.Courses.Services;
 
@@ -18,13 +19,14 @@ public class CourseService : ICourseService
 {
     private readonly IGenericRepository<Course> _courseRepository;
     private readonly IGenericRepository<Category> _categoryRepository;
-    private readonly IGenericRepository<Enrollment> _enrollmentRepository;
+    private readonly IGenericRepository<EnrollmentEntity> _enrollmentRepository;
     private readonly IGenericRepository<PaymentItem> _paymentItemRepository;
     private readonly IGenericRepository<SpeakingSubmission> _speakingSubmissionRepository;
     private readonly IGenericRepository<Quiz> _quizRepository;
     private readonly IGenericRepository<QuizAttempt> _quizAttemptRepository;
     private readonly IGenericRepository<User> _userRepository;
     private readonly IGenericRepository<Lesson> _lessonRepository;
+    private readonly IGenericRepository<SpeakingScript> _speakingScriptRepository;
     private readonly IGenericRepository<CourseMaterial> _materialRepository;
     private readonly IGenericRepository<LessonProgress> _lessonProgressRepository;
     private readonly IGenericRepository<Certificate> _certificateRepository;
@@ -32,6 +34,9 @@ public class CourseService : ICourseService
     private readonly IGenericRepository<R2ObjectDeletionJob> _r2DeletionJobRepository;
     private readonly IGenericRepository<CourseDeletionRequest> _courseDeletionRequestRepository;
     private readonly IGenericRepository<VideoUploadSession> _videoUploadSessionRepository;
+    private readonly IGenericRepository<CourseSyllabusVersion> _syllabusVersionRepository;
+    private readonly IGenericRepository<CourseSyllabusUploadSession> _syllabusUploadSessionRepository;
+    private readonly IGenericRepository<CourseReview> _courseReviewRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IR2StorageService _r2;
     private readonly ICourseGiftAccessService _giftAccess;
@@ -41,18 +46,22 @@ public class CourseService : ICourseService
     public CourseService(
         IGenericRepository<Course> courseRepository,
         IGenericRepository<Category> categoryRepository,
-        IGenericRepository<Enrollment> enrollmentRepository,
+        IGenericRepository<EnrollmentEntity> enrollmentRepository,
         IGenericRepository<PaymentItem> paymentItemRepository,
         IGenericRepository<SpeakingSubmission> speakingSubmissionRepository,
         IGenericRepository<Quiz> quizRepository,
         IGenericRepository<QuizAttempt> quizAttemptRepository,
         IGenericRepository<User> userRepository,
         IGenericRepository<Lesson> lessonRepository,
+        IGenericRepository<SpeakingScript> speakingScriptRepository,
         IGenericRepository<CourseMaterial> materialRepository,
         IGenericRepository<LessonProgress> lessonProgressRepository,
         IGenericRepository<Certificate> certificateRepository,
         IGenericRepository<Module> moduleRepository,
         IGenericRepository<VideoUploadSession> videoUploadSessionRepository,
+        IGenericRepository<CourseSyllabusVersion> syllabusVersionRepository,
+        IGenericRepository<CourseSyllabusUploadSession> syllabusUploadSessionRepository,
+        IGenericRepository<CourseReview> courseReviewRepository,
         IGenericRepository<R2ObjectDeletionJob> r2DeletionJobRepository,
         IGenericRepository<CourseDeletionRequest> courseDeletionRequestRepository,
         IUnitOfWork unitOfWork,
@@ -69,11 +78,15 @@ public class CourseService : ICourseService
         _quizAttemptRepository = quizAttemptRepository;
         _userRepository = userRepository;
         _lessonRepository = lessonRepository;
+        _speakingScriptRepository = speakingScriptRepository;
         _materialRepository = materialRepository;
         _lessonProgressRepository = lessonProgressRepository;
         _certificateRepository = certificateRepository;
         _moduleRepository = moduleRepository;
         _videoUploadSessionRepository = videoUploadSessionRepository;
+        _syllabusVersionRepository = syllabusVersionRepository;
+        _syllabusUploadSessionRepository = syllabusUploadSessionRepository;
+        _courseReviewRepository = courseReviewRepository;
         _r2DeletionJobRepository = r2DeletionJobRepository;
         _courseDeletionRequestRepository = courseDeletionRequestRepository;
         _unitOfWork = unitOfWork;
@@ -129,6 +142,11 @@ public class CourseService : ICourseService
         ApprovedByName = course.ApprovedBy?.FullName,
         SubmissionNote = course.SubmissionNote,
         RejectionReason = course.RejectionReason,
+        SkillTags = course.SkillTags,
+        PrerequisiteCourseId = course.PrerequisiteCourseId,
+        PrerequisiteCourseTitle = course.PrerequisiteCourse?.Title,
+        Rating = 0,
+        ReviewCount = 0,
     };
 
     // -------------------------------------------------------------------------
@@ -173,7 +191,7 @@ public class CourseService : ICourseService
     // -------------------------------------------------------------------------
     // Execute pagination — shared between both list methods
     // -------------------------------------------------------------------------
-    private static async Task<CourseListResponse> ExecutePaginatedQueryAsync(
+    private async Task<CourseListResponse> ExecutePaginatedQueryAsync(
         IQueryable<Course> query, int page, int limit)
     {
         var total = await query.CountAsync();
@@ -182,7 +200,7 @@ public class CourseService : ICourseService
             .Take(limit)
             .ToListAsync();
 
-        return new CourseListResponse
+        var response = new CourseListResponse
         {
             Data = items.Select(MapToDto).ToList(),
             Pagination = new PaginationMeta
@@ -193,6 +211,33 @@ public class CourseService : ICourseService
                 TotalPages = (int)Math.Ceiling((double)total / limit),
             }
         };
+        await ApplyReviewSummariesAsync(response.Data);
+        return response;
+    }
+
+    private async Task ApplyReviewSummariesAsync(IReadOnlyCollection<CourseDto> courses)
+    {
+        var courseIds = courses.Select(course => course.CourseId).Distinct().ToList();
+        if (courseIds.Count == 0) return;
+
+        var summaries = await _courseReviewRepository.GetQueryable()
+            .AsNoTracking()
+            .Where(review => courseIds.Contains(review.CourseId) && review.Status == "PUBLISHED")
+            .GroupBy(review => review.CourseId)
+            .Select(group => new
+            {
+                CourseId = group.Key,
+                Rating = group.Average(review => (double)review.Rating),
+                ReviewCount = group.Count()
+            })
+            .ToDictionaryAsync(summary => summary.CourseId);
+
+        foreach (var course in courses)
+        {
+            if (!summaries.TryGetValue(course.CourseId, out var summary)) continue;
+            course.Rating = Math.Round(summary.Rating, 1);
+            course.ReviewCount = summary.ReviewCount;
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -202,11 +247,77 @@ public class CourseService : ICourseService
         int page, int limit, string? status, int? categoryId, string? search)
     {
         var query = BuildCourseQuery(null, status, categoryId, search);
-        if (string.IsNullOrEmpty(status))
+        // This endpoint feeds the public learner catalog; never expose drafts,
+        // pending review, rejected, or archived courses through query parameters.
+        query = query.Where(c => c.Status == CourseStatus.PUBLISHED);
+        var response = await ExecutePaginatedQueryAsync(query, page, limit);
+        await ApplyPurchasePopularityAsync(response.Data);
+        await ApplyPreviewLessonsAsync(response.Data);
+        return response;
+    }
+
+    private async Task ApplyPreviewLessonsAsync(IReadOnlyCollection<CourseDto> courses)
+    {
+        var courseIds = courses.Where(course => course.Status == CourseStatus.PUBLISHED)
+            .Select(course => course.CourseId).ToList();
+        if (courseIds.Count == 0) return;
+
+        var previews = await _lessonRepository.GetQueryable().AsNoTracking()
+            .Where(lesson => courseIds.Contains(lesson.CourseId) && lesson.Status == LessonStatus.ACTIVE &&
+                lesson.IsPreview && lesson.LessonType == LessonType.VIDEO)
+            .Include(lesson => lesson.CourseMaterials)
+            .OrderBy(lesson => lesson.Module == null ? int.MaxValue : lesson.Module.OrderIndex)
+            .ThenBy(lesson => lesson.OrderIndex)
+            .ThenBy(lesson => lesson.LessonId)
+            .ToListAsync();
+        var firstByCourse = previews
+            .Where(lesson => HasR2Video(lesson.CourseMaterials))
+            .GroupBy(lesson => lesson.CourseId)
+            .ToDictionary(group => group.Key, group => group.First());
+
+        foreach (var course in courses)
         {
-            query = query.Where(c => c.Status != CourseStatus.DRAFT);
+            if (!firstByCourse.TryGetValue(course.CourseId, out var preview)) continue;
+            course.PreviewAvailable = true;
+            course.PreviewLessonId = preview.LessonId;
+            course.PreviewLessonTitle = preview.Title;
         }
-        return await ExecutePaginatedQueryAsync(query, page, limit);
+    }
+
+    private bool HasR2Video(IEnumerable<CourseMaterial> materials) => materials.Any(material =>
+        material.MaterialType == MaterialType.VIDEO &&
+        (!string.IsNullOrWhiteSpace(material.ObjectKey) ||
+         (!string.IsNullOrWhiteSpace(material.FileUrl) && _r2.ExtractKeyFromUrl(material.FileUrl) is not null)));
+
+    private async Task ApplyPurchasePopularityAsync(IReadOnlyCollection<CourseDto> courses)
+    {
+        if (courses.Count == 0) return;
+
+        var counts = await _paymentItemRepository.GetQueryable()
+            .AsNoTracking()
+            .Where(item => item.Amount > 0 && item.Payment.Status == "SUCCESS" &&
+                item.Course.Status == CourseStatus.PUBLISHED && !item.Course.IsFree)
+            .GroupBy(item => item.CourseId)
+            .Select(group => new
+            {
+                CourseId = group.Key,
+                LearnerCount = group.Select(item => item.Payment.LearnerId).Distinct().Count()
+            })
+            .ToListAsync();
+
+        var countByCourse = counts.ToDictionary(item => item.CourseId, item => item.LearnerCount);
+        var bestSellerIds = counts
+            .OrderByDescending(item => item.LearnerCount)
+            .ThenBy(item => item.CourseId)
+            .Take(5)
+            .Select(item => item.CourseId)
+            .ToHashSet();
+
+        foreach (var course in courses)
+        {
+            course.PurchasedLearnerCount = countByCourse.GetValueOrDefault(course.CourseId);
+            course.IsBestSeller = !course.IsFree && bestSellerIds.Contains(course.CourseId);
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -246,7 +357,30 @@ public class CourseService : ICourseService
             .Include(c => c.ApprovedBy)
             .FirstOrDefaultAsync(c => c.CourseId == courseId);
 
-        return course is null ? null : MapToDto(course);
+        if (course is null) return null;
+        var dto = MapToDto(course);
+        await ApplyReviewSummariesAsync(new[] { dto });
+        await ApplyPreviewLessonsAsync(new[] { dto });
+        return dto;
+    }
+
+    public async Task<CoursePreviewLessonDto?> GetFirstPreviewLessonAsync(int courseId)
+    {
+        var courseIsPublished = await _courseRepository.GetQueryable().AsNoTracking()
+            .AnyAsync(course => course.CourseId == courseId && course.Status == CourseStatus.PUBLISHED);
+        if (!courseIsPublished) return null;
+
+        var candidates = await _lessonRepository.GetQueryable().AsNoTracking()
+            .Where(lesson => lesson.CourseId == courseId &&
+                lesson.Status == LessonStatus.ACTIVE && lesson.IsPreview &&
+                lesson.LessonType == LessonType.VIDEO)
+            .Include(lesson => lesson.CourseMaterials)
+            .OrderBy(lesson => lesson.Module == null ? int.MaxValue : lesson.Module.OrderIndex)
+            .ThenBy(lesson => lesson.OrderIndex)
+            .ThenBy(lesson => lesson.LessonId)
+            .ToListAsync();
+        var lesson = candidates.FirstOrDefault(candidate => HasR2Video(candidate.CourseMaterials));
+        return lesson is null ? null : new CoursePreviewLessonDto { LessonId = lesson.LessonId, Title = lesson.Title };
     }
 
     // -------------------------------------------------------------------------
@@ -308,13 +442,106 @@ public class CourseService : ICourseService
         if (!hasLessons)
             missingRequirements.Add("Bài học (Lesson)");
 
-        var hasSpeakingAssignment = await _lessonRepository.AnyAsync(l => l.CourseId == courseId && l.LessonType == LessonType.ASSIGNMENT);
+        var hasLegacySpeakingAssignment = await _lessonRepository.AnyAsync(l =>
+            l.CourseId == courseId && l.LessonType == LessonType.ASSIGNMENT && !l.IsRemedial);
+        var hasFinalSpeakingScript = await _speakingScriptRepository.AnyAsync(script =>
+            script.CourseId == courseId &&
+            script.Scope == SpeakingScope.FINAL &&
+            !script.IsRemedial &&
+            script.Status == SpeakingScriptStatus.PUBLISHED);
+        var hasSpeakingAssignment = hasLegacySpeakingAssignment || hasFinalSpeakingScript;
         if (!hasSpeakingAssignment)
             missingRequirements.Add("Bài tập nói cuối khóa (Speaking Assignment)");
 
         if (missingRequirements.Any())
         {
             throw new InvalidOperationException($"Chưa thể gửi Admin duyệt. Khóa học còn thiếu: {string.Join(", ", missingRequirements)}.");
+        }
+
+        var syllabusExists = await _syllabusVersionRepository.GetQueryable()
+            .AnyAsync(version => version.CourseId == courseId && version.IsCurrent);
+        if (!syllabusExists)
+            throw new InvalidOperationException("Chưa thể gửi Admin duyệt. Khóa học còn thiếu syllabus PDF hoặc DOCX.");
+    }
+
+    private async Task AttachCurrentSyllabusSubmissionAsync(
+        Course course,
+        bool wasPublishedBeforeSubmission,
+        bool keepApprovedSyllabus = false)
+    {
+        var createdSubmissionVersion = false;
+        var current = keepApprovedSyllabus && course.ApprovedSyllabusVersionId.HasValue
+            ? await _syllabusVersionRepository.GetQueryable()
+                .FirstOrDefaultAsync(version => version.CourseId == course.CourseId
+                    && version.SyllabusVersionId == course.ApprovedSyllabusVersionId.Value)
+            : await _syllabusVersionRepository.GetQueryable()
+                .FirstOrDefaultAsync(version => version.CourseId == course.CourseId && version.IsCurrent);
+        if (current is null)
+            throw new InvalidOperationException(keepApprovedSyllabus
+                ? "Không tìm thấy phiên bản syllabus đã duyệt để giữ lại. Hãy tải lên một phiên bản mới."
+                : "Chưa thể gửi Admin duyệt. Hãy tải syllabus PDF hoặc DOCX lên trước.");
+
+        if (keepApprovedSyllabus)
+        {
+            if (current.ReviewStatus != "APPROVED")
+                throw new InvalidOperationException("Chỉ có thể giữ lại phiên bản syllabus đã được Admin duyệt.");
+
+            var versions = await _syllabusVersionRepository.GetQueryable()
+                .Where(version => version.CourseId == course.CourseId)
+                .OrderByDescending(version => version.VersionNumber)
+                .ToListAsync();
+            foreach (var version in versions.Where(version => version.IsCurrent))
+            {
+                version.IsCurrent = false;
+                _syllabusVersionRepository.Update(version);
+            }
+
+            // Reuse the approved R2 object without uploading it again, but create a
+            // distinct immutable revision so Admin approval remains tied to an exact version.
+            current = new CourseSyllabusVersion
+            {
+                CourseId = course.CourseId,
+                VersionNumber = (versions.FirstOrDefault()?.VersionNumber ?? 0) + 1,
+                ObjectKey = current.ObjectKey,
+                OriginalFileName = current.OriginalFileName,
+                ContentType = current.ContentType,
+                FileExtension = current.FileExtension,
+                FileSizeBytes = current.FileSizeBytes,
+                ReviewStatus = "DRAFT",
+                IsCurrent = true,
+                UploadedById = course.InstructorId,
+                UploadedAt = DateTime.UtcNow,
+            };
+            await _syllabusVersionRepository.AddAsync(current);
+            createdSubmissionVersion = true;
+        }
+        else if (current.SyllabusVersionId == course.ApprovedSyllabusVersionId)
+            throw new InvalidOperationException("Hãy tải một phiên bản syllabus mới trước khi gửi khóa học Admin duyệt.");
+        else if (current.ReviewStatus == "PENDING_APPROVAL")
+            throw new InvalidOperationException("Phiên bản syllabus hiện tại đã được gửi duyệt.");
+
+        current.ReviewStatus = "PENDING_APPROVAL";
+        current.SubmittedAt = DateTime.UtcNow;
+        current.ReviewNote = null;
+        current.WasPublishedBeforeSubmission = wasPublishedBeforeSubmission;
+        current.PreviewDescription = course.Description;
+        current.PreviewTargetAudience = course.PreviewTargetAudience;
+        current.PreviewPrerequisites = course.PreviewPrerequisites;
+        current.PreviewLearningOutcomes = course.PreviewLearningOutcomes;
+        current.PreviewAssessmentOverview = course.PreviewAssessmentOverview;
+        if (createdSubmissionVersion)
+        {
+            // The database-generated key is still temporary until SaveChanges. Keep the
+            // relationship by navigation so EF can fix up SubmittedSyllabusVersionId
+            // after inserting the new revision; do not call Update on an Added entity.
+            course.SubmittedSyllabusVersionId = null;
+            course.SubmittedSyllabusVersion = current;
+        }
+        else
+        {
+            course.SubmittedSyllabusVersionId = current.SyllabusVersionId;
+            course.SubmittedSyllabusVersion = current;
+            _syllabusVersionRepository.Update(current);
         }
     }
 
@@ -352,10 +579,16 @@ public class CourseService : ICourseService
             Title = request.Title,
             Slug = GenerateSlug(request.Title),
             Description = request.Description,
+            PreviewTargetAudience = request.PreviewTargetAudience,
+            PreviewPrerequisites = request.PreviewPrerequisites,
+            PreviewLearningOutcomes = request.PreviewLearningOutcomes,
+            PreviewAssessmentOverview = request.PreviewAssessmentOverview,
             ThumbnailUrl = request.ThumbnailUrl,
             Price = price,
             IsFree = isFree,
             Level = request.Level,
+            SkillTags = request.SkillTags,
+            PrerequisiteCourseId = request.PrerequisiteCourseId,
             Status = status,
             SubmissionNote = request.SubmissionNote,
             SubmittedAt = null,
@@ -383,11 +616,21 @@ public class CourseService : ICourseService
 
         if (course.Status == CourseStatus.ARCHIVED)
             throw new InvalidOperationException("Khóa học đã lưu trữ nên không thể chỉnh sửa hoặc gửi duyệt lại.");
+        if (course.Status == CourseStatus.PENDING_APPROVAL)
+            throw new InvalidOperationException("Khóa học đang chờ Admin duyệt nên tạm thời không thể chỉnh sửa.");
         if (await _courseDeletionRequestRepository.GetQueryable()
                 .AnyAsync(deletionRequest => deletionRequest.CourseId == courseId && deletionRequest.Status == "PENDING"))
             throw new InvalidOperationException("Khóa học đang có yêu cầu xóa chờ Admin xử lý.");
-        if (course.Status == CourseStatus.PUBLISHED && request.Status.HasValue && request.Status.Value != CourseStatus.PUBLISHED)
+        var wasPublished = course.Status == CourseStatus.PUBLISHED;
+        var isSubmitting = request.SubmitForApproval || request.Status == CourseStatus.PENDING_APPROVAL;
+        if (wasPublished && request.Status.HasValue && request.Status.Value != CourseStatus.PUBLISHED && !isSubmitting)
             throw new InvalidOperationException("Khóa học đã xuất bản chỉ có thể được lưu trữ qua thao tác quản lý trạng thái.");
+        if (wasPublished && !isSubmitting && (request.Title is not null || request.Description is not null
+            || request.PreviewTargetAudience is not null || request.PreviewPrerequisites is not null
+            || request.PreviewLearningOutcomes is not null || request.PreviewAssessmentOverview is not null
+            || request.CategoryId.HasValue || request.ThumbnailUrl is not null || request.Price.HasValue
+            || request.IsFree.HasValue || request.Level.HasValue))
+            throw new InvalidOperationException("Khóa học đã xuất bản cần được gửi Admin duyệt lại trước khi cập nhật nội dung.");
 
         // Apply only the fields that the client explicitly sent
         if (request.Title is not null)
@@ -399,6 +642,10 @@ public class CourseService : ICourseService
             course.Slug = GenerateSlug(request.Title); // Re-generate slug when title changes
         }
         if (request.Description is not null) course.Description = request.Description;
+        if (request.PreviewTargetAudience is not null) course.PreviewTargetAudience = request.PreviewTargetAudience;
+        if (request.PreviewPrerequisites is not null) course.PreviewPrerequisites = request.PreviewPrerequisites;
+        if (request.PreviewLearningOutcomes is not null) course.PreviewLearningOutcomes = request.PreviewLearningOutcomes;
+        if (request.PreviewAssessmentOverview is not null) course.PreviewAssessmentOverview = request.PreviewAssessmentOverview;
         if (request.CategoryId.HasValue) course.CategoryId = request.CategoryId;
         if (request.ThumbnailUrl is not null) course.ThumbnailUrl = request.ThumbnailUrl;
         if (request.Price.HasValue) course.Price = request.Price.Value;
@@ -407,6 +654,8 @@ public class CourseService : ICourseService
             course.Price = 0;
         ValidatePricing(course.IsFree, course.Price);
         if (request.Level.HasValue) course.Level = request.Level;
+        if (request.SkillTags is not null) course.SkillTags = request.SkillTags;
+        if (request.PrerequisiteCourseId.HasValue) course.PrerequisiteCourseId = request.PrerequisiteCourseId;
         if (request.Status.HasValue)
         {
             // Instructors cannot directly publish courses; any edit defaults to DRAFT unless submitted for approval
@@ -416,6 +665,7 @@ public class CourseService : ICourseService
         if (request.SubmitForApproval || (request.Status.HasValue && request.Status.Value == CourseStatus.PENDING_APPROVAL))
         {
             await ValidateCourseForApprovalAsync(courseId, course);
+            await AttachCurrentSyllabusSubmissionAsync(course, wasPublished, request.KeepApprovedSyllabus);
             course.Status = CourseStatus.PENDING_APPROVAL;
             course.SubmittedAt = DateTime.UtcNow;
             if (request.SubmissionNote is not null)
@@ -424,7 +674,8 @@ public class CourseService : ICourseService
 
         course.UpdatedAt = DateTime.UtcNow;
 
-        _courseRepository.Update(course);
+        // The course was loaded and is already tracked. Update() marks the entire related
+        // graph Modified, which would incorrectly change a newly Added syllabus revision.
         await _unitOfWork.SaveChangesAsync();
         return await GetCourseByIdAsync(courseId);
     }
@@ -677,6 +928,20 @@ public class CourseService : ICourseService
         foreach (var session in sessions)
             AddObjectKey(session.ObjectKey, session.Status == "PENDING" ? session.ExpiresAt.AddMinutes(5) : now);
 
+        var syllabusObjectKeys = await _syllabusVersionRepository.GetQueryable()
+            .Where(version => version.CourseId == courseId)
+            .Select(version => version.ObjectKey)
+            .ToListAsync();
+        foreach (var objectKey in syllabusObjectKeys)
+            AddObjectKey(objectKey);
+
+        var syllabusSessions = await _syllabusUploadSessionRepository.GetQueryable()
+            .Where(session => session.CourseId == courseId)
+            .Select(session => new { session.ObjectKey, session.Status, session.ExpiresAt })
+            .ToListAsync();
+        foreach (var session in syllabusSessions)
+            AddObjectKey(session.ObjectKey, session.Status == "PENDING" ? session.ExpiresAt.AddMinutes(5) : now);
+
         var jobs = objectDeletionTimes.Select(entry => new R2ObjectDeletionJob
         {
             SourceCourseId = courseId,
@@ -705,7 +970,10 @@ public class CourseService : ICourseService
 
         if (parsedStatus == CourseStatus.PUBLISHED)
             throw new InvalidOperationException("Chỉ Admin mới có thể xuất bản khóa học.");
-        if (course.Status == CourseStatus.PUBLISHED && parsedStatus != CourseStatus.ARCHIVED)
+        if (course.Status == CourseStatus.PENDING_APPROVAL)
+            throw new InvalidOperationException("Khóa học đang chờ Admin duyệt nên không thể đổi trạng thái.");
+        var wasPublished = course.Status == CourseStatus.PUBLISHED;
+        if (wasPublished && parsedStatus != CourseStatus.ARCHIVED && parsedStatus != CourseStatus.PENDING_APPROVAL)
             throw new InvalidOperationException("Khóa học đã xuất bản chỉ có thể được lưu trữ; không thể chuyển lại thành bản nháp.");
         if (course.Status == CourseStatus.ARCHIVED)
             throw new InvalidOperationException("Khóa học đã lưu trữ không thể đổi trạng thái trực tiếp.");
@@ -718,6 +986,7 @@ public class CourseService : ICourseService
         if (parsedStatus == CourseStatus.PENDING_APPROVAL)
         {
             await ValidateCourseForApprovalAsync(courseId, course);
+            await AttachCurrentSyllabusSubmissionAsync(course, wasPublished);
             course.SubmittedAt = DateTime.UtcNow;
         }
         else if (parsedStatus == CourseStatus.PUBLISHED)
@@ -737,7 +1006,7 @@ public class CourseService : ICourseService
         course.Status = parsedStatus;
         course.UpdatedAt = DateTime.UtcNow;
 
-        _courseRepository.Update(course);
+        // The course was loaded and is already tracked; let EF persist only the changed fields.
         await _unitOfWork.SaveChangesAsync();
         return await GetCourseByIdAsync(courseId);
     }
@@ -745,18 +1014,24 @@ public class CourseService : ICourseService
     // -------------------------------------------------------------------------
     // Submit for Admin Approval
     // -------------------------------------------------------------------------
-    public async Task<CourseDto?> SubmitForApprovalAsync(int courseId, int instructorId, string? submissionNote)
+    public async Task<CourseDto?> SubmitForApprovalAsync(
+        int courseId,
+        int instructorId,
+        string? submissionNote,
+        bool keepApprovedSyllabus = false)
     {
         var course = await _courseRepository.GetByIdAsync(courseId);
         if (course is null || course.InstructorId != instructorId)
             return null;
 
-        if (course.Status == CourseStatus.PUBLISHED || course.Status == CourseStatus.ARCHIVED ||
+        var wasPublished = course.Status == CourseStatus.PUBLISHED;
+        if (course.Status == CourseStatus.ARCHIVED || course.Status == CourseStatus.PENDING_APPROVAL ||
             await _courseDeletionRequestRepository.GetQueryable()
                 .AnyAsync(deletionRequest => deletionRequest.CourseId == courseId && deletionRequest.Status == "PENDING"))
-            throw new InvalidOperationException("Khóa học đã công khai, lưu trữ hoặc đang có yêu cầu xóa nên không thể gửi duyệt lại.");
+            throw new InvalidOperationException("Khóa học đang lưu trữ, chờ duyệt hoặc có yêu cầu xóa nên không thể gửi duyệt.");
 
         await ValidateCourseForApprovalAsync(courseId, course);
+        await AttachCurrentSyllabusSubmissionAsync(course, wasPublished, keepApprovedSyllabus);
 
         course.Status = CourseStatus.PENDING_APPROVAL;
         course.SubmittedAt = DateTime.UtcNow;
@@ -764,7 +1039,8 @@ public class CourseService : ICourseService
             course.SubmissionNote = submissionNote;
         course.UpdatedAt = DateTime.UtcNow;
 
-        _courseRepository.Update(course);
+        // The course was loaded and is already tracked. Avoid Update() graph traversal because
+        // SubmittedSyllabusVersion may be a newly Added entity with a temporary generated key.
         await _unitOfWork.SaveChangesAsync();
         return await GetCourseByIdAsync(courseId);
     }
@@ -784,6 +1060,23 @@ public class CourseService : ICourseService
             throw new InvalidOperationException("Chỉ khóa học đang chờ duyệt mới có thể xuất bản.");
 
         course.Status = CourseStatus.PUBLISHED;
+        var submittedVersion = course.SubmittedSyllabusVersionId is int submittedId
+            ? await _syllabusVersionRepository.GetByIdAsync(submittedId)
+            : null;
+        if (submittedVersion is null || submittedVersion.CourseId != courseId || submittedVersion.ReviewStatus != "PENDING_APPROVAL")
+            throw new InvalidOperationException("Không tìm thấy chính xác phiên bản syllabus đã gửi duyệt.");
+        submittedVersion.ReviewStatus = "APPROVED";
+        submittedVersion.ReviewedAt = DateTime.UtcNow;
+        submittedVersion.ReviewedById = adminId;
+        submittedVersion.ReviewNote = null;
+        course.ApprovedSyllabusVersionId = submittedVersion.SyllabusVersionId;
+        // Apply only the exact preview snapshot that Admin approved.
+        course.Description = submittedVersion.PreviewDescription;
+        course.PreviewTargetAudience = submittedVersion.PreviewTargetAudience;
+        course.PreviewPrerequisites = submittedVersion.PreviewPrerequisites;
+        course.PreviewLearningOutcomes = submittedVersion.PreviewLearningOutcomes;
+        course.PreviewAssessmentOverview = submittedVersion.PreviewAssessmentOverview;
+        _syllabusVersionRepository.Update(submittedVersion);
         course.ApprovedAt = DateTime.UtcNow;
         course.ApprovedById = adminId;
         course.RejectionReason = null;
@@ -803,7 +1096,20 @@ public class CourseService : ICourseService
         if (course is null)
             return null;
 
-        course.Status = CourseStatus.REJECTED;
+        var submittedVersion = course.SubmittedSyllabusVersionId is int submittedId
+            ? await _syllabusVersionRepository.GetByIdAsync(submittedId)
+            : null;
+        if (submittedVersion is not null && submittedVersion.CourseId == courseId && submittedVersion.ReviewStatus == "PENDING_APPROVAL")
+        {
+            submittedVersion.ReviewStatus = "REJECTED";
+            submittedVersion.ReviewedAt = DateTime.UtcNow;
+            submittedVersion.ReviewedById = adminId;
+            submittedVersion.ReviewNote = reason;
+            _syllabusVersionRepository.Update(submittedVersion);
+        }
+        course.Status = submittedVersion?.WasPublishedBeforeSubmission == true
+            ? CourseStatus.PUBLISHED
+            : CourseStatus.REJECTED;
         course.ApprovedAt = DateTime.UtcNow;
         course.ApprovedById = adminId;
         course.RejectionReason = reason;
@@ -891,8 +1197,13 @@ public class CourseService : ICourseService
         foreach (var enrollment in enrollments.OrderByDescending(e => e.UpdatedAt))
         {
             if (enrollment.Course == null) continue;
-            if (giftManagedAccess.TryGetValue(enrollment.CourseId, out var hasGiftManagedAccess) && !hasGiftManagedAccess)
-                continue;
+            var isGrantManaged = giftManagedAccess.TryGetValue(enrollment.CourseId, out var hasGrantAccess);
+            var hasAccess = isGrantManaged
+                ? hasGrantAccess
+                : (enrollment.Status == "ACTIVE" || enrollment.Status == "COMPLETED") &&
+                    (!enrollment.ExpiresAt.HasValue || enrollment.ExpiresAt.Value > DateTime.UtcNow);
+            var isExpired = !hasAccess && (enrollment.Status == "EXPIRED" ||
+                (enrollment.ExpiresAt.HasValue && enrollment.ExpiresAt.Value <= DateTime.UtcNow));
 
             var courseDto = MapToDto(enrollment.Course);
 
@@ -934,12 +1245,16 @@ public class CourseService : ICourseService
                 TotalLecturesCount = progress?.TotalLessonsCount ?? totalLessonsCount,
                 LastAccessedAt = lastProgress?.LastAccessedAt ?? enrollment.UpdatedAt,
                 LastLectureTitle = lastLectureTitle,
-                Status = isCompleted ? "completed" : "in-progress",
+                Status = isCompleted ? "completed" : isExpired ? "expired" : "in-progress",
                 EnrolledDate = enrollment.EnrolledAt ?? enrollment.CreatedAt,
-                CertificateId = cert?.CertificateId ?? progress?.CertificateId
+                CertificateId = cert?.CertificateId ?? progress?.CertificateId,
+                ExpiresAt = enrollment.ExpiresAt,
+                IsExpired = isExpired,
+                IsAccessGranted = hasAccess
             });
         }
 
+        await ApplyReviewSummariesAsync(result.Select(item => item.Course).ToList());
         return result;
     }
 }

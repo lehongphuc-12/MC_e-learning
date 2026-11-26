@@ -52,7 +52,11 @@ public class PaymentService : IPaymentService
 
         var isGiftOnlyAccess = await _courseGiftAccess.IsGiftOnlyAccessAsync(enrollment.CourseId, currentUserId, DateTime.UtcNow);
         var isGiftTarget = await _courseGiftAccess.IsGiftCourseAsync(enrollment.CourseId);
+        var canRepurchaseExpiredEnrollment =
+            string.Equals(enrollment.Status, "EXPIRED", StringComparison.OrdinalIgnoreCase);
+
         if (!string.Equals(enrollment.Status, "PENDING_PAYMENT", StringComparison.OrdinalIgnoreCase) &&
+            !canRepurchaseExpiredEnrollment &&
             !(isGiftTarget && isGiftOnlyAccess && string.Equals(enrollment.Status, "ACTIVE", StringComparison.OrdinalIgnoreCase)))
             return ApiResponse<CreatePaymentResponseDto>.FailureResponse(
                 string.Equals(enrollment.Status, "ACTIVE", StringComparison.OrdinalIgnoreCase)
@@ -73,7 +77,7 @@ public class PaymentService : IPaymentService
         if (course.Price != decimal.Truncate(course.Price))
             return ApiResponse<CreatePaymentResponseDto>.FailureResponse("Số tiền VND phải là số nguyên.");
 
-        var alreadyPaid = !isGiftOnlyAccess && await _context.PaymentItems
+        var alreadyPaid = !canRepurchaseExpiredEnrollment && !isGiftOnlyAccess && await _context.PaymentItems
             .Include(i => i.Payment)
             .AnyAsync(i => i.EnrollmentId == enrollment.EnrollmentId && i.Payment.Status == "SUCCESS");
 
@@ -146,6 +150,7 @@ public class PaymentService : IPaymentService
         foreach (var candidate in enrollments)
         {
             if (string.Equals(candidate.Status, "PENDING_PAYMENT", StringComparison.OrdinalIgnoreCase)) continue;
+            if (string.Equals(candidate.Status, "EXPIRED", StringComparison.OrdinalIgnoreCase)) continue;
             if (string.Equals(candidate.Status, "ACTIVE", StringComparison.OrdinalIgnoreCase) &&
                 await _courseGiftAccess.IsGiftOnlyAccessAsync(candidate.CourseId, currentUserId, DateTime.UtcNow) &&
                 await _courseGiftAccess.IsGiftCourseAsync(candidate.CourseId)) continue;
@@ -187,10 +192,11 @@ public class PaymentService : IPaymentService
         foreach (var paidEnrollmentId in alreadyPaidEnrollmentIds)
         {
             var paidEnrollment = enrollments.First(e => e.EnrollmentId == paidEnrollmentId);
+            var mayRepurchaseExpired = string.Equals(paidEnrollment.Status, "EXPIRED", StringComparison.OrdinalIgnoreCase);
             var mayRepurchaseGiftTarget = string.Equals(paidEnrollment.Status, "ACTIVE", StringComparison.OrdinalIgnoreCase) &&
                 await _courseGiftAccess.IsGiftCourseAsync(paidEnrollment.CourseId) &&
                 await _courseGiftAccess.IsGiftOnlyAccessAsync(paidEnrollment.CourseId, currentUserId, DateTime.UtcNow);
-            if (!mayRepurchaseGiftTarget)
+            if (!mayRepurchaseExpired && !mayRepurchaseGiftTarget)
                 return ApiResponse<CreatePaymentResponseDto>.FailureResponse("Một hoặc nhiều khóa học trong giỏ đã được thanh toán.");
         }
 
@@ -366,9 +372,7 @@ public class PaymentService : IPaymentService
 
                 item.Enrollment.Status = "ACTIVE";
                 item.Enrollment.EnrolledAt ??= now;
-                var paidAccessExpiry = now.AddDays(90);
-                if (!item.Enrollment.ExpiresAt.HasValue || item.Enrollment.ExpiresAt.Value < paidAccessExpiry)
-                    item.Enrollment.ExpiresAt = paidAccessExpiry;
+                item.Enrollment.ExpiresAt = now.AddDays(90);
                 item.Enrollment.UpdatedAt = now;
             }
 
@@ -651,7 +655,7 @@ public class PaymentService : IPaymentService
 
                         item.Enrollment.Status = "ACTIVE";
                         item.Enrollment.EnrolledAt ??= now;
-                        item.Enrollment.ExpiresAt ??= now.AddDays(90);
+                        item.Enrollment.ExpiresAt = now.AddDays(90);
                         item.Enrollment.UpdatedAt = now;
                     }
 

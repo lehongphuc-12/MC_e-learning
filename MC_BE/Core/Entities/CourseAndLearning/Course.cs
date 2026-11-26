@@ -32,6 +32,20 @@ public class Course
     [Column("Description")]
     public string? Description { get; set; }
 
+    // Editable instructor draft fields. Public learners only receive the snapshot
+    // attached to the exact syllabus version approved by Admin.
+    [Column("PreviewTargetAudience", TypeName = "text")]
+    public string? PreviewTargetAudience { get; set; }
+
+    [Column("PreviewPrerequisites", TypeName = "text")]
+    public string? PreviewPrerequisites { get; set; }
+
+    [Column("PreviewLearningOutcomes", TypeName = "text")]
+    public string? PreviewLearningOutcomes { get; set; }
+
+    [Column("PreviewAssessmentOverview", TypeName = "text")]
+    public string? PreviewAssessmentOverview { get; set; }
+
     [MaxLength(255)]
     [Column("ThumbnailUrl")]
     public string? ThumbnailUrl { get; set; }
@@ -44,6 +58,13 @@ public class Course
 
     [Column("Level")]
     public CourseLevel? Level { get; set; }
+
+    [MaxLength(500)]
+    [Column("SkillTags")]
+    public string? SkillTags { get; set; }
+
+    [Column("PrerequisiteCourseID")]
+    public int? PrerequisiteCourseId { get; set; }
 
     [Column("Status")]
     public CourseStatus Status { get; set; } = CourseStatus.DRAFT;
@@ -69,6 +90,14 @@ public class Course
     [Column("RejectionReason")]
     public string? RejectionReason { get; set; }
 
+    // Keep the exact syllabus revision attached to an Admin submission and to the
+    // currently approved course. The version rows are immutable after submission.
+    [Column("SubmittedSyllabusVersionID")]
+    public int? SubmittedSyllabusVersionId { get; set; }
+
+    [Column("ApprovedSyllabusVersionID")]
+    public int? ApprovedSyllabusVersionId { get; set; }
+
     // Navigation properties
     [ForeignKey("CategoryId")]
     public virtual Category? Category { get; set; }
@@ -79,9 +108,15 @@ public class Course
     [ForeignKey("ApprovedById")]
     public virtual User? ApprovedBy { get; set; }
 
+    [ForeignKey("PrerequisiteCourseId")]
+    public virtual Course? PrerequisiteCourse { get; set; }
+
     public virtual ICollection<Module> Modules { get; set; } = new List<Module>();
     public virtual ICollection<Lesson> Lessons { get; set; } = new List<Lesson>();
     public virtual ICollection<CourseMaterial> CourseMaterials { get; set; } = new List<CourseMaterial>();
     public virtual ICollection<Enrollment> Enrollments { get; set; } = new List<Enrollment>();
     public virtual ICollection<Quiz> Quizzes { get; set; } = new List<Quiz>();
+    public virtual ICollection<CourseSyllabusVersion> SyllabusVersions { get; set; } = new List<CourseSyllabusVersion>();
+    public virtual CourseSyllabusVersion? SubmittedSyllabusVersion { get; set; }
+    public virtual CourseSyllabusVersion? ApprovedSyllabusVersion { get; set; }
 }

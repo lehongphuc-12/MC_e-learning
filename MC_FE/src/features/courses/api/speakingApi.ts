@@ -1,6 +1,7 @@
 import { request } from '../../../services/api';
 import {
   SpeakingLevel,
+  SpeakingScriptType,
   SpeakingScope,
   ParsePreviewDto,
   SaveScriptRequest,
@@ -11,6 +12,9 @@ import {
   UpdateLevelContentRequest,
   BackgroundMusicDto,
   PreUploadMusicResultDto,
+  SpeakingRubricCriterionDto,
+  SpeakingSubmissionHistoryDto,
+  SubmissionCriterionScoreDto,
 } from '../types/speakingTypes';
 
 export interface SpeakingSubmissionDto {
@@ -32,6 +36,11 @@ export interface SpeakingSubmissionDto {
   instructorName: string;
   audioUrl: string;
   note?: string;
+  studentNote?: string;
+  selectedLevel?: string;
+  attemptNumber?: number;
+  totalAttempts?: number;
+  passingScore?: number;
   status: 'SUBMITTED' | 'GRADED' | 'NEEDS_RESUBMISSION';
   score?: number;
   feedback?: string;
@@ -42,11 +51,19 @@ export interface SpeakingSubmissionDto {
   updatedAt: string;
   isPassed?: boolean;
   gradeTier?: string;
+  rubricCriteria?: SpeakingRubricCriterionDto[];
+  criterionScores?: SubmissionCriterionScoreDto[];
 }
 
 export interface GradeSpeakingSubmissionRequest {
   score: number;
   feedback?: string;
+  criterionScores?: Array<{
+    code: string;
+    name: string;
+    weightPercentage: number;
+    score: number;
+  }>;
 }
 
 export interface ApiResponse<T> {
@@ -88,16 +105,20 @@ export const speakingApi = {
    * GET /api/speaking-scripts/{id}
    */
   async getSpeakingScriptById(scriptId: number): Promise<ApiResponse<SpeakingScriptDto>> {
-    return request(`/speaking-scripts/${scriptId}`, {
+    return request(`/speaking-scripts/${scriptId}?_t=${Date.now()}`, {
       method: 'GET',
     });
+  },
+
+  async getScriptById(scriptId: number): Promise<ApiResponse<SpeakingScriptDto>> {
+    return this.getSpeakingScriptById(scriptId);
   },
 
   /**
    * GET /api/speaking-scripts/course/{courseId}
    */
   async getSpeakingScriptsByCourse(courseId: number): Promise<ApiResponse<SpeakingScriptDto[]>> {
-    return request(`/speaking-scripts/course/${courseId}`, {
+    return request(`/speaking-scripts/course/${courseId}?_t=${Date.now()}`, {
       method: 'GET',
     });
   },
@@ -248,7 +269,7 @@ export const speakingApi = {
    * Get speaking script with all 3 levels
    */
   async getScriptByLesson(lessonId: number): Promise<ApiResponse<SpeakingScriptDto>> {
-    return request(`/speaking-scripts/lessons/${lessonId}`, {
+    return request(`/speaking-scripts/lessons/${lessonId}?_t=${Date.now()}`, {
       method: 'GET',
     });
   },
@@ -361,6 +382,49 @@ export const speakingApi = {
     return request(`/speaking-scripts/lessons/${lessonId}/musics/link`, {
       method: 'POST',
       body: JSON.stringify({ musics }),
+    });
+  },
+
+  /**
+   * POST /api/speaking-scripts/upload-sample-audio
+   * Upload instructor sample audio file (.mp3, .wav, .m4a, .ogg, .webm, .aac)
+   */
+  async uploadSampleAudio(file: File): Promise<ApiResponse<string>> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return request('/speaking-scripts/upload-sample-audio', {
+      method: 'POST',
+      body: formData,
+    });
+  },
+
+  /**
+   * GET /api/speaking-submissions/{submissionId}
+   * Get detailed speaking submission by ID
+   */
+  async getSubmissionById(submissionId: number): Promise<ApiResponse<SpeakingSubmissionDto>> {
+    return request(`/speaking-submissions/${submissionId}`, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * GET /api/speaking-submissions/script/{scriptId}/history
+   * Get all submissions history of current learner for a speaking script
+   */
+  async getSubmissionHistoryByScript(scriptId: number): Promise<ApiResponse<SpeakingSubmissionHistoryDto[]>> {
+    return request(`/speaking-submissions/script/${scriptId}/history`, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * GET /api/speaking-submissions/lesson/{lessonId}/history
+   * Get all submissions history of current learner for a lesson
+   */
+  async getSubmissionHistoryByLesson(lessonId: number): Promise<ApiResponse<SpeakingSubmissionHistoryDto[]>> {
+    return request(`/speaking-submissions/lesson/${lessonId}/history`, {
+      method: 'GET',
     });
   },
 };

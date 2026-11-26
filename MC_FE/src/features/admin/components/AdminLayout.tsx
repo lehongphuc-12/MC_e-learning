@@ -1,3 +1,5 @@
+import { NotificationBell } from '../../../components/NotificationBell';
+
 import React, { useState } from 'react';
 import {
   LayoutDashboard,
@@ -15,9 +17,12 @@ import {
   Home,
   Mic2,
   MessageSquare,
+  Clock3,
 } from 'lucide-react';
+
 import { AdminTabType } from '../types/adminTypes';
 import { User } from '../../../types';
+import VoiceCoachAdminPage from '../../voiceJourney/voiceCoachAdminPage';
 
 interface AdminLayoutProps {
   activeTab: AdminTabType;
@@ -29,6 +34,8 @@ interface AdminLayoutProps {
   children: React.ReactNode;
 }
 
+type CourseSubTab = 'mc' | 'ai-voice';
+
 export const AdminLayout: React.FC<AdminLayoutProps> = ({
   activeTab,
   onTabChange,
@@ -39,6 +46,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   children,
 }) => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [courseSubTab, setCourseSubTab] = useState<CourseSubTab>('mc');
 
   const navItems = [
     {
@@ -84,6 +92,18 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
       icon: MessageSquare,
       badge: null,
     },
+    {
+      id: 'reviews' as AdminTabType,
+      label: 'Đánh Giá Khóa Học',
+      icon: ShieldAlert,
+      badge: null,
+    },
+    {
+      id: 'access-extensions' as AdminTabType,
+      label: 'Gia hạn quyền học',
+      icon: Clock3,
+      badge: null,
+    },
   ];
 
   return (
@@ -93,11 +113,16 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         {/* Brand & Toggle Sidebar */}
         <div className="flex items-center space-x-3">
           <button
+            type="button"
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
             className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
             title="Toggle Sidebar"
           >
-            {sidebarCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+            {sidebarCollapsed ? (
+              <ChevronRight className="w-5 h-5" />
+            ) : (
+              <ChevronLeft className="w-5 h-5" />
+            )}
           </button>
 
           <div
@@ -107,6 +132,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
             <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-700 via-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-600/30 group-hover:scale-105 transition-transform">
               <Mic2 className="w-5 h-5" />
             </div>
+
             <div className="hidden sm:block">
               <div className="text-xl font-black tracking-tight text-white leading-none flex items-center gap-1">
                 MSEEK
@@ -115,7 +141,10 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                   ADMIN HUB
                 </span>
               </div>
-              <div className="text-[10px] font-semibold text-slate-400 tracking-wider uppercase mt-0.5">Master The Art</div>
+
+              <div className="text-[10px] font-semibold text-slate-400 tracking-wider uppercase mt-0.5">
+                Master The Art
+              </div>
             </div>
           </div>
         </div>
@@ -132,8 +161,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
         {/* Header Right Actions */}
         <div className="flex items-center space-x-3">
-          {/* Back to Client Site */}
           <button
+            type="button"
             onClick={onNavigateHome}
             className="hidden sm:flex items-center space-x-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-800/70 hover:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700/50 transition cursor-pointer"
           >
@@ -141,17 +170,10 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
             <span>Trang Chủ Học Viên</span>
           </button>
 
-          {/* Notifications button */}
-          <div className="relative">
-            <button className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 relative transition cursor-pointer">
-              <Bell className="w-5 h-5" />
-              {pendingApprovalsCount > 0 && (
-                <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-amber-500 rounded-full ring-2 ring-slate-900 animate-pulse" />
-              )}
-            </button>
-          </div>
+          {/* Notifications */}
+          <NotificationBell />
 
-          {/* User Profile Avatar */}
+          {/* User Profile */}
           <div className="flex items-center space-x-3 pl-2 border-l border-slate-800">
             <img
               src={
@@ -161,16 +183,19 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
               alt={currentUser?.name || 'Admin'}
               className="w-8 h-8 rounded-full border border-blue-500/30 object-cover"
             />
+
             <div className="hidden lg:block text-left">
               <p className="text-xs font-semibold text-white truncate max-w-[120px]">
                 {currentUser?.name || 'Quản trị viên'}
               </p>
+
               <p className="text-[10px] text-slate-400 truncate max-w-[120px]">
                 {currentUser?.email || 'admin@mseek.edu.vn'}
               </p>
             </div>
 
             <button
+              type="button"
               onClick={onLogout}
               className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition cursor-pointer"
               title="Đăng xuất"
@@ -197,9 +222,11 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
+
               return (
                 <button
                   key={item.id}
+                  type="button"
                   onClick={() => onTabChange(item.id)}
                   className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium transition cursor-pointer ${
                     isActive
@@ -217,7 +244,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                     {!sidebarCollapsed && <span>{item.label}</span>}
                   </div>
 
-                  {!sidebarCollapsed && item.badge && (
+                  {!sidebarCollapsed && item.badge != null && (
                     <span
                       className={`px-2 py-0.5 text-[10px] rounded-full ${
                         item.badgeColor || 'bg-slate-800 text-slate-300'
@@ -238,6 +265,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                 <ShieldAlert className="w-4 h-4" />
                 <span>Quyền Hạn Cao Nhất</span>
               </div>
+
               <p className="text-[11px] text-slate-400 leading-relaxed">
                 Đang vận hành hệ thống ở chế độ Admin Bảo Mật. mọi thao tác được ghi log.
               </p>
@@ -247,7 +275,49 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
         {/* Content Region */}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-slate-950">
-          {children}
+          {activeTab === 'courses' && (
+            <div className="mb-6">
+              <div className="flex flex-wrap gap-3 border-b border-slate-800 pb-4">
+                <button
+                  type="button"
+                  onClick={() => setCourseSubTab('mc')}
+                  className={`rounded-xl px-5 py-3 text-sm font-semibold transition ${
+                    courseSubTab === 'mc'
+                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+                      : 'bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-white'
+                  }`}
+                >
+                  <BookOpen className="mr-2 inline-block h-4 w-4" />
+                  Khóa học MC
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setCourseSubTab('ai-voice')}
+                  className={`rounded-xl px-5 py-3 text-sm font-semibold transition ${
+                    courseSubTab === 'ai-voice'
+                      ? 'bg-violet-600 text-white shadow-lg shadow-violet-600/20'
+                      : 'bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-white'
+                  }`}
+                >
+                  <Mic2 className="mr-2 inline-block h-4 w-4" />
+                  AI Voice Journey
+                </button>
+              </div>
+
+              <p className="mt-3 text-sm text-slate-400">
+                {courseSubTab === 'mc'
+                  ? 'Quản lý và kiểm duyệt các khóa học MC thông thường.'
+                  : 'Quản lý chương trình luyện giọng AI, thư viện kỹ năng, bài học và bài tập chuẩn.'}
+              </p>
+            </div>
+          )}
+
+          {activeTab === 'courses' && courseSubTab === 'ai-voice' ? (
+            <VoiceCoachAdminPage />
+          ) : (
+            children
+          )}
         </main>
       </div>
     </div>

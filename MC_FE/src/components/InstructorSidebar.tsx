@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, BookOpen, PlusCircle, LogOut, Mic2, ChevronLeft, ClipboardList, ClipboardCheck } from 'lucide-react';
+import { LayoutDashboard, BookOpen, PlusCircle, LogOut, Mic2, ChevronLeft, ClipboardList, ClipboardCheck,BrainCircuit } from 'lucide-react';
 import { User } from '../types';
 
 interface InstructorSidebarProps {
@@ -10,6 +10,13 @@ interface InstructorSidebarProps {
 }
 
 const NAV_ITEMS = [
+  {
+  label: 'Đánh giá luyện tập AI',
+  icon: BrainCircuit,
+  path: '/instructor/ai-practice',
+  exact: false,
+  color: 'text-purple-400',
+},
   { label: 'Tổng quan', icon: LayoutDashboard, path: '/instructor', exact: true, color: 'text-blue-400' },
   { label: 'Quản lý khóa học', icon: BookOpen, path: '/instructor/courses', exact: false, color: 'text-emerald-400' },
   { label: 'Quản lý Quiz', icon: ClipboardList, path: '/instructor/quizzes', exact: true, color: 'text-violet-400' },
