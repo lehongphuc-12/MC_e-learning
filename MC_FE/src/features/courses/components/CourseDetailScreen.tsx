@@ -426,6 +426,7 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
 
   const { data: learnedCourses } = useLearnedCoursesQuery();
   const learnerEnrollment = learnedCourses?.find(item => String(item.course.id) === String(course.id));
+  const hasExpiredEnrollment = learnerEnrollment?.isExpired === true;
   const enrollmentAccessExpired = learnerEnrollment?.isExpired === true || learnerEnrollment?.isAccessGranted === false;
 
   const isEnrolled = !enrollmentAccessExpired && (
@@ -897,9 +898,9 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
                     )}
                   </div>
                   <p className="text-xs text-rose-500 font-semibold">⚡ Ưu đãi học phí đặc quyền có hạn</p>
-                  {course.price > 0 && <div className="access-duration-notice mt-3 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs font-semibold leading-5 text-amber-950">
+                  {course.price > 0 && <div className={`access-duration-notice mt-3 flex items-start gap-2 rounded-xl border px-3 py-2.5 text-xs font-semibold leading-5 ${hasExpiredEnrollment ? 'border-blue-200 bg-blue-50 text-blue-950' : 'border-amber-200 bg-amber-50 text-amber-950'}`}>
                     <Clock3 aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
-                    <span>Quyền truy cập khóa học trong 3 tháng kể từ khi thanh toán thành công.</span>
+                    <span>{hasExpiredEnrollment ? 'Quyền học trước đây đã hết hạn. Mua lại khóa học để mở quyền truy cập thêm 3 tháng; tiến độ và lịch sử học vẫn được giữ.' : 'Quyền truy cập khóa học trong 3 tháng kể từ khi thanh toán thành công.'}</span>
                   </div>}
                 </div>
 
@@ -941,7 +942,7 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
         onClick={() => onEnroll(course)}
         className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl shadow-lg shadow-blue-600/30 hover:shadow-blue-600/50 transition-all flex items-center justify-center gap-2 cursor-pointer"
       >
-        <span>Đăng ký khóa học ngay</span>
+        <span>{hasExpiredEnrollment ? 'Mua lại · gia hạn 3 tháng' : 'Đăng ký khóa học ngay'}</span>
       </button>
 
       {isInCart ? (

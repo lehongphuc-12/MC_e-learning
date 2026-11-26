@@ -960,6 +960,12 @@ export const MyCoursesScreen: React.FC<MyCoursesScreenProps> = ({
                     {isItemCompleted ? <RotateCcw className="h-4 w-4" /> : <PlayCircle className="h-4 w-4" />}
                     {!hasCourseAccess ? 'Đã khóa quyền học' : isItemCompleted ? 'Học lại' : 'Tiếp tục học'}
                   </button>
+                  {item.isExpired === true && <button
+                    onClick={() => navigate(`/courses/${item.course.id}`)}
+                    className="w-full rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-[11px] font-bold text-blue-700 transition hover:border-blue-300 hover:bg-blue-100"
+                  >
+                    Mua lại để gia hạn 3 tháng
+                  </button>}
                   {canRequestExtension && <button onClick={() => { setExtensionTarget(item); setExtensionMessage(null); setExtensionReason(''); }} disabled={pendingExtensionIds.has(Number(item.id))} className="w-full rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-800 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60">
                     {pendingExtensionIds.has(Number(item.id)) ? 'Đang chờ gia hạn' : 'Yêu cầu gia hạn'}
                   </button>}
