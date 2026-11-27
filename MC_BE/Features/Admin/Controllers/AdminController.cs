@@ -10,6 +10,8 @@ using MC_BE.Features.Users.Services.Interfaces;
 using MC_BE.Features.Admin.Services.Interfaces;
 using System.Collections.Generic;
 using MC_BE.Shared.Data;
+using MC_BE.Features.Admin.Services;
+using System.Security.Claims;
 
 namespace MC_BE.Features.Admin.Controllers;
 
@@ -21,15 +23,18 @@ public class AdminController : ControllerBase
     private readonly IUserService _userService;
     private readonly IAdminStatsService _adminStatsService;
     private readonly SmartMcDbContext _context;
+    private readonly AdminActivityLogger _activityLogger;
 
     public AdminController(
         IUserService userService,
         IAdminStatsService adminStatsService,
-        SmartMcDbContext context)
+        SmartMcDbContext context,
+        AdminActivityLogger activityLogger)
     {
         _userService = userService;
         _adminStatsService = adminStatsService;
         _context = context;
+        _activityLogger = activityLogger;
     }
 
     // ============================================================
@@ -136,6 +141,8 @@ public class AdminController : ControllerBase
         try
         {
             var success = await _adminStatsService.UpdatePlatformSettingsAsync(settings);
+            if (success && int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var actorId))
+                await _activityLogger.RecordAsync(actorId, "SETTINGS_UPDATED", "PLATFORM_SETTINGS", null, "Cập nhật cấu hình nền tảng.", HttpContext.TraceIdentifier);
             return Ok(ApiResponse<bool>.SuccessResponse(success, "Cập nhật cấu hình hệ thống thành công."));
         }
         catch (Exception ex)
@@ -264,6 +271,9 @@ public class AdminController : ControllerBase
                 : BadRequest(result);
         }
 
+        if (int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var actorId))
+            await _activityLogger.RecordAsync(actorId, "USER_STATUS_UPDATED", "USER", id.ToString(), $"Cập nhật trạng thái tài khoản #{id} thành {request.Status}.", HttpContext.TraceIdentifier, id);
+
         return Ok(result);
     }
 
@@ -291,6 +301,9 @@ public class AdminController : ControllerBase
                 ? NotFound(result)
                 : BadRequest(result);
         }
+
+        if (int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var actorId))
+            await _activityLogger.RecordAsync(actorId, "USER_UPDATED", "USER", id.ToString(), $"Cập nhật hồ sơ người dùng #{id}.", HttpContext.TraceIdentifier, id);
 
         return Ok(result);
     }

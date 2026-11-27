@@ -148,53 +148,14 @@ public class AdminStatsService : IAdminStatsService
 
     public async Task<List<SystemLogDto>> GetSystemLogsAsync()
     {
-        var logs = new List<SystemLogDto>();
-
-        // Generate logs dynamically based on real system records.
-        var recentCourses = await _context.Courses
-            .Include(c => c.Instructor)
-            .OrderByDescending(c => c.CreatedAt)
-            .Take(3)
-            .ToListAsync();
-
-        foreach (var c in recentCourses)
-        {
-            logs.Add(new SystemLogDto
+        return await _context.AdminActivityLogs.AsNoTracking()
+            .OrderByDescending(x => x.OccurredAt).ThenByDescending(x => x.Id).Take(10)
+            .Select(x => new SystemLogDto
             {
-                Id = $"log-course-{c.CourseId}",
-                Timestamp = c.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss"),
-                Action = c.Status == CourseStatus.PUBLISHED
-                    ? "Duyệt khóa học"
-                    : "Cập nhật khóa học",
-                PerformedBy = c.Instructor?.FullName ?? "Hệ thống",
-                Details = $"Khóa học: {c.Title} (Trạng thái: {c.Status})",
-                Type = c.Status == CourseStatus.PUBLISHED
-                    ? "success"
-                    : "info"
-            });
-        }
-
-        var recentUsers = await _context.Users
-            .OrderByDescending(u => u.CreatedAt)
-            .Take(2)
-            .ToListAsync();
-
-        foreach (var u in recentUsers)
-        {
-            logs.Add(new SystemLogDto
-            {
-                Id = $"log-user-{u.UserId}",
-                Timestamp = u.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss"),
-                Action = "Đăng ký tài khoản",
-                PerformedBy = u.FullName,
-                Details = $"Người dùng mới đăng ký thành công: {u.Email}",
-                Type = "info"
-            });
-        }
-
-        return logs
-            .OrderByDescending(l => l.Timestamp)
-            .ToList();
+                Id = x.Id.ToString(), Timestamp = x.OccurredAt.ToString("yyyy-MM-dd HH:mm:ss"),
+                Action = x.Action, PerformedBy = x.ActorName, Details = x.Summary,
+                Type = x.Result == "SUCCESS" ? "success" : "info"
+            }).ToListAsync();
     }
 
     public Task<PlatformSettingsDto> GetPlatformSettingsAsync()

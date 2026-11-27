@@ -1,4 +1,8 @@
-export type AdminTabType = 'overview' | 'users' | 'courses' | 'categories' | 'financials' | 'settings' | 'forum' | 'reviews' | 'access-extensions';
+export type AdminTabType = 'overview' | 'users' | 'courses' | 'categories' | 'financials' | 'settings' | 'forum' | 'reviews' | 'access-extensions' | 'activity-logs' | 'support-requests';
+
+export interface ActivityLogItem { id: number; occurredAt: string; category: string; actorUserId?: number | null; actorName: string; action: string; entityType: string; entityId?: string | null; summary: string; result: string; }
+export interface SupportRequestMessage { id: number; senderUserId: number; senderName: string; body: string; isInternalNote: boolean; createdAt: string; }
+export interface SupportRequest { id: number; publicCode: string; requesterUserId: number; requesterName: string; requesterEmail: string; assignedAdminId?: number | null; assignedAdminName?: string | null; category: string; subject: string; description: string; priority: string; status: string; resolutionNote?: string | null; createdAt: string; updatedAt: string; messages: SupportRequestMessage[]; }
 
 export interface AccessExtensionRequest {
   requestId: number; enrollmentId: number; courseId: number; courseTitle: string;

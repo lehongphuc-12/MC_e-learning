@@ -16,9 +16,35 @@ import {
   defaultPlatformSettings,
   emptyAdminStats,
   AccessExtensionRequest,
+  ActivityLogItem,
+  SupportRequest,
 } from '../types/adminTypes';
 
 export const adminApi = {
+  async getActivityLogs(page = 1, pageSize = 25, category?: string, search?: string) {
+    const query = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+    if (category) query.set('category', category);
+    if (search) query.set('search', search);
+    const res = await request<{ success: boolean; data: { items: ActivityLogItem[]; page: number; pageSize: number; totalItems: number; totalPages: number } }>(`/admin/activity-logs?${query}`);
+    return res.data;
+  },
+  async getSupportRequests(page = 1, status = '', search = '') {
+    const query = new URLSearchParams({ page: String(page), pageSize: '20' });
+    if (status) query.set('status', status);
+    if (search) query.set('search', search);
+    const res = await request<{ success: boolean; data: { items: SupportRequest[]; page: number; pageSize: number; totalItems: number; totalPages: number } }>(`/admin/support-requests?${query}`);
+    return res.data;
+  },
+  async getSupportRequest(id: number) {
+    const res = await request<{ success: boolean; data: SupportRequest }>(`/admin/support-requests/${id}`);
+    return res.data;
+  },
+  async updateSupportRequest(id: number, data: { status: string; resolutionNote?: string; assignedAdminId: number | null }) {
+    await request(`/admin/support-requests/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  },
+  async replySupportRequest(id: number, body: string, isInternalNote: boolean) {
+    await request(`/admin/support-requests/${id}/messages`, { method: 'POST', body: JSON.stringify({ body, isInternalNote }) });
+  },
   async getPendingAccessExtensions(): Promise<AccessExtensionRequest[]> {
     const res = await request<{ success: boolean; data: AccessExtensionRequest[] }>('/enrollments/access-extensions/pending');
     return res.data ?? [];

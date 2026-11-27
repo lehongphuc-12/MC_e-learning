@@ -209,6 +209,69 @@ namespace MC_BE.Migrations
                     b.ToTable("ai_pronunciation_feedbacks", (string)null);
                 });
 
+            modelBuilder.Entity("MC_BE.Core.Entities.AdminActivityLog", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("ActorName")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<int?>("ActorUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("CorrelationId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("EntityId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<int?>("RelatedUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Result")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Summary")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorUserId", "OccurredAt");
+
+                    b.HasIndex("EntityType", "EntityId");
+
+                    b.HasIndex("OccurredAt", "Id");
+
+                    b.ToTable("admin_activity_logs", (string)null);
+                });
+
             modelBuilder.Entity("MC_BE.Core.Entities.BackgroundMusic", b =>
                 {
                     b.Property<int>("MusicId")
@@ -2015,15 +2078,15 @@ namespace MC_BE.Migrations
 
                     b.HasIndex("CourseId");
 
+                    b.HasIndex("EnrollmentId")
+                        .IsUnique()
+                        .HasFilter("\"Status\" = 'PENDING'");
+
                     b.HasIndex("LearnerId");
 
                     b.HasIndex("ReviewedByAdminId");
 
                     b.HasIndex("EnrollmentId", "Status");
-
-                    b.HasIndex("EnrollmentId")
-                        .IsUnique()
-                        .HasFilter("\"Status\" = 'PENDING'");
 
                     b.HasIndex("Status", "RequestedAt");
 
@@ -4476,6 +4539,126 @@ namespace MC_BE.Migrations
                     b.ToTable("speaking_submissions", (string)null);
                 });
 
+            modelBuilder.Entity("MC_BE.Core.Entities.SupportRequest", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<int?>("AssignedAdminId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<string>("Priority")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("PublicCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<int?>("RelatedCourseId")
+                        .HasColumnType("integer");
+
+                    b.Property<long?>("RelatedPaymentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("RequesterUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ResolutionNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime?>("ResolvedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("ResolvedByAdminId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)");
+
+                    b.Property<string>("Subject")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PublicCode")
+                        .IsUnique();
+
+                    b.HasIndex("ResolvedByAdminId");
+
+                    b.HasIndex("AssignedAdminId", "Status");
+
+                    b.HasIndex("RequesterUserId", "CreatedAt");
+
+                    b.HasIndex("Status", "UpdatedAt");
+
+                    b.ToTable("support_requests", (string)null);
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.SupportRequestMessage", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsInternalNote")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("SenderUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("SupportRequestId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SenderUserId");
+
+                    b.HasIndex("SupportRequestId", "CreatedAt");
+
+                    b.ToTable("support_request_messages", (string)null);
+                });
+
             modelBuilder.Entity("MC_BE.Core.Entities.User", b =>
                 {
                     b.Property<int>("UserId")
@@ -5269,6 +5452,16 @@ namespace MC_BE.Migrations
                         .HasForeignKey("SubmissionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.AdminActivityLog", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.User", "Actor")
+                        .WithMany()
+                        .HasForeignKey("ActorUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Actor");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.BackgroundMusic", b =>
@@ -6541,6 +6734,50 @@ namespace MC_BE.Migrations
                     b.Navigation("SpeakingScript");
                 });
 
+            modelBuilder.Entity("MC_BE.Core.Entities.SupportRequest", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.User", "AssignedAdmin")
+                        .WithMany()
+                        .HasForeignKey("AssignedAdminId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("MC_BE.Core.Entities.User", "Requester")
+                        .WithMany()
+                        .HasForeignKey("RequesterUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MC_BE.Core.Entities.User", "ResolvedByAdmin")
+                        .WithMany()
+                        .HasForeignKey("ResolvedByAdminId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("AssignedAdmin");
+
+                    b.Navigation("Requester");
+
+                    b.Navigation("ResolvedByAdmin");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.SupportRequestMessage", b =>
+                {
+                    b.HasOne("MC_BE.Core.Entities.User", "Sender")
+                        .WithMany()
+                        .HasForeignKey("SenderUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("MC_BE.Core.Entities.SupportRequest", "SupportRequest")
+                        .WithMany("Messages")
+                        .HasForeignKey("SupportRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Sender");
+
+                    b.Navigation("SupportRequest");
+                });
+
             modelBuilder.Entity("MC_BE.Core.Entities.User", b =>
                 {
                     b.HasOne("MC_BE.Core.Entities.Role", "Role")
@@ -6784,6 +7021,11 @@ namespace MC_BE.Migrations
                     b.Navigation("Levels");
 
                     b.Navigation("RubricCriteria");
+                });
+
+            modelBuilder.Entity("MC_BE.Core.Entities.SupportRequest", b =>
+                {
+                    b.Navigation("Messages");
                 });
 
             modelBuilder.Entity("MC_BE.Core.Entities.User", b =>
