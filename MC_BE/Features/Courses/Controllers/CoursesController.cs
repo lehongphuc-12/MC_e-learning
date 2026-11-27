@@ -118,6 +118,17 @@ public class CoursesController : ControllerBase
         return Ok(ApiResponse<CourseListResponse>.SuccessResponse(result));
     }
 
+    [HttpGet("{id:int}/preview-lesson")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<CoursePreviewLessonDto>>> GetPreviewLesson(int id)
+    {
+        var lesson = await _courseService.GetFirstPreviewLessonAsync(id);
+        if (lesson is null)
+            return NotFound(ApiResponse<CoursePreviewLessonDto>.FailureResponse("Khóa học chưa có bài video được bật xem trước."));
+
+        return Ok(ApiResponse<CoursePreviewLessonDto>.SuccessResponse(lesson));
+    }
+
     // -------------------------------------------------------------------------
     // GET /api/courses/my-courses
     // Returns the authenticated instructor's own courses.

@@ -144,6 +144,7 @@ export const AppRouter: React.FC<AppRouterProps> = ({
     const path = location.pathname;
     if (path.startsWith('/admin')) return 'admin';
     if (path === '/my-courses') return 'my-courses';
+    if (path === '/courses/favorites') return 'wishlist';
     if (path === '/courses') return 'courses';
     if (path.startsWith('/courses/') || path.startsWith('/course-detail')) {
       if (path.includes('/summary')) return 'my-courses';

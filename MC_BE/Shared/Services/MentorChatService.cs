@@ -6,6 +6,7 @@ using MC_BE.Shared.Services.Interfaces;
 using MC_BE.Shared.Settings;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using MC_BE.Features.Courses.Services.Interfaces;
 
 namespace MC_BE.Shared.Services;
 
@@ -14,6 +15,7 @@ public class MentorChatService : IMentorChatService
     private readonly HttpClient _httpClient;
     private readonly MentorChatSettings _settings;
     private readonly ILogger<MentorChatService> _logger;
+    private readonly ICourseService _courseService;
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true
@@ -22,11 +24,13 @@ public class MentorChatService : IMentorChatService
     public MentorChatService(
         HttpClient httpClient,
         IOptions<MentorChatSettings> options,
+        ICourseService courseService,
         ILogger<MentorChatService> logger)
     {
         _httpClient = httpClient;
         _settings = options.Value;
         _logger = logger;
+        _courseService = courseService;
 
         var baseUrl = string.IsNullOrWhiteSpace(_settings.BaseUrl) ? "http://localhost:8000" : _settings.BaseUrl.TrimEnd('/');
         _httpClient.BaseAddress = new Uri(baseUrl);
@@ -45,12 +49,14 @@ public class MentorChatService : IMentorChatService
         CancellationToken ct = default)
     {
         var safeTopK = Math.Clamp(request.TopK <= 0 ? 4 : request.TopK, 1, 12);
+        var courseContext = await BuildCourseContextAsync(courseId);
         var pythonPayload = new PythonChatRequest
         {
             CourseId = courseId,
             Message = request.Message,
             LessonId = request.LessonId,
-            TopK = safeTopK
+            TopK = safeTopK,
+            CourseContext = courseContext
         };
 
         var json = JsonSerializer.Serialize(pythonPayload, JsonOptions);
@@ -82,12 +88,15 @@ public class MentorChatService : IMentorChatService
         CancellationToken ct = default)
     {
         var safeTopK = Math.Clamp(request.TopK <= 0 ? 4 : request.TopK, 1, 12);
+        var courseContext = await BuildCourseContextAsync(courseId);
+
         var pythonPayload = new PythonChatRequest
         {
             CourseId = courseId,
             Message = request.Message,
             LessonId = request.LessonId,
-            TopK = safeTopK
+            TopK = safeTopK,
+            CourseContext = courseContext
         };
 
         var json = JsonSerializer.Serialize(pythonPayload, JsonOptions);
@@ -254,5 +263,22 @@ public class MentorChatService : IMentorChatService
             _logger.LogWarning(ex, "Failed to call delete knowledge endpoint in MentorChat for Course {CourseId} (service might be down)", courseId);
             return false;
         }
+    }
+
+    private async Task<CourseContextDto?> BuildCourseContextAsync(int courseId)
+    {
+        var course = await _courseService.GetCourseByIdAsync(courseId);
+        if (course == null) return null;
+
+        return new CourseContextDto
+        {
+            Title = course.Title,
+            Description = course.Description,
+            CategoryName = course.CategoryName,
+            InstructorName = course.InstructorName,
+            Level = course.Level?.ToString(),
+            SkillTags = course.SkillTags,
+            PrerequisiteCourseTitle = course.PrerequisiteCourseTitle
+        };
     }
 }

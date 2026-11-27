@@ -75,6 +75,10 @@ function buildQuery(params?: Record<string, string | number | undefined>): strin
 }
 
 export const courseApi = {
+  async getPreviewLesson(courseId: number): Promise<{ lessonId: number; title: string }> {
+    const envelope = await request<ApiEnvelope<{ lessonId: number; title: string }>>(`/courses/${courseId}/preview-lesson`);
+    return envelope.data;
+  },
   async uploadCourseThumbnail(file: File): Promise<string> {
     const formData = new FormData();
     formData.append('file', file);
@@ -211,6 +215,16 @@ export const courseApi = {
   async getLearnedCourses(): Promise<LearnedCourse[]> {
     const envelope = await request<ApiEnvelope<LearnedCourse[]>>('/courses/learned-courses');
     return envelope.data;
+  },
+
+  async requestAccessExtension(enrollmentId: number, reason: string) {
+    return request<{ success: boolean; data: { requestId: number; status: string } }>(`/enrollments/access-extensions/${enrollmentId}`, {
+      method: 'POST', body: JSON.stringify({ reason }),
+    });
+  },
+
+  async getMyAccessExtensionRequests() {
+    return request<{ success: boolean; data: Array<{ requestId: number; enrollmentId: number; status: string }> }>('/enrollments/access-extensions/mine');
   },
 
   // -------------------------------------------------------------------------

@@ -7,6 +7,7 @@ using MC_BE.Shared.Repositories.Interfaces;
 using MC_BE.Shared.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using System.Text.RegularExpressions;
+using EnrollmentEntity = global::MC_BE.Core.Entities.Enrollment;
 
 namespace MC_BE.Features.Courses.Services;
 
@@ -18,7 +19,7 @@ public class CourseService : ICourseService
 {
     private readonly IGenericRepository<Course> _courseRepository;
     private readonly IGenericRepository<Category> _categoryRepository;
-    private readonly IGenericRepository<Enrollment> _enrollmentRepository;
+    private readonly IGenericRepository<EnrollmentEntity> _enrollmentRepository;
     private readonly IGenericRepository<PaymentItem> _paymentItemRepository;
     private readonly IGenericRepository<SpeakingSubmission> _speakingSubmissionRepository;
     private readonly IGenericRepository<Quiz> _quizRepository;
@@ -35,6 +36,7 @@ public class CourseService : ICourseService
     private readonly IGenericRepository<VideoUploadSession> _videoUploadSessionRepository;
     private readonly IGenericRepository<CourseSyllabusVersion> _syllabusVersionRepository;
     private readonly IGenericRepository<CourseSyllabusUploadSession> _syllabusUploadSessionRepository;
+    private readonly IGenericRepository<CourseReview> _courseReviewRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IR2StorageService _r2;
     private readonly ICourseGiftAccessService _giftAccess;
@@ -44,7 +46,7 @@ public class CourseService : ICourseService
     public CourseService(
         IGenericRepository<Course> courseRepository,
         IGenericRepository<Category> categoryRepository,
-        IGenericRepository<Enrollment> enrollmentRepository,
+        IGenericRepository<EnrollmentEntity> enrollmentRepository,
         IGenericRepository<PaymentItem> paymentItemRepository,
         IGenericRepository<SpeakingSubmission> speakingSubmissionRepository,
         IGenericRepository<Quiz> quizRepository,
@@ -59,6 +61,7 @@ public class CourseService : ICourseService
         IGenericRepository<VideoUploadSession> videoUploadSessionRepository,
         IGenericRepository<CourseSyllabusVersion> syllabusVersionRepository,
         IGenericRepository<CourseSyllabusUploadSession> syllabusUploadSessionRepository,
+        IGenericRepository<CourseReview> courseReviewRepository,
         IGenericRepository<R2ObjectDeletionJob> r2DeletionJobRepository,
         IGenericRepository<CourseDeletionRequest> courseDeletionRequestRepository,
         IUnitOfWork unitOfWork,
@@ -83,6 +86,7 @@ public class CourseService : ICourseService
         _videoUploadSessionRepository = videoUploadSessionRepository;
         _syllabusVersionRepository = syllabusVersionRepository;
         _syllabusUploadSessionRepository = syllabusUploadSessionRepository;
+        _courseReviewRepository = courseReviewRepository;
         _r2DeletionJobRepository = r2DeletionJobRepository;
         _courseDeletionRequestRepository = courseDeletionRequestRepository;
         _unitOfWork = unitOfWork;
@@ -141,6 +145,8 @@ public class CourseService : ICourseService
         SkillTags = course.SkillTags,
         PrerequisiteCourseId = course.PrerequisiteCourseId,
         PrerequisiteCourseTitle = course.PrerequisiteCourse?.Title,
+        Rating = 0,
+        ReviewCount = 0,
     };
 
     // -------------------------------------------------------------------------
@@ -185,7 +191,7 @@ public class CourseService : ICourseService
     // -------------------------------------------------------------------------
     // Execute pagination — shared between both list methods
     // -------------------------------------------------------------------------
-    private static async Task<CourseListResponse> ExecutePaginatedQueryAsync(
+    private async Task<CourseListResponse> ExecutePaginatedQueryAsync(
         IQueryable<Course> query, int page, int limit)
     {
         var total = await query.CountAsync();
@@ -194,7 +200,7 @@ public class CourseService : ICourseService
             .Take(limit)
             .ToListAsync();
 
-        return new CourseListResponse
+        var response = new CourseListResponse
         {
             Data = items.Select(MapToDto).ToList(),
             Pagination = new PaginationMeta
@@ -205,6 +211,33 @@ public class CourseService : ICourseService
                 TotalPages = (int)Math.Ceiling((double)total / limit),
             }
         };
+        await ApplyReviewSummariesAsync(response.Data);
+        return response;
+    }
+
+    private async Task ApplyReviewSummariesAsync(IReadOnlyCollection<CourseDto> courses)
+    {
+        var courseIds = courses.Select(course => course.CourseId).Distinct().ToList();
+        if (courseIds.Count == 0) return;
+
+        var summaries = await _courseReviewRepository.GetQueryable()
+            .AsNoTracking()
+            .Where(review => courseIds.Contains(review.CourseId) && review.Status == "PUBLISHED")
+            .GroupBy(review => review.CourseId)
+            .Select(group => new
+            {
+                CourseId = group.Key,
+                Rating = group.Average(review => (double)review.Rating),
+                ReviewCount = group.Count()
+            })
+            .ToDictionaryAsync(summary => summary.CourseId);
+
+        foreach (var course in courses)
+        {
+            if (!summaries.TryGetValue(course.CourseId, out var summary)) continue;
+            course.Rating = Math.Round(summary.Rating, 1);
+            course.ReviewCount = summary.ReviewCount;
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -214,11 +247,77 @@ public class CourseService : ICourseService
         int page, int limit, string? status, int? categoryId, string? search)
     {
         var query = BuildCourseQuery(null, status, categoryId, search);
-        if (string.IsNullOrEmpty(status))
+        // This endpoint feeds the public learner catalog; never expose drafts,
+        // pending review, rejected, or archived courses through query parameters.
+        query = query.Where(c => c.Status == CourseStatus.PUBLISHED);
+        var response = await ExecutePaginatedQueryAsync(query, page, limit);
+        await ApplyPurchasePopularityAsync(response.Data);
+        await ApplyPreviewLessonsAsync(response.Data);
+        return response;
+    }
+
+    private async Task ApplyPreviewLessonsAsync(IReadOnlyCollection<CourseDto> courses)
+    {
+        var courseIds = courses.Where(course => course.Status == CourseStatus.PUBLISHED)
+            .Select(course => course.CourseId).ToList();
+        if (courseIds.Count == 0) return;
+
+        var previews = await _lessonRepository.GetQueryable().AsNoTracking()
+            .Where(lesson => courseIds.Contains(lesson.CourseId) && lesson.Status == LessonStatus.ACTIVE &&
+                lesson.IsPreview && lesson.LessonType == LessonType.VIDEO)
+            .Include(lesson => lesson.CourseMaterials)
+            .OrderBy(lesson => lesson.Module == null ? int.MaxValue : lesson.Module.OrderIndex)
+            .ThenBy(lesson => lesson.OrderIndex)
+            .ThenBy(lesson => lesson.LessonId)
+            .ToListAsync();
+        var firstByCourse = previews
+            .Where(lesson => HasR2Video(lesson.CourseMaterials))
+            .GroupBy(lesson => lesson.CourseId)
+            .ToDictionary(group => group.Key, group => group.First());
+
+        foreach (var course in courses)
         {
-            query = query.Where(c => c.Status != CourseStatus.DRAFT);
+            if (!firstByCourse.TryGetValue(course.CourseId, out var preview)) continue;
+            course.PreviewAvailable = true;
+            course.PreviewLessonId = preview.LessonId;
+            course.PreviewLessonTitle = preview.Title;
         }
-        return await ExecutePaginatedQueryAsync(query, page, limit);
+    }
+
+    private bool HasR2Video(IEnumerable<CourseMaterial> materials) => materials.Any(material =>
+        material.MaterialType == MaterialType.VIDEO &&
+        (!string.IsNullOrWhiteSpace(material.ObjectKey) ||
+         (!string.IsNullOrWhiteSpace(material.FileUrl) && _r2.ExtractKeyFromUrl(material.FileUrl) is not null)));
+
+    private async Task ApplyPurchasePopularityAsync(IReadOnlyCollection<CourseDto> courses)
+    {
+        if (courses.Count == 0) return;
+
+        var counts = await _paymentItemRepository.GetQueryable()
+            .AsNoTracking()
+            .Where(item => item.Amount > 0 && item.Payment.Status == "SUCCESS" &&
+                item.Course.Status == CourseStatus.PUBLISHED && !item.Course.IsFree)
+            .GroupBy(item => item.CourseId)
+            .Select(group => new
+            {
+                CourseId = group.Key,
+                LearnerCount = group.Select(item => item.Payment.LearnerId).Distinct().Count()
+            })
+            .ToListAsync();
+
+        var countByCourse = counts.ToDictionary(item => item.CourseId, item => item.LearnerCount);
+        var bestSellerIds = counts
+            .OrderByDescending(item => item.LearnerCount)
+            .ThenBy(item => item.CourseId)
+            .Take(5)
+            .Select(item => item.CourseId)
+            .ToHashSet();
+
+        foreach (var course in courses)
+        {
+            course.PurchasedLearnerCount = countByCourse.GetValueOrDefault(course.CourseId);
+            course.IsBestSeller = !course.IsFree && bestSellerIds.Contains(course.CourseId);
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -258,7 +357,30 @@ public class CourseService : ICourseService
             .Include(c => c.ApprovedBy)
             .FirstOrDefaultAsync(c => c.CourseId == courseId);
 
-        return course is null ? null : MapToDto(course);
+        if (course is null) return null;
+        var dto = MapToDto(course);
+        await ApplyReviewSummariesAsync(new[] { dto });
+        await ApplyPreviewLessonsAsync(new[] { dto });
+        return dto;
+    }
+
+    public async Task<CoursePreviewLessonDto?> GetFirstPreviewLessonAsync(int courseId)
+    {
+        var courseIsPublished = await _courseRepository.GetQueryable().AsNoTracking()
+            .AnyAsync(course => course.CourseId == courseId && course.Status == CourseStatus.PUBLISHED);
+        if (!courseIsPublished) return null;
+
+        var candidates = await _lessonRepository.GetQueryable().AsNoTracking()
+            .Where(lesson => lesson.CourseId == courseId &&
+                lesson.Status == LessonStatus.ACTIVE && lesson.IsPreview &&
+                lesson.LessonType == LessonType.VIDEO)
+            .Include(lesson => lesson.CourseMaterials)
+            .OrderBy(lesson => lesson.Module == null ? int.MaxValue : lesson.Module.OrderIndex)
+            .ThenBy(lesson => lesson.OrderIndex)
+            .ThenBy(lesson => lesson.LessonId)
+            .ToListAsync();
+        var lesson = candidates.FirstOrDefault(candidate => HasR2Video(candidate.CourseMaterials));
+        return lesson is null ? null : new CoursePreviewLessonDto { LessonId = lesson.LessonId, Title = lesson.Title };
     }
 
     // -------------------------------------------------------------------------
@@ -1075,8 +1197,13 @@ public class CourseService : ICourseService
         foreach (var enrollment in enrollments.OrderByDescending(e => e.UpdatedAt))
         {
             if (enrollment.Course == null) continue;
-            if (giftManagedAccess.TryGetValue(enrollment.CourseId, out var hasGiftManagedAccess) && !hasGiftManagedAccess)
-                continue;
+            var isGrantManaged = giftManagedAccess.TryGetValue(enrollment.CourseId, out var hasGrantAccess);
+            var hasAccess = isGrantManaged
+                ? hasGrantAccess
+                : (enrollment.Status == "ACTIVE" || enrollment.Status == "COMPLETED") &&
+                    (!enrollment.ExpiresAt.HasValue || enrollment.ExpiresAt.Value > DateTime.UtcNow);
+            var isExpired = !hasAccess && (enrollment.Status == "EXPIRED" ||
+                (enrollment.ExpiresAt.HasValue && enrollment.ExpiresAt.Value <= DateTime.UtcNow));
 
             var courseDto = MapToDto(enrollment.Course);
 
@@ -1118,12 +1245,16 @@ public class CourseService : ICourseService
                 TotalLecturesCount = progress?.TotalLessonsCount ?? totalLessonsCount,
                 LastAccessedAt = lastProgress?.LastAccessedAt ?? enrollment.UpdatedAt,
                 LastLectureTitle = lastLectureTitle,
-                Status = isCompleted ? "completed" : "in-progress",
+                Status = isCompleted ? "completed" : isExpired ? "expired" : "in-progress",
                 EnrolledDate = enrollment.EnrolledAt ?? enrollment.CreatedAt,
-                CertificateId = cert?.CertificateId ?? progress?.CertificateId
+                CertificateId = cert?.CertificateId ?? progress?.CertificateId,
+                ExpiresAt = enrollment.ExpiresAt,
+                IsExpired = isExpired,
+                IsAccessGranted = hasAccess
             });
         }
 
+        await ApplyReviewSummariesAsync(result.Select(item => item.Course).ToList());
         return result;
     }
 }

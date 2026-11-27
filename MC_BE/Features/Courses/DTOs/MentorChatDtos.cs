@@ -31,6 +31,9 @@ public class PythonChatRequest
     [Range(1, 12, ErrorMessage = "top_k phải nằm trong khoảng từ 1 đến 12.")]
     [JsonPropertyName("top_k")]
     public int TopK { get; set; } = 4;
+
+    [JsonPropertyName("course_context")]
+    public CourseContextDto? CourseContext { get; set; }
 }
 
 public class MentorSourceItemDto
@@ -130,3 +133,29 @@ public class SyncCourseTranscriptsResultDto
     public int TotalSkipped { get; set; }
     public List<string> Messages { get; set; } = new();
 }
+
+public class CourseContextDto
+{
+    [JsonPropertyName("title")]
+    public string? Title { get; set; }
+
+    [JsonPropertyName("description")]
+    public string? Description { get; set; }
+
+    [JsonPropertyName("category_name")]
+    public string? CategoryName { get; set; }
+
+    [JsonPropertyName("instructor_name")]
+    public string? InstructorName { get; set; }
+
+    [JsonPropertyName("level")]
+    public string? Level { get; set; }
+
+    [JsonPropertyName("skill_tags")]
+    public string? SkillTags { get; set; }
+
+    [JsonPropertyName("prerequisite_course_title")]
+    public string? PrerequisiteCourseTitle { get; set; }
+}
+
+

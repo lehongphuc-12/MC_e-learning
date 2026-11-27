@@ -91,46 +91,44 @@ public class EnrollmentService : IEnrollmentService
 
         if (latestEnrollment != null)
         {
-            if (latestEnrollment.Status == "ACTIVE")
+            var hadPaidAccess = latestEnrollment.ExpiresAt.HasValue &&
+                latestEnrollment.ExpiresAt.Value <= now &&
+                (latestEnrollment.Status == "ACTIVE" || latestEnrollment.Status == "COMPLETED");
+
+            if (hadPaidAccess)
             {
-                if (
-                    latestEnrollment.ExpiresAt.HasValue &&
-                    now > latestEnrollment.ExpiresAt.Value
-                )
+                latestEnrollment.Status = "EXPIRED";
+                latestEnrollment.UpdatedAt = now;
+                await _context.SaveChangesAsync();
+            }
+
+            if (latestEnrollment.Status == "EXPIRED")
+            {
+                // Reuse the enrollment so the learner's lesson progress, attempts,
+                // certificate link, and payment history remain attached to one record.
+                return ApiResponse<EnrollmentDto>.SuccessResponse(
+                    MapToDto(latestEnrollment),
+                    "Quyền học đã hết hạn. Bạn có thể mua lại khóa học để mở quyền truy cập thêm 3 tháng; tiến độ và lịch sử học được giữ nguyên.");
+            }
+
+            if (latestEnrollment.Status == "ACTIVE" || latestEnrollment.Status == "COMPLETED")
+            {
+                var giftOnlyAccess = await _giftAccess.IsGiftOnlyAccessAsync(courseId, learnerId, now);
+                if (giftOnlyAccess && await _giftAccess.IsGiftCourseAsync(courseId))
                 {
-                    latestEnrollment.Status = "EXPIRED";
-                    latestEnrollment.UpdatedAt = now;
-
-                    _context.Enrollments.Update(latestEnrollment);
-
-                    await _context.SaveChangesAsync();
+                    var giftedDto = MapToDto(latestEnrollment);
+                    giftedDto.IsAccessGranted = true;
+                    giftedDto.CanPurchaseDirectly = true;
+                    return ApiResponse<EnrollmentDto>.SuccessResponse(
+                        giftedDto,
+                        "Bạn đang được tặng khóa AI. Bạn có thể mua riêng để giữ quyền truy cập độc lập.");
                 }
-                else
-                {
-                    var giftOnlyAccess = await _giftAccess.IsGiftOnlyAccessAsync(courseId, learnerId, now);
-                    if (giftOnlyAccess && await _giftAccess.IsGiftCourseAsync(courseId))
-                    {
-                        var giftedDto = MapToDto(latestEnrollment);
-                        giftedDto.IsAccessGranted = true;
-                        giftedDto.CanPurchaseDirectly = true;
-                        return ApiResponse<EnrollmentDto>.SuccessResponse(
-                            giftedDto,
-                            "Bạn đang được tặng khóa AI. Bạn có thể mua riêng để giữ quyền truy cập độc lập.");
-                    }
 
-                    var daysRemaining =
-                        latestEnrollment.ExpiresAt.HasValue
-                            ? (int)Math.Max(
-                                0,
-                                (latestEnrollment.ExpiresAt.Value - now)
-                                    .TotalDays
-                            )
-                            : 0;
-
-                    return ApiResponse<EnrollmentDto>.FailureResponse(
-                        $"Bạn đã đăng ký khóa học này rồi. Hạn học còn {daysRemaining} ngày (đến {latestEnrollment.ExpiresAt:dd/MM/yyyy})."
-                    );
-                }
+                var daysRemaining = latestEnrollment.ExpiresAt.HasValue
+                    ? (int)Math.Max(0, (latestEnrollment.ExpiresAt.Value - now).TotalDays)
+                    : 0;
+                return ApiResponse<EnrollmentDto>.FailureResponse(
+                    $"Bạn đã đăng ký khóa học này rồi. Hạn học còn {daysRemaining} ngày (đến {latestEnrollment.ExpiresAt:dd/MM/yyyy}).");
             }
             else if (
                 latestEnrollment.Status == "PENDING_PAYMENT"
@@ -164,9 +162,8 @@ public class EnrollmentService : IEnrollmentService
                 ? now
                 : null,
 
-            ExpiresAt = isFreeCourse
-                ? now.AddDays(90)
-                : null,
+            // Free enrollment has no purchase window. Paid access starts on confirmed payment.
+            ExpiresAt = null,
 
             CreatedAt = now,
             UpdatedAt = now

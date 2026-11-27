@@ -41,12 +41,17 @@ public class SmartMcDbContext : DbContext
 
     public DbSet<Category> Categories { get; set; } = null!;
     public DbSet<Course> Courses { get; set; } = null!;
+    public DbSet<LearnerFavoriteCourse> LearnerFavoriteCourses { get; set; } = null!;
     public DbSet<Module> Modules { get; set; } = null!;
     public DbSet<Lesson> Lessons { get; set; } = null!;
     public DbSet<CourseMaterial> CourseMaterials { get; set; } = null!;
     public DbSet<Enrollment> Enrollments { get; set; } = null!;
     public DbSet<LessonProgress> LessonProgresses { get; set; } = null!;
     public DbSet<Certificate> Certificates { get; set; } = null!;
+    public DbSet<CourseReview> CourseReviews { get; set; } = null!;
+    public DbSet<CourseReviewReport> CourseReviewReports { get; set; } = null!;
+    public DbSet<CourseReviewRestriction> CourseReviewRestrictions { get; set; } = null!;
+    public DbSet<CourseReviewModerationAction> CourseReviewModerationActions { get; set; } = null!;
     public DbSet<SpeakingSubmission> SpeakingSubmissions { get; set; } = null!;
     public DbSet<SpeakingScript> SpeakingScripts { get; set; } = null!;
     public DbSet<SpeakingScriptLevel> SpeakingScriptLevels { get; set; } = null!;
@@ -57,6 +62,7 @@ public class SmartMcDbContext : DbContext
     public DbSet<CourseDeletionRequest> CourseDeletionRequests { get; set; } = null!;
     public DbSet<CourseGiftPolicy> CourseGiftPolicies { get; set; } = null!;
     public DbSet<CourseAccessGrant> CourseAccessGrants { get; set; } = null!;
+    public DbSet<EnrollmentAccessExtensionRequest> EnrollmentAccessExtensionRequests { get; set; } = null!;
     public DbSet<RemedialAssignment> RemedialAssignments { get; set; } = null!;
     public DbSet<RemedialAssignmentRecipient> RemedialAssignmentRecipients { get; set; } = null!;
     public DbSet<RemedialAssignmentEvent> RemedialAssignmentEvents { get; set; } = null!;
@@ -540,6 +546,24 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
                 .OnDelete(DeleteBehavior.SetNull);
         });
 
+        modelBuilder.Entity<LearnerFavoriteCourse>(entity =>
+        {
+            entity.ToTable("learner_favorite_courses");
+            entity.HasKey(favorite => new { favorite.LearnerId, favorite.CourseId });
+            entity.Property(favorite => favorite.LearnerId).HasColumnName("LearnerID");
+            entity.Property(favorite => favorite.CourseId).HasColumnName("CourseID");
+            entity.Property(favorite => favorite.CreatedAt).HasColumnName("CreatedAt").HasDefaultValueSql("now()");
+            entity.HasIndex(favorite => new { favorite.LearnerId, favorite.CreatedAt });
+            entity.HasOne(favorite => favorite.Learner)
+                .WithMany(user => user.FavoriteCourses)
+                .HasForeignKey(favorite => favorite.LearnerId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(favorite => favorite.Course)
+                .WithMany()
+                .HasForeignKey(favorite => favorite.CourseId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<CourseSyllabusVersion>(entity =>
         {
             entity.ToTable("course_syllabus_versions");
@@ -614,6 +638,23 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
             entity.HasOne(e => e.Course).WithMany().HasForeignKey(e => e.CourseId).OnDelete(DeleteBehavior.Cascade);
             entity.HasOne(e => e.SourcePaymentItem).WithMany().HasForeignKey(e => e.SourcePaymentItemId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(e => e.SourceEnrollment).WithMany().HasForeignKey(e => e.SourceEnrollmentId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<EnrollmentAccessExtensionRequest>(entity =>
+        {
+            entity.ToTable("enrollment_access_extension_requests");
+            entity.HasKey(x => x.RequestId);
+            entity.HasIndex(x => new { x.Status, x.RequestedAt });
+            entity.HasIndex(x => new { x.EnrollmentId, x.Status });
+            entity.HasIndex(x => x.EnrollmentId).IsUnique().HasFilter("\"Status\" = 'PENDING'");
+            entity.Property(x => x.Status).HasMaxLength(20).HasDefaultValue("PENDING").IsRequired();
+            entity.Property(x => x.Reason).HasMaxLength(1000).IsRequired();
+            entity.Property(x => x.DecisionNote).HasMaxLength(1000);
+            entity.HasOne(x => x.Enrollment).WithMany().HasForeignKey(x => x.EnrollmentId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Learner).WithMany().HasForeignKey(x => x.LearnerId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Course).WithMany().HasForeignKey(x => x.CourseId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.CourseAccessGrant).WithMany().HasForeignKey(x => x.CourseAccessGrantId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.ReviewedByAdmin).WithMany().HasForeignKey(x => x.ReviewedByAdminId).OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<RemedialAssignment>(entity =>
@@ -894,6 +935,89 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
                 .WithMany()
                 .HasForeignKey(d => d.EnrollmentId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<CourseReview>(entity =>
+        {
+            entity.ToTable("course_reviews", table =>
+            {
+                table.HasCheckConstraint("CK_course_reviews_Rating", "\"Rating\" >= 1 AND \"Rating\" <= 5");
+                table.HasCheckConstraint("CK_course_reviews_Status", "\"Status\" IN ('PUBLISHED', 'HIDDEN_BY_ADMIN', 'REMOVED_BY_ADMIN', 'DELETED_BY_AUTHOR')");
+            });
+            entity.HasKey(review => review.ReviewId);
+            entity.HasIndex(review => new { review.CourseId, review.LearnerId }).IsUnique();
+            entity.HasIndex(review => new { review.CourseId, review.Status, review.CreatedAt });
+            entity.HasIndex(review => review.CertificateId).IsUnique();
+            entity.Property(review => review.Status).HasDefaultValue("PUBLISHED");
+            entity.Property(review => review.IsAnonymous).HasDefaultValue(true);
+            entity.Property(review => review.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(review => review.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+            entity.HasOne(review => review.Course)
+                .WithMany()
+                .HasForeignKey(review => review.CourseId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(review => review.Learner)
+                .WithMany()
+                .HasForeignKey(review => review.LearnerId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(review => review.Certificate)
+                .WithMany()
+                .HasForeignKey(review => review.CertificateId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(review => review.ModeratedByAdmin)
+                .WithMany()
+                .HasForeignKey(review => review.ModeratedByAdminId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<CourseReviewReport>(entity =>
+        {
+            entity.ToTable("course_review_reports", table =>
+            {
+                table.HasCheckConstraint("CK_course_review_reports_Category", "\"Category\" IN ('IRRELEVANT', 'ABUSIVE_LANGUAGE', 'SPAM_OR_FAKE', 'PERSONAL_INFO', 'OTHER')");
+                table.HasCheckConstraint("CK_course_review_reports_Status", "\"Status\" IN ('PENDING', 'UNDER_REVIEW', 'DISMISSED', 'ACTION_TAKEN')");
+            });
+            entity.HasKey(report => report.ReportId);
+            entity.HasIndex(report => new { report.ReviewId, report.ReporterLearnerId }).IsUnique();
+            entity.HasIndex(report => new { report.Status, report.CreatedAt });
+            entity.HasIndex(report => new { report.ReviewId, report.Status });
+            entity.Property(report => report.Status).HasDefaultValue("PENDING");
+            entity.Property(report => report.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasOne(report => report.Review).WithMany().HasForeignKey(report => report.ReviewId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(report => report.ReporterLearner).WithMany().HasForeignKey(report => report.ReporterLearnerId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(report => report.ReviewedByAdmin).WithMany().HasForeignKey(report => report.ReviewedByAdminId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<CourseReviewRestriction>(entity =>
+        {
+            entity.ToTable("course_review_restrictions");
+            entity.HasKey(restriction => restriction.RestrictionId);
+            entity.HasIndex(restriction => new { restriction.CourseId, restriction.LearnerId }).IsUnique();
+            entity.HasIndex(restriction => new { restriction.CourseId, restriction.IsActive });
+            entity.Property(restriction => restriction.IsActive).HasDefaultValue(true);
+            entity.Property(restriction => restriction.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasOne(restriction => restriction.Course).WithMany().HasForeignKey(restriction => restriction.CourseId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(restriction => restriction.Learner).WithMany().HasForeignKey(restriction => restriction.LearnerId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(restriction => restriction.CreatedByAdmin).WithMany().HasForeignKey(restriction => restriction.CreatedByAdminId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(restriction => restriction.LiftedByAdmin).WithMany().HasForeignKey(restriction => restriction.LiftedByAdminId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(restriction => restriction.TriggerReview).WithMany().HasForeignKey(restriction => restriction.TriggerReviewId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<CourseReviewModerationAction>(entity =>
+        {
+            entity.ToTable("course_review_moderation_actions", table =>
+                table.HasCheckConstraint("CK_course_review_moderation_actions_ActionType", "\"ActionType\" IN ('REPORT_DISMISSED', 'REPORT_REVIEWING', 'REVIEW_HIDDEN', 'REVIEW_RESTORED', 'REVIEW_REMOVED', 'LEARNER_BLOCKED', 'LEARNER_UNBLOCKED')"));
+            entity.HasKey(action => action.ActionId);
+            entity.HasIndex(action => new { action.CourseId, action.CreatedAt });
+            entity.HasIndex(action => action.ReportId);
+            entity.HasIndex(action => action.ReviewId);
+            entity.Property(action => action.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasOne(action => action.Course).WithMany().HasForeignKey(action => action.CourseId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(action => action.Review).WithMany().HasForeignKey(action => action.ReviewId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(action => action.Report).WithMany().HasForeignKey(action => action.ReportId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(action => action.Admin).WithMany().HasForeignKey(action => action.AdminId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(action => action.TargetLearner).WithMany().HasForeignKey(action => action.TargetLearnerId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<SpeakingScript>(entity =>

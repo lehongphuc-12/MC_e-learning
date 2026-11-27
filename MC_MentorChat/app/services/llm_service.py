@@ -46,6 +46,7 @@ def generate_rag_answer(
     query: str,
     context_chunks: List[Dict[str, Any]],
     provider: Optional[str] = None,
+    course_info: str = "",
 ) -> str:
     """
     Sinh câu trả lời RAG từ provider được chọn.
@@ -62,24 +63,25 @@ def generate_rag_answer(
     logger.info("[LLMService/RAG] provider='%s' (request=%s, config=%s)", resolved, provider, settings.LLM_PROVIDER)
 
     if resolved == "gemini":
-        return _rag_via_gemini(query, context_chunks)
+        return _rag_via_gemini(query, context_chunks, course_info)
 
     # aiportalapi / portal / hybrid: thử portal trước, nếu lỗi fallback sang gemini
     # (bao gồm cả trường hợp thiếu key, timeout, quota...)
     try:
-        return _rag_via_portal(query, context_chunks)
+        return _rag_via_portal(query, context_chunks, course_info)
     except Exception as portal_err:
         logger.warning(
             "[LLMService/RAG] Portal thất bại (provider='%s'): %s — Tự động fallback sang Gemini...",
             resolved, portal_err,
         )
-        return _rag_via_gemini(query, context_chunks)
+        return _rag_via_gemini(query, context_chunks, course_info)
 
 
 def stream_rag_answer(
     query: str,
     context_chunks: List[Dict[str, Any]],
     provider: Optional[str] = None,
+    course_info: str = "",
 ) -> Iterator[str]:
     """
     Sinh câu trả lời RAG qua stream tokens từ provider được chọn (có failover).
@@ -89,18 +91,18 @@ def stream_rag_answer(
 
     if resolved == "gemini":
         from app.services.gemini_service import stream_rag_answer as _gemini_stream
-        return _gemini_stream(query, context_chunks)
+        return _gemini_stream(query, context_chunks, course_info=course_info)
 
     try:
         from app.services.portal_service import stream_rag_answer as _portal_stream
-        return _portal_stream(query, context_chunks)
+        return _portal_stream(query, context_chunks, course_info=course_info)
     except Exception as portal_err:
         logger.warning(
             "[LLMService/Stream] Portal stream thất bại (provider='%s'): %s — Tự động fallback sang Gemini...",
             resolved, portal_err,
         )
         from app.services.gemini_service import stream_rag_answer as _gemini_stream
-        return _gemini_stream(query, context_chunks)
+        return _gemini_stream(query, context_chunks, course_info=course_info)
 
 
 def rewrite_query_with_history(
@@ -138,11 +140,11 @@ def rewrite_query_with_history(
 # Private helpers
 # ---------------------------------------------------------------------------
 
-def _rag_via_portal(query: str, context_chunks: List[Dict[str, Any]]) -> str:
+def _rag_via_portal(query: str, context_chunks: List[Dict[str, Any]], course_info: str = "") -> str:
     from app.services.portal_service import generate_rag_answer as _portal_rag
-    return _portal_rag(query=query, context_chunks=context_chunks)
+    return _portal_rag(query=query, context_chunks=context_chunks, course_info=course_info)
 
 
-def _rag_via_gemini(query: str, context_chunks: List[Dict[str, Any]]) -> str:
+def _rag_via_gemini(query: str, context_chunks: List[Dict[str, Any]], course_info: str = "") -> str:
     from app.services.gemini_service import generate_rag_answer as _gemini_rag
-    return _gemini_rag(query=query, context_chunks=context_chunks)
+    return _gemini_rag(query=query, context_chunks=context_chunks, course_info=course_info)

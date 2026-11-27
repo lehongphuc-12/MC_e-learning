@@ -695,15 +695,15 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fadeIn"
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 backdrop-blur-sm p-2 sm:p-4 animate-fadeIn"
       onClick={isSubmitting || isUploading ? undefined : onClose}
     >
       <div
-        className="w-full max-w-2xl rounded-3xl bg-white shadow-2xl border border-slate-200/80 max-h-[90vh] overflow-y-auto"
+        className="my-auto w-full max-w-2xl max-h-[calc(100dvh-1rem)] overflow-y-auto overscroll-contain rounded-3xl bg-white shadow-2xl border border-slate-200/80 sm:max-h-[calc(100dvh-2rem)]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 p-6 pb-4 sticky top-0 bg-white z-10 rounded-t-3xl">
+        <div className="sticky top-0 z-10 flex items-center justify-between rounded-t-3xl border-b border-slate-100 bg-white p-4 pb-3 sm:p-6 sm:pb-4">
           <div className="flex items-center gap-3">
             <div className={`flex h-11 w-11 items-center justify-center rounded-2xl shadow-inner ${lessonType === 'ASSIGNMENT'
               ? 'bg-purple-100 text-purple-600'
@@ -711,8 +711,8 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
               }`}>
               {lessonType === 'ASSIGNMENT' ? <Mic2 className="h-5 w-5" /> : <Video className="h-5 w-5" />}
             </div>
-            <div>
-              <h2 className="text-xl font-bold text-slate-900">
+            <div className="min-w-0">
+              <h2 className="break-words text-base font-bold text-slate-900 sm:text-xl">
                 {isEditMode
                   ? lessonType === 'ASSIGNMENT' ? 'Chỉnh sửa Bài tập nói tổng khóa' : 'Chỉnh sửa bài học'
                   : lessonType === 'ASSIGNMENT' ? 'Tạo Bài tập nói (Speaking Assignment)' : 'Thêm bài học mới'}
@@ -727,14 +727,14 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
           <button
             onClick={onClose}
             disabled={isSubmitting || isUploading}
-            className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 p-4 sm:p-6">
           {errorMsg && (
             <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-700">
               {errorMsg}
@@ -1518,7 +1518,7 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
           )}
 
           {/* Footer Buttons */}
-          <div className="flex items-center justify-end gap-3 border-t border-slate-100 pt-4 mt-6">
+          <div className="mt-6 flex flex-col-reverse items-stretch justify-end gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:gap-3">
             <button
               type="button"
               onClick={onClose}

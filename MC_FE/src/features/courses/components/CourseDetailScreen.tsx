@@ -22,6 +22,7 @@ import {
   Infinity as InfinityIcon,
   Sparkles,
   LockKeyhole,
+  Clock3,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AnimatedTabs, TabItem } from '@/components/ui/animated-tabs';
@@ -30,6 +31,10 @@ import { mockCourses } from '../../../data/mockData';
 import { useCourseDetailQuery, useLearnedCoursesQuery } from '../hooks/useCoursesQuery';
 import { courseSyllabusApi } from '../api/courseSyllabusApi';
 import { CourseSyllabusDocumentViewer } from './CourseSyllabusDocumentViewer';
+import { CourseReviewModal } from './CourseReviewModal';
+import { CourseReviewReportModal } from './CourseReviewReportModal';
+import { useCourseReviews, useDeleteCourseReview, useMyCourseReview, useReportCourseReview, useSubmitCourseReview } from '../hooks/useCourseReviews';
+import { useAuthStore } from '../../../store/useAuthStore';
 
 interface CourseDetailScreenProps {
   course: Course | null;
@@ -298,6 +303,10 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
   const routeParams = useParams<{ id?: string; courseId?: string }>();
   const [searchParams] = useSearchParams();
   const [showVoiceJourneyGift, setShowVoiceJourneyGift] = useState(false);
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [reviewToReportId, setReviewToReportId] = useState<number | null>(null);
+  const [reportFeedback, setReportFeedback] = useState<string | null>(null);
+  const user = useAuthStore((state) => state.user);
 
   // ============================================================
   // COURSE ID
@@ -334,6 +343,13 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
   // Nhờ vậy sẽ không bao giờ gọi:
   // GET /api/courses/NaN
   const courseQuery = useCourseDetailQuery(validCourseId);
+  const numericCourseId = validCourseId ? Number(validCourseId) : 0;
+  const reviewListQuery = useCourseReviews(numericCourseId, Boolean(validCourseId));
+  const myReviewQuery = useMyCourseReview(numericCourseId, user?.role === 'student' && Boolean(validCourseId));
+  const submitReviewMutation = useSubmitCourseReview(numericCourseId);
+  const deleteReviewMutation = useDeleteCourseReview(numericCourseId);
+  const reportReviewMutation = useReportCourseReview(numericCourseId);
+  const reviewSummary = reviewListQuery.data;
 
   // Ưu tiên:
   // 1. Course mới nhất từ backend
@@ -409,15 +425,15 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
   };
 
   const { data: learnedCourses } = useLearnedCoursesQuery();
+  const learnerEnrollment = learnedCourses?.find(item => String(item.course.id) === String(course.id));
+  const hasExpiredEnrollment = learnerEnrollment?.isExpired === true;
+  const enrollmentAccessExpired = learnerEnrollment?.isExpired === true || learnerEnrollment?.isAccessGranted === false;
 
-  const isEnrolled =
+  const isEnrolled = !enrollmentAccessExpired && (
     (isCourseEnrolled ? isCourseEnrolled(course.id) : false) ||
     isEnrolledProp ||
-    learnedCourses?.some(
-      (item) =>
-        String(item.course.id) ===
-        String(course.id)
-    );
+    Boolean(learnerEnrollment)
+  );
 
   const isInCart =
     (isCourseInCart ? isCourseInCart(course.id) : false) ||
@@ -500,8 +516,8 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
               <div className="flex flex-wrap items-center gap-4 text-xs pt-2">
                 <div className="flex items-center gap-1.5 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/20">
                   <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
-                  <span className="font-bold text-amber-300 text-sm">{course.rating}</span>
-                  <span className="text-slate-400">({course.reviewsCount.toLocaleString()} đánh giá)</span>
+                  <span className="font-bold text-amber-300 text-sm">{reviewListQuery.isError ? '—' : reviewSummary?.reviewCount ? reviewSummary.averageRating.toFixed(1) : '—'}</span>
+                  <span className="text-slate-400">{reviewListQuery.isError ? '(không tải được)' : `(${(reviewSummary?.reviewCount ?? 0).toLocaleString()} đánh giá)`}</span>
                 </div>
 
                 <div className="flex items-center gap-1.5 text-slate-300">
@@ -781,37 +797,57 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
                 <h2 className="text-xl font-bold text-slate-900">Đánh giá từ học viên thực tế</h2>
                 <div className="flex items-center gap-1.5 text-sm font-bold text-amber-500">
                   <Star className="w-4 h-4 fill-amber-400" />
-                  <span>{course.rating} Điểm đánh giá khóa học</span>
+                  <span>{reviewListQuery.isError ? 'Không tải được đánh giá' : reviewSummary?.reviewCount ? `${reviewSummary.averageRating.toFixed(1)} · ${reviewSummary.reviewCount} đánh giá` : 'Chưa có đánh giá'}</span>
                 </div>
               </div>
 
+              {user?.role === 'student' && myReviewQuery.data?.hasReviewed && !myReviewQuery.data.canReview && (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                  <p className="text-sm text-amber-900">{myReviewQuery.data.restrictionMessage || 'Đánh giá của bạn hiện đang bị Admin hạn chế hiển thị.'}</p>
+                  <button type="button" onClick={() => { if (window.confirm('Xóa đánh giá của bạn? Đánh giá sẽ không còn hiển thị và không được tính vào điểm trung bình.')) deleteReviewMutation.mutate(undefined, { onSuccess: () => setReportFeedback('Đã xóa đánh giá của bạn.') }); }} disabled={deleteReviewMutation.isPending} className="rounded-xl border border-rose-200 bg-white px-4 py-2 text-sm font-bold text-rose-700 disabled:opacity-50">{deleteReviewMutation.isPending ? 'Đang xóa…' : 'Xóa đánh giá'}</button>
+                </div>
+              )}
+
+              {user?.role === 'student' && myReviewQuery.data?.canReview && (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-blue-100 bg-blue-50 p-4">
+                  <p className="text-sm text-slate-700">{myReviewQuery.data.hasReviewed ? 'Bạn đã đánh giá khóa học này. Bạn có thể cập nhật đánh giá.' : 'Bạn đã hoàn thành khóa học và có thể chia sẻ trải nghiệm.'}</p>
+                  <button type="button" onClick={() => setIsReviewModalOpen(true)} className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700">{myReviewQuery.data.hasReviewed ? 'Sửa đánh giá' : 'Đánh giá khóa học'}</button>
+                  {myReviewQuery.data.hasReviewed && <button type="button" onClick={() => { if (window.confirm('Xóa đánh giá của bạn? Đánh giá sẽ không còn hiển thị và không được tính vào điểm trung bình.')) deleteReviewMutation.mutate(undefined, { onSuccess: () => setReportFeedback('Đã xóa đánh giá của bạn.') }); }} disabled={deleteReviewMutation.isPending} className="rounded-xl border border-rose-200 bg-white px-4 py-2 text-sm font-semibold text-rose-700 disabled:opacity-50">{deleteReviewMutation.isPending ? 'Đang xóa…' : 'Xóa đánh giá'}</button>}
+                </div>
+              )}
+
+              {reportFeedback && <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">{reportFeedback}</p>}
+
               <div className="space-y-4">
-                {course.reviews.map((rev) => (
+                {(reviewSummary?.reviews ?? []).map((rev) => (
                   <div
-                    key={rev.id}
+                    key={rev.reviewId}
                     className="p-5 rounded-xl bg-white border border-slate-200/90 shadow-xs space-y-3"
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
-                        <img
-                          src={rev.avatar}
-                          alt={rev.author}
-                          className="w-9 h-9 rounded-full object-cover"
-                        />
+                        <div aria-hidden="true" className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-100 font-bold text-blue-700">✓</div>
                         <div>
                           <div className="text-xs font-bold text-slate-900">{rev.author}</div>
-                          <div className="text-[11px] text-slate-400">{rev.date}</div>
+                          <div className="text-[11px] text-slate-400">{new Date(rev.createdAt).toLocaleDateString('vi-VN')}</div>
                         </div>
                       </div>
                       <div className="flex text-amber-400">
-                        {[...Array(rev.rating)].map((_, i) => (
-                          <Star key={i} className="w-3.5 h-3.5 fill-amber-400" />
+                        {[...Array(5)].map((_, i) => (
+                          <Star key={i} className={`w-3.5 h-3.5 ${i < rev.rating ? 'fill-amber-400' : 'text-slate-200'}`} />
                         ))}
                       </div>
                     </div>
-                    <p className="text-xs text-slate-600 leading-relaxed">{rev.comment}</p>
+                    {rev.comment && <p className="text-xs text-slate-600 leading-relaxed">{rev.comment}</p>}
+                    {user?.role === 'student' && rev.reviewId !== myReviewQuery.data?.reviewId && (
+                      <button type="button" onClick={() => { setReviewToReportId(rev.reviewId); reportReviewMutation.reset(); }} className="text-xs font-semibold text-slate-500 underline decoration-slate-300 underline-offset-2 hover:text-rose-700">Báo cáo đánh giá</button>
+                    )}
                   </div>
                 ))}
+                {reviewListQuery.isError && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-5 text-center text-sm text-rose-700">Không thể tải phản hồi lúc này. Hãy thử tải lại trang.</p>}
+                {!reviewListQuery.isLoading && !reviewListQuery.isError && (reviewSummary?.reviews.length ?? 0) === 0 && (
+                  <p className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500">Chưa có học viên nào gửi đánh giá cho khóa học này.</p>
+                )}
               </div>
             </section>
           </div>
@@ -862,6 +898,10 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
                     )}
                   </div>
                   <p className="text-xs text-rose-500 font-semibold">⚡ Ưu đãi học phí đặc quyền có hạn</p>
+                  {course.price > 0 && <div className={`access-duration-notice mt-3 flex items-start gap-2 rounded-xl border px-3 py-2.5 text-xs font-semibold leading-5 ${hasExpiredEnrollment ? 'border-blue-200 bg-blue-50 text-blue-950' : 'border-amber-200 bg-amber-50 text-amber-950'}`}>
+                    <Clock3 aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" />
+                    <span>{hasExpiredEnrollment ? 'Quyền học trước đây đã hết hạn. Mua lại khóa học để mở quyền truy cập thêm 3 tháng; tiến độ và lịch sử học vẫn được giữ.' : 'Quyền truy cập khóa học trong 3 tháng kể từ khi thanh toán thành công.'}</span>
+                  </div>}
                 </div>
 
                 <div className="space-y-2.5">
@@ -902,7 +942,7 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
         onClick={() => onEnroll(course)}
         className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl shadow-lg shadow-blue-600/30 hover:shadow-blue-600/50 transition-all flex items-center justify-center gap-2 cursor-pointer"
       >
-        <span>Đăng ký khóa học ngay</span>
+        <span>{hasExpiredEnrollment ? 'Mua lại · gia hạn 3 tháng' : 'Đăng ký khóa học ngay'}</span>
       </button>
 
       {isInCart ? (
@@ -986,6 +1026,33 @@ export const CourseDetailScreen: React.FC<CourseDetailScreenProps> = ({
         onStart={() => {
           setShowVoiceJourneyGift(false);
           navigate(`/courses/${course.id}/learn`);
+        }}
+      />
+
+      <CourseReviewModal
+        open={isReviewModalOpen}
+        courseTitle={course.title}
+        existing={myReviewQuery.data}
+        isSaving={submitReviewMutation.isPending}
+        isDeleting={deleteReviewMutation.isPending}
+        error={submitReviewMutation.error instanceof Error ? submitReviewMutation.error.message : null}
+        onClose={() => { setIsReviewModalOpen(false); submitReviewMutation.reset(); }}
+        onSubmit={(rating, comment, isAnonymous) => submitReviewMutation.mutate({ rating, comment, isAnonymous }, {
+          onSuccess: () => { setIsReviewModalOpen(false); submitReviewMutation.reset(); },
+        })}
+        onDelete={() => deleteReviewMutation.mutate(undefined, { onSuccess: () => { setIsReviewModalOpen(false); setReportFeedback('Đã xóa đánh giá của bạn.'); } })}
+      />
+
+      <CourseReviewReportModal
+        open={reviewToReportId !== null}
+        saving={reportReviewMutation.isPending}
+        error={reportReviewMutation.error instanceof Error ? reportReviewMutation.error.message : null}
+        onClose={() => { setReviewToReportId(null); reportReviewMutation.reset(); }}
+        onSubmit={(category, details) => {
+          if (reviewToReportId === null) return;
+          reportReviewMutation.mutate({ reviewId: reviewToReportId, category, details }, {
+            onSuccess: () => { setReviewToReportId(null); setReportFeedback('Đã gửi báo cáo cho Admin xem xét.'); reportReviewMutation.reset(); },
+          });
         }}
       />
 

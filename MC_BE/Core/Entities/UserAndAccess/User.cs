@@ -90,6 +90,7 @@ public class User
     // ============================================================
 
     public virtual ICollection<Course> InstructedCourses { get; set; } = new List<Course>();
+    public virtual ICollection<LearnerFavoriteCourse> FavoriteCourses { get; set; } = new List<LearnerFavoriteCourse>();
     public virtual ICollection<CourseMaterial> UploadedMaterials { get; set; } = new List<CourseMaterial>();
 
     // ============================================================

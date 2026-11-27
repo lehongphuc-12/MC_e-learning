@@ -179,7 +179,7 @@ export const CourseFormPage: React.FC = () => {
     <div className="min-h-screen bg-slate-50/60 pb-16 font-sans">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
         {/* ── Page header ── */}
-        <div className="mb-8 flex items-center gap-4">
+        <div className="mb-8 flex items-start gap-3 sm:items-center sm:gap-4">
           <button
             id="course-form-back-btn"
             onClick={() => navigate('/instructor/courses')}
@@ -189,7 +189,7 @@ export const CourseFormPage: React.FC = () => {
           >
             <ArrowLeft className="h-5 w-5" />
           </button>
-          <div className="flex items-center gap-3.5">
+          <div className="flex min-w-0 items-center gap-3 sm:gap-3.5">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/20">
               {isEditMode ? (
                 <Edit3 className="h-6 w-6" />
@@ -197,11 +197,11 @@ export const CourseFormPage: React.FC = () => {
                 <BookPlus className="h-6 w-6" />
               )}
             </div>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+            <div className="min-w-0">
+              <h1 className="break-words text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
                 {isEditMode ? 'Chỉnh sửa khóa học' : 'Tạo khóa học mới'}
               </h1>
-              <p className="text-sm text-slate-500 mt-0.5">
+              <p className="mt-0.5 break-words text-xs text-slate-500 sm:text-sm">
                 {isEditMode
                   ? `Đang chỉnh sửa: ${existingCourse?.title}`
                   : 'Điền đầy đủ thông tin để tạo khóa học chất lượng cho học viên'}

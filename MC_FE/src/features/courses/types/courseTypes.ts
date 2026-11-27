@@ -74,6 +74,13 @@ export interface Course {
   instructorName?: string;    // Joined from USER.FullName
   studentCount?: number;
   studentsCount?: number;
+  rating?: number;
+  reviewCount?: number;
+  purchasedLearnerCount?: number;
+  isBestSeller?: boolean;
+  previewAvailable?: boolean;
+  previewLessonId?: number | null;
+  previewLessonTitle?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -186,9 +193,12 @@ export interface LearnedCourse {
   totalLecturesCount: number;
   lastAccessedAt?: string;
   lastLectureTitle?: string;
-  status: 'in-progress' | 'completed';
+  status: 'in-progress' | 'completed' | 'expired';
   enrolledDate?: string;
   certificateId?: number;
+  expiresAt?: string | null;
+  isExpired?: boolean;
+  isAccessGranted?: boolean;
 }
 
 // ---------------------------------------------------------------------------

@@ -19,7 +19,7 @@ interface CourseCardProps {
   course: Course;
   isWishlisted: boolean;
   onSelect: (course: Course) => void;
-  onPreview: (course: Course) => void;
+  onPreview: (course: Course, lessonId?: number, lessonTitle?: string) => void;
   onToggleWishlist: (courseId: string) => void;
   onAddToCart?: (course: Course) => void;
   showCartButton?: boolean;
@@ -182,11 +182,11 @@ export const CourseCard: React.FC<CourseCardProps> = ({
         </motion.button>
 
         {/* PREVIEW */}
-        <motion.button
+        {course.previewAvailable !== false && <motion.button
           type="button"
           whileHover={{ scale: 1.03 }}
           whileTap={{ scale: 0.95 }}
-          onClick={() => onPreview(course)}
+          onClick={() => onPreview(course, course.previewLessonId, course.previewLessonTitle)}
           className="absolute bottom-3 left-3 z-20 flex h-9 items-center gap-1.5 rounded-full bg-[#0754ef] px-3 text-[11px] font-extrabold text-white transition-colors duration-200 hover:bg-blue-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
           title="Xem trước khóa học"
           aria-label="Xem trước khóa học"
@@ -195,7 +195,7 @@ export const CourseCard: React.FC<CourseCardProps> = ({
             <Play className="h-2 w-2 translate-x-[0.5px] fill-slate-950 text-slate-950" />
           </span>
           <span>Xem thử</span>
-        </motion.button>
+        </motion.button>}
       </div>
 
       {/* CONTENT */}
@@ -250,15 +250,15 @@ export const CourseCard: React.FC<CourseCardProps> = ({
         {/* RATING + LEVEL */}
         <div className="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-3">
           <div className="flex items-center gap-1">
-            <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
-
-            <span className="text-xs font-extrabold text-amber-500">
-              {course.rating}
-            </span>
-
-            <span className="text-[11px] text-slate-400">
-              ({course.reviewsCount})
-            </span>
+            {course.reviewsCount > 0 ? (
+              <>
+                <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                <span className="text-xs font-extrabold text-amber-500">{course.rating.toFixed(1)}</span>
+                <span className="text-[11px] text-slate-400">({course.reviewsCount})</span>
+              </>
+            ) : (
+              <span className="text-[11px] font-medium text-slate-400">Chưa có đánh giá</span>
+            )}
           </div>
 
           <span className="whitespace-nowrap text-[11px] font-semibold text-slate-400">

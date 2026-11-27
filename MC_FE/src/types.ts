@@ -1,4 +1,4 @@
-export type ScreenType = 'home' | 'courses' | 'course-detail' | 'login' | 'register' | 'profile' | 'forgot-password' | 'reset-password' | 'admin' | 'my-courses' | 'forum' | 'ai-voice-coach';
+export type ScreenType = 'home' | 'courses' | 'course-detail' | 'wishlist' | 'login' | 'register' | 'profile' | 'forgot-password' | 'reset-password' | 'admin' | 'my-courses' | 'forum' | 'ai-voice-coach';
 
 export interface Instructor {
   id: string;
@@ -68,6 +68,11 @@ export interface Course {
   curriculum: CurriculumSection[];
   reviews: Review[];
   featured?: boolean;
+  purchasedLearnerCount?: number;
+  isBestSeller?: boolean;
+  previewAvailable?: boolean;
+  previewLessonId?: number;
+  previewLessonTitle?: string;
 }
 
 export interface Category {

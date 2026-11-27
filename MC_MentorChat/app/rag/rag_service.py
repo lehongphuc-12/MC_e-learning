@@ -9,10 +9,29 @@ from app.rag.embeddings import generate_embeddings_batch
 from app.rag.qdrant_service import upsert_chunks
 from app.rag.retriever import retrieve_course_chunks
 from app.services.llm_service import generate_rag_answer, stream_rag_answer
-from app.models.schemas import ChatResponse, SourceItem
+from app.models.schemas import ChatResponse, SourceItem, CourseContext
 
 logger = logging.getLogger("mentorchat.rag_service")
 
+def _format_course_context(course_context: Optional[CourseContext]) -> str:
+    if not course_context:
+        return ""
+    lines = []
+    if course_context.title:
+        lines.append(f"- Tên khóa học: {course_context.title}")
+    if course_context.category_name:
+        lines.append(f"- Danh mục: {course_context.category_name}")
+    if course_context.instructor_name:
+        lines.append(f"- Giảng viên: {course_context.instructor_name}")
+    if course_context.level:
+        lines.append(f"- Trình độ: {course_context.level}")
+    if course_context.skill_tags:
+        lines.append(f"- Kỹ năng trọng tâm: {course_context.skill_tags}")
+    if course_context.prerequisite_course_title:
+        lines.append(f"- Khóa học tiên quyết: {course_context.prerequisite_course_title}")
+    if course_context.description:
+        lines.append(f"- Mô tả khóa học: {course_context.description}")
+    return "\n".join(lines)
 
 class RAGService:
 
@@ -146,6 +165,7 @@ class RAGService:
         lesson_id: Optional[int] = None,
         top_k: int = 4,
         provider: Optional[str] = None,
+        course_context: Optional[CourseContext] = None,
     ) -> ChatResponse:
         """Truy xuất nội dung trong khóa và gọi LLM trả lời."""
         safe_top_k = max(1, min(12, top_k))
@@ -181,7 +201,12 @@ class RAGService:
             )
 
         try:
-            answer = generate_rag_answer(query=question, context_chunks=chunks, provider=provider)
+            course_info = _format_course_context(course_context)
+            answer = generate_rag_answer(
+                query=question, 
+                context_chunks=chunks, 
+                provider=provider, 
+                course_info=course_info)
         except Exception as e:
             logger.error(
                 "[RAGService/AnswerQuestion] course_id=%s — LỖI gọi LLM để tạo câu trả lời: %s",
@@ -219,6 +244,7 @@ class RAGService:
         lesson_id: Optional[int] = None,
         top_k: int = 4,
         provider: Optional[str] = None,
+        course_context: Optional[CourseContext] = None,
     ):
         """
         Truy xuất ngữ cảnh RAG và trả về (sources, token_stream) phục vụ Server-Sent Events.
@@ -254,6 +280,10 @@ class RAGService:
             "[RAGService/AnswerQuestionStream] course_id=%s — chuẩn bị stream tokens (%d nguồn trích dẫn).",
             course_id, len(sources),
         )
-
-        token_stream = stream_rag_answer(query=question, context_chunks=chunks, provider=provider)
+        course_info = _format_course_context(course_context)
+        token_stream = stream_rag_answer(
+            query=question, 
+            context_chunks=chunks, 
+            provider=provider,
+            course_info=course_info,)
         return sources, token_stream

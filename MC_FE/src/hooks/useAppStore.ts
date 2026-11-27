@@ -3,8 +3,10 @@ import { Course, User } from '../types';
 import { ToastMessage, ToastType } from '../components/common/Toast';
 import { paymentApi } from '../features/payment/api/paymentApi';
 import type { EnrollmentDto } from '../features/payment/types/paymentTypes';
+import { courseFavoritesApi } from '../features/courses/api/courseFavoritesApi';
 
 const GUEST_CART_KEY = 'mseek_cart_guest';
+const GUEST_WISHLIST_KEY = 'mseek_wishlist_guest';
 
 const getUserCartKey = (userId: string) => {
   return `mseek_cart_user_${userId}`;
@@ -36,13 +38,22 @@ const getNumericCourseId = (course: Course): number | null => {
   return courseId;
 };
 
+const readGuestWishlist = (): string[] => {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(GUEST_WISHLIST_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
+  }
+};
+
 export function useAppStore(user: User | null) {
   const cartStorageKey = useMemo(() => user ? getUserCartKey(user.id) : GUEST_CART_KEY, [user]);
   const loadedCartKeyRef = useRef<string>(cartStorageKey);
 
   const [cartItems, setCartItems] = useState<Course[]>(() => readCart(GUEST_CART_KEY));
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
-  const [wishlistCourseIds, setWishlistCourseIds] = useState<string[]>(['course-corporate-hosting']);
+  const [wishlistCourseIds, setWishlistCourseIds] = useState<string[]>(readGuestWishlist);
   const [previewModalCourse, setPreviewModalCourse] = useState<Course | null>(null);
   const [checkoutModalCourse, setCheckoutModalCourse] = useState<Course | null>(null);
   const [toastMessage, setToastMessage] = useState<ToastMessage | null>(null);
@@ -55,6 +66,35 @@ export function useAppStore(user: User | null) {
       setToastMessage(null);
     }, 3500);
   }, []);
+
+  useEffect(() => {
+    if (user?.role !== 'student') {
+      if (!user) setWishlistCourseIds(readGuestWishlist());
+      else setWishlistCourseIds([]);
+      return;
+    }
+
+    let active = true;
+    const syncFavorites = async () => {
+      const guestIds = readGuestWishlist()
+        .map(Number)
+        .filter((id) => Number.isInteger(id) && id > 0);
+      if (guestIds.length) {
+        await Promise.allSettled(guestIds.map((id) => courseFavoritesApi.add(id)));
+      }
+      const ids = await courseFavoritesApi.getMine();
+      if (!active) return;
+      setWishlistCourseIds(ids.map(String));
+      localStorage.removeItem(GUEST_WISHLIST_KEY);
+    };
+    syncFavorites()
+      .catch((error) => console.error('Failed to load favorite courses:', error));
+    return () => { active = false; };
+  }, [user?.id, user?.role]);
+
+  useEffect(() => {
+    if (!user) localStorage.setItem(GUEST_WISHLIST_KEY, JSON.stringify(wishlistCourseIds));
+  }, [user, wishlistCourseIds]);
 
   // CART: chuyển đúng cart theo guest/account và merge guest cart khi Learner login.
   useEffect(() => {
@@ -274,26 +314,33 @@ export function useAppStore(user: User | null) {
 
   const handleToggleWishlist = useCallback(
     (courseId: string) => {
-      setWishlistCourseIds((previousWishlist) => {
-        if (previousWishlist.includes(courseId)) {
-          showToast(
-            'Removed from Wishlist',
-            'Course removed from your saved list.',
-            'info'
-          );
+      const removing = wishlistCourseIds.includes(courseId);
+      const next = removing
+        ? wishlistCourseIds.filter((id) => id !== courseId)
+        : [...wishlistCourseIds, courseId];
+      setWishlistCourseIds(next);
 
-          return previousWishlist.filter((id) => id !== courseId);
+      if (user?.role === 'student') {
+        const numericId = Number(courseId);
+        if (!Number.isInteger(numericId) || numericId <= 0) {
+          setWishlistCourseIds(wishlistCourseIds);
+          showToast('Không thể lưu khóa học', 'Mã khóa học không hợp lệ.', 'error');
+          return;
         }
+        const mutation = removing ? courseFavoritesApi.remove(numericId) : courseFavoritesApi.add(numericId);
+        void mutation.catch((error) => {
+          setWishlistCourseIds(wishlistCourseIds);
+          showToast('Chưa cập nhật được yêu thích', error instanceof Error ? error.message : 'Vui lòng thử lại.', 'error');
+        });
+      } else if (user) {
+        setWishlistCourseIds(wishlistCourseIds);
+        showToast('Chỉ học viên mới có danh sách yêu thích.', undefined, 'info');
+        return;
+      }
 
-        showToast(
-          'Saved to Wishlist',
-          'Course added to your saved wishlist.'
-        );
-
-        return [...previousWishlist, courseId];
-      });
+      showToast(removing ? 'Đã xóa khỏi yêu thích' : 'Đã thêm vào yêu thích', undefined, removing ? 'info' : 'success');
     },
-    [showToast]
+    [showToast, user?.role, wishlistCourseIds]
   );
 
   return {

@@ -28,6 +28,7 @@ import {
   ChevronDown,
   ChevronUp,
   Award,
+  Star,
   ClipboardList,
   Mic,
   Square,
@@ -62,6 +63,8 @@ import {
   useIssueCertificate,
 } from '../hooks/useCertificateQueries';
 import { CertificateModal } from './CertificateModal';
+import { CourseReviewModal } from './CourseReviewModal';
+import { useDeleteCourseReview, useMyCourseReview, useSubmitCourseReview } from '../hooks/useCourseReviews';
 import { CourseChatDrawer } from './CourseChatDrawer';
 import { LessonDiscussionTab } from './LessonDiscussionTab';
 import { Toast, ToastMessage } from '../../../components/common/Toast';
@@ -2700,6 +2703,7 @@ export const CourseLearningPage: React.FC = () => {
 
   const user = useAuthStore((state) => state.user);
   const isStaffView = user?.role === 'instructor' || user?.role === 'admin';
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   useEffect(() => {
     if (!courseId || !user || user.role !== 'student') {
       setLearnerRemedialAssignments([]);
@@ -2765,6 +2769,13 @@ export const CourseLearningPage: React.FC = () => {
 
   const { data: certificate } =
     useCourseCertificate(courseId);
+
+  const myCourseReviewQuery = useMyCourseReview(
+    courseId,
+    user?.role === 'student' && Boolean(certificate),
+  );
+  const submitCourseReviewMutation = useSubmitCourseReview(courseId);
+  const deleteCourseReviewMutation = useDeleteCourseReview(courseId);
 
   const issueCertMutation =
     useIssueCertificate(courseId);
@@ -4572,21 +4583,25 @@ export const CourseLearningPage: React.FC = () => {
           {(isCourseFullyCompleted ||
             certificate ||
             progressData?.certificateCode) && (
-            <button
-              onClick={
-                handleOpenCertificate
-              }
-              className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 px-3.5 py-1.5 text-xs font-bold text-white hover:from-amber-400 hover:to-amber-500 transition-all cursor-pointer shadow-md shadow-amber-500/20"
-            >
-              <Award className="h-4 w-4" />
-
-              <span>
-                {certificate ||
-                progressData?.certificateCode
-                  ? 'Xem Chứng Chỉ'
-                  : 'Nhận Chứng Chỉ'}
-              </span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleOpenCertificate}
+                className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 px-3.5 py-1.5 text-xs font-bold text-white hover:from-amber-400 hover:to-amber-500 transition-all cursor-pointer shadow-md shadow-amber-500/20"
+              >
+                <Award className="h-4 w-4" />
+                <span>{certificate || progressData?.certificateCode ? 'Xem Chứng Chỉ' : 'Nhận Chứng Chỉ'}</span>
+              </button>
+              {user?.role === 'student' && myCourseReviewQuery.data?.canReview && (
+                <button
+                  type="button"
+                  onClick={() => setIsReviewModalOpen(true)}
+                  className="flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-1.5 text-xs font-bold text-amber-800 transition hover:bg-amber-100"
+                >
+                  <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                  {myCourseReviewQuery.data.hasReviewed ? 'Sửa đánh giá' : 'Đánh giá khóa học'}
+                </button>
+              )}
+            </div>
           )}
 
           {/* Course Completion Summary Button */}
@@ -5953,6 +5968,22 @@ export const CourseLearningPage: React.FC = () => {
           (user as any)?.fullName ||
           'Học viên'
         }
+      />
+
+      <CourseReviewModal
+        open={isReviewModalOpen}
+        courseTitle={course?.title ?? 'Khóa học'}
+        existing={myCourseReviewQuery.data}
+        isSaving={submitCourseReviewMutation.isPending}
+        isDeleting={deleteCourseReviewMutation.isPending}
+        error={submitCourseReviewMutation.error instanceof Error ? submitCourseReviewMutation.error.message : null}
+        onClose={() => { setIsReviewModalOpen(false); submitCourseReviewMutation.reset(); }}
+        onSubmit={(rating, comment, isAnonymous) => submitCourseReviewMutation.mutate({ rating, comment, isAnonymous }, {
+          onSuccess: () => { setIsReviewModalOpen(false); submitCourseReviewMutation.reset(); showPageToast('Cảm ơn bạn đã đánh giá khóa học!', undefined, 'success'); },
+        })}
+        onDelete={() => deleteCourseReviewMutation.mutate(undefined, {
+          onSuccess: () => { setIsReviewModalOpen(false); showPageToast('Đã xóa đánh giá của bạn.', undefined, 'success'); },
+        })}
       />
 
       {/* AI Mentor RAG Chat Drawer */}
