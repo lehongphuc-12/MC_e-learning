@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { authApi } from './features/auth/api/authApi';
+import { resolveUserRole } from './features/auth/utils/authRole';
 import { paymentApi } from './features/payment/api/paymentApi';
 import { ChatWidget } from './features/chat/components/ChatWidget';
 
@@ -104,6 +105,7 @@ export default function App() {
     const fetchMe = async () => {
       const storedToken =
         useAuthStore.getState().token;
+      const sessionRevision = useAuthStore.getState().sessionRevision;
 
       // Không có token thì không cần gọi /me
       if (!storedToken) {
@@ -113,21 +115,19 @@ export default function App() {
       try {
         const result = await authApi.getMe();
 
+        // Ignore a late /me response if logout or a different login replaced this session.
+        if (useAuthStore.getState().sessionRevision !== sessionRevision || !useAuthStore.getState().token) return;
+
         if (!result.success || !result.data) {
           authLogout();
           return;
         }
 
         const userObj = result.data;
+        const currentToken = useAuthStore.getState().token;
+        if (!currentToken) return;
 
-        const mappedRole: User['role'] =
-          userObj.roleName === 'Learner'
-            ? 'student'
-            : userObj.roleName === 'Instructor'
-              ? 'instructor'
-              : userObj.roleName === 'Admin'
-                ? 'admin'
-                : 'student';
+        const mappedRole = resolveUserRole(userObj);
 
         setAuth(
           {
@@ -146,9 +146,10 @@ export default function App() {
             isGoogleLogin:
               userObj.isGoogleLogin ?? false,
           },
-          storedToken
+          currentToken
         );
       } catch (error) {
+        if (useAuthStore.getState().sessionRevision !== sessionRevision || !useAuthStore.getState().token) return;
         console.error(
           'Failed to restore user session:',
           error
@@ -380,14 +381,7 @@ export default function App() {
     userObj: any,
     token: string
   ) => {
-    const mappedRole: User['role'] =
-      userObj.roleName === 'Learner'
-        ? 'student'
-        : userObj.roleName === 'Instructor'
-          ? 'instructor'
-          : userObj.roleName === 'Admin'
-            ? 'admin'
-            : 'student';
+    const mappedRole = resolveUserRole(userObj);
 
     setAuth(
       {

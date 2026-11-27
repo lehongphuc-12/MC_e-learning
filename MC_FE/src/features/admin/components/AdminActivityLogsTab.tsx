@@ -15,6 +15,7 @@ const categories = [
 ];
 
 const actionLabels: Record<string, string> = {
+  COURSE_SUBMITTED_FOR_APPROVAL: 'Gửi khóa học chờ duyệt',
   COURSE_APPROVED: 'Duyệt khóa học', COURSE_REJECTED: 'Từ chối khóa học', COURSE_RESTORED: 'Khôi phục khóa học',
   COURSE_DELETE_APPROVED: 'Chấp nhận xóa khóa học', COURSE_DELETE_REJECTED: 'Từ chối yêu cầu xóa khóa học',
   GIFT_POLICY_UPDATED: 'Cập nhật chính sách khóa học tặng', USER_STATUS_UPDATED: 'Cập nhật trạng thái tài khoản',

@@ -209,16 +209,24 @@ export const adminApi = {
   // Courses
   async getCourses(): Promise<AdminCourse[]> {
     try {
-      const res = await request<{ success: boolean; data: any }>('/admin/courses');
-      if (res && res.success) {
-        const rawData = res.data;
-        const rawList: any[] = Array.isArray(rawData)
-          ? rawData
-          : Array.isArray(rawData?.data)
-          ? rawData.data
-          : Array.isArray(rawData?.items)
-          ? rawData.items
-          : [];
+      const fetchPage = (page: number) => request<{ success: boolean; data: any }>(`/admin/courses?page=${page}&limit=100`);
+      const firstPage = await fetchPage(1);
+      if (firstPage?.success) {
+        const firstData = firstPage.data;
+        const totalPages = Math.max(1, Number(firstData?.pagination?.totalPages ?? firstData?.meta?.totalPages ?? 1));
+        const allPages = [firstPage];
+        for (let startPage = 2; startPage <= totalPages; startPage += 5) {
+          const endPage = Math.min(startPage + 4, totalPages);
+          const batch = await Promise.all(Array.from({ length: endPage - startPage + 1 }, (_, index) => fetchPage(startPage + index)));
+          allPages.push(...batch.filter(page => page?.success));
+        }
+        const rawList: any[] = allPages.flatMap(page => {
+          const rawData = page.data;
+          if (Array.isArray(rawData)) return rawData;
+          if (Array.isArray(rawData?.data)) return rawData.data;
+          if (Array.isArray(rawData?.items)) return rawData.items;
+          return [];
+        });
 
         return rawList.map((c: any) => {
           let moderationStatus: CourseModerationStatus = 'draft';

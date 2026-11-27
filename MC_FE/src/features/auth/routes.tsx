@@ -6,6 +6,7 @@ import { RegisterScreen } from './components/RegisterScreen';
 import { ForgotPasswordScreen } from './components/ForgotPasswordScreen';
 import { ResetPasswordScreen } from './components/ResetPasswordScreen';
 import { ToastType } from '../../components/common/Toast';
+import { getRoleHomePath, resolveUserRole } from './utils/authRole';
 
 interface AuthRoutesProps {
   onNavigate: (screen: ScreenType) => void;
@@ -33,14 +34,17 @@ export const renderAuthRoutes = ({
             onLoginSuccess={(userObj, token) => {
               onLoginSuccess(userObj, token);
               const returnTo = (location.state as { from?: { pathname?: string; search?: string; hash?: string } } | null)?.from;
-              if (returnTo?.pathname) {
+              const role = resolveUserRole(userObj);
+              const returnPath = returnTo?.pathname ?? '';
+              const isPath = (base: string) => returnPath === base || returnPath.startsWith(`${base}/`);
+              const conflictsWithRole =
+                (role === 'admin' && isPath('/instructor')) ||
+                (role === 'instructor' && isPath('/admin')) ||
+                (role === 'student' && (isPath('/admin') || isPath('/instructor')));
+              if (returnTo?.pathname && !conflictsWithRole) {
                 navigate({ pathname: returnTo.pathname, search: returnTo.search, hash: returnTo.hash }, { replace: true });
-              } else if (userObj.roleName === 'Admin' || userObj.role === 'admin') {
-                navigate('/admin');
-              } else if (userObj.roleName === 'Instructor' || userObj.role === 'instructor') {
-                navigate('/instructor');
               } else {
-                navigate('/courses');
+                navigate(getRoleHomePath(role), { replace: true });
               }
             }}
             onToast={onToast}
