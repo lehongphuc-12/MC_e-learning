@@ -72,6 +72,7 @@ async def chat_in_course(
             req.lesson_id,
             req.top_k,
             req.provider,
+            req.course_context,
         )
         logger.info(
             "[Chat] course_id=%s — trả lời thành công, %d nguồn được trích dẫn.",
@@ -117,6 +118,7 @@ async def chat_in_course_stream(
                 req.lesson_id,
                 req.top_k,
                 req.provider,
+                req.course_context,
             )
             # 1. Phát event 'sources' chứa danh sách tài liệu/bài giảng dẫn chứng
             sources_data = [s.model_dump() for s in sources]
