@@ -23,9 +23,17 @@ public interface ICourseService
         string? search);
 
     /// <summary>
-    /// Fetches ALL courses (Admin only, paginated + filtered).
+    /// Fetches the public catalog (published courses only, paginated + filtered).
     /// </summary>
     Task<CourseListResponse> GetAllCoursesAsync(
+        int page,
+        int limit,
+        string? status,
+        int? categoryId,
+        string? search);
+
+    /// <summary>Fetches courses across all instructors for Admin moderation.</summary>
+    Task<CourseListResponse> GetAdminCoursesAsync(
         int page,
         int limit,
         string? status,

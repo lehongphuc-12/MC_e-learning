@@ -3,10 +3,6 @@ import { Routes, Route, useNavigate, useSearchParams, useLocation, Navigate } fr
 import { ScreenType, Course, User } from '../types';
 import { CourseCatalogScreen } from '../features/courses/components/CourseCatalogScreen';
 import { CourseDetailScreen } from '../features/courses/components/CourseDetailScreen';
-import { LoginScreen } from '../features/auth/components/LoginScreen';
-import { RegisterScreen } from '../features/auth/components/RegisterScreen';
-import { ForgotPasswordScreen } from '../features/auth/components/ForgotPasswordScreen';
-import { ResetPasswordScreen } from '../features/auth/components/ResetPasswordScreen';
 import { ProfileScreen } from '../features/profile/components/ProfileScreen';
 import { AdminDashboardPage } from '../features/admin/pages/AdminDashboardPage';
 // FE:03 Course Management imports
@@ -362,57 +358,6 @@ export const AppRouter: React.FC<AppRouterProps> = ({
       <Route
         path="/verify-certificate"
         element={<CertificateVerifyScreen />}
-      />
-      <Route
-        path="/login"
-        element={
-          <LoginScreen
-            onNavigate={handleNavigate}
-            onLoginSuccess={(userObj, token) => {
-              onLoginSuccess(userObj, token);
-              if (userObj.roleName === 'Admin' || userObj.role === 'admin') {
-                navigate('/admin');
-              } else if (userObj.roleName === 'Instructor' || userObj.role === 'instructor') {
-                // Instructors go directly to their instructor dashboard
-                navigate('/instructor');
-              } else {
-                navigate('/courses');
-              }
-            }}
-            onToast={onToast}
-          />
-        }
-      />
-      <Route
-        path="/register"
-        element={
-          <RegisterScreen
-            onNavigate={handleNavigate}
-            onRegisterSuccess={(userObj) => {
-              onRegisterSuccess(userObj);
-              navigate('/login');
-            }}
-            onToast={onToast}
-          />
-        }
-      />
-      <Route
-        path="/forgot-password"
-        element={
-          <ForgotPasswordScreen
-            onNavigate={handleNavigate}
-            onToast={onToast}
-          />
-        }
-      />
-      <Route
-        path="/reset-password"
-        element={
-          <ResetPasswordScreen
-            onNavigate={handleNavigate}
-            onToast={onToast}
-          />
-        }
       />
       <Route
         path="/ai-voice-coach"

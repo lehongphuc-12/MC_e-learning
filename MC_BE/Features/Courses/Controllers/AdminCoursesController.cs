@@ -85,7 +85,7 @@ public class AdminCoursesController : ControllerBase
         [FromQuery] int? categoryId = null,
         [FromQuery] string? search = null)
     {
-        var result = await _courseService.GetAllCoursesAsync(page, limit, status, categoryId, search);
+        var result = await _courseService.GetAdminCoursesAsync(page, limit, status, categoryId, search);
         return Ok(ApiResponse<CourseListResponse>.SuccessResponse(result));
     }
 
@@ -100,7 +100,7 @@ public class AdminCoursesController : ControllerBase
         [FromQuery] int? categoryId = null,
         [FromQuery] string? search = null)
     {
-        var result = await _courseService.GetAllCoursesAsync(page, limit, "PENDING_APPROVAL", categoryId, search);
+        var result = await _courseService.GetAdminCoursesAsync(page, limit, "PENDING_APPROVAL", categoryId, search);
         return Ok(ApiResponse<CourseListResponse>.SuccessResponse(result));
     }
 
@@ -115,7 +115,7 @@ public class AdminCoursesController : ControllerBase
         [FromQuery] int? categoryId = null,
         [FromQuery] string? search = null)
     {
-        var result = await _courseService.GetAllCoursesAsync(page, limit, "PUBLISHED", categoryId, search);
+        var result = await _courseService.GetAdminCoursesAsync(page, limit, "PUBLISHED", categoryId, search);
         return Ok(ApiResponse<CourseListResponse>.SuccessResponse(result));
     }
 

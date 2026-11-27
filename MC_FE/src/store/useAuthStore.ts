@@ -9,6 +9,7 @@ export interface AuthState {
   user: User | null;
   token: string | null;
   isAuthenticated: boolean;
+  sessionRevision: number;
   setAuth: (user: User, token: string) => void;
   setAccessToken: (token: string) => void;
   updateUser: (updatedUser: Partial<User>) => void;
@@ -21,13 +22,15 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       token: null,
       isAuthenticated: false,
+      sessionRevision: 0,
 
       setAuth: (user: User, token: string) => {
-        set({
+        set((state) => ({
           user,
           token,
           isAuthenticated: true,
-        });
+          sessionRevision: state.sessionRevision + 1,
+        }));
       },
 
       setAccessToken: (token: string) => {
@@ -49,11 +52,12 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: () => {
-        set({
+        set((state) => ({
           user: null,
           token: null,
           isAuthenticated: false,
-        });
+          sessionRevision: state.sessionRevision + 1,
+        }));
       },
     }),
     {

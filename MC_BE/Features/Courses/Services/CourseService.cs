@@ -241,7 +241,7 @@ public class CourseService : ICourseService
     }
 
     // -------------------------------------------------------------------------
-    // GET All courses — Admin only
+    // Public catalog — published courses only
     // -------------------------------------------------------------------------
     public async Task<CourseListResponse> GetAllCoursesAsync(
         int page, int limit, string? status, int? categoryId, string? search)
@@ -253,6 +253,16 @@ public class CourseService : ICourseService
         var response = await ExecutePaginatedQueryAsync(query, page, limit);
         await ApplyPurchasePopularityAsync(response.Data);
         await ApplyPreviewLessonsAsync(response.Data);
+        return response;
+    }
+
+    // Admin moderation list — all statuses, optionally narrowed by status.
+    public async Task<CourseListResponse> GetAdminCoursesAsync(
+        int page, int limit, string? status, int? categoryId, string? search)
+    {
+        var query = BuildCourseQuery(null, status, categoryId, search);
+        var response = await ExecutePaginatedQueryAsync(query, page, limit);
+        await ApplyPurchasePopularityAsync(response.Data);
         return response;
     }
 

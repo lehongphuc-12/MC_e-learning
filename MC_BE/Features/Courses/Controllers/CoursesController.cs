@@ -1,4 +1,5 @@
 using MC_BE.Core.DTOs;
+using MC_BE.Features.Admin.Services;
 using MC_BE.Features.Courses.DTOs;
 using MC_BE.Features.Courses.Services.Interfaces;
 using MC_BE.Shared.Services.Interfaces;
@@ -27,15 +28,18 @@ public class CoursesController : ControllerBase
     private readonly ICourseService _courseService;
     private readonly ICloudinaryService _cloudinaryService;
     private readonly ICourseRecommendationService _recommendationService;
+    private readonly AdminActivityLogger _activityLogger;
 
     public CoursesController(
         ICourseService courseService,
         ICloudinaryService cloudinaryService,
-        ICourseRecommendationService recommendationService)
+        ICourseRecommendationService recommendationService,
+        AdminActivityLogger activityLogger)
     {
         _courseService = courseService;
         _cloudinaryService = cloudinaryService;
         _recommendationService = recommendationService;
+        _activityLogger = activityLogger;
     }
 
     // ── Helper: extract InstructorID from JWT claims ──────────────────────────
@@ -368,6 +372,15 @@ public class CoursesController : ControllerBase
                 request.KeepApprovedSyllabus);
             if (updated is null)
                 return NotFound(ApiResponse<CourseDto>.FailureResponse("Course not found or you are not the owner."));
+
+            var courseTitle = updated.Title.Length > 220 ? $"{updated.Title[..217]}..." : updated.Title;
+            await _activityLogger.RecordAsync(
+                instructorId.Value,
+                "COURSE_SUBMITTED_FOR_APPROVAL",
+                "COURSE",
+                id.ToString(),
+                $"Giảng viên gửi khóa học '{courseTitle}' để Admin phê duyệt.",
+                HttpContext.TraceIdentifier);
 
             return Ok(ApiResponse<CourseDto>.SuccessResponse(updated, "Khóa học đã được gửi cho Admin phê duyệt."));
         }
