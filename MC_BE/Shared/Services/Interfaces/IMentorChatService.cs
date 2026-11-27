@@ -4,7 +4,10 @@ namespace MC_BE.Shared.Services.Interfaces;
 
 public interface IMentorChatService
 {
-    Task<MentorChatResponseDto> AskQuestionAsync(int courseId, MentorChatRequestDto request, CancellationToken ct = default);
+    Task<MentorChatResponseDto> AskQuestionAsync(
+        int courseId, 
+        MentorChatRequestDto request, 
+        CancellationToken ct = default);
 
     Task<MentorIngestResponseDto?> IngestTranscriptAsync(
         int courseId, 
@@ -33,4 +36,6 @@ public interface IMentorChatService
         MentorChatRequestDto request, 
         Stream responseStream, 
         CancellationToken ct = default);
+
+    
 }

@@ -147,8 +147,9 @@ def generate_rag_answer(
     query: str,
     context_chunks: List[Dict[str, Any]],
     history: Optional[List[Dict[str, str]]] = None,
+    course_info: str = "",
 ) -> str:
-    if not context_chunks:
+    if not context_chunks and not course_info:
         if _GREETINGS_PATTERN.match(query.strip()):
             return (
                 "Xin chào bạn! Mình là AI Mentor của khóa học. Mình luôn sẵn sàng giải đáp các câu hỏi "
@@ -178,9 +179,16 @@ def generate_rag_answer(
         ]
         history_block = "[LỊCH SỬ HỘI THOẠI GẦN ĐÂY]:\n" + "\n".join(recent_lines) + "\n\n"
 
+    course_info_block =  f"[THÔNG TIN TỔNG QUAN KHÓA HỌC]:\n{course_info}\n\n" if course_info else ""
+    chunks_block = (
+        "[NGỮ CẢNH BÀI GIẢNG / TÀI LIỆU]:\n" + "\n\n".join(context_blocks) + "\n\n"
+        if context_blocks else ""
+    )
+
     user_prompt = (
         f"{history_block}"
-        f"[NGỮ CẢNH KHÓA HỌC]:\n" + "\n\n".join(context_blocks) + "\n\n"
+        f"{course_info_block}"
+        f"{chunks_block}"
         f"[CÂU HỎI CỦA HỌC VIÊN]:\n{query}"
     )
 
@@ -191,9 +199,10 @@ def stream_rag_answer(
     query: str,
     context_chunks: List[Dict[str, Any]],
     history: Optional[List[Dict[str, str]]] = None,
+    course_info: str = "",
 ) -> Iterator[str]:
     """Sinh câu trả lời RAG qua stream tokens."""
-    if not context_chunks:
+    if not context_chunks and not course_info:
         if _GREETINGS_PATTERN.match(query.strip()):
             yield (
                 "Xin chào bạn! Mình là AI Mentor của khóa học. Mình luôn sẵn sàng giải đáp các câu hỏi "
@@ -225,9 +234,16 @@ def stream_rag_answer(
         ]
         history_block = "[LỊCH SỬ HỘI THOẠI GẦN ĐÂY]:\n" + "\n".join(recent_lines) + "\n\n"
 
+    course_info_block = f"[THÔNG TIN TỔNG QUAN KHÓA HỌC]:\n{course_info}\n\n" if course_info else ""
+    chunks_block = (
+        "[NGỮ CẢNH BÀI GIẢNG / TÀI LIỆU]:\n" + "\n\n".join(context_blocks) + "\n\n"
+        if context_blocks else ""
+    )
+
     user_prompt = (
         f"{history_block}"
-        f"[NGỮ CẢNH KHÓA HỌC]:\n" + "\n\n".join(context_blocks) + "\n\n"
+        f"{course_info_block}"
+        f"{chunks_block}"
         f"[CÂU HỎI CỦA HỌC VIÊN]:\n{query}"
     )
 

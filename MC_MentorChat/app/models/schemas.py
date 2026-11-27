@@ -2,6 +2,15 @@ from typing import List, Literal, Optional
 from pydantic import BaseModel, Field
 
 
+class CourseContext(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    category_name: Optional[str] = None
+    instructor_name: Optional[str] = None
+    level: Optional[str] = None
+    skill_tags: Optional[str] = None
+    prerequisite_course_title: Optional[str] = None
+
 # --- Dành cho Endpoint Hỏi Đáp (Chat) ---
 class ChatRequest(BaseModel):
     course_id: int = Field(..., description="ID khóa học hiện tại (bắt buộc để cô lập RAG)")
@@ -12,6 +21,7 @@ class ChatRequest(BaseModel):
         default=None,
         description="Ghi đè LLM provider cho request này. None → dùng LLM_PROVIDER trong .env"
     )
+    course_context: Optional[CourseContext] = None
 
 
 class SourceItem(BaseModel):
