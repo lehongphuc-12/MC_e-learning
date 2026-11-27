@@ -2,6 +2,7 @@ using System.Security.Claims;
 using MC_BE.Core.DTOs;
 using MC_BE.Features.Courses.DTOs;
 using MC_BE.Features.Courses.Services.Interfaces;
+using MC_BE.Features.Admin.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -10,7 +11,7 @@ namespace MC_BE.Features.Courses.Controllers;
 [ApiController]
 [Route("api/admin/course-reviews")]
 [Authorize(Roles = "Admin")]
-public sealed class AdminCourseReviewsController(ICourseReviewAdminService reviewAdminService) : ControllerBase
+public sealed class AdminCourseReviewsController(ICourseReviewAdminService reviewAdminService, AdminActivityLogger activityLogger) : ControllerBase
 {
     private int? CurrentAdminId => int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var id) ? id : null;
 
@@ -57,6 +58,7 @@ public sealed class AdminCourseReviewsController(ICourseReviewAdminService revie
         {
             if (!await reviewAdminService.ResolveReportAsync(adminId.Value, reportId, request))
                 return NotFound(ApiResponse<object>.FailureResponse("Không tìm thấy báo cáo."));
+            await activityLogger.RecordAsync(adminId.Value, "COURSE_REVIEW_REPORT_RESOLVED", "COURSE_REVIEW_REPORT", reportId.ToString(), "Xử lý báo cáo đánh giá khóa học.", HttpContext.TraceIdentifier);
             return Ok(ApiResponse<object>.SuccessResponse(new { }, "Đã lưu kết quả xử lý báo cáo."));
         }
         catch (InvalidOperationException ex)
@@ -74,6 +76,7 @@ public sealed class AdminCourseReviewsController(ICourseReviewAdminService revie
         {
             if (!await reviewAdminService.StartReportReviewAsync(adminId.Value, reportId))
                 return NotFound(ApiResponse<object>.FailureResponse("Không tìm thấy báo cáo."));
+            await activityLogger.RecordAsync(adminId.Value, "COURSE_REVIEW_REPORT_STARTED", "COURSE_REVIEW_REPORT", reportId.ToString(), "Bắt đầu xem xét báo cáo đánh giá khóa học.", HttpContext.TraceIdentifier);
             return Ok(ApiResponse<object>.SuccessResponse(new { }, "Đã nhận báo cáo để xem xét."));
         }
         catch (InvalidOperationException ex)
@@ -91,6 +94,7 @@ public sealed class AdminCourseReviewsController(ICourseReviewAdminService revie
         {
             if (!await reviewAdminService.ModerateReviewAsync(adminId.Value, reviewId, request))
                 return NotFound(ApiResponse<object>.FailureResponse("Không tìm thấy đánh giá."));
+            await activityLogger.RecordAsync(adminId.Value, "COURSE_REVIEW_MODERATED", "COURSE_REVIEW", reviewId.ToString(), "Cập nhật trạng thái kiểm duyệt đánh giá khóa học.", HttpContext.TraceIdentifier);
             return Ok(ApiResponse<object>.SuccessResponse(new { }, "Đã cập nhật trạng thái đánh giá."));
         }
         catch (InvalidOperationException ex)
@@ -108,6 +112,7 @@ public sealed class AdminCourseReviewsController(ICourseReviewAdminService revie
         {
             if (!await reviewAdminService.BlockReviewerAsync(adminId.Value, courseId, learnerId, request))
                 return NotFound(ApiResponse<object>.FailureResponse("Không tìm thấy đánh giá của học viên trong khóa học."));
+            await activityLogger.RecordAsync(adminId.Value, "COURSE_REVIEWER_BLOCKED", "COURSE_REVIEW_RESTRICTION", $"{courseId}:{learnerId}", $"Chặn quyền đánh giá khóa học #{courseId} của học viên #{learnerId}.", HttpContext.TraceIdentifier, learnerId);
             return Ok(ApiResponse<object>.SuccessResponse(new { }, "Đã chặn quyền đánh giá khóa học này."));
         }
         catch (InvalidOperationException ex)
@@ -123,6 +128,7 @@ public sealed class AdminCourseReviewsController(ICourseReviewAdminService revie
         if (adminId is null) return Unauthorized(ApiResponse<object>.FailureResponse("Vui lòng đăng nhập lại."));
         if (!await reviewAdminService.UnblockReviewerAsync(adminId.Value, courseId, learnerId, request))
             return NotFound(ApiResponse<object>.FailureResponse("Không có lệnh chặn đang hoạt động cho học viên này."));
+        await activityLogger.RecordAsync(adminId.Value, "COURSE_REVIEWER_UNBLOCKED", "COURSE_REVIEW_RESTRICTION", $"{courseId}:{learnerId}", $"Gỡ chặn quyền đánh giá khóa học #{courseId} của học viên #{learnerId}.", HttpContext.TraceIdentifier, learnerId);
         return Ok(ApiResponse<object>.SuccessResponse(new { }, "Đã gỡ chặn quyền đánh giá khóa học."));
     }
 }

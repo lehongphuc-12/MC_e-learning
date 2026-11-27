@@ -18,6 +18,8 @@ import {
   Mic2,
   MessageSquare,
   Clock3,
+  Activity,
+  Headset,
 } from 'lucide-react';
 
 import { AdminTabType } from '../types/adminTypes';
@@ -104,6 +106,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
       icon: Clock3,
       badge: null,
     },
+    { id: 'support-requests' as AdminTabType, label: 'Yêu cầu hỗ trợ', icon: Headset, badge: null },
+    { id: 'activity-logs' as AdminTabType, label: 'Nhật ký hoạt động', icon: Activity, badge: null },
   ];
 
   return (

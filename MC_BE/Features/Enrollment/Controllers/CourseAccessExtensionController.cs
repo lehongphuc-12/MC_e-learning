@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using MC_BE.Features.Enrollment.DTO;
 using MC_BE.Features.Enrollment.Services;
+using MC_BE.Features.Admin.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -10,7 +11,7 @@ namespace MC_BE.Features.Enrollment.Controllers;
 [ApiController]
 [Authorize]
 [Route("api/v1/enrollments/access-extensions")]
-public sealed class CourseAccessExtensionController(ICourseAccessExtensionService service) : ControllerBase
+public sealed class CourseAccessExtensionController(ICourseAccessExtensionService service, AdminActivityLogger activityLogger) : ControllerBase
 {
     private int CurrentUserId => int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : 0;
 
@@ -42,7 +43,12 @@ public sealed class CourseAccessExtensionController(ICourseAccessExtensionServic
 
     private async Task<IActionResult> Decide(long requestId, bool approve, DecideAccessExtensionRequest request, CancellationToken cancellationToken)
     {
-        try { return Ok(new { success = true, data = await service.DecideAsync(requestId, CurrentUserId, approve, request, cancellationToken) }); }
+        try
+        {
+            var result = await service.DecideAsync(requestId, CurrentUserId, approve, request, cancellationToken);
+            await activityLogger.RecordAsync(CurrentUserId, approve ? "ACCESS_EXTENSION_APPROVED" : "ACCESS_EXTENSION_REJECTED", "ACCESS_EXTENSION_REQUEST", requestId.ToString(), $"{(approve ? "Duyệt" : "Từ chối")} yêu cầu gia hạn quyền học #{requestId}.", HttpContext.TraceIdentifier);
+            return Ok(new { success = true, data = result });
+        }
         catch (KeyNotFoundException ex) { return NotFound(new { success = false, message = ex.Message }); }
         catch (InvalidOperationException ex) { return Conflict(new { success = false, message = ex.Message }); }
     }

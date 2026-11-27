@@ -1,5 +1,6 @@
 using MC_BE.Core.DTOs;
 using MC_BE.Shared.Services.Interfaces;
+using MC_BE.Features.Admin.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -12,13 +13,16 @@ public class AdminPaymentController : ControllerBase
 {
     private readonly IAdminPaymentService _adminPaymentService;
     private readonly ICurrentUserService _currentUserService;
+    private readonly AdminActivityLogger _activityLogger;
 
     public AdminPaymentController(
         IAdminPaymentService adminPaymentService,
-        ICurrentUserService currentUserService)
+        ICurrentUserService currentUserService,
+        AdminActivityLogger activityLogger)
     {
         _adminPaymentService = adminPaymentService;
         _currentUserService = currentUserService;
+        _activityLogger = activityLogger;
     }
 
     [HttpGet("api/v1/admin/payments")]
@@ -82,6 +86,8 @@ public class AdminPaymentController : ControllerBase
 
         if (!result.Success)
             return NotFound(result);
+
+        await _activityLogger.RecordAsync(adminUserId, "PAYMENT_VERIFIED", "PAYMENT", id.ToString(), $"Admin đối soát giao dịch #{id}.", HttpContext.TraceIdentifier);
 
         return Ok(result);
     }

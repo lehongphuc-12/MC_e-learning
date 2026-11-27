@@ -157,6 +157,8 @@ builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IUserPreferenceService, UserPreferenceService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<IAdminStatsService, AdminStatsService>();
+builder.Services.AddScoped<MC_BE.Features.Admin.Services.AdminOperationsService>();
+builder.Services.AddScoped<MC_BE.Features.Admin.Services.AdminActivityLogger>();
 
 // ============================================================
 // COURSE MANAGEMENT

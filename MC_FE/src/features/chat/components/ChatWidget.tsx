@@ -1,5 +1,6 @@
-import { MessageCircle, Sparkles, X } from "lucide-react";
+import { Headset, MessageCircle, Sparkles, X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useCall } from "../hooks/useCall";
 import { CallScreen } from "./CallScreen";
 import { ChatPanel } from "./ChatPanel";
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export function ChatWidget({ currentUser }: Props) {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [targetConversation, setTargetConversation] = useState<any>(null);
   const calls = useCall();
@@ -59,6 +61,9 @@ export function ChatWidget({ currentUser }: Props) {
       )}
 
       <div className={`fixed bottom-5 right-5 z-[60] ${open ? "hidden md:block" : "block"}`}>
+        <button type="button" onClick={() => navigate("/my-support")} className="absolute bottom-[68px] right-0 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-white px-3.5 py-2.5 text-xs font-bold text-blue-700 shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl" aria-label="Yêu cầu hỗ trợ">
+          <Headset className="h-4 w-4" /> Hỗ trợ
+        </button>
         {/* Glow phía sau */}
         <div
           className={`pointer-events-none absolute inset-0 rounded-[22px] bg-blue-500/25 blur-xl transition-all duration-500 ${

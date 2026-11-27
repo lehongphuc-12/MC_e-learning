@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using MC_BE.Core.DTOs;
 using MC_BE.Features.Forum.DTOs;
 using MC_BE.Features.Forum.Services.Interfaces;
+using MC_BE.Features.Admin.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -16,9 +17,12 @@ public class AdminForumController : ControllerBase
 {
     private readonly IAdminForumService _adminForumService;
 
-    public AdminForumController(IAdminForumService adminForumService)
+    private readonly AdminActivityLogger _activityLogger;
+
+    public AdminForumController(IAdminForumService adminForumService, AdminActivityLogger activityLogger)
     {
         _adminForumService = adminForumService;
+        _activityLogger = activityLogger;
     }
 
     private int? GetCurrentAdminId()
@@ -79,6 +83,8 @@ public class AdminForumController : ControllerBase
                 return NotFound(ApiResponse<bool>.FailureResponse("Báo cáo không tồn tại."));
             }
 
+            await _activityLogger.RecordAsync(adminId.Value, "FORUM_REPORT_RESOLVED", "FORUM_REPORT", id.ToString(), $"Xử lý báo cáo diễn đàn bằng hành động {action}.", HttpContext.TraceIdentifier);
+
             return Ok(ApiResponse<bool>.SuccessResponse(true, "Xử lý báo cáo thành công."));
         }
         catch (Exception ex)
@@ -101,6 +107,8 @@ public class AdminForumController : ControllerBase
             {
                 return NotFound(ApiResponse<bool>.FailureResponse("Bài viết không tồn tại."));
             }
+
+            await _activityLogger.RecordAsync(adminId.Value, "FORUM_POST_RESTORED", "FORUM_POST", id.ToString(), $"Khôi phục bài viết diễn đàn #{id}.", HttpContext.TraceIdentifier);
 
             return Ok(ApiResponse<bool>.SuccessResponse(true, "Đã khôi phục bài viết thành công. Báo cáo cũ đã được dọn dẹp."));
         }
@@ -125,6 +133,8 @@ public class AdminForumController : ControllerBase
                 return NotFound(ApiResponse<bool>.FailureResponse("Bài viết không tồn tại."));
             }
 
+            await _activityLogger.RecordAsync(adminId.Value, "FORUM_POST_STATUS_UPDATED", "FORUM_POST", id.ToString(), $"Cập nhật trạng thái bài viết diễn đàn #{id} thành {request.Status}.", HttpContext.TraceIdentifier);
+
             return Ok(ApiResponse<bool>.SuccessResponse(true, "Cập nhật trạng thái bài viết thành công."));
         }
         catch (Exception ex)
@@ -148,6 +158,8 @@ public class AdminForumController : ControllerBase
                 return NotFound(ApiResponse<bool>.FailureResponse("Bình luận không tồn tại."));
             }
 
+            await _activityLogger.RecordAsync(adminId.Value, "FORUM_COMMENT_RESTORED", "FORUM_COMMENT", id.ToString(), $"Khôi phục bình luận diễn đàn #{id}.", HttpContext.TraceIdentifier);
+
             return Ok(ApiResponse<bool>.SuccessResponse(true, "Đã khôi phục bình luận thành công. Báo cáo cũ đã được dọn dẹp."));
         }
         catch (Exception ex)
@@ -170,6 +182,8 @@ public class AdminForumController : ControllerBase
             {
                 return NotFound(ApiResponse<bool>.FailureResponse("Bình luận không tồn tại."));
             }
+
+            await _activityLogger.RecordAsync(adminId.Value, "FORUM_COMMENT_STATUS_UPDATED", "FORUM_COMMENT", id.ToString(), $"Cập nhật trạng thái bình luận diễn đàn #{id} thành {request.Status}.", HttpContext.TraceIdentifier);
 
             return Ok(ApiResponse<bool>.SuccessResponse(true, "Cập nhật trạng thái bình luận thành công."));
         }

@@ -1,6 +1,7 @@
 using MC_BE.Core.DTOs;
 using MC_BE.Features.Courses.DTOs;
 using MC_BE.Features.Courses.Services.Interfaces;
+using MC_BE.Features.Admin.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -19,11 +20,13 @@ public class AdminCoursesController : ControllerBase
 {
     private readonly ICourseService _courseService;
     private readonly ICourseGiftAccessService _courseGiftAccessService;
+    private readonly AdminActivityLogger _activityLogger;
 
-    public AdminCoursesController(ICourseService courseService, ICourseGiftAccessService courseGiftAccessService)
+    public AdminCoursesController(ICourseService courseService, ICourseGiftAccessService courseGiftAccessService, AdminActivityLogger activityLogger)
     {
         _courseService = courseService;
         _courseGiftAccessService = courseGiftAccessService;
+        _activityLogger = activityLogger;
     }
 
     [HttpGet("gift-policy")]
@@ -51,6 +54,7 @@ public class AdminCoursesController : ControllerBase
         try
         {
             var policy = await _courseGiftAccessService.UpdatePolicyAsync(request, adminId.Value, cancellationToken);
+            await _activityLogger.RecordAsync(adminId.Value, "GIFT_POLICY_UPDATED", "COURSE_GIFT_POLICY", null, "Cập nhật chính sách khóa học tặng.", HttpContext.TraceIdentifier);
             return Ok(ApiResponse<CourseGiftPolicyDto>.SuccessResponse(policy, "Đã cập nhật chính sách tặng khóa AI."));
         }
         catch (KeyNotFoundException ex)
@@ -143,6 +147,7 @@ public class AdminCoursesController : ControllerBase
                 requestId, adminId.Value, approve, request.AdminNote);
             if (result is null)
                 return NotFound(ApiResponse<CourseDeletionActionDto>.FailureResponse("Yêu cầu xóa không tồn tại."));
+            await _activityLogger.RecordAsync(adminId.Value, approve ? "COURSE_DELETE_APPROVED" : "COURSE_DELETE_REJECTED", "COURSE_DELETION_REQUEST", requestId.ToString(), $"{(approve ? "Duyệt" : "Từ chối")} yêu cầu xóa khóa học #{result.CourseId}.", HttpContext.TraceIdentifier);
             return Ok(ApiResponse<CourseDeletionActionDto>.SuccessResponse(result, result.Message));
         }
         catch (InvalidOperationException ex)
@@ -167,6 +172,7 @@ public class AdminCoursesController : ControllerBase
             var result = await _courseService.ApproveCourseAsync(id, adminId.Value);
             if (result is null)
                 return NotFound(ApiResponse<CourseDto>.FailureResponse("Khóa học không tồn tại."));
+            await _activityLogger.RecordAsync(adminId.Value, "COURSE_APPROVED", "COURSE", id.ToString(), $"Duyệt khóa học: {result.Title}.", HttpContext.TraceIdentifier);
             return Ok(ApiResponse<CourseDto>.SuccessResponse(result, "Phê duyệt và xuất bản khóa học thành công."));
         }
         catch (InvalidOperationException ex)
@@ -193,6 +199,8 @@ public class AdminCoursesController : ControllerBase
         if (result is null)
             return NotFound(ApiResponse<CourseDto>.FailureResponse("Khóa học không tồn tại."));
 
+        await _activityLogger.RecordAsync(adminId.Value, "COURSE_REJECTED", "COURSE", id.ToString(), $"Từ chối khóa học: {result.Title}.", HttpContext.TraceIdentifier);
+
         return Ok(ApiResponse<CourseDto>.SuccessResponse(result, "Đã từ chối khóa học và gửi lý do cho Giảng viên."));
     }
 
@@ -208,6 +216,8 @@ public class AdminCoursesController : ControllerBase
             var result = await _courseService.RestoreArchivedCourseAsync(id, adminId.Value);
             if (result is null)
                 return NotFound(ApiResponse<CourseDto>.FailureResponse("Khóa học không tồn tại."));
+
+            await _activityLogger.RecordAsync(adminId.Value, "COURSE_RESTORED", "COURSE", id.ToString(), $"Khôi phục khóa học: {result.Title}.", HttpContext.TraceIdentifier);
 
             return Ok(ApiResponse<CourseDto>.SuccessResponse(
                 result,

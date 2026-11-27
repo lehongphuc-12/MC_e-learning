@@ -10,6 +10,8 @@ import { AdminSettingsTab } from '../components/AdminSettingsTab';
 import { AdminForumTab } from '../components/AdminForumTab';
 import { AdminCourseReviewsTab } from '../components/AdminCourseReviewsTab';
 import { AdminAccessExtensionsTab } from '../components/AdminAccessExtensionsTab';
+import { AdminActivityLogsTab } from '../components/AdminActivityLogsTab';
+import { AdminSupportRequestsTab } from '../components/AdminSupportRequestsTab';
 import { UserEditModal } from '../components/modals/UserEditModal';
 import { CourseReviewModal } from '../components/modals/CourseReviewModal';
 import { CategoryModal } from '../components/modals/CategoryModal';
@@ -45,7 +47,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const VALID_TABS: AdminTabType[] = ['overview', 'users', 'courses', 'categories', 'financials', 'settings', 'forum', 'reviews', 'access-extensions'];
+  const VALID_TABS: AdminTabType[] = ['overview', 'users', 'courses', 'categories', 'financials', 'settings', 'forum', 'reviews', 'access-extensions', 'activity-logs', 'support-requests'];
   const tabFromUrl = searchParams.get('tab') as AdminTabType | null;
   const [activeTab, setActiveTab] = useState<AdminTabType>(
     tabFromUrl && VALID_TABS.includes(tabFromUrl) ? tabFromUrl : 'overview'
@@ -563,6 +565,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
           )}
 
           {activeTab === 'access-extensions' && <AdminAccessExtensionsTab onToast={onToast} />}
+          {activeTab === 'activity-logs' && <AdminActivityLogsTab />}
+          {activeTab === 'support-requests' && <AdminSupportRequestsTab onToast={onToast} currentAdminId={Number(currentUser?.id) || 0} />}
         </>
       )}
 

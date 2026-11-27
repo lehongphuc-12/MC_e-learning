@@ -28,6 +28,9 @@ public class SmartMcDbContext : DbContext
     // ============================================================
 
     public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<AdminActivityLog> AdminActivityLogs => Set<AdminActivityLog>();
+    public DbSet<SupportRequest> SupportRequests => Set<SupportRequest>();
+    public DbSet<SupportRequestMessage> SupportRequestMessages => Set<SupportRequestMessage>();
     public DbSet<Role> Roles { get; set; } = null!;
     public DbSet<User> Users { get; set; } = null!;
     public DbSet<UserProfile> UserProfiles { get; set; } = null!;
@@ -413,6 +416,41 @@ public DbSet<QuizAnswerScenarioPath> QuizAnswerScenarioPaths { get; set; } = nul
                 .WithMany(p => p.Users)
                 .HasForeignKey(d => d.RoleId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<AdminActivityLog>(entity =>
+        {
+            entity.ToTable("admin_activity_logs");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.OccurredAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasIndex(x => new { x.OccurredAt, x.Id });
+            entity.HasIndex(x => new { x.ActorUserId, x.OccurredAt });
+            entity.HasIndex(x => new { x.EntityType, x.EntityId });
+            entity.HasOne(x => x.Actor).WithMany().HasForeignKey(x => x.ActorUserId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<SupportRequest>(entity =>
+        {
+            entity.ToTable("support_requests");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => x.PublicCode).IsUnique();
+            entity.HasIndex(x => new { x.Status, x.UpdatedAt });
+            entity.HasIndex(x => new { x.RequesterUserId, x.CreatedAt });
+            entity.HasIndex(x => new { x.AssignedAdminId, x.Status });
+            entity.Property(x => x.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.Property(x => x.UpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+            entity.HasOne(x => x.Requester).WithMany().HasForeignKey(x => x.RequesterUserId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.AssignedAdmin).WithMany().HasForeignKey(x => x.AssignedAdminId).OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.ResolvedByAdmin).WithMany().HasForeignKey(x => x.ResolvedByAdminId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<SupportRequestMessage>(entity =>
+        {
+            entity.ToTable("support_request_messages");
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.SupportRequestId, x.CreatedAt });
+            entity.HasOne(x => x.SupportRequest).WithMany(x => x.Messages).HasForeignKey(x => x.SupportRequestId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.Sender).WithMany().HasForeignKey(x => x.SenderUserId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<UserProfile>(entity =>

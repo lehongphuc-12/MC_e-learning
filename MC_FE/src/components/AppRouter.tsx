@@ -40,6 +40,7 @@ import { renderProfileRoutes } from '../features/profile/routes';
 import { renderAdminRoutes } from '../features/admin/routes';
 import { renderPaymentRoutes } from '../features/payment/routes';
 import { renderForumRoutes } from '../features/forum/routes';
+import { MySupportRequestsPage } from '../features/support/MySupportRequestsPage';
 
 interface AppRouterProps {
   selectedCourse: Course | null;
@@ -288,6 +289,8 @@ export const AppRouter: React.FC<AppRouterProps> = ({
         user,
         onToast,
       })}
+
+      <Route path="/my-support" element={<ProtectedRoute user={user}>{withMainLayout(<MySupportRequestsPage />)}</ProtectedRoute>} />
 
       <Route path="/learning-history" element={<ProtectedRoute user={user}>{withMainLayout(<LearningHistoryPage />)}</ProtectedRoute>} />
 
